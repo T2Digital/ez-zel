@@ -333,6 +333,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         recorderRef.current = null;
     }
     if (recognitionRef.current) {
+        recognitionRef.current.onend = null; // Unbind to stop loops
         recognitionRef.current.stop();
         recognitionRef.current = null;
     }
@@ -386,15 +387,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       stateRef.current.lastAudioTime = Date.now();
       recordingStartTimeRef.current = Date.now(); 
       isCancelledRef.current = false;
-
-      // Start Initial Silence Timer (in case user says nothing)
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = setTimeout(() => {
-          if (stateRef.current.isListening) {
-              console.log("Initial Silence detected, stopping...");
-              stopListeningAndSend();
-          }
-      }, 3000); // 3 Seconds initial wait
 
       // Start Recognition (Speech to Text + Silence Detection)
       setupActiveSpeechRecognition();
@@ -462,31 +454,35 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
       setLiveTranscript(stateRef.current.finalTranscript + interim);
       
-      // --- ROBUST SILENCE DETECTION (Updated) ---
-      // 1. Clear previous timer immediately whenever speech is detected
+      // --- ROBUST SILENCE DETECTION (The 5-Second Rule) ---
+      // This is the ONLY place we reset the timer.
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
-      // 2. Set new timer if we are actively listening
       if (stateRef.current.isListening) {
            silenceTimerRef.current = setTimeout(() => {
                // Double check we are still listening before stopping
                if (stateRef.current.isListening) {
-                   console.log("Silence detected, stopping recording...");
+                   console.log("Silence detected (5s), stopping recording...");
                    stopListeningAndSend();
                }
-           }, 2000); // 2.0 seconds silence trigger
+           }, 5000); // 5 seconds strict silence
       }
     };
 
     rec.onend = () => {
-        // If the browser stopped listening automatically (e.g. built-in silence detection)
+        // --- KEY FIX: BROWSER STOPPED MIC, BUT TIMER IS STILL TICKING ---
+        // Do NOT stop the recorder. Do NOT cancel the silence timer.
+        // Just restart the speech recognition silently.
+        
         if (stateRef.current.isListening) {
-             // If we have meaningful text, treat it as "Done Speaking" and SEND.
-             if (stateRef.current.finalTranscript.trim().length > 0) {
-                 stopListeningAndSend();
-             } else {
-                 // Empty transcript? Likely noise or abrupt stop. Restart to keep listening.
-                 try { rec.start(); } catch(e) {}
+             console.log("Browser mic cutout detected. Restarting recognition immediately...");
+             try { 
+                 rec.start(); 
+             } catch(e) { 
+                 // If quick restart fails, try again in 200ms
+                 setTimeout(() => {
+                     if (stateRef.current.isListening) try { rec.start(); } catch(e2) {}
+                 }, 200);
              }
         }
     };
@@ -499,10 +495,11 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     // This function MUST be called to finish the recording loop
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     
-    // Stop Recognition First
+    // Stop Recognition First and Prevent auto-restart
     if (recognitionRef.current) {
+        recognitionRef.current.onend = null; // IMPORTANT: Prevent the infinite loop logic above
         recognitionRef.current.stop();
-        recognitionRef.current = null; // Prevent onend restart
+        recognitionRef.current = null;
     }
     
     // Then Stop Recorder (this triggers onstop which calls handleSend)
@@ -521,6 +518,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           recorderRef.current.stop();
       }
       if (recognitionRef.current) {
+          recognitionRef.current.onend = null; // Prevent restart
           recognitionRef.current.stop();
           recognitionRef.current = null;
       }

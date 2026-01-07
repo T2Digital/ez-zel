@@ -2,6 +2,10 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { shadowDB, UserProfile, DBFact } from "./dbService";
 
+// Retrieve API Key directly from process.env.API_KEY as per environment requirements.
+// We assume the build system injects this value.
+const API_KEY = process.env.API_KEY;
+
 let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let isRequesting = false;
@@ -214,7 +218,7 @@ export const getShadowResponse = async (
   isRequesting = true;
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const isAdmin = userProfile?.phone === 'TITO' || (userProfile?.name && userProfile.name.includes('تيتو'));
     const userId = userProfile?.phone || 'GUEST';
     const referralCode = userProfile?.affiliate?.referralCode || 'NO_CODE';
@@ -401,7 +405,7 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
 
 export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }], 
