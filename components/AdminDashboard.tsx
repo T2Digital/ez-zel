@@ -482,7 +482,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
 
             {/* Center: The Shadow (Floating) */}
             <div className="relative -top-8 mx-1 transform transition-transform hover:scale-110 active:scale-95 z-50">
-                <button onClick={() => setActiveView('chat')} className={`w-14 h-14 rounded-full border-4 border-black flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.4)] relative overflow-hidden group ${activeView === 'chat' ? 'bg-amber-500 text-black' : 'bg-[#1a1a1a] text-amber-500'}`}>
+                {/* Fix: Cast activeView to any in the check because TypeScript narrows it to NOT include 'chat' in this dashboard block due to the early return earlier. */}
+                <button onClick={() => setActiveView('chat')} className={`w-14 h-14 rounded-full border-4 border-black flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.4)] relative overflow-hidden group ${(activeView as any) === 'chat' ? 'bg-amber-500 text-black' : 'bg-[#1a1a1a] text-amber-500'}`}>
                     <Bot className="w-6 h-6" />
                     <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </button>

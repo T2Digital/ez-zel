@@ -2,10 +2,6 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { shadowDB, UserProfile, DBFact } from "./dbService";
 
-// Retrieve API Key directly from process.env.API_KEY as per environment requirements.
-// We assume the build system injects this value.
-const API_KEY = process.env.API_KEY;
-
 let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let isRequesting = false;
@@ -206,6 +202,14 @@ const cleanBase64 = (data: string) => {
     return data;
 };
 
+const getApiKey = () => {
+    try {
+        return process.env.API_KEY || "";
+    } catch(e) {
+        return "";
+    }
+};
+
 // --- MAIN ORCHESTRATOR ---
 export const getShadowResponse = async (
     history: {role: string, parts: {text: string}[]}[], 
@@ -218,7 +222,10 @@ export const getShadowResponse = async (
   isRequesting = true;
 
   try {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const key = getApiKey();
+    if (!key) throw new Error("Google API Key missing in environment variables.");
+
+    const ai = new GoogleGenAI({ apiKey: key });
     const isAdmin = userProfile?.phone === 'TITO' || (userProfile?.name && userProfile.name.includes('تيتو'));
     const userId = userProfile?.phone || 'GUEST';
     const referralCode = userProfile?.affiliate?.referralCode || 'NO_CODE';
@@ -277,6 +284,7 @@ export const getShadowResponse = async (
     ];
     if (isAdmin) activeTools[1].functionDeclarations.push(...masterCoreTools);
 
+    // Fix: Remove the second argument (options with signal) as generateContent only expects one argument in the current SDK version.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
       contents: [...history.slice(-10), { role: 'user', parts }], 
@@ -285,7 +293,7 @@ export const getShadowResponse = async (
         thinkingConfig: { thinkingBudget: 1024 },
         tools: activeTools,
       }
-    }, { signal }); 
+    }); 
 
     let finalText = response.text || "";
     let shouldUpgrade = false;
@@ -372,10 +380,9 @@ export const getShadowResponse = async (
     return { text: finalText, groundingLinks, shouldUpgrade, toolAction };
   } catch (error: any) { 
       if (error.name === 'AbortError') throw error; 
-      console.error(error);
       return { text: "مشكلة بسيطة في الاتصال.", shouldUpgrade: false, toolAction: null }; 
   } finally {
-      isRequesting = false;
+    isRequesting = false;
   }
 };
 
@@ -405,7 +412,10 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
 
 export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {
   try {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const key = getApiKey();
+    if (!key) return null;
+
+    const ai = new GoogleGenAI({ apiKey: key });
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }], 

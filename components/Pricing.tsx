@@ -14,7 +14,8 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
   const prices = {
-      monthly: { egp: '1,000', usd: '20', label: 'شهرياً' },
+      // Fix: Add a placeholder 'discount' property to ensure both plans share the same shape, avoiding TypeScript errors on property access.
+      monthly: { egp: '1,000', usd: '20', label: 'شهرياً', discount: '' },
       yearly: { egp: '10,000', usd: '200', label: 'سنوياً', discount: 'وفر 2000 ج.م' }
   };
 
@@ -138,7 +139,7 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
         <div className="shrink-0 w-full space-y-2 pb-6">
              {/* Price Display */}
              <div className="text-center space-y-1 mb-2">
-                 {billingCycle === 'yearly' && (
+                 {billingCycle === 'yearly' && currentPrice.discount && (
                      <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black rounded animate-pulse border border-emerald-500/20">
                          {currentPrice.discount}
                      </span>

@@ -6,52 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ez-Zel | الظل الرقمي - المساعد الشخصي للنخبة</title>
     <meta name="description" content="أول مساعد شخصي عربي بالذكاء الاصطناعي مخصص للإدارة الاستراتيجية، المال، والنمو الشخصي. ذاكرة أبدية، خصوصية مشفرة، وتفكير قيادي.">
-    <meta name="keywords" content="AI, Personal Assistant, Egypt, Business, Strategy, Privacy, ذكاء اصطناعي, مساعد شخصي, إدارة أعمال, تيتو">
-    <meta name="author" content="TITO Corp">
     
-    <!-- Open Graph / Facebook / WhatsApp -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://ez-zel.app/">
-    <meta property="og:title" content="الظل الرقمي | Ez-Zel Sovereign">
-    <meta property="og:description" content="امتلك عقلك الاستراتيجي الثاني. نظام ذكاء اصطناعي مصمم للصفوة مع تشفير كامل للبيانات.">
-    <meta property="og:image" content="https://cdn-icons-png.flaticon.com/512/2098/2098402.png">
+    <!-- Shielding against 'process is not defined' -->
+    <script>
+      window.process = { 
+        env: { 
+          API_KEY: "", 
+          VITE_SUPABASE_URL: "", 
+          VITE_SUPABASE_ANON_KEY: "" 
+        } 
+      };
+    </script>
 
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://ez-zel.app/">
-    <meta property="twitter:title" content="الظل الرقمي | Ez-Zel">
-    <meta property="twitter:description" content="المساعد الشخصي الحصين. ذاكرة لا تنسى، وذكاء لا يجارى.">
-    <meta property="twitter:image" content="https://cdn-icons-png.flaticon.com/512/2098/2098402.png">
-
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#a855f7">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- Structured Data for Search Engines (JSON-LD) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Ez-Zel",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Web, Android, iOS",
-      "offers": {
-        "@type": "Offer",
-        "price": "10000",
-        "priceCurrency": "EGP"
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.9",
-        "ratingCount": "150"
-      }
-    }
-    </script>
-
     <style>
         html { scroll-behavior: smooth; }
         body {
@@ -85,12 +54,6 @@
 <body>
     <div id="root"></div>
     <audio id="notification-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
-        });
-      }
-    </script>
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>

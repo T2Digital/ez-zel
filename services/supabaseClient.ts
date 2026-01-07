@@ -27,18 +27,31 @@ if (supabaseUrl && supabaseKey) {
     client = createClient(supabaseUrl, supabaseKey);
 } else {
     console.warn("Supabase credentials missing. App running in offline/local-only mode.");
-    // Mock client to prevent crashes when calling database functions
-    client = {
-        from: (table: string) => ({
-            select: async () => ({ data: [], error: null }),
-            upsert: async (data: any) => {
-                // Silent logging for dev purposes
-                return { data: null, error: null };
-            },
+    
+    // Improved Mock client to support method chaining (select.eq.single etc)
+    const createMockChain = (tableName: string) => {
+        const chain: any = {
+            select: () => chain,
+            eq: () => chain,
+            single: () => chain,
+            order: () => chain,
+            limit: () => chain,
+            upsert: async (data: any) => ({ data: null, error: null }),
             insert: async (data: any) => ({ data: null, error: null }),
             update: async (data: any) => ({ data: null, error: null }),
             delete: async () => ({ data: null, error: null }),
-        })
+            // Support 'await' directly on the builder
+            then: (resolve: (val: any) => void) => {
+                // Return null for single profile requests, empty array for lists
+                const isSingle = tableName === 'profiles';
+                resolve({ data: isSingle ? null : [], error: null });
+            }
+        };
+        return chain;
+    };
+
+    client = {
+        from: (table: string) => createMockChain(table)
     } as any;
 }
 
