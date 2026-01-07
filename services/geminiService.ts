@@ -203,11 +203,8 @@ const cleanBase64 = (data: string) => {
 };
 
 const getApiKey = () => {
-    try {
-        return process.env.API_KEY || "";
-    } catch(e) {
-        return "";
-    }
+    // Priority: Try to get from process.env, then from window.process if shimmed
+    return process.env.API_KEY || (window as any).process?.env?.API_KEY || "";
 };
 
 // --- MAIN ORCHESTRATOR ---
@@ -223,7 +220,7 @@ export const getShadowResponse = async (
 
   try {
     const key = getApiKey();
-    if (!key) throw new Error("Google API Key missing in environment variables.");
+    if (!key) return { text: "عفواً يا ريس، مفتاح الـ API الخاص بـ Gemini غير موجود. يرجى إضافته في إعدادات Vercel باسم API_KEY.", shouldUpgrade: false, toolAction: null };
 
     const ai = new GoogleGenAI({ apiKey: key });
     const isAdmin = userProfile?.phone === 'TITO' || (userProfile?.name && userProfile.name.includes('تيتو'));
@@ -284,13 +281,12 @@ export const getShadowResponse = async (
     ];
     if (isAdmin) activeTools[1].functionDeclarations.push(...masterCoreTools);
 
-    // Fix: Remove the second argument (options with signal) as generateContent only expects one argument in the current SDK version.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
       contents: [...history.slice(-10), { role: 'user', parts }], 
       config: {
         systemInstruction,
-        thinkingConfig: { thinkingBudget: 1024 },
+        thinkingConfig: { thinkingBudget: 1024 }, // Ensure thinkingBudget is set for Gemini 3
         tools: activeTools,
       }
     }); 
@@ -308,7 +304,6 @@ export const getShadowResponse = async (
 
     if (response.functionCalls) {
       for (const fc of response.functionCalls) {
-        // Clear text if tool is called to prevent "I will do X" messages
         finalText = ""; 
 
         if (fc.name === 'display_app_card') {
@@ -380,7 +375,8 @@ export const getShadowResponse = async (
     return { text: finalText, groundingLinks, shouldUpgrade, toolAction };
   } catch (error: any) { 
       if (error.name === 'AbortError') throw error; 
-      return { text: "مشكلة بسيطة في الاتصال.", shouldUpgrade: false, toolAction: null }; 
+      console.error("Gemini API Error:", error);
+      return { text: "مشكلة في الاتصال بعقل الذكاء الاصطناعي. تأكد من صحة الـ API Key في Vercel.", shouldUpgrade: false, toolAction: null }; 
   } finally {
     isRequesting = false;
   }

@@ -7,15 +7,11 @@
     <title>Ez-Zel | الظل الرقمي - المساعد الشخصي للنخبة</title>
     <meta name="description" content="أول مساعد شخصي عربي بالذكاء الاصطناعي مخصص للإدارة الاستراتيجية، المال، والنمو الشخصي. ذاكرة أبدية، خصوصية مشفرة، وتفكير قيادي.">
     
-    <!-- Shielding against 'process is not defined' -->
+    <!-- Robust process shim for browser environments -->
     <script>
-      window.process = { 
-        env: { 
-          API_KEY: "", 
-          VITE_SUPABASE_URL: "", 
-          VITE_SUPABASE_ANON_KEY: "" 
-        } 
-      };
+      window.process = window.process || { env: {} };
+      // Fallback only if not defined by build environment
+      window.process.env = window.process.env || {};
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
