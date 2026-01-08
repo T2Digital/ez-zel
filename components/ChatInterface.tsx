@@ -1,7 +1,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle } from 'lucide-react';
-import { getShadowResponse, playShadowVoice, stopVoice, generateMorningBrief, getShadowVoice } from '../services/geminiService';
+// Fixed: Removed generateMorningBrief from imports as it is not exported from geminiService
+import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import CapabilitiesGuide from './CapabilitiesGuide';
 import SovereignVault from './SovereignVault'; 

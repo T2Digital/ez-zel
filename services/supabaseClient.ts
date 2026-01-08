@@ -50,8 +50,15 @@ if (supabaseUrl && supabaseKey) {
         return chain;
     };
 
+    const mockChannel = {
+        on: () => mockChannel,
+        subscribe: () => mockChannel
+    };
+
     client = {
-        from: (table: string) => createMockChain(table)
+        from: (table: string) => createMockChain(table),
+        channel: () => mockChannel,
+        removeChannel: () => {}
     } as any;
 }
 
