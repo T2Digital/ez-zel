@@ -184,9 +184,6 @@ class ShadowDB {
   async pushToCloud(table: string, data: any) {
       if (!supabase) return; // Skip if no client
       try {
-          // Remove ID if it's auto-generated locally to let Supabase handle IDs or rely on conflict resolution
-          // For 'profiles', 'phone' is PK. For others, we might want to let Supabase generate IDs or map them.
-          // Currently, strictly syncing user data.
           const { error } = await supabase.from(table).upsert(data);
           if (error) console.error(`[Sync Error] ${table}:`, error);
       } catch (e) {
@@ -212,30 +209,18 @@ class ShadowDB {
                   affiliate: profile.affiliate_data,
                   vaultState: profile.vault_state,
                   iotActions: profile.iot_actions,
-                  // Defaults for non-synced fields or fields not in DB yet
                   shadowName: 'الظل',
-                  voicePreference: 'male'
+                  voicePreference: 'male',
+                  // Ensure existing local props are preserved if not in DB
+                  ...profile
               };
-              await this.saveProfile(localProfile, true); // True = skip push to avoid loop
+              // Only crucial fields are mapped above
+              await this.saveProfile(localProfile, true); 
           }
 
           // B. Sync History
           const { data: history } = await supabase.from('history').select('*').eq('user_id', userPhone);
-          if (history && history.length > 0) {
-              const db = await this.init();
-              const tx = db.transaction('history', 'readwrite');
-              const store = tx.objectStore('history');
-              // Clear old history to avoid duplicates or smart merge?
-              // For simplicity: We add if not exists.
-              // Note: Remote 'text' is assumed to be encrypted same as local for now.
-              for (const h of history) {
-                 // Check if exists logic could go here, but blindly adding unique items is faster for basic sync
-                 // We rely on IDB auto-increment ID, but this duplicates if we don't clear.
-                 // Better: Just load into memory or overwrite if empty.
-                 // For this MVP: We assume if local is empty, we fill it.
-              }
-              // Advanced: We'll implement a simple bulk add in future. For now, we rely on local-first.
-          }
+          // (Simplified for performance: We don't bulk load full history into IDB every time, relied on lazy load or cloud-first for lists)
 
           // C. Sync Tasks
           const { data: tasks } = await supabase.from('tasks').select('*').eq('user_id', userPhone);
@@ -251,19 +236,6 @@ class ShadowDB {
                       notified: true
                   };
                   await this.saveTask(localTask, true);
-              }
-          }
-
-          // D. Sync Memory
-          const { data: mem } = await supabase.from('memory').select('*').eq('user_id', userPhone);
-          if (mem) {
-              for (const m of mem) {
-                  const localFact: DBFact = {
-                      userId: m.user_id,
-                      fact: m.fact,
-                      timestamp: m.timestamp
-                  };
-                  await this.saveFact(localFact, true);
               }
           }
 
@@ -288,8 +260,8 @@ class ShadowDB {
             role: msg.role,
             text: secureMsg.text, // Store encrypted
             timestamp: msg.timestamp,
-            voice_data: null, // Don't sync heavy base64 to SQL for performance, rely on local for voice
-            image: null // Same for images unless using Storage Bucket (Advanced)
+            voice_data: null, 
+            image: null 
         });
     }
 
@@ -331,13 +303,6 @@ class ShadowDB {
       if (task) {
           const updated = { ...task, ...updates };
           store.put(updated);
-          // Sync update
-          if (task.userId !== 'GUEST') {
-              // Note: We need a unique ID for update. Since IDB IDs differ from SQL IDs, 
-              // we mostly rely on insert-only logs or complex sync. 
-              // For MVP: We assume Tasks are mostly created. Updates might not reflect instantly on cloud without an ID map.
-              // Workaround: Delete & Insert or just Insert new row with status.
-          }
       }
   }
 
@@ -371,15 +336,12 @@ class ShadowDB {
       const tx = db.transaction('profiles', 'readonly');
       const request = tx.objectStore('profiles').get(phone);
       
-      // Attempt to return local first
       const localProfile = await new Promise<UserProfile | undefined>((resolve) => {
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => resolve(undefined);
       });
 
-      if (localProfile) return localProfile;
-
-      // If not found locally, try fetching from Cloud (First Login on new device)
+      // ALWAYS TRY CLOUD SYNC FOR CRITICAL STATUS CHECKS (e.g. Activation)
       if (supabase && phone !== 'GUEST') {
           const { data, error } = await supabase.from('profiles').select('*').eq('phone', phone).single();
           if (data && !error) {
@@ -392,14 +354,17 @@ class ShadowDB {
                   affiliate: data.affiliate_data,
                   vaultState: data.vault_state,
                   iotActions: data.iot_actions,
-                  synced: true
+                  synced: true,
+                  // Keep local prefs if exists
+                  shadowName: localProfile?.shadowName || 'الظل',
+                  password: localProfile?.password || '....'
               };
-              // Save to local for next time
+              // Save latest status to local
               await this.saveProfile(cloudProfile, true); 
               return cloudProfile;
           }
       }
-      return undefined;
+      return localProfile;
   }
 
   async saveProfile(profile: UserProfile, skipCloud = false) {
@@ -420,6 +385,47 @@ class ShadowDB {
       }
 
       return tx.objectStore('profiles').put({ ...profile, synced: true });
+  }
+
+  // --- CRITICAL: ADMIN DASHBOARD DATA SYNC ---
+  async getAllProfiles(): Promise<UserProfile[]> {
+      // 1. Try Cloud First (For Admin to see fresh data)
+      if (supabase) {
+          const { data } = await supabase.from('profiles').select('*');
+          if (data) {
+              const db = await this.init();
+              const tx = db.transaction('profiles', 'readwrite');
+              const store = tx.objectStore('profiles');
+              
+              const mappedProfiles = data.map((p: any) => ({
+                  phone: p.phone,
+                  name: p.name,
+                  tier: p.tier,
+                  status: p.status,
+                  joinedAt: p.joined_at,
+                  affiliate: p.affiliate_data,
+                  vaultState: p.vault_state,
+                  iotActions: p.iot_actions,
+                  synced: true
+              }));
+
+              // Bulk Update Local
+              for (const p of mappedProfiles) {
+                  store.put(p);
+              }
+              
+              return mappedProfiles;
+          }
+      }
+
+      // 2. Fallback Local
+      const db = await this.init();
+      const tx = db.transaction('profiles', 'readonly');
+      const request = tx.objectStore('profiles').getAll();
+      return new Promise((resolve) => {
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => resolve([]);
+      });
   }
 
   // --- HELPER METHODS REMAIN UNCHANGED ---
@@ -542,16 +548,6 @@ class ShadowDB {
               affiliate_data: profile.affiliate
           });
       }
-  }
-
-  async getAllProfiles(): Promise<UserProfile[]> {
-      const db = await this.init();
-      const tx = db.transaction('profiles', 'readonly');
-      const request = tx.objectStore('profiles').getAll();
-      return new Promise((resolve) => {
-          request.onsuccess = () => resolve(request.result || []);
-          request.onerror = () => resolve([]);
-      });
   }
 
   async saveContact(contact: DBContact) {

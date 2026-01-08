@@ -202,9 +202,22 @@ const cleanBase64 = (data: string) => {
     return data;
 };
 
+// Robust Key Retrieval Strategy for Vite/Vercel
 const getApiKey = () => {
-    // Priority: Try to get from process.env, then from window.process if shimmed
-    return process.env.API_KEY || (window as any).process?.env?.API_KEY || "";
+    // 1. Try standard Vite Import (Recommended for Vercel Frontend)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        return import.meta.env.VITE_API_KEY;
+    }
+    
+    // 2. Try process.env (Node/Shim fallback)
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        return process.env.API_KEY;
+    }
+
+    // 3. Try Window Shim (Last Resort)
+    return (window as any).process?.env?.API_KEY || "";
 };
 
 // --- MAIN ORCHESTRATOR ---
@@ -220,7 +233,7 @@ export const getShadowResponse = async (
 
   try {
     const key = getApiKey();
-    if (!key) return { text: "عفواً يا ريس، مفتاح الـ API الخاص بـ Gemini غير موجود. يرجى إضافته في إعدادات Vercel باسم API_KEY.", shouldUpgrade: false, toolAction: null };
+    if (!key) return { text: "عفواً يا ريس، مفتاح Gemini مش مقرؤ. يرجى تغيير اسم المتغير في Vercel إلى VITE_API_KEY عشان يشتغل في المتصفح.", shouldUpgrade: false, toolAction: null };
 
     const ai = new GoogleGenAI({ apiKey: key });
     const isAdmin = userProfile?.phone === 'TITO' || (userProfile?.name && userProfile.name.includes('تيتو'));
@@ -286,7 +299,7 @@ export const getShadowResponse = async (
       contents: [...history.slice(-10), { role: 'user', parts }], 
       config: {
         systemInstruction,
-        thinkingConfig: { thinkingBudget: 1024 }, // Ensure thinkingBudget is set for Gemini 3
+        thinkingConfig: { thinkingBudget: 1024 },
         tools: activeTools,
       }
     }); 
