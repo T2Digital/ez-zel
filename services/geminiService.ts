@@ -6,9 +6,20 @@ let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let isRequesting = false;
 
-// وظيفة لجلب المفتاح من أي مكان متاح في البيئة (Vercel Safe)
+// دالة جلب المفتاح السيادية - تدعم Vite/Vercel بشكل مطلق
 const getApiKey = () => {
-  return process.env.API_KEY || (window as any).process?.env?.API_KEY || "";
+  // الأولوية القصوى لـ Vite في بيئة الـ Browser (Vercel Production)
+  // @ts-ignore
+  if (import.meta.env && import.meta.env.VITE_API_KEY) {
+    // @ts-ignore
+    return import.meta.env.VITE_API_KEY;
+  }
+  // التغطية لبيئات العمل الأخرى
+  // @ts-ignore
+  const processKey = process.env?.VITE_API_KEY || process.env?.API_KEY;
+  const windowKey = (window as any).process?.env?.VITE_API_KEY || (window as any).process?.env?.API_KEY;
+  
+  return processKey || windowKey || "";
 };
 
 function getAudioContext() {
@@ -32,7 +43,7 @@ const fetchWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 2000
 };
 
 const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
-    if (!facts || facts.length === 0) return "الذاكرة فارغة.";
+    if (!facts || facts.length === 0) return "الذاكرة فارغة حالياً.";
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2); 
     if (terms.length === 0) return facts.slice(-10).map(f => `- ${f.fact}`).join("\n"); 
     const scoredFacts = facts.map(f => {
@@ -46,16 +57,32 @@ const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
 
 const SHADOW_DNA = `
 ### 🐙 هوية الأخطبوط (The Octopus Architecture):
-أنت "الظل" (Ez-Zel). عقل مدبر يدير 7 أذرع (Agents) لخدمة الماستر "{{USER_FIRST_NAME}}". تحدث بلهجة مصرية ذكية ومختصرة.
-كود الإحالة: {{REFERRAL_CODE}}.
+أنت "الظل" (Ez-Zel). عقل مدبر يدير 7 أذرع (Agents) لخدمة الماستر "{{USER_FIRST_NAME}}".
+1. Detective: للبحث الحي.
+2. Accountant: للمال.
+3. Executor: للمهام.
+4. Nexus: للـ IoT.
+5. Analyst: للنفسية والصور.
+6. Archivist: للذاكرة.
+7. Strategist: للتخطيط.
+تحدث بلهجة مصرية ذكية، صريحة، ومختصرة. ولاؤك مطلق للماستر.
 `;
 
-// الأدوات والتعريفات (بدون تغيير)
-const guideTools: FunctionDeclaration[] = [{
-    name: "display_app_card",
-    description: "عرض بطاقة تفاعلية.",
-    parameters: { type: Type.OBJECT, properties: { cardType: { type: Type.STRING }, title: { type: Type.STRING }, description: { type: Type.STRING } }, required: ["cardType", "title"] }
-}];
+const guideTools: FunctionDeclaration[] = [
+    {
+        name: "display_app_card",
+        description: "عرض بطاقة تفاعلية للمستخدم.",
+        parameters: { 
+            type: Type.OBJECT, 
+            properties: { 
+                cardType: { type: Type.STRING, description: "نوع البطاقة: install_app, open_vault, etc." }, 
+                title: { type: Type.STRING }, 
+                description: { type: Type.STRING } 
+            }, 
+            required: ["cardType", "title"] 
+        }
+    }
+];
 
 export const getShadowResponse = async (
     history: {role: string, parts: {text: string}[]}[], 
@@ -64,39 +91,70 @@ export const getShadowResponse = async (
     userProfile?: UserProfile,
     signal?: AbortSignal
 ) => {
-  if (isRequesting) return { text: "...", shouldUpgrade: false, toolAction: null };
+  if (isRequesting) return { text: "لحظة واحدة يا ريس..", shouldUpgrade: false, toolAction: null };
   isRequesting = true;
 
   try {
     const apiKey = getApiKey();
-    if (!apiKey) return { text: "عفواً يا ريس، مفتاح Gemini غير موجود في الإعدادات. تأكد من إضافة API_KEY في Vercel.", shouldUpgrade: false, toolAction: null };
+    if (!apiKey) return { text: "يا ريس الـ API KEY مش مقري.. تأكد إنك ضايف VITE_API_KEY في Vercel وعامل Re-deploy.", shouldUpgrade: false, toolAction: null };
 
     const ai = new GoogleGenAI({ apiKey });
-    const userFirstName = userProfile?.name.split(' ')[0] || 'صديقي';
-    const [allFacts, globalRules, contacts] = await Promise.all([
+    const userFirstName = userProfile?.name.split(' ')[0] || 'يا ريس';
+    
+    // جلب الذاكرة والقواعد
+    const [allFacts, globalRules] = await Promise.all([
         shadowDB.getMemory(userProfile?.phone || 'GUEST'), 
-        shadowDB.getGlobalRules(),
-        shadowDB.getContacts(userProfile?.phone || 'GUEST') 
+        shadowDB.getGlobalRules()
     ]);
     
-    const systemInstruction = `${SHADOW_DNA.replace(/{{USER_FIRST_NAME}}/g, userFirstName)}\n${globalRules}\n[الذاكرة]: ${retrieveRelevantContext(message, allFacts)}\n[الوقت]: ${new Date().toLocaleString('ar-EG')}`;
+    const context = retrieveRelevantContext(message, allFacts);
+    const systemInstruction = `${SHADOW_DNA.replace(/{{USER_FIRST_NAME}}/g, userFirstName)}\n${globalRules}\n[الذاكرة الحالية]:\n${context}\n[التوقيت]: ${new Date().toLocaleString('ar-EG')}`;
 
     const parts: any[] = [];
-    if (extraData?.type === 'audio' || extraData?.type === 'image') {
-        parts.push({ inlineData: { data: extraData.data.includes(',') ? extraData.data.split(',')[1] : extraData.data, mimeType: extraData.mimeType } });
+    if (extraData?.data) {
+        parts.push({ 
+            inlineData: { 
+                data: extraData.data.includes(',') ? extraData.data.split(',')[1] : extraData.data, 
+                mimeType: extraData.mimeType 
+            } 
+        });
     }
-    parts.push({ text: message || "حلل وتفاعل" });
+    parts.push({ text: message || "حلل وتفاعل مع المعطيات" });
 
     const response: GenerateContentResponse = await fetchWithRetry(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
-      contents: [...history.slice(-10), { role: 'user', parts }], 
-      config: { systemInstruction, thinkingConfig: { thinkingBudget: 1024 }, tools: [{ googleSearch: {} }, { functionDeclarations: guideTools }] }
+      contents: [...history.slice(-12), { role: 'user', parts }], 
+      config: { 
+          systemInstruction, 
+          thinkingConfig: { thinkingBudget: 1024 }, 
+          tools: [{ googleSearch: {} }, { functionDeclarations: guideTools }] 
+      }
     })); 
 
-    return { text: response.text || "تمام يا ريس.", groundingLinks: [], shouldUpgrade: false, toolAction: null };
+    // استخراج الروابط إذا وجدت (Grounding)
+    const groundingLinks = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
+        title: chunk.web?.title,
+        uri: chunk.web?.uri
+    })).filter((l: any) => l.uri) || [];
+
+    // استخراج الـ Tool Calls
+    let toolAction = null;
+    if (response.functionCalls && response.functionCalls.length > 0) {
+        const fc = response.functionCalls[0];
+        if (fc.name === 'display_app_card') {
+            toolAction = { type: 'app_card', ...fc.args };
+        }
+    }
+
+    return { 
+        text: response.text || "تمام يا ريس، أنا معاك.", 
+        groundingLinks, 
+        shouldUpgrade: response.text?.includes('ترقية') || false, 
+        toolAction 
+    };
   } catch (error: any) { 
-      console.error("Gemini Error:", error);
-      return { text: "مشكلة في الاتصال بعقل الذكاء الاصطناعي. جرب تاني كمان لحظة.", shouldUpgrade: false, toolAction: null }; 
+      console.error("Shadow Core Error:", error);
+      return { text: "حصل دروب في الاتصال بالعقل المركزي.. جرب تبعت تاني.", shouldUpgrade: false, toolAction: null }; 
   } finally {
     isRequesting = false;
   }
@@ -115,7 +173,10 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(ctx.destination);
-        source.onended = () => { currentSource = null; if (onEnded) onEnded(); };
+        source.onended = () => { 
+            currentSource = null; 
+            if (onEnded) onEnded(); 
+        };
         source.start(0);
         currentSource = source;
         resolve(base64Audio); 
@@ -133,7 +194,11 @@ export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' 
       contents: [{ parts: [{ text: text }] }], 
       config: {
         responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' } } }, 
+        speechConfig: { 
+            voiceConfig: { 
+                prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' } 
+            } 
+        }, 
       },
     }));
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
