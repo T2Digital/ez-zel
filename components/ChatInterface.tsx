@@ -16,7 +16,6 @@ interface Props {
     incomingSystemMessage?: DBMessage | null; 
 }
 
-// Extend DBMessage locally to support UI states
 interface ExtendedMessage extends DBMessage {
     isError?: boolean;
 }
@@ -35,7 +34,6 @@ const compressImage = (file: File): Promise<{ data: string, type: string, origin
                 const scaleSize = MAX_WIDTH / img.width;
                 canvas.width = MAX_WIDTH;
                 canvas.height = img.height * scaleSize;
-
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -77,7 +75,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [showFeedback, setShowFeedback] = useState(false);
   const [activeAppCard, setActiveAppCard] = useState<{ cardType: string, title: string, description: string, url?: string, number?: string } | null>(null);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
 
@@ -117,8 +114,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const recognitionRef = useRef<any>(null);
   const passiveRecognitionRef = useRef<any>(null); 
   const rafIdRef = useRef<number | null>(null);
-  
-  // FIX: Using Ref for File Input to ensure programmatic access
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
@@ -250,9 +245,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                     role: 'model',
                     userId: currentUser.phone,
                     text: `يا مرحب بيك يا ${currentUser.name.split(' ')[0]}.
-أنا ظلك الرقمي.. مش مجرد تطبيق.
-أنا عقلك التاني اللي بيحلل، وبيخطط، وبيحفظ أسرارك.
-
+أنا ظلك الرقمي.. عقلك التاني اللي بيحلل، وبيخطط، وبيحفظ أسرارك.
 أنا هنا عشان أشيل عنك الحمل.
 معاك 3 أيام تجرب قدراتي.. هات آخرك يا ريس.`,
                     timestamp: Date.now()
@@ -540,63 +533,54 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           abortControllerRef.current.signal 
       );
       
-      // Handle Deep Links and Tools - ENHANCED
+      // --- ROBUST TOOL HANDLER ---
       if (result.toolAction) {
           const t = result.toolAction;
           
-          if (t.type === 'open_uber') {
-              const dest = t.destination || '';
-              const deepLink = `https://m.uber.com/ul/?action=setPickup&client_id=YOUR_CLIENT_ID&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(dest)}`;
-              window.open(deepLink, '_blank');
-              setActiveAppCard({ cardType: 'deep_link_fallback', title: `فتح Uber: ${dest}`, description: 'تأكيد الرحلة.', url: deepLink });
-          } 
-          else if (t.type === 'search_hotels') {
-              const loc = t.location || '';
-              const deepLink = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(loc)}`;
-              window.open(deepLink, '_blank');
-              setActiveAppCard({ cardType: 'deep_link_fallback', title: `فنادق في ${loc}`, description: 'Booking.com', url: deepLink });
-          } 
-          else if (t.type === 'open_youtube') {
-              const query = t.query || '';
-              const deepLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-              window.open(deepLink, '_blank');
-              setActiveAppCard({ cardType: 'deep_link_fallback', title: `فيديو: ${query}`, description: 'فتح على YouTube', url: deepLink });
+          if (t.type === 'open_app') {
+              const appName = (t.app_name || '').toLowerCase();
+              const action = t.specific_action;
+              const query = t.search_query || '';
+              
+              let url = '';
+              let desc = '';
+              let iconType = 'generic';
+
+              if (appName.includes('youtube music') || action === 'music_search') {
+                  url = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
+                  desc = `بحث عن: ${query}`;
+                  iconType = 'music';
+              } else if (appName.includes('youtube') || action === 'video_search') {
+                  url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+                  desc = `فيديو: ${query}`;
+                  iconType = 'video';
+              } else if (appName.includes('uber') || action === 'location_ride') {
+                  url = `https://m.uber.com/ul/?action=setPickup&client_id=YOUR_CLIENT_ID&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(query)}`;
+                  desc = `مشوار إلى: ${query}`;
+                  iconType = 'car';
+              } else if (appName.includes('whatsapp')) {
+                  // Basic deep link, ideally needs phone number extraction
+                  url = `whatsapp://send?text=${encodeURIComponent(query)}`;
+                  desc = 'فتح واتساب';
+                  iconType = 'message';
+              } else {
+                  // Fallback store search
+                  url = `https://play.google.com/store/search?q=${encodeURIComponent(appName)}`;
+                  desc = `تطبيق: ${appName}`;
+              }
+
+              if (url) {
+                  window.open(url, '_blank');
+                  setActiveAppCard({ cardType: 'deep_link_fallback', title: desc, description: 'تم التوجيه', url, number: iconType });
+              }
           }
-          else if (t.type === 'open_youtube_music') {
-              const song = t.song || '';
-              // Music Redirect
-              const deepLink = `https://music.youtube.com/search?q=${encodeURIComponent(song)}`;
-              window.open(deepLink, '_blank');
-              setActiveAppCard({ cardType: 'deep_link_fallback', title: `تشغيل: ${song}`, description: 'YouTube Music 🎵', url: deepLink });
-          }
-          else if (t.type === 'open_generic_app') {
-               const appName = t.appName || '';
-               const context = t.context || '';
-               // Try to construct a search scheme for Google Play or a common web URL
-               const storeLink = `https://play.google.com/store/search?q=${encodeURIComponent(appName)}&c=apps`;
-               window.open(storeLink, '_blank');
-               setActiveAppCard({ cardType: 'deep_link_fallback', title: `تطبيق ${appName}`, description: `البحث في المتجر: ${context}`, url: storeLink });
-          }
-          else if (t.type === 'share_referral_link') {
-               const refCode = currentUser.affiliate?.referralCode || '';
+          else if (t.type === 'get_referral_info') {
+               const refCode = currentUser.affiliate?.referralCode || 'غير مفعل';
                const link = `https://ez-zel.app/?ref=${refCode}`;
-               setActiveAppCard({ cardType: 'copy_link', title: `رابط الإحالة الخاص بيك`, description: link, url: link });
+               setActiveAppCard({ cardType: 'copy_link', title: `كود الإحالة: ${refCode}`, description: "انسخ الرابط وابعته لصحابك", url: link });
           }
-          else if (t.type === 'app_card') {
-             setActiveAppCard({ cardType: t.cardType, title: t.title, description: t.description });
-          } 
-          else if (t.type === 'call_execute' || t.type === 'call') {
-             const number = t.number;
-             window.location.href = `tel:${number}`;
-             setActiveAppCard({ cardType: 'call', title: `اتصال بـ: ${number}`, description: 'جاري الاتصال...', number: number });
-          } 
-          else if (t.type === 'whatsapp_master' || t.type === 'whatsapp') {
-             let phone = t.number.replace(/\s/g, ''); 
-             if (phone.startsWith('01')) phone = '+2' + phone; 
-             const msg = t.message || '';
-             const url = `https://wa.me/${phone.replace(/^\++/, '')}?text=${encodeURIComponent(msg)}`;
-             window.open(url, '_blank');
-             setActiveAppCard({ cardType: 'deep_link_fallback', title: `فتح WhatsApp`, description: `مراسلة ${phone}`, url: url });
+          else if (t.type === 'display_ui_card') {
+             setActiveAppCard({ cardType: t.type, title: t.title, description: t.content });
           }
       }
 
@@ -648,12 +632,20 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
 
     } catch (e: any) { 
-        if (e.name === 'AbortError') {
-            console.log("Generation Aborted");
-        } else {
-            console.error(e); 
-            setMessages(prev => prev.map(m => m.id === id ? { ...m, isError: true } : m));
-        }
+        console.error(e);
+        const errorText = e.message?.includes('429') 
+            ? "الضغط عالي على السيرفر يا ريس، دقيقة ونجرب تاني." 
+            : "حصل خطأ في الاتصال، حاول مرة كمان.";
+        
+        const errorMsg: ExtendedMessage = {
+             userId: currentUser.phone,
+             role: 'model',
+             text: errorText,
+             timestamp: Date.now(),
+             isError: true
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        
         setAppStatus('idle'); 
         stateRef.current.isBusy = false;
         if (isSentinelMode) startPassiveListening();
@@ -724,7 +716,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
               console.error("Compression failed", err); 
           } finally { 
               setIsProcessingImage(false); 
-              // Reset input so same file can be selected again if needed
               if (fileInputRef.current) fileInputRef.current.value = '';
           } 
       } 
@@ -737,8 +728,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       } else if (activeAppCard.cardType === 'copy_link' && activeAppCard.url) {
           navigator.clipboard.writeText(activeAppCard.url);
           alert("تم نسخ الرابط! 📋");
-      } else if (activeAppCard.cardType === 'call' && activeAppCard.number) { 
-          window.location.href = `tel:${activeAppCard.number}`; 
       } else if (activeAppCard.cardType === 'install_app') { 
           if (installPrompt) { 
               installPrompt.prompt(); 
@@ -754,25 +743,22 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           if (onOpenAffiliate) onOpenAffiliate(); 
       } else if (activeAppCard.cardType === 'open_capabilities') { 
           setShowCapabilities(true); setActiveAppCard(null); 
-      } else if (activeAppCard.cardType === 'open_support') { 
-          setShowFeedback(true); setActiveAppCard(null); 
       } 
   };
 
-  const getCardIcon = (type: string) => { 
+  const getCardIcon = (type: string, number?: string) => { 
+      if (type === 'deep_link_fallback') {
+          if (number === 'music') return <Music className="w-6 h-6 text-red-400" />;
+          if (number === 'video') return <Video className="w-6 h-6 text-red-400" />;
+          return <ExternalLink className="w-6 h-6 text-blue-400" />;
+      }
       switch(type) { 
           case 'install_app': return <Download className="w-6 h-6 text-white" />; 
           case 'open_vault': return <Shield className="w-6 h-6 text-purple-400" />; 
           case 'open_affiliate': return <DollarSign className="w-6 h-6 text-emerald-400" />; 
           case 'open_nexus': return <Cpu className="w-6 h-6 text-cyan-400" />; 
           case 'open_capabilities': return <Star className="w-6 h-6 text-amber-400" />; 
-          case 'open_support': return <HelpCircle className="w-6 h-6 text-pink-400" />; 
           case 'copy_link': return <Copy className="w-6 h-6 text-emerald-400" />;
-          case 'deep_link_fallback': 
-              if (activeAppCard?.title.includes('YouTube Music')) return <Music className="w-6 h-6 text-red-400" />;
-              if (activeAppCard?.title.includes('فيديو')) return <Video className="w-6 h-6 text-red-400" />;
-              return <ExternalLink className="w-6 h-6 text-blue-400" />; 
-          case 'call': return <PhoneCall className="w-6 h-6 text-white" />; 
           default: return <Grid className="w-6 h-6 text-white" />; 
       } 
   };
@@ -784,7 +770,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           case 'open_affiliate': case 'copy_link': return 'bg-emerald-600 hover:bg-emerald-500'; 
           case 'open_nexus': return 'bg-cyan-600 hover:bg-cyan-500'; 
           case 'deep_link_fallback': return 'bg-white/10 hover:bg-white/20 border border-white/10'; 
-          case 'call': return 'bg-emerald-600 hover:bg-emerald-500'; 
           default: return 'bg-white/10 hover:bg-white/20'; 
       } 
   };
@@ -799,14 +784,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       
       {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={onOpenAffiliate} />}
       
-      {/* Hidden File Input */}
-      <input 
-          type="file" 
-          ref={fileInputRef} 
-          onChange={handleFileSelect} 
-          className="hidden" 
-          accept="image/*" 
-      />
+      <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
 
       {/* Listening Overlay */}
       {appStatus === 'listening' && (
@@ -918,8 +896,8 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
             <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2">
                 <div className="max-w-[85%] md:max-w-[60%] p-1 rounded-[24px] bg-gradient-to-br from-white/10 to-transparent shadow-xl border border-white/20 backdrop-blur-md">
                     <div className="bg-[#0f0f0f]/90 rounded-[22px] p-5">
-                        <div className="flex items-center gap-3 mb-4"><div className={`p-2 rounded-xl ${getCardColor(activeAppCard.cardType).split(' ')[0]} bg-opacity-20`}>{getCardIcon(activeAppCard.cardType)}</div><div><h3 className="font-black text-white text-sm">{activeAppCard.title}</h3><p className="text-[10px] text-white/50">{activeAppCard.description}</p></div></div>
-                        <button onClick={handleAppCardAction} className={`w-full py-3 ${getCardColor(activeAppCard.cardType)} text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95`}>{activeAppCard.cardType === 'call' ? <PhoneCall className="w-4 h-4" /> : (activeAppCard.cardType === 'copy_link' ? <Copy className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}{activeAppCard.cardType === 'deep_link_fallback' ? 'فتح الآن' : (activeAppCard.cardType === 'copy_link' ? 'نسخ الرابط' : 'تنفيذ')}</button>
+                        <div className="flex items-center gap-3 mb-4"><div className={`p-2 rounded-xl ${getCardColor(activeAppCard.cardType).split(' ')[0]} bg-opacity-20`}>{getCardIcon(activeAppCard.cardType, activeAppCard.number)}</div><div><h3 className="font-black text-white text-sm">{activeAppCard.title}</h3><p className="text-[10px] text-white/50">{activeAppCard.description}</p></div></div>
+                        <button onClick={handleAppCardAction} className={`w-full py-3 ${getCardColor(activeAppCard.cardType)} text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95`}>{activeAppCard.cardType === 'deep_link_fallback' ? <ExternalLink className="w-4 h-4" /> : (activeAppCard.cardType === 'copy_link' ? <Copy className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}{activeAppCard.cardType === 'deep_link_fallback' ? 'فتح الآن' : (activeAppCard.cardType === 'copy_link' ? 'نسخ الرابط' : 'تنفيذ')}</button>
                     </div>
                 </div>
             </div>
@@ -952,7 +930,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                 <button 
                     disabled={isProcessingImage} 
                     onClick={() => {
-                        // Ensure input is cleared to allow same file selection
                         if(fileInputRef.current) fileInputRef.current.value = '';
                         fileInputRef.current?.click();
                     }} 
