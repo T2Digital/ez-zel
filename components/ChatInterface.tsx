@@ -1,7 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle } from 'lucide-react';
-// Fix: Removed non-existent exported member 'generateMorningBrief'
+import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid } from 'lucide-react';
 import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import CapabilitiesGuide from './CapabilitiesGuide';
@@ -38,11 +37,11 @@ const compressImage = (file: File): Promise<{ data: string, type: string, origin
                 canvas.height = img.height * scaleSize;
 
                 const ctx = canvas.getContext('2d');
-                ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                // Compress to JPEG at 0.7 quality
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                resolve({ data: dataUrl, type: 'image/jpeg', originalFile: file });
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    resolve({ data: dataUrl, type: 'image/jpeg', originalFile: file });
+                }
             };
         };
     });
@@ -72,37 +71,21 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [lastSpokenText, setLastSpokenText] = useState<string | null>(null);
   
-  // Sentinel Mode State (Always On / Wake Word)
   const [isSentinelMode, setIsSentinelMode] = useState(false);
   const wakeLockRef = useRef<any>(null);
   
-  // Search State
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Feedback State
   const [showFeedback, setShowFeedback] = useState(false);
-  const [feedbackText, setFeedbackText] = useState('');
-  const [feedbackSent, setFeedbackSent] = useState(false);
-  
-  // Social Share State & App Cards
-  const [shareCard, setShareCard] = useState<{ caption: string, platform?: string, image?: File } | null>(null);
   const [activeAppCard, setActiveAppCard] = useState<{ cardType: string, title: string, description: string, url?: string, number?: string } | null>(null);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
 
-  // User Audio Player Ref
   const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  
-  // Silence Detection Refs
   const silenceTimerRef = useRef<any>(null);
-  
-  // Abort Controller for stopping generation
   const abortControllerRef = useRef<AbortController | null>(null);
-  
-  // Last System Message Tracker
   const lastSystemMessageIdRef = useRef<number | undefined>(undefined);
 
-  // --- TIME-BASED RESTRICTION ---
   const isRestrictedMode = currentUser.phone === 'GUEST' || (currentUser.tier === 'lite' && currentUser.affiliate?.isMarketer);
   const [isLimitReached, setIsLimitReached] = useState(false);
 
@@ -121,7 +104,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   }, [isRestrictedMode]);
 
   useEffect(() => {
-      // Capture install prompt
       window.addEventListener('beforeinstallprompt', (e) => {
           e.preventDefault();
           setInstallPrompt(e);
@@ -135,12 +117,12 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const recognitionRef = useRef<any>(null);
   const passiveRecognitionRef = useRef<any>(null); 
   const rafIdRef = useRef<number | null>(null);
+  
+  // FIX: Using Ref for File Input to ensure programmatic access
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
-  // Ref to track if we should discard the recording (clicked X)
   const isCancelledRef = useRef<boolean>(false);
-  
   const recordingStartTimeRef = useRef<number>(0);
   const stateRef = useRef({ isBusy: false, isListening: false, finalTranscript: '', lastAudioTime: Date.now() });
 
@@ -151,16 +133,13 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       return `مرحباً ${currentUser.name.split(' ')[0]} (عضو نخبة)`;
   };
 
-  // --- REALTIME LISTENER FOR NEW MESSAGES ---
   useEffect(() => {
       if (currentUser.phone !== 'GUEST') {
           shadowDB.subscribeToRealtime(currentUser.phone, (table, payload) => {
               if (table === 'history') {
                   const newMsg = payload as DBMessage;
-                  // Only add if we don't already have it (Simple check)
                   setMessages(prev => {
                       if (prev.some(m => m.timestamp === newMsg.timestamp)) return prev;
-                      // Don't auto-add my own immediate sends (handled by optimisitic UI), wait for sync or only add 'model'
                       return [...prev, newMsg];
                   });
               }
@@ -168,7 +147,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   }, [currentUser.phone]);
 
-  // --- INJECT SYSTEM MESSAGES (ALARMS) ---
   useEffect(() => {
       if (incomingSystemMessage && incomingSystemMessage.timestamp !== lastSystemMessageIdRef.current) {
           lastSystemMessageIdRef.current = incomingSystemMessage.timestamp;
@@ -176,7 +154,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   }, [incomingSystemMessage]);
 
-  // --- AUTO-SAVE DRAFT LOGIC ---
   useEffect(() => {
       const savedDraft = localStorage.getItem(`shadow_draft_${currentUser.phone}`);
       if (savedDraft) {
@@ -184,7 +161,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   }, [currentUser.phone]);
 
-  // --- WAKE LOCK & SENTINEL LOGIC ---
   const toggleSentinelMode = async () => {
       if (!isSentinelMode) {
           try {
@@ -229,7 +205,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           const results = e.results;
           const transcript = results[results.length - 1][0].transcript.trim().toLowerCase();
           
-          if (transcript.includes('يا ظل') || transcript.includes('يا تيتو') || transcript.includes('يا صاحبي') || transcript.includes('نكسوس')) {
+          if (transcript.includes('يا ظل') || transcript.includes('يا تيتو') || transcript.includes('يا صاحبي')) {
               rec.stop(); 
               const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
               audio.volume = 0.5;
@@ -244,12 +220,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           }
       };
 
-      rec.onerror = (event: any) => {
-          if (isSentinelMode && !stateRef.current.isBusy) {
-               setTimeout(() => { try { rec.start(); } catch(e) {} }, 1000);
-          }
-      }
-
       try { rec.start(); } catch(e) {}
       passiveRecognitionRef.current = rec;
   };
@@ -259,7 +229,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       setInput(val);
       localStorage.setItem(`shadow_draft_${currentUser.phone}`, val);
   };
-  // -----------------------------
 
   useEffect(() => {
     if (!isRestrictedMode) {
@@ -280,16 +249,12 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                 return [{
                     role: 'model',
                     userId: currentUser.phone,
-                    text: `أهلاً بيك في عالم الظل يا ${currentUser.name.split(' ')[0]}.
+                    text: `يا مرحب بيك يا ${currentUser.name.split(' ')[0]}.
+أنا ظلك الرقمي.. مش مجرد تطبيق.
+أنا عقلك التاني اللي بيحلل، وبيخطط، وبيحفظ أسرارك.
 
-أنا مش مجرد تطبيق يا صديقي.. أنا "ظلك".
-عقلك التاني اللي مبيناش. بحلل، بخطط، وبنفذ.
-في زمن السرعة ده، اللي معندوش ظل قوي.. بيضيع.
-
-أنا هنا عشان أشيل عنك هم التفكير، وأحفظ أسرارك، وأدير حياتك باحترافية.
-جربني، ومش هتعرف تمشي خطوة من غيري.
-
-معاك 3 أيام تجربة كاملة.. هات آخرك وجرب كل حاجة.`,
+أنا هنا عشان أشيل عنك الحمل.
+معاك 3 أيام تجرب قدراتي.. هات آخرك يا ريس.`,
                     timestamp: Date.now()
                 }];
             }
@@ -322,7 +287,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     if (scrollRef.current && !isSearchActive && !searchQuery) {
         scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
-  }, [messages.length, appStatus, liveTranscript, shareCard, activeAppCard, isSearchActive, searchQuery]);
+  }, [messages.length, appStatus, liveTranscript, activeAppCard, isSearchActive, searchQuery]);
 
   useEffect(() => {
       if (isSearchActive && searchInputRef.current) {
@@ -452,7 +417,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       if (stateRef.current.isListening) {
            silenceTimerRef.current = setTimeout(() => {
                if (stateRef.current.isListening) {
-                   console.log("Silence detected (5s), stopping recording...");
                    stopListeningAndSend();
                }
            }, 5000); 
@@ -461,14 +425,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
     rec.onend = () => {
         if (stateRef.current.isListening) {
-             console.log("Browser mic cutout detected. Restarting recognition immediately...");
-             try { 
-                 rec.start(); 
-             } catch(e) { 
-                 setTimeout(() => {
-                     if (stateRef.current.isListening) try { rec.start(); } catch(e2) {}
-                 }, 200);
-             }
+             try { rec.start(); } catch(e) { }
         }
     };
 
@@ -529,7 +486,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
     stateRef.current.isBusy = true;
     setAppStatus('thinking');
-    setShareCard(null); 
     setActiveAppCard(null); 
 
     let userVoiceDataURI = existingAudioBase64 || '';
@@ -557,7 +513,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     if (!isRestrictedMode) id = await shadowDB.saveMessage(userMsg);
     setMessages(prev => [...prev, { ...userMsg, id }]);
     
-    const imgFileForShare = pendingImage?.originalFile; 
     const currentImg = pendingImage;
     
     setInput(''); 
@@ -569,8 +524,11 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
     try {
       let extra: any = undefined;
-      if (geminiAudioInput) extra = { data: geminiAudioInput, mimeType: 'audio/webm', type: 'audio' };
-      else if (currentImg) extra = { data: currentImg.data, mimeType: currentImg.type, type: 'image' };
+      if (geminiAudioInput) {
+        extra = { data: geminiAudioInput, mimeType: 'audio/webm', type: 'audio' };
+      } else if (currentImg) {
+        extra = { data: currentImg.data, mimeType: currentImg.type, type: 'image' };
+      }
       
       const history = isRestrictedMode ? messages : await shadowDB.getHistory(currentUser.phone);
       
@@ -582,51 +540,63 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           abortControllerRef.current.signal 
       );
       
+      // Handle Deep Links and Tools - ENHANCED
       if (result.toolAction) {
-          if (result.toolAction.type === 'share') {
-             setShareCard({
-                 caption: result.toolAction.caption,
-                 platform: result.toolAction.platform,
-                 image: imgFileForShare
-             });
-             if (navigator.share) {
-                 try {
-                     await navigator.share({
-                         text: result.toolAction.caption,
-                         title: 'Shadow Post'
-                     });
-                 } catch(e) { console.log('Share canceled'); }
-             }
-          } else if (result.toolAction.type === 'app_card') {
-             setActiveAppCard({
-                 cardType: result.toolAction.cardType,
-                 title: result.toolAction.title,
-                 description: result.toolAction.description
-             });
-          } else if (result.toolAction.type === 'open_deep_link') {
-             const win = window.open(result.toolAction.url, '_blank');
-             if (!win) {
-                 setActiveAppCard({
-                     cardType: 'deep_link_fallback',
-                     title: `فتح ${result.toolAction.app}`,
-                     description: 'اضغط هنا لفتح التطبيق (المتصفح منع الفتح التلقائي).',
-                     url: result.toolAction.url
-                 });
-             }
-          } else if (result.toolAction.type === 'call') {
-             window.location.href = `tel:${result.toolAction.number}`;
-             setActiveAppCard({
-                 cardType: 'call',
-                 title: 'إجراء مكالمة',
-                 description: `المنفذ جاهز للاتصال بـ ${result.toolAction.number}`,
-                 number: result.toolAction.number
-             });
-          } else if (result.toolAction.type === 'whatsapp') {
-             let phone = result.toolAction.number.replace(/\s/g, ''); 
+          const t = result.toolAction;
+          
+          if (t.type === 'open_uber') {
+              const dest = t.destination || '';
+              const deepLink = `https://m.uber.com/ul/?action=setPickup&client_id=YOUR_CLIENT_ID&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(dest)}`;
+              window.open(deepLink, '_blank');
+              setActiveAppCard({ cardType: 'deep_link_fallback', title: `فتح Uber: ${dest}`, description: 'تأكيد الرحلة.', url: deepLink });
+          } 
+          else if (t.type === 'search_hotels') {
+              const loc = t.location || '';
+              const deepLink = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(loc)}`;
+              window.open(deepLink, '_blank');
+              setActiveAppCard({ cardType: 'deep_link_fallback', title: `فنادق في ${loc}`, description: 'Booking.com', url: deepLink });
+          } 
+          else if (t.type === 'open_youtube') {
+              const query = t.query || '';
+              const deepLink = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+              window.open(deepLink, '_blank');
+              setActiveAppCard({ cardType: 'deep_link_fallback', title: `فيديو: ${query}`, description: 'فتح على YouTube', url: deepLink });
+          }
+          else if (t.type === 'open_youtube_music') {
+              const song = t.song || '';
+              // Music Redirect
+              const deepLink = `https://music.youtube.com/search?q=${encodeURIComponent(song)}`;
+              window.open(deepLink, '_blank');
+              setActiveAppCard({ cardType: 'deep_link_fallback', title: `تشغيل: ${song}`, description: 'YouTube Music 🎵', url: deepLink });
+          }
+          else if (t.type === 'open_generic_app') {
+               const appName = t.appName || '';
+               const context = t.context || '';
+               // Try to construct a search scheme for Google Play or a common web URL
+               const storeLink = `https://play.google.com/store/search?q=${encodeURIComponent(appName)}&c=apps`;
+               window.open(storeLink, '_blank');
+               setActiveAppCard({ cardType: 'deep_link_fallback', title: `تطبيق ${appName}`, description: `البحث في المتجر: ${context}`, url: storeLink });
+          }
+          else if (t.type === 'share_referral_link') {
+               const refCode = currentUser.affiliate?.referralCode || '';
+               const link = `https://ez-zel.app/?ref=${refCode}`;
+               setActiveAppCard({ cardType: 'copy_link', title: `رابط الإحالة الخاص بيك`, description: link, url: link });
+          }
+          else if (t.type === 'app_card') {
+             setActiveAppCard({ cardType: t.cardType, title: t.title, description: t.description });
+          } 
+          else if (t.type === 'call_execute' || t.type === 'call') {
+             const number = t.number;
+             window.location.href = `tel:${number}`;
+             setActiveAppCard({ cardType: 'call', title: `اتصال بـ: ${number}`, description: 'جاري الاتصال...', number: number });
+          } 
+          else if (t.type === 'whatsapp_master' || t.type === 'whatsapp') {
+             let phone = t.number.replace(/\s/g, ''); 
              if (phone.startsWith('01')) phone = '+2' + phone; 
-             const cleanPhone = phone.replace(/^\++/, ''); 
-             const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(result.toolAction.message || '')}`;
-             const win = window.open(url, '_blank');
+             const msg = t.message || '';
+             const url = `https://wa.me/${phone.replace(/^\++/, '')}?text=${encodeURIComponent(msg)}`;
+             window.open(url, '_blank');
+             setActiveAppCard({ cardType: 'deep_link_fallback', title: `فتح WhatsApp`, description: `مراسلة ${phone}`, url: url });
           }
       }
 
@@ -701,9 +671,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                   title: 'رسالة من الظل',
                   text: shareText,
               });
-          } catch (e) {
-              console.log("Share skipped");
-          }
+          } catch (e) { console.log("Share skipped"); }
       } else {
           navigator.clipboard.writeText(shareText);
           alert("تم نسخ الرسالة مع رابط الدعوة! 📋");
@@ -727,10 +695,8 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           handleStopPlayback(); 
           return; 
       } 
-      
       handleStopPlayback(); 
       setPlayingMessageId(msg.id!); 
-      
       const wasThinking = appStatus === 'thinking';
 
       if (msg.role === 'user' && msg.voiceData) { 
@@ -747,11 +713,81 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       } 
   };
   
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { setIsProcessingImage(true); try { const compressed = await compressImage(file); setPendingImage(compressed); } catch(err) { console.error("Compression failed", err); } finally { setIsProcessingImage(false); } } };
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => { 
+      const file = e.target.files?.[0]; 
+      if (file) { 
+          setIsProcessingImage(true); 
+          try { 
+              const compressed = await compressImage(file); 
+              setPendingImage(compressed); 
+          } catch(err) { 
+              console.error("Compression failed", err); 
+          } finally { 
+              setIsProcessingImage(false); 
+              // Reset input so same file can be selected again if needed
+              if (fileInputRef.current) fileInputRef.current.value = '';
+          } 
+      } 
+  };
   
-  const handleAppCardAction = async () => { if (!activeAppCard) return; if (activeAppCard.cardType === 'deep_link_fallback' && activeAppCard.url) { window.open(activeAppCard.url, '_blank'); } else if (activeAppCard.cardType === 'call' && activeAppCard.number) { window.location.href = `tel:${activeAppCard.number}`; } else if (activeAppCard.cardType === 'install_app') { if (installPrompt) { installPrompt.prompt(); const { outcome } = await installPrompt.userChoice; if (outcome === 'accepted') setInstallPrompt(null); } else { alert("Install manually."); } } else if (['open_vault', 'open_nexus', 'open_pricing'].includes(activeAppCard.cardType)) { if (onNavigateTo) { const section = activeAppCard.cardType.replace('open_', ''); onNavigateTo(section); } } else if (activeAppCard.cardType === 'open_affiliate') { if (onOpenAffiliate) onOpenAffiliate(); } else if (activeAppCard.cardType === 'open_capabilities') { setShowCapabilities(true); setActiveAppCard(null); } else if (activeAppCard.cardType === 'open_support') { setShowFeedback(true); setActiveAppCard(null); } };
-  const getCardIcon = (type: string) => { switch(type) { case 'install_app': return <Download className="w-6 h-6 text-white" />; case 'open_vault': return <Shield className="w-6 h-6 text-purple-400" />; case 'open_affiliate': return <DollarSign className="w-6 h-6 text-emerald-400" />; case 'open_nexus': return <Cpu className="w-6 h-6 text-cyan-400" />; case 'open_capabilities': return <Star className="w-6 h-6 text-amber-400" />; case 'open_support': return <HelpCircle className="w-6 h-6 text-pink-400" />; case 'open_pricing': return <Crown className="w-6 h-6 text-white" />; case 'deep_link_fallback': return <ExternalLink className="w-6 h-6 text-red-400" />; case 'call': return <PhoneCall className="w-6 h-6 text-white" />; default: return <ArrowRight className="w-6 h-6 text-white" />; } };
-  const getCardColor = (type: string) => { switch(type) { case 'install_app': return 'bg-blue-600 hover:bg-blue-500'; case 'open_vault': return 'bg-purple-600 hover:bg-purple-500'; case 'open_affiliate': return 'bg-emerald-600 hover:bg-emerald-500'; case 'open_nexus': return 'bg-cyan-600 hover:bg-cyan-500'; case 'open_capabilities': return 'bg-amber-600 hover:bg-amber-500'; case 'open_support': return 'bg-pink-600 hover:bg-pink-500'; case 'open_pricing': return 'bg-white/20 hover:bg-white/30'; case 'deep_link_fallback': return 'bg-red-600 hover:bg-red-500'; case 'call': return 'bg-emerald-600 hover:bg-emerald-500'; default: return 'bg-white/10 hover:bg-white/20'; } };
+  const handleAppCardAction = async () => { 
+      if (!activeAppCard) return; 
+      if (activeAppCard.cardType === 'deep_link_fallback' && activeAppCard.url) { 
+          window.open(activeAppCard.url, '_blank'); 
+      } else if (activeAppCard.cardType === 'copy_link' && activeAppCard.url) {
+          navigator.clipboard.writeText(activeAppCard.url);
+          alert("تم نسخ الرابط! 📋");
+      } else if (activeAppCard.cardType === 'call' && activeAppCard.number) { 
+          window.location.href = `tel:${activeAppCard.number}`; 
+      } else if (activeAppCard.cardType === 'install_app') { 
+          if (installPrompt) { 
+              installPrompt.prompt(); 
+              const { outcome } = await installPrompt.userChoice; 
+              if (outcome === 'accepted') setInstallPrompt(null); 
+          } 
+      } else if (['open_vault', 'open_nexus', 'open_pricing'].includes(activeAppCard.cardType)) { 
+          if (onNavigateTo) { 
+              const section = activeAppCard.cardType.replace('open_', ''); 
+              onNavigateTo(section); 
+          } 
+      } else if (activeAppCard.cardType === 'open_affiliate') { 
+          if (onOpenAffiliate) onOpenAffiliate(); 
+      } else if (activeAppCard.cardType === 'open_capabilities') { 
+          setShowCapabilities(true); setActiveAppCard(null); 
+      } else if (activeAppCard.cardType === 'open_support') { 
+          setShowFeedback(true); setActiveAppCard(null); 
+      } 
+  };
+
+  const getCardIcon = (type: string) => { 
+      switch(type) { 
+          case 'install_app': return <Download className="w-6 h-6 text-white" />; 
+          case 'open_vault': return <Shield className="w-6 h-6 text-purple-400" />; 
+          case 'open_affiliate': return <DollarSign className="w-6 h-6 text-emerald-400" />; 
+          case 'open_nexus': return <Cpu className="w-6 h-6 text-cyan-400" />; 
+          case 'open_capabilities': return <Star className="w-6 h-6 text-amber-400" />; 
+          case 'open_support': return <HelpCircle className="w-6 h-6 text-pink-400" />; 
+          case 'copy_link': return <Copy className="w-6 h-6 text-emerald-400" />;
+          case 'deep_link_fallback': 
+              if (activeAppCard?.title.includes('YouTube Music')) return <Music className="w-6 h-6 text-red-400" />;
+              if (activeAppCard?.title.includes('فيديو')) return <Video className="w-6 h-6 text-red-400" />;
+              return <ExternalLink className="w-6 h-6 text-blue-400" />; 
+          case 'call': return <PhoneCall className="w-6 h-6 text-white" />; 
+          default: return <Grid className="w-6 h-6 text-white" />; 
+      } 
+  };
+
+  const getCardColor = (type: string) => { 
+      switch(type) { 
+          case 'install_app': return 'bg-blue-600 hover:bg-blue-500'; 
+          case 'open_vault': return 'bg-purple-600 hover:bg-purple-500'; 
+          case 'open_affiliate': case 'copy_link': return 'bg-emerald-600 hover:bg-emerald-500'; 
+          case 'open_nexus': return 'bg-cyan-600 hover:bg-cyan-500'; 
+          case 'deep_link_fallback': return 'bg-white/10 hover:bg-white/20 border border-white/10'; 
+          case 'call': return 'bg-emerald-600 hover:bg-emerald-500'; 
+          default: return 'bg-white/10 hover:bg-white/20'; 
+      } 
+  };
 
   const displayedMessages = messages.filter(m => {
     if (!isSearchActive || !searchQuery.trim()) return true;
@@ -762,6 +798,15 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     <div className="flex flex-col h-full w-full bg-[#000] text-white font-['Cairo'] overflow-hidden relative">
       
       {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={onOpenAffiliate} />}
+      
+      {/* Hidden File Input */}
+      <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileSelect} 
+          className="hidden" 
+          accept="image/*" 
+      />
 
       {/* Listening Overlay */}
       {appStatus === 'listening' && (
@@ -808,7 +853,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         <div className="flex items-center gap-3 pl-2">
             {!isSearchActive && (
                 <>
-                    {/* SENTINEL MODE TOGGLE */}
                     <button 
                         onClick={toggleSentinelMode} 
                         className={`p-2 rounded-full border transition-all ${isSentinelMode ? 'bg-red-600 text-white border-red-500 animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`} 
@@ -875,7 +919,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                 <div className="max-w-[85%] md:max-w-[60%] p-1 rounded-[24px] bg-gradient-to-br from-white/10 to-transparent shadow-xl border border-white/20 backdrop-blur-md">
                     <div className="bg-[#0f0f0f]/90 rounded-[22px] p-5">
                         <div className="flex items-center gap-3 mb-4"><div className={`p-2 rounded-xl ${getCardColor(activeAppCard.cardType).split(' ')[0]} bg-opacity-20`}>{getCardIcon(activeAppCard.cardType)}</div><div><h3 className="font-black text-white text-sm">{activeAppCard.title}</h3><p className="text-[10px] text-white/50">{activeAppCard.description}</p></div></div>
-                        <button onClick={handleAppCardAction} className={`w-full py-3 ${getCardColor(activeAppCard.cardType)} text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95`}>{activeAppCard.cardType === 'call' ? <PhoneCall className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}{activeAppCard.cardType === 'deep_link_fallback' ? 'حاول الفتح يدوياً' : (activeAppCard.cardType === 'call' ? 'اتصل الآن' : 'تنفيذ الآن')}</button>
+                        <button onClick={handleAppCardAction} className={`w-full py-3 ${getCardColor(activeAppCard.cardType)} text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95`}>{activeAppCard.cardType === 'call' ? <PhoneCall className="w-4 h-4" /> : (activeAppCard.cardType === 'copy_link' ? <Copy className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}{activeAppCard.cardType === 'deep_link_fallback' ? 'فتح الآن' : (activeAppCard.cardType === 'copy_link' ? 'نسخ الرابط' : 'تنفيذ')}</button>
                     </div>
                 </div>
             </div>
@@ -904,7 +948,16 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         )}
         <div className="flex items-end gap-2 max-w-4xl mx-auto w-full">
             <div className="flex-1 bg-[#151515] border border-white/10 rounded-[24px] flex items-end p-2 focus-within:border-cyan-500/30 transition-colors shadow-inner">
-                <button disabled={isProcessingImage} onClick={() => fileInputRef.current?.click()} className={`p-3 transition-colors hover:bg-white/5 rounded-full mb-0.5 ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`}>
+                {/* File Upload Trigger */}
+                <button 
+                    disabled={isProcessingImage} 
+                    onClick={() => {
+                        // Ensure input is cleared to allow same file selection
+                        if(fileInputRef.current) fileInputRef.current.value = '';
+                        fileInputRef.current?.click();
+                    }} 
+                    className={`p-3 transition-colors hover:bg-white/5 rounded-full mb-0.5 ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`}
+                >
                     {isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                 </button>
                 <textarea 
