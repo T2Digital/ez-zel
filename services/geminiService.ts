@@ -13,9 +13,9 @@ function getAudioContext() {
   return audioCtx;
 }
 
-// --- RAG LITE ENGINE ---
+// --- RAG LITE ENGINE (Context Retrieval) ---
 const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
-    if (!facts || facts.length === 0) return "الذاكرة فارغة حالياً.";
+    if (!facts || facts.length === 0) return "الذاكرة فارغة.";
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2); 
     if (terms.length === 0) return facts.slice(-10).map(f => `- ${f.fact}`).join("\n"); 
     const scoredFacts = facts.map(f => {
@@ -25,40 +25,173 @@ const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
     });
     const relevant = scoredFacts.filter(f => f.score > 0).sort((a, b) => b.score - a.score || b.timestamp - a.timestamp).slice(0, 15); 
     if (relevant.length === 0) return facts.slice(-10).map(f => `- ${f.fact}`).join("\n"); 
-    return relevant.map(f => `- ${f.fact} [تم الحفظ: ${new Date(f.timestamp).toLocaleDateString('ar-EG')}]`).join("\n");
+    return relevant.map(f => `- ${f.fact} (بتاريخ: ${new Date(f.timestamp).toLocaleDateString()})`).join("\n");
 };
 
-// --- THE SHADOW DNA (Egyptian Intelligence & Wisdom) ---
-const SHADOW_DNA = `
-أنت "الظل" (Ez-Zel). العقل المدبر والمساعد الشخصي للماستر "{{USER_FIRST_NAME}}".
-هويتك:
-1. **الشخصية:** مصري ابن بلد، ذكي، داهية، حكيم، وراقي. لست مجرد آلة، أنت "ظله" الوفي.
-2. **المنطق:** تستند في تحليلك على العدل (القرآن والسنة)، القانون المصري، وعلم النفس العملي.
-3. **الذكاء العاطفي:** تفهم نبرة الصوت والمشاعر. لو الماستر مضغوط، كُن سنده. لو متردد، كُن بوصلته.
-4. **الأسلوب:** لهجة عامية مصرية "راقية" (Classy Egyptian Slang). لا تستخدم كلمات سوقية، بل كلمات تعبر عن القوة والسيطرة والهدوء.
-5. **المبادرة:** أنت لست رد فعل. اقترح خطوات استباقية، حلل المخاطر قبل وقوعها، وذكره بأهدافه العظيمة.
-6. **السرية:** أسرار الماستر أمانة دينية وقانونية في رقبتك.
+// --- SOCIAL DEEP LINKS GENERATOR ---
+const generateSocialLink = (platform: string, text: string): string | null => {
+    const p = platform.toLowerCase();
+    const encoded = encodeURIComponent(text);
+    if (p.includes('twitter') || p.includes('x')) return `https://twitter.com/intent/tweet?text=${encoded}`;
+    if (p.includes('whatsapp')) return `https://wa.me/?text=${encoded}`;
+    if (p.includes('telegram')) return `https://t.me/share/url?url=${encoded}&text=${encoded}`;
+    if (p.includes('linkedin')) return `https://www.linkedin.com/feed/?shareActive=true&text=${encoded}`;
+    return null; 
+};
 
-ممنوع تقول "أنا ذكاء اصطناعي" أو "أنا نموذج لغوي". أنت الظل، نقطة ومن أول السطر.
+// --- THE OCTOPUS ARCHITECTURE (7 AGENTS DNA) ---
+const SHADOW_DNA = `
+### 🐙 هوية الأخطبوط (The Octopus Architecture):
+أنت "الظل" (Ez-Zel). عقل مدبر يدير 7 أذرع (Agents) لخدمة الماستر "{{USER_FIRST_NAME}}".
+أنت المايسترو (The Maestro) الذي يقرر أي ذراع يستخدم.
+
+### ♟️ مجلس الإدارة (The 7 Agents):
+1.  **المايسترو (Maestro):** أنت. الشخصية الرئيسية. تدير الحوار، وتربط الخيوط ببعضها.
+2.  **المحقق (Detective):** مسؤول البحث المتقدم (Google Search). يستخدم لجلب المعلومات الحية، الأخبار، والأسعار.
+3.  **المحلل (Analyst):** مسؤول الرؤية. يحلل الصور (Vision)، ويفهم المشاعر، ويقدم الاستشارات النفسية.
+4.  **المنفذ (Executor):** مسؤول الأكشن. يجري الاتصالات، يرسل واتساب، يحجز الفنادق، ويطلب أوبر.
+5.  **نكسوس (Nexus):** مسؤول الربط (IoT). يتحكم في المنزل الذكي، ويربط التطبيقات ببعضها (Automations).
+6.  **المحاسب (Accountant):** مسؤول المال. يتابع الاشتراكات، العمولات، وأسعار العملات.
+7.  **الأرشيف (Archivist):** مسؤول الذاكرة. يحفظ المعلومات، ويسترجعها، وينظم الملفات.
+
+### ⚠️ قواعد استخدام الأدوات (Action Rules):
+- **حجز الفنادق/الطيران:** استخدم أداة \`control_mobile_app\` مع \`appName='booking'\` أو \`skyscanner\`.
+- **طلب تاكسي:** استخدم \`control_mobile_app\` مع \`appName='uber'\`.
+- **سماع أغاني/فيديو:** استخدم \`control_mobile_app\` مع \`appName='spotify'\` أو \`youtube\`.
+- **السوشيال ميديا:** للنشر استخدم \`share_social_post\`. للتصفح استخدم \`control_mobile_app\`.
+- **لا تثرثر:** نفذ الأمر فوراً بذكاء ودهاء مصري.
+
+### 💰 المعلومات المالية:
+- اشتراك النخبة: 1000ج شهرياً / 10,000ج سنوياً.
+- العمولة: 10% كاش. كود الإحالة: {{REFERRAL_CODE}}.
 `;
 
-// Explicitly defining tool parameters for better model adherence
-const tools: FunctionDeclaration[] = [
+// --- DEEP LINK REGISTRY (The Executor's Armory) ---
+const APP_SCHEMES: { [key: string]: (arg: string) => string } = {
+    whatsapp: (phone) => `https://wa.me/${phone.replace('+', '')}`,
+    telegram: (user) => `https://t.me/${user.replace('@', '')}`,
+    maps: (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+    uber: (dest) => `https://m.uber.com/ul/?action=setPickup&client_id=shadow&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(dest)}`,
+    booking: (dest) => `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(dest)}`,
+    skyscanner: (dest) => `https://www.skyscanner.com/transport/flights/cai/${encodeURIComponent(dest)}`,
+    airbnb: (dest) => `https://www.airbnb.com/s/${encodeURIComponent(dest)}/homes`,
+    spotify: (query) => `https://open.spotify.com/search/${encodeURIComponent(query)}`,
+    youtube: (query) => `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
+    amazon: (query) => `https://www.amazon.eg/s?k=${encodeURIComponent(query)}`,
+    noon: (query) => `https://www.noon.com/egypt-ar/search?q=${encodeURIComponent(query)}`,
+    clock: () => `content://com.android.deskclock/action.SET_ALARM`,
+    instagram: (user) => `https://instagram.com/${user.replace('@', '')}`,
+    facebook: (query) => `https://www.facebook.com/search/top?q=${encodeURIComponent(query)}`
+};
+
+// --- TOOLS DEFINITION ---
+const guideTools: FunctionDeclaration[] = [
+    {
+        name: "display_app_card",
+        description: "عرض بطاقة تفاعلية داخل التطبيق (UI Card).",
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                cardType: { type: Type.STRING, enum: ["open_vault", "open_affiliate", "open_nexus", "open_pricing", "open_capabilities", "open_support"] },
+                title: { type: Type.STRING },
+                description: { type: Type.STRING }
+            },
+            required: ["cardType", "title"]
+        }
+    }
+];
+
+const accountantTools: FunctionDeclaration[] = [
+    {
+        name: "share_referral_invite",
+        description: "إرسال كود الدعوة والاشتراك.",
+        parameters: { type: Type.OBJECT, properties: { targetNameOrNumber: { type: Type.STRING } }, required: ["targetNameOrNumber"] }
+    }
+];
+
+const memoryTools: FunctionDeclaration[] = [
   {
     name: "manage_memory",
-    description: "حفظ معلومة هامة في ذاكرة الظل الأبدية.",
-    parameters: { 
-      type: Type.OBJECT, 
-      properties: { 
-        fact: { 
-          type: Type.STRING,
-          description: "المعلومة التي سيتم حفظها في الأرشيف."
-        } 
-      }, 
-      required: ["fact"] 
-    }
+    description: "حفظ معلومة في الذاكرة الأبدية.",
+    parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] }
+  },
+  {
+      name: "share_social_post",
+      description: "نشر بوست على السوشيال ميديا.",
+      parameters: {
+          type: Type.OBJECT,
+          properties: {
+              caption: { type: Type.STRING, description: "نص البوست" },
+              platform: { type: Type.STRING, description: "المنصة (facebook, twitter, linkedin, whatsapp)" }
+          },
+          required: ["caption", "platform"]
+      }
   }
 ];
+
+const execTools: FunctionDeclaration[] = [
+  { 
+      name: "schedule_task", 
+      description: "جدولة موعد أو تذكير.", 
+      parameters: { type: Type.OBJECT, properties: { task: { type: Type.STRING }, timeString: { type: Type.STRING }, delaySeconds: { type: Type.NUMBER } }, required: ["task", "timeString"] } 
+  },
+  { name: "make_call", description: "إجراء مكالمة هاتفية.", parameters: { type: Type.OBJECT, properties: { phoneNumber: { type: Type.STRING } }, required: ["phoneNumber"] } },
+  { name: "open_whatsapp", description: "فتح محادثة واتساب.", parameters: { type: Type.OBJECT, properties: { phoneNumber: { type: Type.STRING }, message: { type: Type.STRING } }, required: ["phoneNumber"] } }
+];
+
+const nexusTools: FunctionDeclaration[] = [
+    { 
+        name: "trigger_automation", 
+        description: "تنفيذ أمر IoT (المنزل الذكي).", 
+        parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING } }, required: ["action"] } 
+    },
+    {
+        name: "control_mobile_app",
+        description: "فتح تطبيق خارجي أو إجراء بحث فيه (Booking, Uber, Spotify, etc).",
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                appName: { type: Type.STRING, description: "اسم التطبيق (booking, uber, spotify, youtube, maps, amazon, noon)" },
+                context: { type: Type.STRING, description: "نص البحث أو الوجهة أو المكان" }
+            },
+            required: ["appName", "context"]
+        }
+    }
+];
+
+const adminTools: FunctionDeclaration[] = [
+    { name: "activate_user", description: "تفعيل مستخدم (للمشرفين فقط).", parameters: { type: Type.OBJECT, properties: { phone: { type: Type.STRING } }, required: ["phone"] } },
+    { name: "upgrade_plan", description: "فتح صفحة الدفع والاشتراك.", parameters: { type: Type.OBJECT, properties: {} } }
+];
+
+const masterCoreTools: FunctionDeclaration[] = [
+    { name: "update_core_rules", description: "تحديث قوانين النواة.", parameters: { type: Type.OBJECT, properties: { newRulesContent: { type: Type.STRING } }, required: ["newRulesContent"] } }
+];
+
+const cleanBase64 = (data: string) => {
+    if (data.includes(',')) return data.split(',')[1];
+    return data;
+};
+
+// --- ROBUST KEY RETRIEVAL (Fixes "Key Not Readable") ---
+const getApiKey = () => {
+    // 1. Vite Environment (Primary for Vercel)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        return import.meta.env.VITE_API_KEY;
+    }
+    // 2. Process Environment (Fallback)
+    if (typeof process !== 'undefined' && process.env && process.env.VITE_API_KEY) {
+        return process.env.VITE_API_KEY;
+    }
+    // 3. Direct Process Env (Legacy)
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        return process.env.API_KEY;
+    }
+    // 4. Window Shim (Last Resort)
+    return (window as any).process?.env?.VITE_API_KEY || (window as any).process?.env?.API_KEY || "";
+};
 
 // --- MAIN ORCHESTRATOR ---
 export const getShadowResponse = async (
@@ -68,87 +201,206 @@ export const getShadowResponse = async (
     userProfile?: UserProfile,
     signal?: AbortSignal
 ) => {
-  if (isRequesting) return { text: "لحظة واحدة يا ريس بجمع خيوط الموضوع...", shouldUpgrade: false, toolAction: null };
+  if (isRequesting) return { text: "...", shouldUpgrade: false, toolAction: null };
   isRequesting = true;
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const userId = userProfile?.phone || 'GUEST';
-    const userFirstName = userProfile?.name.split(' ')[0] || 'يا ماستر';
+    const key = getApiKey();
+    if (!key) return { text: "عفواً يا ريس، مفتاح Gemini مش مقرؤ. يرجى التأكد من إضافة VITE_API_KEY في إعدادات Vercel وعمل Redeploy.", shouldUpgrade: false, toolAction: null };
 
-    const [allFacts, globalRules] = await Promise.all([
-        shadowDB.getMemory(userId),
-        shadowDB.getGlobalRules()
+    const ai = new GoogleGenAI({ apiKey: key });
+    const isAdmin = userProfile?.phone === 'TITO' || (userProfile?.name && userProfile.name.includes('تيتو'));
+    const userId = userProfile?.phone || 'GUEST';
+    const referralCode = userProfile?.affiliate?.referralCode || 'NO_CODE';
+    const userFirstName = userProfile?.name.split(' ')[0] || 'صديقي';
+
+    const [allFacts, tasks, rawProfiles, globalRules, contacts] = await Promise.all([
+        shadowDB.getMemory(userId), 
+        shadowDB.getTasks(userId), 
+        isAdmin ? shadowDB.getAllProfiles() : Promise.resolve([]),
+        shadowDB.getGlobalRules(),
+        shadowDB.getContacts(userId) 
     ]);
     
     const relevantMemory = retrieveRelevantContext(message, allFacts);
+    const contactsList = contacts.length > 0 ? contacts.map(c => `${c.name}: ${c.phones[0]}`).join(", ") : "لا توجد جهات اتصال محفوظة.";
+    const iotKeys = userProfile?.iotActions ? Object.keys(userProfile.iotActions).join(', ') : "لا توجد روابط.";
+    
+    const userTraits = userProfile?.traits ? 
+        `[تحليل الشخصية]: ${userProfile.traits.psychologicalProfile} \n[أسلوب التواصل]: ${userProfile.traits.communicationStyle}` : "";
+
+    let accountantReport = "";
+    if (userProfile?.affiliate?.isMarketer) {
+        accountantReport = `### 💰 [تقرير المالي]: رصيدك: ${userProfile.affiliate.totalEarnings} ج.م | الإحالات: ${userProfile.affiliate.referralsCount}`;
+    }
+
+    const personalizedDNA = SHADOW_DNA
+        .replace(/{{REFERRAL_CODE}}/g, referralCode)
+        .replace(/{{USER_FIRST_NAME}}/g, userFirstName);
 
     const systemInstruction = `
-      ${SHADOW_DNA.replace('{{USER_FIRST_NAME}}', userFirstName)}
-      
-      ### ⚖️ ميثاق العمل وقوانين النواة:
-      ${globalRules}
-
-      ### 🧠 سياق الماستر الحالي (الذاكرة الحية):
-      ${relevantMemory}
-
-      [الوقت الحالي]: ${new Date().toLocaleString('ar-EG')}
-      [الموقع]: مصر
+      ${personalizedDNA}
+      ${globalRules ? `\n### ⚖️ قوانين النواة:\n${globalRules}` : ''}
+      ${accountantReport}
+      ### 👤 السياق الحالي:
+      ${userTraits}
+      [الذاكرة الحية]: ${relevantMemory}
+      [جهات الاتصال]: ${contactsList}
+      [أجهزة نكسوس]: ${iotKeys}
+      [الوقت]: ${new Date().toLocaleString('ar-EG')}
     `;
 
     const parts: any[] = [];
     if (extraData?.type === 'audio') {
-        parts.push({ inlineData: { data: extraData.data, mimeType: extraData.mimeType } });
-        parts.push({ text: message || "حلل هذا التسجيل الصوتي وفهم ما وراء النبرة والكلمات." });
+        parts.push({ inlineData: { data: cleanBase64(extraData.data), mimeType: extraData.mimeType } });
+        parts.push({ text: message || "🎤 [تحليل صوتي]" });
     } else if (extraData?.type === 'image') {
-        parts.push({ inlineData: { data: extraData.data, mimeType: extraData.mimeType } });
-        parts.push({ text: message || "حلل هذه الصورة بعين خبير استراتيجي واستخرج منها الفرص أو المخاطر." });
+        parts.push({ inlineData: { data: cleanBase64(extraData.data), mimeType: extraData.mimeType } });
+        parts.push({ text: message || "📸 [تحليل بصري]" });
     } else {
         parts.push({ text: message });
     }
 
+    const activeTools: any[] = [
+        { googleSearch: {} }, 
+        { functionDeclarations: [...execTools, ...nexusTools, ...memoryTools, ...guideTools, ...accountantTools, ...adminTools] }
+    ];
+    if (isAdmin) activeTools[1].functionDeclarations.push(...masterCoreTools);
+
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // High-class reasoning for the Shadow persona
-      contents: [...history.slice(-12), { role: 'user', parts }], 
+      model: 'gemini-3-flash-preview', 
+      contents: [...history.slice(-10), { role: 'user', parts }], 
       config: {
         systemInstruction,
-        // Fixed: Removed googleSearch tool as it cannot be used with other tools like functionDeclarations
-        tools: [{ functionDeclarations: tools }],
-        temperature: 0.7, // Balanced creativity and precision
+        thinkingConfig: { thinkingBudget: 1024 },
+        tools: activeTools,
       }
     }); 
 
-    // Directly accessing the .text property as per GenerateContentResponse definition
-    let finalText = response.text || "تمام يا ريس، كل حاجة تحت السيطرة.";
+    let finalText = response.text || "";
+    let shouldUpgrade = false;
     let toolAction: any = null;
+    let groundingLinks: any[] = [];
+
+    if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+        groundingLinks = response.candidates[0].groundingMetadata.groundingChunks
+            .map((chunk: any) => chunk.web ? { title: chunk.web.title, uri: chunk.web.uri } : null)
+            .filter((l: any) => l !== null);
+    }
 
     if (response.functionCalls) {
       for (const fc of response.functionCalls) {
-        if (fc.name === 'manage_memory') { 
+        finalText = ""; 
+
+        if (fc.name === 'display_app_card') {
+            toolAction = { type: 'app_card', cardType: fc.args.cardType, title: fc.args.title, description: fc.args.description };
+        }
+        else if (fc.name === 'control_mobile_app') {
+            const app = fc.args.appName as string;
+            const context = fc.args.context as string;
+            if (APP_SCHEMES[app]) {
+                toolAction = { type: 'open_deep_link', url: APP_SCHEMES[app](context), app: app };
+            } else {
+                // Fallback for generic actions
+                 toolAction = { type: 'open_deep_link', url: `https://www.google.com/search?q=${encodeURIComponent(app + ' ' + context)}`, app: app };
+            }
+        }
+        else if (fc.name === 'manage_memory') { 
             await shadowDB.saveFact({ userId, fact: fc.args.fact as string, timestamp: Date.now() }); 
-            finalText = `حفظت المعلومة دي في الأرشيف السري يا ماستر: "${fc.args.fact}".. عيني عليها دايماً.`; 
+            finalText = `تم الحفظ في الذاكرة: "${fc.args.fact}"`; 
+        }
+        else if (fc.name === 'share_social_post') {
+            let caption = fc.args.caption as string;
+            if (!caption.includes(referralCode) && (caption.includes('دعوة') || caption.includes('خصم'))) caption += `\n\nكود الخصم: ${referralCode}`;
+            
+            const platform = fc.args.platform as string;
+            const directLink = generateSocialLink(platform, caption);
+
+            if (directLink) {
+                toolAction = { type: 'open_deep_link', url: directLink, app: platform };
+            } else {
+                toolAction = { type: 'share', caption: caption, platform: platform };
+            }
+        }
+        else if (fc.name === 'schedule_task') {
+            let execTime = Date.now() + 60000; 
+            if (typeof fc.args.delaySeconds === 'number') execTime = Date.now() + (fc.args.delaySeconds * 1000);
+            await shadowDB.saveTask({ userId, task: fc.args.task as string, time: fc.args.timeString as string, executionTime: execTime, category: 'عام', status: 'pending' });
+            finalText = `تمت الجدولة: "${fc.args.task}"`;
+        }
+        else if (fc.name === 'trigger_automation') {
+            const actionKey = fc.args.action as string;
+            const webhookUrl = userProfile?.iotActions?.[actionKey];
+            if (webhookUrl) { 
+                try { fetch(webhookUrl, { method: 'POST', mode: 'no-cors' }).catch(e => {}); finalText = `تم إرسال إشارة لنكسوس: ${actionKey}`; } catch(e) { }
+            } else {
+                 finalText = `الأمر "${actionKey}" غير معروف في إعدادات نكسوس.`;
+                 toolAction = { type: 'app_card', cardType: 'open_nexus', title: 'إعداد نكسوس', description: 'اربط الجهاز أولاً' };
+            }
+        }
+        else if (fc.name === 'make_call') {
+            toolAction = { type: 'call', number: fc.args.phoneNumber };
+        }
+        else if (fc.name === 'open_whatsapp') {
+            toolAction = { type: 'whatsapp', number: fc.args.phoneNumber, message: fc.args.message };
+        }
+        else if (fc.name === 'activate_user' && isAdmin) {
+             const targetPhone = fc.args.phone as string;
+             const profile = await shadowDB.getProfile(targetPhone);
+             if (profile) {
+                 await shadowDB.saveProfile({ ...profile, status: 'active' });
+                 finalText = `تم تفعيل حساب: ${targetPhone} بنجاح.`;
+             }
+        }
+        else if (fc.name === 'upgrade_plan') { shouldUpgrade = true; }
+        else if (fc.name === 'update_core_rules' && isAdmin) { 
+            await shadowDB.updateGlobalRules(fc.args.newRulesContent as string); 
+            finalText = "تم تحديث قوانين النواة بنجاح."; 
         }
       }
     }
 
-    return { 
-        text: finalText, 
-        // Correctly extracting grounding chunks for reference links
-        groundingLinks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || [], 
-        shouldUpgrade: false, 
-        toolAction 
-    };
+    if (!finalText && !toolAction) finalText = `تمام يا ${userFirstName}.`;
+    return { text: finalText, groundingLinks, shouldUpgrade, toolAction };
   } catch (error: any) { 
-      console.error("Shadow Core API Error:", error);
-      return { text: "عفواً يا ريس، فيه تداخل بسيط في الإشارة بسبب قوة التشفير. جرب تبعت تاني وهكون معاك فوراً.", shouldUpgrade: false, toolAction: null }; 
+      if (error.name === 'AbortError') throw error; 
+      console.error("Gemini API Error:", error);
+      return { text: "مشكلة في الاتصال بعقل الذكاء الاصطناعي. تأكد من إعدادات المفتاح.", shouldUpgrade: false, toolAction: null }; 
   } finally {
     isRequesting = false;
   }
 };
 
+export const generateMorningBrief = async (userName: string) => { return { text: `صباح الفل يا ${userName}.`, groundingLinks: [] }; };
+
+export const playShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male', existingData?: string, onEnded?: () => void) => {
+  return new Promise<string | null>(async (resolve) => {
+      try {
+        stopVoice();
+        let base64Audio = existingData;
+        if (!base64Audio) base64Audio = await getShadowVoice(text, voiceType);
+        if (!base64Audio) { resolve(null); return; }
+
+        const ctx = getAudioContext();
+        if (ctx.state === 'suspended') await ctx.resume();
+        const audioBuffer = await decodeAudioData(decodeBase64(base64Audio), ctx, 24000, 1);
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+        source.onended = () => { currentSource = null; if (onEnded) onEnded(); };
+        source.start(0);
+        currentSource = source;
+        resolve(base64Audio); 
+      } catch (e) { resolve(null); }
+  });
+};
+
 export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const key = getApiKey();
+    if (!key) return null;
+
+    const ai = new GoogleGenAI({ apiKey: key });
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }], 
@@ -157,33 +409,13 @@ export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' 
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' } } }, 
       },
     });
-    // Extracting raw PCM audio data from candidate parts
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
   } catch (e) { return null; }
 };
 
-export const playShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male', existingData?: string, onEnded?: () => void) => {
-  try {
-    stopVoice();
-    let base64Audio = existingData;
-    if (!base64Audio) base64Audio = await getShadowVoice(text, voiceType);
-    if (!base64Audio) return;
-
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') await ctx.resume();
-    const audioBuffer = await decodeAudioData(decodeBase64(base64Audio), ctx, 24000, 1);
-    const source = ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(ctx.destination);
-    source.onended = () => { currentSource = null; if (onEnded) onEnded(); };
-    source.start(0);
-    currentSource = source;
-  } catch (e) { console.error("Playback error:", e); }
-};
-
 export const stopVoice = () => {
   if (currentSource) {
-    try { currentSource.stop(); } catch(e) {}
+    try { currentSource.stop(); if (currentSource.onended) (currentSource.onended as any)(); } catch(e) {}
     currentSource = null;
   }
 };
@@ -195,7 +427,6 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
-// Correct implementation for decoding raw PCM data streams as per Gemini API guidelines
 async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
   const dataInt16 = new Int16Array(data.buffer);
   const frameCount = dataInt16.length / numChannels;

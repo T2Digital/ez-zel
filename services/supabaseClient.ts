@@ -42,9 +42,8 @@ if (supabaseUrl && supabaseKey) {
             delete: async () => ({ data: null, error: null }),
             // Support 'await' directly on the builder
             then: (resolve: (val: any) => void) => {
-                // Return null for single profile requests, empty array for lists
-                const isSingle = tableName === 'profiles';
-                resolve({ data: isSingle ? null : [], error: null });
+                // Return null so dbService falls back to IndexedDB
+                resolve({ data: null, error: null });
             }
         };
         return chain;
@@ -52,13 +51,14 @@ if (supabaseUrl && supabaseKey) {
 
     const mockChannel = {
         on: () => mockChannel,
-        subscribe: () => mockChannel
+        subscribe: () => mockChannel,
+        unsubscribe: () => mockChannel
     };
 
     client = {
         from: (table: string) => createMockChain(table),
-        channel: () => mockChannel,
-        removeChannel: () => {}
+        channel: (name: string) => mockChannel,
+        removeChannel: (channel: any) => {},
     } as any;
 }
 

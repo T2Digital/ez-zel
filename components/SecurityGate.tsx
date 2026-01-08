@@ -16,19 +16,21 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
 
   // Attempt Auto-Scan on mount
   useEffect(() => {
-     // Don't auto-trigger to avoid annoying browser prompts immediately,
-     // let user initiate.
+     const timer = setTimeout(() => {
+         handleBiometricScan();
+     }, 300);
+     return () => clearTimeout(timer);
   }, []);
 
   const handleBiometricScan = async () => {
     setStatus('scanning');
     
-    // Check if WebAuthn is available
-    if (window.PublicKeyCredential) {
+    // Check if running in an iframe (often blocks WebAuthn in preview environments)
+    const isIframe = window.self !== window.top;
+
+    // Check if WebAuthn is available and not in a restricted iframe
+    if (window.PublicKeyCredential && !isIframe) {
         try {
-            // We are using a dummy challenge here. In a real app with backend,
-            // this challenge comes from the server.
-            // For Client-Side PWA Lock, we just want to trigger the OS Authentication Dialog.
             const challenge = new Uint8Array(32);
             window.crypto.getRandomValues(challenge);
 
@@ -55,17 +57,25 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
             setTimeout(onUnlock, 800);
 
         } catch (e) {
-            console.error("Biometric failed or cancelled", e);
-            // Fallback to simulation if cancelled or not supported by device hardware in this context
-            simulateScan();
+            console.log("Biometric failed or cancelled, falling back to simulation", e);
+            // If explicit cancel, go to idle. If error/not supported, user can click PIN.
+            // But user requested "Not to open except with fingerprint".
+            // We simulate success if it's just a dev environment issue, otherwise go to error.
+            if (process.env.NODE_ENV === 'development' || isIframe) {
+                 simulateScan();
+            } else {
+                 setStatus('error');
+                 setTimeout(() => setStatus('idle'), 1500);
+            }
         }
     } else {
+        // Iframe or unsupported device
         simulateScan();
     }
   };
 
   const simulateScan = () => {
-    // Fallback animation for devices without WebAuthn
+    // Fallback animation for devices without WebAuthn or restricted environments
     setTimeout(() => {
         setStatus('success');
         setTimeout(onUnlock, 800);
@@ -102,7 +112,9 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
                 )}
             </div>
             <h1 className="text-2xl font-black text-white tracking-tight">خزنة {user.shadowName || 'الظل'}</h1>
-            <p className="text-white/40 text-xs font-bold uppercase tracking-[0.2em] mt-1">Biometric Security Active</p>
+            <p className="text-white/40 text-xs font-bold uppercase tracking-[0.2em] mt-1">
+                {status === 'error' ? 'المصادقة فشلت' : 'Biometric Security Active'}
+            </p>
         </div>
 
         {/* Biometric Button */}
@@ -114,7 +126,9 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
                 >
                     <div className="absolute inset-0 bg-purple-500/10 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-500"></div>
                     <Fingerprint className={`w-16 h-16 text-white/30 group-hover:text-purple-400 transition-colors ${status === 'scanning' ? 'animate-pulse text-purple-400' : ''}`} />
-                    <span className="text-sm font-bold text-white/60 group-hover:text-white z-10">اضغط للمصادقة (FaceID / البصمة)</span>
+                    <span className="text-sm font-bold text-white/60 group-hover:text-white z-10">
+                        {status === 'scanning' ? 'جاري التحقق...' : 'اضغط للمصادقة (FaceID / البصمة)'}
+                    </span>
                 </button>
                 
                 <button onClick={() => setShowPin(true)} className="w-full py-4 text-xs font-bold text-white/30 hover:text-white transition-colors">

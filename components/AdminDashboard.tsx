@@ -63,7 +63,6 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
 
   useEffect(() => { 
       const initData = async () => {
-          // 1. Load Admin Profile
           const titoProfile = await shadowDB.getProfile('TITO');
           if (titoProfile) {
               const mergedProfile = { ...adminProfile, ...titoProfile, affiliate: titoProfile.affiliate || adminProfile.affiliate };
@@ -72,18 +71,20 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
           } else {
               await shadowDB.saveProfile(adminProfile);
           }
-
-          // 2. Load Dashboard Data
+          
           loadData();
           
-          // 3. Subscribe to Realtime Updates
           shadowDB.subscribeToRealtime('TITO', (table, payload) => {
-              // Refresh logic: simpler to just reload all data to ensure consistency for Admin
               console.log("Admin Dashboard Realtime Update:", table);
               loadData();
           });
       };
       initData();
+  }, []); // Run once on mount
+
+  // Force reload when view changes to ensure fresh data
+  useEffect(() => {
+      loadData();
   }, [activeView]);
 
   const loadData = async () => {
@@ -106,8 +107,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
             profile.commissionPaid = true; 
         }
         await shadowDB.saveProfile({ ...profile, status });
-        // Force refresh via local update + cloud push handled in DB
-        loadData();
+        // Force refresh
+        await loadData();
     }
   };
   
@@ -289,13 +290,19 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
         )}
 
         {activeView === 'requests' && pendingRequests.map(u => (
-            <div key={u.phone} className="glass p-6 rounded-[32px] border border-amber-500/30 bg-amber-500/5 flex flex-col gap-4 relative overflow-hidden mb-4">
+            <div key={u.phone} className="glass p-6 rounded-[32px] border border-amber-500/30 bg-amber-500/5 flex flex-col gap-4 relative overflow-hidden mb-4 animate-in fade-in slide-in-from-bottom-2">
                 <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
                 <div className="flex justify-between items-start"><div className="flex items-center gap-3"><div className="p-3 bg-amber-500/10 rounded-xl text-amber-500"><CreditCard className="w-5 h-5" /></div><div><h3 className="text-lg font-black text-white flex items-center gap-2">{u.name} {u.affiliate?.isMarketer && <span className="text-[9px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">مسوق حالي</span>}</h3><p className="text-xs text-white/40 font-mono">{u.phone}</p><span className="block text-[10px] text-amber-300 font-bold mt-1">اشتراك: {u.subscriptionCycle === 'yearly' ? 'سنوي (10,000ج)' : 'شهري (1,000ج)'}</span></div></div></div>
                 {u.paymentProof && <button onClick={() => setSelectedProof(u.paymentProof!)} className="w-full py-3 bg-black/40 rounded-xl border border-white/5 text-xs font-bold text-white/60 hover:text-white flex items-center justify-center gap-2"><ImageIcon className="w-4 h-4" /> معاينة إيصال الدفع</button>}
                 <div className="flex gap-2"><button onClick={() => handleStatusUpdate(u.phone, 'active')} className="flex-1 py-3 bg-emerald-600 rounded-xl text-white font-bold text-xs shadow-lg shadow-emerald-600/20 hover:scale-[1.02] transition-transform">تفعيل الاشتراك</button><button onClick={() => handleStatusUpdate(u.phone, 'blocked')} className="p-3 bg-white/5 rounded-xl text-red-400 hover:bg-red-500 hover:text-white transition-all"><X className="w-5 h-5" /></button></div>
             </div>
         ))}
+        {activeView === 'requests' && pendingRequests.length === 0 && (
+             <div className="text-center py-20 opacity-30">
+                 <CheckCircle className="w-16 h-16 mx-auto mb-4" />
+                 <p>لا توجد طلبات معلقة.</p>
+             </div>
+        )}
 
         {activeView === 'feedback' && (
             <div className="space-y-3">
@@ -358,7 +365,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
         </div>
       </nav>
 
-      {/* Payment Proof Modal & Payout Modal (Existing Logic) */}
+      {/* Payment Proof Modal & Payout Modal */}
       {selectedProof && (<div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in" onClick={() => setSelectedProof(null)}><img src={selectedProof} className="max-w-full max-h-[90vh] rounded-[24px] border border-white/20 shadow-2xl" alt="Proof" /><button className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-red-600 rounded-full text-white transition-all"><X className="w-6 h-6" /></button></div>)}
       {payoutModal.isOpen && payoutModal.user && (
           <div className="fixed inset-0 z-[250] bg-black/95 backdrop-blur-2xl p-6 flex items-center justify-center animate-in zoom-in">

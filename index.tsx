@@ -1,5 +1,4 @@
-
-import React, { ReactNode } from 'react';
+import React, { ReactNode, Component } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
@@ -18,16 +17,9 @@ interface ErrorBoundaryState {
 }
 
 // Simple Error Boundary Fallback for production crashes
-// Using React.Component explicitly and property initializers to fix inference errors
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Use property initializer for state to avoid generic typing issues in the constructor
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
 
-  // Added constructor to ensure 'this.props' is correctly typed and available in the class instance
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-  }
-  
   static getDerivedStateFromError(error: any): ErrorBoundaryState { 
     return { hasError: true, error }; 
   }
@@ -42,7 +34,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-    // Fixed: 'this.props' is now correctly recognized as existing on type 'ErrorBoundary'
     return this.props.children;
   }
 }
