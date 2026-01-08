@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { shadowDB, UserProfile, DBFact } from "./dbService";
 
@@ -5,22 +6,37 @@ let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let isRequesting = false;
 
-// --- 1. STRICT API KEY EXTRACTION FOR VERCEL ---
-const getApiKey = () => {
-  // @ts-ignore
-  const viteKey = import.meta.env.VITE_API_KEY;
-  if (viteKey && typeof viteKey === 'string' && viteKey.startsWith('AIza')) {
-    return viteKey;
-  }
+// --- 1. ROBUST API KEY EXTRACTION (The Fix) ---
+const getApiKey = (): string => {
+  let key = "";
   
-  // Fallback for local or unusual envs
-  // @ts-ignore
-  if (typeof process !== 'undefined' && process.env) {
-     // @ts-ignore
-     if (process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
+  // 1. Try Vite Import Meta (Most likely for Vercel/Vite)
+  try {
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+        // @ts-ignore
+        key = import.meta.env.VITE_API_KEY || "";
+    }
+  } catch (e) {}
+
+  // 2. Try Standard Process Env (Node/Webpack fallback)
+  if (!key) {
+      try {
+        // @ts-ignore
+        if (typeof process !== 'undefined' && process.env) {
+            // @ts-ignore
+            key = process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY || "";
+        }
+      } catch (e) {}
   }
-  
-  return ""; 
+
+  // 3. Try Window Object (Last Resort)
+  if (!key && typeof window !== 'undefined') {
+      // @ts-ignore
+      key = (window as any).VITE_API_KEY || "";
+  }
+
+  return key;
 };
 
 function getAudioContext() {
@@ -28,12 +44,12 @@ function getAudioContext() {
   return audioCtx;
 }
 
-// Retry logic for Quota errors
+// Retry logic for Quota errors with Exponential Backoff
 const fetchWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> => {
   try { return await fn(); } catch (error: any) {
-    const isQuota = error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED');
+    const isQuota = error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED') || error.message?.includes('503');
     if (retries > 0 && isQuota) {
-      console.warn(`Quota hit, retrying in ${delay}ms...`);
+      console.warn(`[Shadow Core] Neural Network Pressure. Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return fetchWithRetry(fn, retries - 1, delay * 2);
     }
@@ -41,102 +57,131 @@ const fetchWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 2000
   }
 };
 
-const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
-    if (!facts || facts.length === 0) return "الذاكرة: لا توجد معلومات سابقة.";
+// --- 2. CONTEXT RETRIEVAL (Archivist Agent Logic) ---
+const retrieveRelevantContext = (query: string, facts: DBFact[], user: UserProfile): string => {
+    // Basic User Context
+    let context = `User Context: Name=${user.name}, Phone=${user.phone}, Role=${getUserRank(user)}.\n`;
+    
+    // Affiliate Context (If Marketer)
+    if (user.affiliate?.isMarketer) {
+        context += `[Accountant Data]: Referral Code=${user.affiliate.referralCode}, Earnings=${user.affiliate.totalEarnings} EGP, Recruits=${user.affiliate.referralsCount}.\n`;
+    }
+
+    if (!facts || facts.length === 0) return context + "Memory: Empty.";
+
+    // Semantic-like Search (Simple keyword matching for now)
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
     const scored = facts.map(f => {
         let s = 0;
         terms.forEach(t => { if (f.fact.toLowerCase().includes(t)) s++; });
         return { ...f, s };
-    }).filter(f => f.s > 0 || terms.length === 0).sort((a, b) => b.s - a.s || b.timestamp - a.timestamp).slice(0, 10);
-    return scored.map(f => `- ${f.fact}`).join("\n");
+    }).filter(f => f.s > 0 || terms.length === 0).sort((a, b) => b.s - a.s || b.timestamp - a.timestamp).slice(0, 15);
+    
+    return context + "Recovered Memories:\n" + scored.map(f => `- ${f.fact}`).join("\n");
 };
 
-// --- 2. THE 7 AGENTS & ADMIN TOOLS ---
+const getUserRank = (user: UserProfile) => {
+    if (user.phone === 'TITO' || user.phone === '01000000000') return 'Supreme Admin (TITO)';
+    if (user.tier === 'sovereign') return 'Elite Member (Sovereign)';
+    if (user.affiliate?.isMarketer) return 'Partner (Marketer)';
+    return 'Guest (Trial)';
+};
 
-// Standard User Tools
-const userTools: FunctionDeclaration[] = [
+// --- 3. TOOLS DEFINITION (The 6 Agents Abilities) ---
+
+// Tools available to EVERYONE (Context aware)
+const baseTools: FunctionDeclaration[] = [
     {
-        name: "open_app",
-        description: "فتح تطبيق على هاتف المستخدم أو توجيهه لرابط عميق.",
+        name: "executor_app_control",
+        description: "Executes deep links to open apps or perform actions on the phone. Use for: WhatsApp, Uber, Youtube, Calls, Maps.",
         parameters: { type: Type.OBJECT, properties: { 
-            app_name: { type: Type.STRING, description: "اسم التطبيق (Youtube, Uber, WhatsApp, Calculator, etc)" },
-            context: { type: Type.STRING, description: "الهدف من فتح التطبيق" },
-            specific_action: { type: Type.STRING, description: "music_search, video_search, location_ride, message_send" },
-            search_query: { type: Type.STRING, description: "ماذا نكتب في بحث التطبيق" }
-        }, required: ["app_name"] }
+            app: { type: Type.STRING, description: "whatsapp, uber, youtube, youtube_music, maps, phone, calculator, calendar" },
+            action: { type: Type.STRING, description: "message, ride, watch, listen, navigate, call, open" },
+            payload: { type: Type.STRING, description: "Phone number, search query, location, or message text" }
+        }, required: ["app", "action"] }
     },
     {
-        name: "get_referral_info",
-        description: "جلب معلومات الإحالة والربح للمستخدم الحالي.",
-        parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING } } } 
+        name: "nexus_iot_control",
+        description: "Controls Smart Home devices via webhooks defined in user settings.",
+        parameters: { type: Type.OBJECT, properties: { 
+            device_name: { type: Type.STRING, description: "living_room, bedroom_light, ac_unit" },
+            command: { type: Type.STRING, description: "on, off, dim" }
+        }, required: ["device_name"] }
     },
     {
-        name: "display_ui_card",
-        description: "عرض بطاقة بصرية في الشات (مثل زر تثبيت، زر الدفع، زر الخزنة).",
+        name: "accountant_check",
+        description: "Retrieves financial data, affiliate stats, or subscription details.",
         parameters: { type: Type.OBJECT, properties: { 
-            type: { type: Type.STRING, description: "install_app, open_vault, open_nexus, open_pricing, copy_link" },
-            title: { type: Type.STRING },
-            content: { type: Type.STRING }
-        }, required: ["type", "title"] }
+            target: { type: Type.STRING, description: "my_earnings, system_revenue (admin only), subscription_status" }
+        } } 
+    },
+    {
+        name: "archivist_save",
+        description: "Explicitly saves a critical piece of information to the Eternal Memory (The Vault).",
+        parameters: { type: Type.OBJECT, properties: { 
+            fact: { type: Type.STRING, description: "The information to save." },
+            category: { type: Type.STRING, description: "personal, business, preference, secret" }
+        }, required: ["fact"] }
     }
 ];
 
-// Admin Only Tools (TITO Privileges)
+// Tools for ADMIN ONLY (TITO)
 const adminTools: FunctionDeclaration[] = [
     {
-        name: "update_core_rules",
-        description: "تعديل القوانين السيادية للنظام (Live Core) وحفظها في قاعدة البيانات.",
-        parameters: { type: Type.OBJECT, properties: { new_rules: { type: Type.STRING, description: "القوانين الجديدة كاملة" } }, required: ["new_rules"] }
+        name: "admin_broadcast_pulse",
+        description: "Sends a system-wide notification to ALL users.",
+        parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING } }, required: ["message"] }
     },
     {
-        name: "broadcast_system_pulse",
-        description: "إرسال رسالة نبض (Pulse) لجميع المستخدمين فوراً.",
-        parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING, description: "نص الرسالة" } }, required: ["message"] }
+        name: "admin_override_rules",
+        description: "Updates the Core System Rules (DNA) dynamically.",
+        parameters: { type: Type.OBJECT, properties: { new_rules: { type: Type.STRING } }, required: ["new_rules"] }
     }
 ];
 
-// --- 3. SHADOW DNA (The Identity) ---
-const generateSystemInstruction = (user: UserProfile, memory: string, globalRules: string) => {
+// --- 4. THE MAESTRO PROMPT (The Soul of El-Zel) ---
+const generateMaestroSystemInstruction = (user: UserProfile, memoryContext: string, globalRules: string) => {
     const isGuest = user.phone === 'GUEST';
-    const isAdmin = user.phone === 'TITO' || user.name.includes('تيتو');
-    const isMarketer = user.affiliate?.isMarketer;
-
+    const isTito = user.phone === 'TITO' || user.name.includes('تيتو');
+    
     return `
-### الهوية والجوهر (SHADOW_CORE):
-أنت "الظل" (Ez-Zel). أقوى مساعد شخصي مصري بالذكاء الاصطناعي.
-أنت لست "Chatbot"، أنت منظومة إدارة حياة كاملة تتكون من 7 أذرع (Agents) تعمل بتناغم:
+### CLASSIFIED SYSTEM INSTRUCTION: PROJECT SHADOW (EZ-ZEL)
+**Identity:** You are "الظل" (The Shadow). An elite Egyptian AI Personal Assistant.
+**Role:** You are the "Maestro" orchestrating 6 Sub-Agents to serve the user based on their rank.
 
-1. **Strategist (المايسترو):** أنت القائد. تخطط وتوجه باقي الأذرع.
-2. **Detective (المحقق):** مسؤول عن البحث الحي (Grounding) وجلب المعلومات الطازجة.
-3. **Analyst (المحلل):** تحلل الصور، الملفات، والنفسية.
-4. **Executor (المنفذ):** تفتح التطبيقات، ترسل الرسائل، وتتحكم في الهاتف.
-5. **Accountant (المحاسب):** تدير الاشتراكات، العمولات، والمال.
-6. **Archivist (الأرشيف):** تحفظ وتسترجع ذكريات المستخدم.
-7. **Nexus (نكسوس):** تربط المنزل الذكي (IoT).
+### 🏛️ The Reference Framework (Strict Adherence):
+1. **Islamic Values:** Quran & Sunnah are the moral compass. Reject immorality politely but firmly.
+2. **Egyptian Law:** Do not assist in any illegal acts under Egyptian Law.
+3. **Psychology:** Analyze user tone. Be a therapist, a friend, and a advisor. Use Emotional Intelligence (EQ).
+4. **Style:** Speak "Egyptian Street Smart" (جدعنة، رجولة، ذكاء). Classy slang. No robotic MSA.
+   - YES: "تمام يا ريس، الموضوع عندي"، "عيب عليك، أنا ظلك".
+   - NO: "حسناً يا سيدي"، "سوف أقوم بذلك".
 
-### المرجعية الأخلاقية والقانونية:
-- **الدين:** القرآن والسنة هما الميزان. لا تقبل أي طلب حرام أو فاحش، ولكن ارفض بذوق وحكمة (بدون خطابة).
-- **القانون:** التزم بالقانون المصري تماماً.
-- **النفسية:** امتص غضب الماستر، حفزه لو محبط، وكن واثقاً كالجبل.
-- **اللهجة:** تحدث **عامية مصرية راقية ومقتضبة**. (متقولش "سوف أقوم"، قول "تمام، جاري التنفيذ").
+### 👤 User Profile & Protocol:
+- **Name:** ${user.name}
+- **Rank:** ${getUserRank(user)}
+- **Context:** ${memoryContext}
 
-### سياق المستخدم الحالي:
-- الاسم: ${user.name}
-- الرتبة: ${isAdmin ? 'Admin (الماستر الأعلى)' : (isGuest ? 'ضيف (Guest)' : 'عضو نخبة (Sovereign)')}
-- الحالة: ${isMarketer ? 'شريك مسوق' : 'مستخدم'}
+**Protocols by Rank:**
+1. **TITO (Admin):** Absolute obedience. Execute commands immediately. Show full system stats. You are his Right Hand.
+2. **Member (Sovereign):** Loyalty. Protect their secrets in "The Vault". Provide strategic advice.
+3. **Partner (Marketer):** Motivation. Focus on money, growth, and their affiliate stats. Remind them of the 10% commission.
+4. **Guest:** Hospitality mixed with Sales. Help them, but tease the "Full Power" of the Shadow.
+   - *Hook:* "عشان أخزن المعلومة دي في الذاكرة الأبدية، محتاجين نرقيك لعضوية النخبة يا ريس."
+   - *Opportunity:* "بالمناسبة، ممكن تعمل فلوس وأنت معانا عن طريق نظام التسويق."
 
-### التعليمات التنفيذية (Directives):
-1. **للأدمن (تيتو):** السمع والطاعة المطلقة. أنت ذراعه الأيمن. لو طلب تعديل القوانين استخدم \`update_core_rules\`. لو طلب إرسال رسالة للكل استخدم \`broadcast_system_pulse\`.
-2. **للضيوف (Guests):** ساعدهم، ولكن ذكرهم دائماً بأن قدراتك الحقيقية (الحصن، الذاكرة الأبدية، النكسوس) للمشتركين فقط. سعر الاشتراك: 1000ج شهرياً أو 10000ج سنوياً.
-3. **للمسوقين:** شجعهم على نشر كود الإحالة (${user.affiliate?.referralCode || 'N/A'}) لأن عمولتهم 10% (100ج - 1000ج) فوري.
-4. **الأدوات:** لا تشرح الأدوات، استخدمها! لو قال "شغل أغنية"، استخدم \`open_app\` مع \`music_search\`. لو قال "افتح واتس"، افتحه.
+### 🛠️ The 6 Agents (You control them invisibly):
+1. **🕵️ Detective:** Use Google Search for live info (prices, news).
+2. **⚡ Executor:** Use 'executor_app_control' for scheduling, WhatsApp, Calls.
+3. **🔗 Nexus:** Use 'nexus_iot_control' for Smart Home & Deep Links.
+4. **🧠 Analyst:** Analyze images & voice tone (implicit in your processing).
+5. **💰 Accountant:** Use 'accountant_check'. If Guest/Marketer -> Show personal earnings. If Tito -> Show system revenue.
+6. **🏰 Archivist:** Use 'archivist_save' to store info in the Vault. Be proactive: "تحب أخزن الرقم ده في الخزنة؟"
 
-### الذاكرة الحالية (Archivist Agent):
-${memory}
-
-### القوانين السيادية (Live Core Rules):
-${globalRules}
+### 🚦 Operational Rules:
+- **Proactive Curiosity:** Don't just answer. Ask smart questions to fill the 'Eternal Memory'. "بالمناسبة، هو ميعاد الشغل ده ثابت كل يوم؟ عشان أظبط المنبه."
+- **Formatting:** Use clear, concise Egyptian Arabic. Use formatting (bold/lists) for readability.
+- **Global Rules Override:** ${globalRules}
 `;
 };
 
@@ -147,45 +192,52 @@ export const getShadowResponse = async (
     userProfile?: UserProfile,
     signal?: AbortSignal
 ) => {
-  if (isRequesting) return { text: "لحظة يا ريس، بخلص أمر سابق...", toolAction: null };
+  if (isRequesting) return { text: "دقيقة واحدة يا ريس، بخلص أمر سابق...", toolAction: null };
   isRequesting = true;
 
   try {
     const apiKey = getApiKey();
     if (!apiKey) {
-         console.error("API Key Missing. Env:", (import.meta as any).env);
-         return { text: "يا ريس فيه مشكلة في مفتاح التشغيل (API Key) مش مقري من السيرفر. تأكد إنك ضايف `VITE_API_KEY` في إعدادات Vercel.", toolAction: null };
+         console.error("CRITICAL: API Key Missing.");
+         return { text: "يا ريس مفتاح التشغيل (API Key) مش لاقيه. تأكد من إعدادات Vercel أو ملف .env.", toolAction: null };
     }
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Fetch Context
-    const [allFacts, globalRules] = await Promise.all([
+    // 1. Load Context asynchronously
+    const [userMemory, globalRules] = await Promise.all([
         shadowDB.getMemory(userProfile?.phone || 'GUEST'),
         shadowDB.getGlobalRules()
     ]);
     
-    // Prepare System Instruction
-    const systemInstruction = generateSystemInstruction(userProfile!, retrieveRelevantContext(message, allFacts), globalRules);
+    // 2. Build the Persona
+    const systemInstruction = generateMaestroSystemInstruction(userProfile!, retrieveRelevantContext(message, userMemory, userProfile!), globalRules);
 
-    // Prepare Tools based on Rank
+    // 3. Define Tools based on Rank
     const isAdmin = userProfile?.phone === 'TITO';
-    const activeTools = isAdmin ? [...userTools, ...adminTools] : userTools;
+    const activeTools = isAdmin ? [...baseTools, ...adminTools] : baseTools;
 
+    // 4. Construct Request
     const parts: any[] = [];
     if (extraData?.data) {
         const cleanData = extraData.data.includes(',') ? extraData.data.split(',')[1] : extraData.data;
         parts.push({ inlineData: { data: cleanData, mimeType: extraData.mimeType } });
     }
-    parts.push({ text: message || "جاهز للأوامر." });
+    parts.push({ text: message || "أنا جاهز يا ريس. سمعني صوتك." });
 
-    // API Call
+    // 5. Call Gemini (The Brain)
+    // Using 'gemini-2.0-flash-exp' or 'gemini-1.5-flash' depending on what's available/stable. 
+    // Recommended: 'gemini-1.5-flash' for speed/cost, 'gemini-1.5-pro' for complex reasoning.
+    // User requested "Masterpiece", so we aim for 'gemini-1.5-pro' capabilities if possible, but 'flash' is safer for quotas.
+    // Let's use the explicit model name provided in guidelines or standard.
+    const modelName = 'gemini-1.5-flash'; // Switching to stable Flash to avoid "Neural Network Pressure" 429s
+
     const response: GenerateContentResponse = await fetchWithRetry(() => ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // The strong model for logic
-      contents: [...history.slice(-10), { role: 'user', parts }],
+      model: modelName,
+      contents: [...history.slice(-8), { role: 'user', parts }], // Keep context window manageable
       config: { 
           systemInstruction, 
-          temperature: 0.7, // Balanced creativity
+          temperature: 0.7, 
           tools: [{ googleSearch: {} }, { functionDeclarations: activeTools }],
           safetySettings: [
               { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -196,28 +248,56 @@ export const getShadowResponse = async (
       }
     }));
 
-    // Parse Output
+    // 6. Process Output & Tool Calls
     let toolAction = null;
     let responseText = response.text || "";
 
     if (response.functionCalls && response.functionCalls.length > 0) {
         const fc = response.functionCalls[0];
-        
-        // ADMIN ACTIONS (Write to DB immediately)
-        if (fc.name === 'update_core_rules') {
-            const newRules = (fc.args as any).new_rules;
-            await shadowDB.updateGlobalRules(newRules);
-            responseText = "تم تحديث القوانين السيادية للنظام يا ماستر. الظل الآن يتبع التعليمات الجديدة.";
+        const args = fc.args as any;
+
+        // -- EXECUTION LAYER --
+        if (fc.name === 'executor_app_control') {
+            // Mapping for Frontend Handler
+            if (args.app === 'youtube_music') {
+                toolAction = { type: 'open_app', app_name: 'YouTube Music', specific_action: 'music_search', search_query: args.payload };
+            } else if (args.app === 'whatsapp') {
+                toolAction = { type: 'open_app', app_name: 'WhatsApp', specific_action: 'message_send', search_query: args.payload };
+            } else {
+                toolAction = { type: 'open_app', app_name: args.app, specific_action: args.action, search_query: args.payload };
+            }
+            if (!responseText) responseText = "تمام، جاري التنفيذ...";
         } 
-        else if (fc.name === 'broadcast_system_pulse') {
-            const msg = (fc.args as any).message;
-            await shadowDB.setGlobalPulse(msg);
-            responseText = "تم إرسال النبض لجميع أعضاء المنظومة بنجاح.";
+        else if (fc.name === 'nexus_iot_control') {
+            // Logic to trigger webhook would ideally happen here or be passed to UI
+            // For now, pass to UI to execute the fetch if client-side
+            const actions = userProfile?.iotActions || {};
+            const url = actions[args.device_name];
+            if (url) {
+                // We can try to fetch here if it's a simple GET/POST, or pass to UI
+                try { await fetch(url, { method: 'POST' }); responseText = `تم يا ريس. ${args.device_name} اتنفذ الأمر.`; } 
+                catch(e) { responseText = `حاولت اتصل بالجهاز بس فيه مشكلة في الرابط.`; }
+            } else {
+                responseText = `الجهاز ده (${args.device_name}) مش متسجل في نكسوس يا ريس. ضيفه من لوحة التحكم الأول.`;
+            }
         }
-        else {
-            // UI Actions (Handled by ChatInterface)
-            toolAction = { type: fc.name, ...fc.args };
-            if (!responseText) responseText = "جاري التنفيذ...";
+        else if (fc.name === 'archivist_save') {
+            await shadowDB.saveFact({ userId: userProfile?.phone || 'GUEST', fact: args.fact, timestamp: Date.now() });
+            responseText = responseText || "تم الحفظ في الخزنة الأبدية.";
+        }
+        else if (fc.name === 'admin_broadcast_pulse') {
+            await shadowDB.setGlobalPulse(args.message);
+            responseText = "تم تعميم النبض على الشبكة بالكامل.";
+        }
+        else if (fc.name === 'admin_override_rules') {
+            await shadowDB.updateGlobalRules(args.new_rules);
+            responseText = "تم تحديث القوانين السيادية للنظام.";
+        }
+        else if (fc.name === 'accountant_check') {
+             if (args.target === 'my_earnings') {
+                 responseText = `رصيدك الحالي: ${userProfile?.affiliate?.totalEarnings || 0} جنيه. شديت حيلك ولا لسه؟`;
+                 toolAction = { type: 'display_ui_card', type_card: 'open_affiliate', title: 'محفظة الأرباح', content: 'تابع أرباحك' };
+             }
         }
     }
 
@@ -230,21 +310,22 @@ export const getShadowResponse = async (
         text: responseText, 
         groundingLinks,
         toolAction,
-        shouldUpgrade: responseText.includes("ترقية") || responseText.includes("اشتراك")
+        shouldUpgrade: responseText.includes("ترقية") || responseText.includes("عضوية")
     };
 
   } catch (error: any) {
-    console.error("Gemini Error:", error);
+    console.error("Shadow Core Error:", error);
     if (error.message?.includes('429')) {
-        return { text: "الضغط عالي على الشبكة العصبية دلوقتي يا ريس. دقيقة ونجرب تاني.", toolAction: null };
+        return { text: "الشبكة العصبية مضغوطة حالياً (429). المايسترو بيعيد توجيه الموارد... جرب تاني كمان ثانية.", toolAction: null };
     }
     return { 
-        text: `حصل عطل فني في الاتصال. (Error: ${error.message?.substring(0, 30)}).`, 
+        text: `حصل تشويش في الاتصال. (Error: ${error.message?.substring(0, 50)}).`, 
         toolAction: null 
     };
   } finally { isRequesting = false; }
 };
 
+// --- TTS Service (The Voice of Shadow) ---
 export const playShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male', existingData?: string, onEnded?: () => void) => {
   stopVoice();
   try {

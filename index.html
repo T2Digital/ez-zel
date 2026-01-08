@@ -9,9 +9,13 @@
     
     <!-- Robust process shim for browser environments -->
     <script>
-      window.process = window.process || { env: {} };
-      // Fallback only if not defined by build environment
+      window.process = window.process || {};
       window.process.env = window.process.env || {};
+      // Fallback injection if build doesn't replace
+      if (!window.process.env.VITE_API_KEY) {
+          // This allows Vercel or other runtimes to inject env vars globally if needed
+          window.VITE_API_KEY = ""; 
+      }
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
