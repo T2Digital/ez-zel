@@ -9,11 +9,11 @@ import SovereignVault from './SovereignVault';
 interface Props {
     currentUser: UserProfile;
     onUpgrade: () => void;
-    onBack: () => void; // Returns to Dashboard
+    onBack: () => void; 
     onOpenAffiliate?: () => void; 
     isAdmin?: boolean; 
     onNavigateTo?: (section: string) => void; 
-    incomingSystemMessage?: DBMessage | null; // New Prop for Alarms injection
+    incomingSystemMessage?: DBMessage | null; 
 }
 
 // Extend DBMessage locally to support UI states
@@ -98,10 +98,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   // Abort Controller for stopping generation
   const abortControllerRef = useRef<AbortController | null>(null);
   
-  // Last System Message Tracker to avoid loops
+  // Last System Message Tracker
   const lastSystemMessageIdRef = useRef<number | undefined>(undefined);
 
-  // --- TIME-BASED RESTRICTION (3 DAYS) ---
+  // --- TIME-BASED RESTRICTION ---
   const isRestrictedMode = currentUser.phone === 'GUEST' || (currentUser.tier === 'lite' && currentUser.affiliate?.isMarketer);
   const [isLimitReached, setIsLimitReached] = useState(false);
 
@@ -132,7 +132,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const audioChunksRef = useRef<Blob[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const recognitionRef = useRef<any>(null);
-  const passiveRecognitionRef = useRef<any>(null); // Separate ref for wake word
+  const passiveRecognitionRef = useRef<any>(null); 
   const rafIdRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -143,7 +143,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const recordingStartTimeRef = useRef<number>(0);
   const stateRef = useRef({ isBusy: false, isListening: false, finalTranscript: '', lastAudioTime: Date.now() });
 
-  // Customized Subtitle based on Role
   const getGreetingSubtitle = () => {
       if (isAdmin) return `مرحباً ${currentUser.name.split(' ')[0]} (الماستر)`;
       if (currentUser.phone === 'GUEST') return "مرحباً ضيف الظل";
@@ -151,7 +150,24 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       return `مرحباً ${currentUser.name.split(' ')[0]} (عضو نخبة)`;
   };
 
-  // --- INJECT SYSTEM MESSAGES (ALARMS) - FIX TIMING ---
+  // --- REALTIME LISTENER FOR NEW MESSAGES ---
+  useEffect(() => {
+      if (currentUser.phone !== 'GUEST') {
+          shadowDB.subscribeToRealtime(currentUser.phone, (table, payload) => {
+              if (table === 'history') {
+                  const newMsg = payload as DBMessage;
+                  // Only add if we don't already have it (Simple check)
+                  setMessages(prev => {
+                      if (prev.some(m => m.timestamp === newMsg.timestamp)) return prev;
+                      // Don't auto-add my own immediate sends (handled by optimisitic UI), wait for sync or only add 'model'
+                      return [...prev, newMsg];
+                  });
+              }
+          });
+      }
+  }, [currentUser.phone]);
+
+  // --- INJECT SYSTEM MESSAGES (ALARMS) ---
   useEffect(() => {
       if (incomingSystemMessage && incomingSystemMessage.timestamp !== lastSystemMessageIdRef.current) {
           lastSystemMessageIdRef.current = incomingSystemMessage.timestamp;
@@ -176,11 +192,9 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                   wakeLockRef.current = await navigator.wakeLock.request('screen');
               }
               setIsSentinelMode(true);
-              // Start passive listening for Wake Word
               startPassiveListening();
           } catch (err) {
               console.error(err);
-              // Force enable even if WakeLock fails
               setIsSentinelMode(true);
               startPassiveListening();
           }
@@ -199,7 +213,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) return;
 
-      // Kill any existing passive listener
       if (passiveRecognitionRef.current) {
           try { passiveRecognitionRef.current.stop(); } catch(e) {}
       }
@@ -210,35 +223,27 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       rec.lang = 'ar-EG';
 
       rec.onresult = (e: any) => {
-          // If already busy (recording, thinking, speaking), ignore wake words
           if (stateRef.current.isBusy || appStatus !== 'idle') return;
 
           const results = e.results;
           const transcript = results[results.length - 1][0].transcript.trim().toLowerCase();
           
-          // WAKE WORD DETECTION (Enhanced)
           if (transcript.includes('يا ظل') || transcript.includes('يا تيتو') || transcript.includes('يا صاحبي') || transcript.includes('نكسوس')) {
-              rec.stop(); // Stop passive
-              
-              // Visual & Audio Feedback
+              rec.stop(); 
               const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
               audio.volume = 0.5;
               audio.play().catch(() => {});
-              
-              // TRIGGER ACTIVE RECORDING IMMEDIATELY
               setTimeout(() => startListening(), 200);
           }
       };
 
       rec.onend = () => {
-          // CRITICAL FIX: Always restart passive listener if mode is ON and we are NOT busy
           if (isSentinelMode && !stateRef.current.isBusy && appStatus === 'idle') {
               try { rec.start(); } catch(e) {}
           }
       };
 
       rec.onerror = (event: any) => {
-          // On error, try restart after short delay
           if (isSentinelMode && !stateRef.current.isBusy) {
                setTimeout(() => { try { rec.start(); } catch(e) {} }, 1000);
           }
@@ -297,13 +302,11 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           try {
             const safeHistory = messages.map(m => ({
                 ...m,
-                voiceData: undefined, // Don't save large voice data in localStorage
+                voiceData: undefined, 
                 image: m.image && m.image.length > 50000 ? undefined : m.image 
             }));
             localStorage.setItem('shadow_trial_history', JSON.stringify(safeHistory));
-          } catch (e) {
-              // fallback
-          }
+          } catch (e) { }
       }
   }, [messages, isRestrictedMode]);
 
@@ -327,40 +330,32 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   }, [isSearchActive]);
 
   const resetToIdle = useCallback(() => {
-    // Force stop streams
     if (recorderRef.current) {
         if(recorderRef.current.state !== 'inactive') recorderRef.current.stop();
         recorderRef.current = null;
     }
     if (recognitionRef.current) {
-        recognitionRef.current.onend = null; // Unbind to stop loops
+        recognitionRef.current.onend = null;
         recognitionRef.current.stop();
         recognitionRef.current = null;
     }
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    
     stateRef.current.isBusy = false;
     stateRef.current.isListening = false;
     stateRef.current.finalTranscript = '';
     isCancelledRef.current = false;
-    
     setAppStatus('idle');
     setLiveTranscript('');
     setPendingImage(null);
-
-    // Resume Sentinel if active
     if (isSentinelMode) {
-        setTimeout(startPassiveListening, 500); // Small delay to prevent self-trigger
+        setTimeout(startPassiveListening, 500); 
     }
   }, [isSentinelMode]);
 
   const startListening = async () => {
     if (isLimitReached) return;
-    
-    // CRITICAL: Mark as busy immediately to prevent Sentinel from restarting!
     stateRef.current.isBusy = true;
 
-    // Stop Passive Listener first to avoid conflict
     if (passiveRecognitionRef.current) {
         try { passiveRecognitionRef.current.stop(); } catch(e) {}
     }
@@ -382,13 +377,11 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
       setAppStatus('listening');
       stateRef.current.isListening = true;
-      // stateRef.current.isBusy is already true
       stateRef.current.finalTranscript = '';
       stateRef.current.lastAudioTime = Date.now();
       recordingStartTimeRef.current = Date.now(); 
       isCancelledRef.current = false;
 
-      // Start Recognition (Speech to Text + Silence Detection)
       setupActiveSpeechRecognition();
       
       audioChunksRef.current = [];
@@ -403,7 +396,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         }
 
         const duration = Date.now() - recordingStartTimeRef.current;
-        // Logic: If duration short AND no text, cancel.
         if (duration < 1000 && !stateRef.current.finalTranscript.trim()) {
             stream.getTracks().forEach(track => track.stop());
             resetToIdle();
@@ -454,32 +446,24 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
       setLiveTranscript(stateRef.current.finalTranscript + interim);
       
-      // --- ROBUST SILENCE DETECTION (The 5-Second Rule) ---
-      // This is the ONLY place we reset the timer.
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
       if (stateRef.current.isListening) {
            silenceTimerRef.current = setTimeout(() => {
-               // Double check we are still listening before stopping
                if (stateRef.current.isListening) {
                    console.log("Silence detected (5s), stopping recording...");
                    stopListeningAndSend();
                }
-           }, 5000); // 5 seconds strict silence
+           }, 5000); 
       }
     };
 
     rec.onend = () => {
-        // --- KEY FIX: BROWSER STOPPED MIC, BUT TIMER IS STILL TICKING ---
-        // Do NOT stop the recorder. Do NOT cancel the silence timer.
-        // Just restart the speech recognition silently.
-        
         if (stateRef.current.isListening) {
              console.log("Browser mic cutout detected. Restarting recognition immediately...");
              try { 
                  rec.start(); 
              } catch(e) { 
-                 // If quick restart fails, try again in 200ms
                  setTimeout(() => {
                      if (stateRef.current.isListening) try { rec.start(); } catch(e2) {}
                  }, 200);
@@ -492,17 +476,12 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   };
 
   const stopListeningAndSend = () => {
-    // This function MUST be called to finish the recording loop
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    
-    // Stop Recognition First and Prevent auto-restart
     if (recognitionRef.current) {
-        recognitionRef.current.onend = null; // IMPORTANT: Prevent the infinite loop logic above
+        recognitionRef.current.onend = null; 
         recognitionRef.current.stop();
         recognitionRef.current = null;
     }
-    
-    // Then Stop Recorder (this triggers onstop which calls handleSend)
     if (recorderRef.current && recorderRef.current.state === 'recording') {
         stateRef.current.isListening = false;
         recorderRef.current.stop();
@@ -510,7 +489,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   };
 
   const cancelRecording = () => {
-      isCancelledRef.current = true; // MARK AS CANCELLED
+      isCancelledRef.current = true; 
       stateRef.current.isListening = false;
       stateRef.current.isBusy = false;
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -518,7 +497,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           recorderRef.current.stop();
       }
       if (recognitionRef.current) {
-          recognitionRef.current.onend = null; // Prevent restart
+          recognitionRef.current.onend = null; 
           recognitionRef.current.stop();
           recognitionRef.current = null;
       }
@@ -534,7 +513,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       if (isSentinelMode) startPassiveListening();
   };
 
-  // UPDATED: handleSend now accepts base64 audio string directly for resending
   const handleSend = async (forcedText?: string, audioBlob?: Blob, existingAudioBase64?: string) => {
     if (isLimitReached) return; 
     
@@ -554,10 +532,9 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     setActiveAppCard(null); 
 
     let userVoiceDataURI = existingAudioBase64 || '';
-    let geminiAudioInput = ''; // Raw base64 for Gemini
+    let geminiAudioInput = ''; 
     
     if (existingAudioBase64) {
-        // If passing raw dataURI (e.g. from DB), extract base64 part for Gemini
         geminiAudioInput = existingAudioBase64.includes(',') ? existingAudioBase64.split(',')[1] : existingAudioBase64;
     } else if (audioBlob) {
         userVoiceDataURI = await new Promise<string>((resolve) => { 
@@ -587,7 +564,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     setPendingImage(null); 
     setLiveTranscript('');
 
-    // --- GENERATION START ---
     abortControllerRef.current = new AbortController();
 
     try {
@@ -602,21 +578,16 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           displayText || "استمع إلى الصوت", 
           extra,
           currentUser,
-          abortControllerRef.current.signal // Pass Signal
+          abortControllerRef.current.signal 
       );
       
-      // Auto-Execution Logic (Simulation of "Last Mile")
-      let toolActionExecuted = false;
-
       if (result.toolAction) {
           if (result.toolAction.type === 'share') {
-             // Fallback for general share
              setShareCard({
                  caption: result.toolAction.caption,
                  platform: result.toolAction.platform,
                  image: imgFileForShare
              });
-             // Trigger Native Share immediately if possible
              if (navigator.share) {
                  try {
                      await navigator.share({
@@ -632,9 +603,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                  description: result.toolAction.description
              });
           } else if (result.toolAction.type === 'open_deep_link') {
-             // Updated: Now handles DIRECT APP OPENING for Social Media & Apps
              const win = window.open(result.toolAction.url, '_blank');
-             toolActionExecuted = !!win;
              if (!win) {
                  setActiveAppCard({
                      cardType: 'deep_link_fallback',
@@ -657,7 +626,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
              const cleanPhone = phone.replace(/^\++/, ''); 
              const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(result.toolAction.message || '')}`;
              const win = window.open(url, '_blank');
-             toolActionExecuted = !!win;
           }
       }
 
@@ -686,7 +654,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           setLastSpokenText(result.text);
           playShadowVoice(result.text, 'male', voiceData, () => { 
               setPlayingMessageId(null); 
-              // CRITICAL FIX: Only go to IDLE if we are NOT currently busy with another request
               if (!stateRef.current.isBusy) {
                   setAppStatus('idle'); 
                   if (isSentinelMode) startPassiveListening();
@@ -697,7 +664,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           });
       } else {
           setAppStatus('idle');
-          stateRef.current.isBusy = false; // FREE THE STATE
+          stateRef.current.isBusy = false; 
           if (isSentinelMode) startPassiveListening();
           if (isMuted) {
             getShadowVoice(result.text, 'male').then(async (audio) => {
@@ -714,7 +681,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
             console.log("Generation Aborted");
         } else {
             console.error(e); 
-            // Mark last message as Error
             setMessages(prev => prev.map(m => m.id === id ? { ...m, isError: true } : m));
         }
         setAppStatus('idle'); 
@@ -743,23 +709,17 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   };
 
-  // --- NEW: Resend User Message ---
   const handleResendUserMessage = (msg: ExtendedMessage) => {
       if (msg.voiceData) {
-          // If it was a voice message, resend the base64 data
           handleSend(msg.text, undefined, msg.voiceData);
       } else {
-          // If text, resend text
           handleSend(msg.text);
       }
   };
 
-  const executeShare = async () => { if (!shareCard) return; if (navigator.share) { const shareData: any = { title: 'Ez-Zel Post', text: shareCard.caption, }; if (shareCard.image) { shareData.files = [shareCard.image]; } try { await navigator.share(shareData); } catch (err) { console.log("Share failed", err); } } else { navigator.clipboard.writeText(shareCard.caption); alert("تم نسخ النص."); } };
   const handleStopPlayback = () => { stopVoice(); if (userAudioPlayerRef.current) { userAudioPlayerRef.current.pause(); userAudioPlayerRef.current = null; } setPlayingMessageId(null); 
-    // Only set idle if not busy
     if (!stateRef.current.isBusy) setAppStatus('idle'); 
   };
-  const handleReplayLast = () => { if (lastSpokenText) { stopVoice(); setAppStatus('speaking'); playShadowVoice(lastSpokenText, 'male', undefined, () => { if(!stateRef.current.isBusy) setAppStatus('idle'); }); } };
   
   const handlePlayMessage = (msg: DBMessage) => { 
       if (playingMessageId === msg.id) { 
@@ -788,20 +748,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { setIsProcessingImage(true); try { const compressed = await compressImage(file); setPendingImage(compressed); } catch(err) { console.error("Compression failed", err); } finally { setIsProcessingImage(false); } } };
   
-  const sendFeedback = async () => { 
-      if (!feedbackText.trim()) return; 
-      await shadowDB.saveFeedback({ 
-          userId: currentUser.phone, 
-          userName: currentUser.name, 
-          message: feedbackText, 
-          timestamp: Date.now(), 
-          isRead: false 
-      }); 
-      setFeedbackSent(true); 
-      setFeedbackText(''); 
-      setTimeout(() => { setShowFeedback(false); setFeedbackSent(false); }, 2000); 
-  };
-
   const handleAppCardAction = async () => { if (!activeAppCard) return; if (activeAppCard.cardType === 'deep_link_fallback' && activeAppCard.url) { window.open(activeAppCard.url, '_blank'); } else if (activeAppCard.cardType === 'call' && activeAppCard.number) { window.location.href = `tel:${activeAppCard.number}`; } else if (activeAppCard.cardType === 'install_app') { if (installPrompt) { installPrompt.prompt(); const { outcome } = await installPrompt.userChoice; if (outcome === 'accepted') setInstallPrompt(null); } else { alert("Install manually."); } } else if (['open_vault', 'open_nexus', 'open_pricing'].includes(activeAppCard.cardType)) { if (onNavigateTo) { const section = activeAppCard.cardType.replace('open_', ''); onNavigateTo(section); } } else if (activeAppCard.cardType === 'open_affiliate') { if (onOpenAffiliate) onOpenAffiliate(); } else if (activeAppCard.cardType === 'open_capabilities') { setShowCapabilities(true); setActiveAppCard(null); } else if (activeAppCard.cardType === 'open_support') { setShowFeedback(true); setActiveAppCard(null); } };
   const getCardIcon = (type: string) => { switch(type) { case 'install_app': return <Download className="w-6 h-6 text-white" />; case 'open_vault': return <Shield className="w-6 h-6 text-purple-400" />; case 'open_affiliate': return <DollarSign className="w-6 h-6 text-emerald-400" />; case 'open_nexus': return <Cpu className="w-6 h-6 text-cyan-400" />; case 'open_capabilities': return <Star className="w-6 h-6 text-amber-400" />; case 'open_support': return <HelpCircle className="w-6 h-6 text-pink-400" />; case 'open_pricing': return <Crown className="w-6 h-6 text-white" />; case 'deep_link_fallback': return <ExternalLink className="w-6 h-6 text-red-400" />; case 'call': return <PhoneCall className="w-6 h-6 text-white" />; default: return <ArrowRight className="w-6 h-6 text-white" />; } };
   const getCardColor = (type: string) => { switch(type) { case 'install_app': return 'bg-blue-600 hover:bg-blue-500'; case 'open_vault': return 'bg-purple-600 hover:bg-purple-500'; case 'open_affiliate': return 'bg-emerald-600 hover:bg-emerald-500'; case 'open_nexus': return 'bg-cyan-600 hover:bg-cyan-500'; case 'open_capabilities': return 'bg-amber-600 hover:bg-amber-500'; case 'open_support': return 'bg-pink-600 hover:bg-pink-500'; case 'open_pricing': return 'bg-white/20 hover:bg-white/30'; case 'deep_link_fallback': return 'bg-red-600 hover:bg-red-500'; case 'call': return 'bg-emerald-600 hover:bg-emerald-500'; default: return 'bg-white/10 hover:bg-white/20'; } };
@@ -878,7 +824,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         </div>
       </div>
 
-      {/* Messages Area - Added padding bottom to clear input deck */}
+      {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-44 space-y-4 scrollbar-hide bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative">
         {displayedMessages.map((m, idx) => (
           <div key={idx} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
@@ -897,21 +843,16 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                 <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
                     <span className="text-[9px] text-white/20 font-black tracking-widest">{new Date(m.timestamp).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
                     <div className="flex gap-2 items-center">
-                        {/* Error / Retry Button */}
                         {m.isError && (
                             <button onClick={() => handleSend(m.text)} className="flex items-center gap-1 text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-1 rounded-full border border-red-500/30 hover:bg-red-500 hover:text-white transition-all">
                                 <RefreshCw className="w-3 h-3" /> إعادة محاولة
                             </button>
                         )}
-
-                        {/* RESEND BUTTON FOR USER (Text or Voice) */}
                         {m.role === 'user' && (
                             <button onClick={() => handleResendUserMessage(m)} className="px-2 py-1 rounded-full bg-white/5 text-white/40 border border-white/5 flex items-center gap-1 hover:bg-white/10 hover:text-white transition-all" title="إعادة إرسال">
                                 <RefreshCw className="w-2.5 h-2.5" />
                             </button>
                         )}
-
-                        {/* Share Button with Referral Injection */}
                         {m.role === 'model' && (
                             <button onClick={() => handleShareMessage(m.text)} className="px-2 py-1 rounded-full bg-white/5 text-white/40 border border-white/5 flex items-center gap-1 hover:bg-white/10 hover:text-white transition-all">
                                 <Share2 className="w-2.5 h-2.5" />
@@ -928,7 +869,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
             )}
           </div>
         ))}
-        {/* Render other elements like app cards, thinking indicators here... (keeping existing logic) */}
         {activeAppCard && !searchQuery && (
             <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2">
                 <div className="max-w-[85%] md:max-w-[60%] p-1 rounded-[24px] bg-gradient-to-br from-white/10 to-transparent shadow-xl border border-white/20 backdrop-blur-md">
@@ -940,7 +880,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
             </div>
         )}
         
-        {/* Stop Thinking Button (Appears when status is 'thinking') */}
         {appStatus === 'thinking' && !searchQuery && (
             <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 items-center gap-3">
                 <div className="bg-[#0f0f0f] border border-purple-500/20 rounded-[20px] rounded-tr-none p-4 flex items-center gap-3 shadow-lg">
@@ -952,16 +891,9 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                 </button>
             </div>
         )}
-        
-        {isLimitReached && <div className="p-4 text-center text-white glass rounded-2xl border border-red-500/50 mt-4 bg-gradient-to-br from-red-900/20 to-black"><div className="mb-4"><Clock className="w-10 h-10 text-red-500 mx-auto animate-pulse" /></div><p className="text-white font-bold text-sm leading-loose px-4">انتهت فترة التجربة.</p>
-        <div className="flex flex-col gap-2 mt-4">
-            <button onClick={onUpgrade} className="w-full px-6 py-4 bg-white text-black font-black rounded-xl text-sm">تفعيل الاشتراك</button>
-            <button onClick={() => setShowFeedback(true)} className="w-full px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 border border-white/5"><MessageCircle className="w-4 h-4 text-purple-400" /> رأيك يهمنا</button>
-        </div>
-        </div>}
       </div>
 
-      {/* Input Deck - Fixed to bottom, exactly above the 32px ticker */}
+      {/* Input Deck */}
       <div className={`fixed bottom-[32px] left-0 w-full p-3 md:p-4 bg-[#0a0a0a] border-t border-white/5 z-50 transition-all duration-500 ${isLimitReached ? 'opacity-0 pointer-events-none translate-y-full' : 'opacity-100'}`}>
         {pendingImage && (
             <div className="mb-2 flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg w-fit border border-white/10">

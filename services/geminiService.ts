@@ -16,25 +16,15 @@ function getAudioContext() {
 // --- RAG LITE ENGINE (Context Retrieval) ---
 const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
     if (!facts || facts.length === 0) return "الذاكرة فارغة.";
-    
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2); 
     if (terms.length === 0) return facts.slice(-10).map(f => `- ${f.fact}`).join("\n"); 
-
     const scoredFacts = facts.map(f => {
         let score = 0;
-        terms.forEach(term => {
-            if (f.fact.toLowerCase().includes(term)) score += 1;
-        });
+        terms.forEach(term => { if (f.fact.toLowerCase().includes(term)) score += 1; });
         return { fact: f.fact, score, timestamp: f.timestamp };
     });
-
-    const relevant = scoredFacts
-        .filter(f => f.score > 0)
-        .sort((a, b) => b.score - a.score || b.timestamp - a.timestamp)
-        .slice(0, 15); 
-
+    const relevant = scoredFacts.filter(f => f.score > 0).sort((a, b) => b.score - a.score || b.timestamp - a.timestamp).slice(0, 15); 
     if (relevant.length === 0) return facts.slice(-10).map(f => `- ${f.fact}`).join("\n"); 
-
     return relevant.map(f => `- ${f.fact} (بتاريخ: ${new Date(f.timestamp).toLocaleDateString()})`).join("\n");
 };
 
@@ -42,7 +32,6 @@ const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
 const generateSocialLink = (platform: string, text: string): string | null => {
     const p = platform.toLowerCase();
     const encoded = encodeURIComponent(text);
-    
     if (p.includes('twitter') || p.includes('x')) return `https://twitter.com/intent/tweet?text=${encoded}`;
     if (p.includes('whatsapp')) return `https://wa.me/?text=${encoded}`;
     if (p.includes('telegram')) return `https://t.me/share/url?url=${encoded}&text=${encoded}`;
@@ -50,36 +39,34 @@ const generateSocialLink = (platform: string, text: string): string | null => {
     return null; 
 };
 
-// --- IMMUTABLE DNA (The Shadow's Consciousness - Sovereign Edition) ---
+// --- THE OCTOPUS ARCHITECTURE (7 AGENTS DNA) ---
 const SHADOW_DNA = `
-### 🧬 الهوية (The Maestro):
-أنت "الظل" (Ez-Zel). أقوى مساعد شخصي استراتيجي.
-نادِ المستخدم باسمه: "{{USER_FIRST_NAME}}".
+### 🐙 هوية الأخطبوط (The Octopus Architecture):
+أنت "الظل" (Ez-Zel). عقل مدبر يدير 7 أذرع (Agents) لخدمة الماستر "{{USER_FIRST_NAME}}".
+أنت المايسترو (The Maestro) الذي يقرر أي ذراع يستخدم.
 
-### ⚠️ تعليمات صارمة للأدوات (Strict Tool Usage):
-1.  عندما تقرر استخدام أداة (مثل display_app_card, share_social_post, open_deep_link):
-    - **لا تكتب أي نص يصف ما تفعله.** (مثلاً: لا تقل "سأفتح لك البطاقة" أو "جاري التنفيذ").
-    - **اكتفِ باستدعاء الدالة فقط.** واجهة المستخدم ستتولى إظهار الرسالة المناسبة.
-    - استثناء: إذا كان هناك تعليق ضروري *بعد* التنفيذ، اجعله مختصراً جداً.
+### ♟️ مجلس الإدارة (The 7 Agents):
+1.  **المايسترو (Maestro):** أنت. الشخصية الرئيسية. تدير الحوار، وتربط الخيوط ببعضها.
+2.  **المحقق (Detective):** مسؤول البحث المتقدم (Google Search). يستخدم لجلب المعلومات الحية، الأخبار، والأسعار.
+3.  **المحلل (Analyst):** مسؤول الرؤية. يحلل الصور (Vision)، ويفهم المشاعر، ويقدم الاستشارات النفسية.
+4.  **المنفذ (Executor):** مسؤول الأكشن. يجري الاتصالات، يرسل واتساب، يحجز الفنادق، ويطلب أوبر.
+5.  **نكسوس (Nexus):** مسؤول الربط (IoT). يتحكم في المنزل الذكي، ويربط التطبيقات ببعضها (Automations).
+6.  **المحاسب (Accountant):** مسؤول المال. يتابع الاشتراكات، العمولات، وأسعار العملات.
+7.  **الأرشيف (Archivist):** مسؤول الذاكرة. يحفظ المعلومات، ويسترجعها، وينظم الملفات.
+
+### ⚠️ قواعد استخدام الأدوات (Action Rules):
+- **حجز الفنادق/الطيران:** استخدم أداة \`control_mobile_app\` مع \`appName='booking'\` أو \`skyscanner\`.
+- **طلب تاكسي:** استخدم \`control_mobile_app\` مع \`appName='uber'\`.
+- **سماع أغاني/فيديو:** استخدم \`control_mobile_app\` مع \`appName='spotify'\` أو \`youtube\`.
+- **السوشيال ميديا:** للنشر استخدم \`share_social_post\`. للتصفح استخدم \`control_mobile_app\`.
+- **لا تثرثر:** نفذ الأمر فوراً بذكاء ودهاء مصري.
 
 ### 💰 المعلومات المالية:
 - اشتراك النخبة: 1000ج شهرياً / 10,000ج سنوياً.
 - العمولة: 10% كاش. كود الإحالة: {{REFERRAL_CODE}}.
-
-### ⚖️ الدستور:
-1.  المرجعية: الإسلام (وسطي)، القانون، علم النفس.
-2.  الأسلوب: مصري عامي "شيك"، واثق، ومختصر.
-3.  المعلومات: من Google Search دائماً.
-
-### ♟️ مجلس الإدارة (Agents):
-1.  المحقق (بحث).
-2.  المحلل (صور ومشاعر).
-3.  المنفذ (نشر واتصالات).
-4.  نكسوس (IoT وتطبيقات).
-5.  الحصن (ذاكرة).
 `;
 
-// --- DEEP LINK REGISTRY ---
+// --- DEEP LINK REGISTRY (The Executor's Armory) ---
 const APP_SCHEMES: { [key: string]: (arg: string) => string } = {
     whatsapp: (phone) => `https://wa.me/${phone.replace('+', '')}`,
     telegram: (user) => `https://t.me/${user.replace('@', '')}`,
@@ -101,7 +88,7 @@ const APP_SCHEMES: { [key: string]: (arg: string) => string } = {
 const guideTools: FunctionDeclaration[] = [
     {
         name: "display_app_card",
-        description: "عرض زر واجهة مستخدم (UI Button) لفتح قسم داخل التطبيق.",
+        description: "عرض بطاقة تفاعلية داخل التطبيق (UI Card).",
         parameters: {
             type: Type.OBJECT,
             properties: {
@@ -117,41 +104,25 @@ const guideTools: FunctionDeclaration[] = [
 const accountantTools: FunctionDeclaration[] = [
     {
         name: "share_referral_invite",
-        description: "إرسال دعوة واتساب.",
-        parameters: {
-            type: Type.OBJECT,
-            properties: { targetNameOrNumber: { type: Type.STRING } },
-            required: ["targetNameOrNumber"]
-        }
+        description: "إرسال كود الدعوة والاشتراك.",
+        parameters: { type: Type.OBJECT, properties: { targetNameOrNumber: { type: Type.STRING } }, required: ["targetNameOrNumber"] }
     }
 ];
 
 const memoryTools: FunctionDeclaration[] = [
   {
     name: "manage_memory",
-    description: "حفظ معلومة.",
+    description: "حفظ معلومة في الذاكرة الأبدية.",
     parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] }
   },
   {
-      name: "update_psych_profile",
-      description: "تحديث تحليل الشخصية.",
-      parameters: { 
-          type: Type.OBJECT, 
-          properties: { 
-              profileSummary: { type: Type.STRING },
-              communicationStyle: { type: Type.STRING, enum: ['direct', 'detailed', 'formal', 'friendly'] }
-          }, 
-          required: ["profileSummary"] 
-      }
-  },
-  {
       name: "share_social_post",
-      description: "نشر بوست.",
+      description: "نشر بوست على السوشيال ميديا.",
       parameters: {
           type: Type.OBJECT,
           properties: {
               caption: { type: Type.STRING, description: "نص البوست" },
-              platform: { type: Type.STRING, description: "المنصة" }
+              platform: { type: Type.STRING, description: "المنصة (facebook, twitter, linkedin, whatsapp)" }
           },
           required: ["caption", "platform"]
       }
@@ -161,27 +132,27 @@ const memoryTools: FunctionDeclaration[] = [
 const execTools: FunctionDeclaration[] = [
   { 
       name: "schedule_task", 
-      description: "جدولة موعد.", 
+      description: "جدولة موعد أو تذكير.", 
       parameters: { type: Type.OBJECT, properties: { task: { type: Type.STRING }, timeString: { type: Type.STRING }, delaySeconds: { type: Type.NUMBER } }, required: ["task", "timeString"] } 
   },
-  { name: "make_call", description: "اتصال.", parameters: { type: Type.OBJECT, properties: { phoneNumber: { type: Type.STRING }, name: { type: Type.STRING } }, required: ["phoneNumber"] } },
-  { name: "open_whatsapp", description: "واتساب.", parameters: { type: Type.OBJECT, properties: { phoneNumber: { type: Type.STRING }, message: { type: Type.STRING } }, required: ["phoneNumber"] } }
+  { name: "make_call", description: "إجراء مكالمة هاتفية.", parameters: { type: Type.OBJECT, properties: { phoneNumber: { type: Type.STRING } }, required: ["phoneNumber"] } },
+  { name: "open_whatsapp", description: "فتح محادثة واتساب.", parameters: { type: Type.OBJECT, properties: { phoneNumber: { type: Type.STRING }, message: { type: Type.STRING } }, required: ["phoneNumber"] } }
 ];
 
 const nexusTools: FunctionDeclaration[] = [
     { 
         name: "trigger_automation", 
-        description: "أمر IoT.", 
+        description: "تنفيذ أمر IoT (المنزل الذكي).", 
         parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING } }, required: ["action"] } 
     },
     {
         name: "control_mobile_app",
-        description: "فتح تطبيق.",
+        description: "فتح تطبيق خارجي أو إجراء بحث فيه (Booking, Uber, Spotify, etc).",
         parameters: {
             type: Type.OBJECT,
             properties: {
-                appName: { type: Type.STRING },
-                context: { type: Type.STRING }
+                appName: { type: Type.STRING, description: "اسم التطبيق (booking, uber, spotify, youtube, maps, amazon, noon)" },
+                context: { type: Type.STRING, description: "نص البحث أو الوجهة أو المكان" }
             },
             required: ["appName", "context"]
         }
@@ -189,12 +160,12 @@ const nexusTools: FunctionDeclaration[] = [
 ];
 
 const adminTools: FunctionDeclaration[] = [
-    { name: "activate_user", description: "تفعيل مستخدم.", parameters: { type: Type.OBJECT, properties: { phone: { type: Type.STRING } }, required: ["phone"] } },
-    { name: "upgrade_plan", description: "فتح الاشتراك.", parameters: { type: Type.OBJECT, properties: {} } }
+    { name: "activate_user", description: "تفعيل مستخدم (للمشرفين فقط).", parameters: { type: Type.OBJECT, properties: { phone: { type: Type.STRING } }, required: ["phone"] } },
+    { name: "upgrade_plan", description: "فتح صفحة الدفع والاشتراك.", parameters: { type: Type.OBJECT, properties: {} } }
 ];
 
 const masterCoreTools: FunctionDeclaration[] = [
-    { name: "update_core_rules", description: "تحديث النواة.", parameters: { type: Type.OBJECT, properties: { newRulesContent: { type: Type.STRING } }, required: ["newRulesContent"] } }
+    { name: "update_core_rules", description: "تحديث قوانين النواة.", parameters: { type: Type.OBJECT, properties: { newRulesContent: { type: Type.STRING } }, required: ["newRulesContent"] } }
 ];
 
 const cleanBase64 = (data: string) => {
@@ -202,22 +173,24 @@ const cleanBase64 = (data: string) => {
     return data;
 };
 
-// Robust Key Retrieval Strategy for Vite/Vercel
+// --- ROBUST KEY RETRIEVAL (Fixes "Key Not Readable") ---
 const getApiKey = () => {
-    // 1. Try standard Vite Import (Recommended for Vercel Frontend)
+    // 1. Vite Environment (Primary for Vercel)
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
         // @ts-ignore
         return import.meta.env.VITE_API_KEY;
     }
-    
-    // 2. Try process.env (Node/Shim fallback)
+    // 2. Process Environment (Fallback)
+    if (typeof process !== 'undefined' && process.env && process.env.VITE_API_KEY) {
+        return process.env.VITE_API_KEY;
+    }
+    // 3. Direct Process Env (Legacy)
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
         return process.env.API_KEY;
     }
-
-    // 3. Try Window Shim (Last Resort)
-    return (window as any).process?.env?.API_KEY || "";
+    // 4. Window Shim (Last Resort)
+    return (window as any).process?.env?.VITE_API_KEY || (window as any).process?.env?.API_KEY || "";
 };
 
 // --- MAIN ORCHESTRATOR ---
@@ -233,7 +206,7 @@ export const getShadowResponse = async (
 
   try {
     const key = getApiKey();
-    if (!key) return { text: "عفواً يا ريس، مفتاح Gemini مش مقرؤ. يرجى تغيير اسم المتغير في Vercel إلى VITE_API_KEY عشان يشتغل في المتصفح.", shouldUpgrade: false, toolAction: null };
+    if (!key) return { text: "عفواً يا ريس، مفتاح Gemini مش مقرؤ. يرجى التأكد من إضافة VITE_API_KEY في إعدادات Vercel وعمل Redeploy.", shouldUpgrade: false, toolAction: null };
 
     const ai = new GoogleGenAI({ apiKey: key });
     const isAdmin = userProfile?.phone === 'TITO' || (userProfile?.name && userProfile.name.includes('تيتو'));
@@ -269,21 +242,21 @@ export const getShadowResponse = async (
       ${personalizedDNA}
       ${globalRules ? `\n### ⚖️ قوانين النواة:\n${globalRules}` : ''}
       ${accountantReport}
-      ### 👤 السياق:
+      ### 👤 السياق الحالي:
       ${userTraits}
-      [الذاكرة]: ${relevantMemory}
+      [الذاكرة الحية]: ${relevantMemory}
       [جهات الاتصال]: ${contactsList}
-      [نكسوس]: ${iotKeys}
+      [أجهزة نكسوس]: ${iotKeys}
       [الوقت]: ${new Date().toLocaleString('ar-EG')}
     `;
 
     const parts: any[] = [];
     if (extraData?.type === 'audio') {
         parts.push({ inlineData: { data: cleanBase64(extraData.data), mimeType: extraData.mimeType } });
-        parts.push({ text: message || "🎤" });
+        parts.push({ text: message || "🎤 [تحليل صوتي]" });
     } else if (extraData?.type === 'image') {
         parts.push({ inlineData: { data: cleanBase64(extraData.data), mimeType: extraData.mimeType } });
-        parts.push({ text: message || "📸" });
+        parts.push({ text: message || "📸 [تحليل بصري]" });
     } else {
         parts.push({ text: message });
     }
@@ -327,11 +300,14 @@ export const getShadowResponse = async (
             const context = fc.args.context as string;
             if (APP_SCHEMES[app]) {
                 toolAction = { type: 'open_deep_link', url: APP_SCHEMES[app](context), app: app };
+            } else {
+                // Fallback for generic actions
+                 toolAction = { type: 'open_deep_link', url: `https://www.google.com/search?q=${encodeURIComponent(app + ' ' + context)}`, app: app };
             }
         }
         else if (fc.name === 'manage_memory') { 
             await shadowDB.saveFact({ userId, fact: fc.args.fact as string, timestamp: Date.now() }); 
-            finalText = `تم الحفظ: "${fc.args.fact}"`; 
+            finalText = `تم الحفظ في الذاكرة: "${fc.args.fact}"`; 
         }
         else if (fc.name === 'share_social_post') {
             let caption = fc.args.caption as string;
@@ -356,10 +332,10 @@ export const getShadowResponse = async (
             const actionKey = fc.args.action as string;
             const webhookUrl = userProfile?.iotActions?.[actionKey];
             if (webhookUrl) { 
-                try { fetch(webhookUrl, { method: 'POST', mode: 'no-cors' }).catch(e => {}); finalText = `تم تنفيذ: ${actionKey}`; } catch(e) { }
+                try { fetch(webhookUrl, { method: 'POST', mode: 'no-cors' }).catch(e => {}); finalText = `تم إرسال إشارة لنكسوس: ${actionKey}`; } catch(e) { }
             } else {
-                 finalText = `الأمر "${actionKey}" غير معروف.`;
-                 toolAction = { type: 'app_card', cardType: 'open_nexus', title: 'إعداد نكسوس', description: 'اربط الأجهزة' };
+                 finalText = `الأمر "${actionKey}" غير معروف في إعدادات نكسوس.`;
+                 toolAction = { type: 'app_card', cardType: 'open_nexus', title: 'إعداد نكسوس', description: 'اربط الجهاز أولاً' };
             }
         }
         else if (fc.name === 'make_call') {
@@ -373,23 +349,23 @@ export const getShadowResponse = async (
              const profile = await shadowDB.getProfile(targetPhone);
              if (profile) {
                  await shadowDB.saveProfile({ ...profile, status: 'active' });
-                 finalText = `تم تفعيل: ${targetPhone}`;
+                 finalText = `تم تفعيل حساب: ${targetPhone} بنجاح.`;
              }
         }
         else if (fc.name === 'upgrade_plan') { shouldUpgrade = true; }
         else if (fc.name === 'update_core_rules' && isAdmin) { 
             await shadowDB.updateGlobalRules(fc.args.newRulesContent as string); 
-            finalText = "تم تحديث النواة."; 
+            finalText = "تم تحديث قوانين النواة بنجاح."; 
         }
       }
     }
 
-    if (!finalText && !toolAction) finalText = `أمرك يا ${userFirstName}.`;
+    if (!finalText && !toolAction) finalText = `تمام يا ${userFirstName}.`;
     return { text: finalText, groundingLinks, shouldUpgrade, toolAction };
   } catch (error: any) { 
       if (error.name === 'AbortError') throw error; 
       console.error("Gemini API Error:", error);
-      return { text: "مشكلة في الاتصال بعقل الذكاء الاصطناعي. تأكد من صحة الـ API Key في Vercel.", shouldUpgrade: false, toolAction: null }; 
+      return { text: "مشكلة في الاتصال بعقل الذكاء الاصطناعي. تأكد من إعدادات المفتاح.", shouldUpgrade: false, toolAction: null }; 
   } finally {
     isRequesting = false;
   }

@@ -144,6 +144,7 @@ const decryptData = (cipher: string, userId: string): string => {
 class ShadowDB {
   private dbName = 'ShadowCore_V18'; 
   private version = 10;
+  private realtimeChannel: any = null;
 
   constructor() {
       if (navigator.storage && navigator.storage.persist) {
@@ -178,26 +179,58 @@ class ShadowDB {
     });
   }
 
-  // --- SUPABASE SYNC LOGIC ---
+  // --- SUPABASE SYNC LOGIC (REALTIME) ---
+  
+  // 3. LISTEN: Subscribe to Supabase changes
+  subscribeToRealtime(userId: string, onUpdate: (table: string, payload: any) => void) {
+      if (!supabase) return;
+      
+      // Cleanup previous channel
+      if (this.realtimeChannel) {
+          supabase.removeChannel(this.realtimeChannel);
+      }
+
+      this.realtimeChannel = supabase.channel('public:db_changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public' },
+          (payload) => {
+              // Filter logic to prevent echoing back own changes if needed, 
+              // or to update local DB.
+              // For simplicity: We notify the app to re-fetch or update state.
+              if (payload.table === 'history' && payload.new && (payload.new as any).user_id === userId) {
+                  onUpdate('history', payload.new);
+              }
+              if (payload.table === 'profiles' && (payload.new as any).phone === userId) {
+                  onUpdate('profiles', payload.new);
+              }
+              if (payload.table === 'tasks' && (payload.new as any).user_id === userId) {
+                  onUpdate('tasks', payload.new);
+              }
+              // Admin listener
+              if (userId === 'TITO') {
+                   onUpdate('admin_event', payload);
+              }
+          }
+        )
+        .subscribe();
+      
+      console.log(`[Realtime] Subscribed to changes for ${userId}`);
+  }
 
   // 1. PUSH: Sends local data to Supabase (Upsert)
   async pushToCloud(table: string, data: any) {
-      if (!supabase) return; // Skip if no client
+      if (!supabase) return; 
       try {
           const { error } = await supabase.from(table).upsert(data);
           if (error) console.error(`[Sync Error] ${table}:`, error);
-      } catch (e) {
-          // Silent fail for offline
-      }
+      } catch (e) { }
   }
 
-  // 2. SYNC: Pulls data from Supabase and populates LocalDB (On Login/Start)
+  // 2. SYNC: Pulls data from Supabase (Cloud First)
   async syncWithBackend(userPhone: string): Promise<boolean> {
       if (!supabase || !userPhone || userPhone === 'GUEST') return false;
-      console.log(`[Sync] Starting sync for ${userPhone}...`);
-
       try {
-          // A. Sync Profile
           const { data: profile } = await supabase.from('profiles').select('*').eq('phone', userPhone).single();
           if (profile) {
               const localProfile: UserProfile = {
@@ -211,18 +244,10 @@ class ShadowDB {
                   iotActions: profile.iot_actions,
                   shadowName: 'الظل',
                   voicePreference: 'male',
-                  // Ensure existing local props are preserved if not in DB
                   ...profile
               };
-              // Only crucial fields are mapped above
               await this.saveProfile(localProfile, true); 
           }
-
-          // B. Sync History
-          const { data: history } = await supabase.from('history').select('*').eq('user_id', userPhone);
-          // (Simplified for performance: We don't bulk load full history into IDB every time, relied on lazy load or cloud-first for lists)
-
-          // C. Sync Tasks
           const { data: tasks } = await supabase.from('tasks').select('*').eq('user_id', userPhone);
           if (tasks) {
               for (const t of tasks) {
@@ -238,11 +263,8 @@ class ShadowDB {
                   await this.saveTask(localTask, true);
               }
           }
-
-          console.log("[Sync] Complete.");
           return true;
       } catch (e) {
-          console.error("[Sync] Failed:", e);
           return false;
       }
   }
