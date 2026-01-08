@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
+import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentResponse } from "@google/genai";
 import { shadowDB, UserProfile, DBFact } from "./dbService";
 
 let audioCtx: AudioContext | null = null;
@@ -12,6 +12,24 @@ function getAudioContext() {
   }
   return audioCtx;
 }
+
+/**
+ * آلية ذكية لإعادة المحاولة عند فشل الاتصال أو حدوث ضغط (429)
+ * Smart Retry Logic
+ */
+const fetchWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const isQuotaError = error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED') || error.status === 429;
+    if (retries > 0 && isQuotaError) {
+      console.warn(`[Ez-Zel] ضغط على الشبكة، محاولة مجددة... (${retries})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return fetchWithRetry(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+};
 
 // --- RAG LITE ENGINE (Context Retrieval) ---
 const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
@@ -173,26 +191,6 @@ const cleanBase64 = (data: string) => {
     return data;
 };
 
-// --- ROBUST KEY RETRIEVAL (Fixes "Key Not Readable") ---
-const getApiKey = () => {
-    // 1. Vite Environment (Primary for Vercel)
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-        // @ts-ignore
-        return import.meta.env.VITE_API_KEY;
-    }
-    // 2. Process Environment (Fallback)
-    if (typeof process !== 'undefined' && process.env && process.env.VITE_API_KEY) {
-        return process.env.VITE_API_KEY;
-    }
-    // 3. Direct Process Env (Legacy)
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-        return process.env.API_KEY;
-    }
-    // 4. Window Shim (Last Resort)
-    return (window as any).process?.env?.VITE_API_KEY || (window as any).process?.env?.API_KEY || "";
-};
-
 // --- MAIN ORCHESTRATOR ---
 export const getShadowResponse = async (
     history: {role: string, parts: {text: string}[]}[], 
@@ -205,10 +203,13 @@ export const getShadowResponse = async (
   isRequesting = true;
 
   try {
-    const key = getApiKey();
-    if (!key) return { text: "عفواً يا ريس، مفتاح Gemini مش مقرؤ. يرجى التأكد من إضافة VITE_API_KEY في إعدادات Vercel وعمل Redeploy.", shouldUpgrade: false, toolAction: null };
+    // FIXED: Directly use process.env.API_KEY as per standard and system instructions.
+    // This removes the complexity of checking window/import.meta which caused issues on Vercel.
+    const apiKey = process.env.API_KEY;
+    
+    if (!apiKey) return { text: "عفواً يا ريس، مفتاح Gemini غير موجود في الإعدادات (API_KEY).", shouldUpgrade: false, toolAction: null };
 
-    const ai = new GoogleGenAI({ apiKey: key });
+    const ai = new GoogleGenAI({ apiKey });
     const isAdmin = userProfile?.phone === 'TITO' || (userProfile?.name && userProfile.name.includes('تيتو'));
     const userId = userProfile?.phone || 'GUEST';
     const referralCode = userProfile?.affiliate?.referralCode || 'NO_CODE';
@@ -267,7 +268,8 @@ export const getShadowResponse = async (
     ];
     if (isAdmin) activeTools[1].functionDeclarations.push(...masterCoreTools);
 
-    const response = await ai.models.generateContent({
+    // Wrapped in fetchWithRetry to handle Vercel connectivity/quota issues
+    const response: GenerateContentResponse = await fetchWithRetry(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview', 
       contents: [...history.slice(-10), { role: 'user', parts }], 
       config: {
@@ -275,7 +277,7 @@ export const getShadowResponse = async (
         thinkingConfig: { thinkingBudget: 1024 },
         tools: activeTools,
       }
-    }); 
+    })); 
 
     let finalText = response.text || "";
     let shouldUpgrade = false;
@@ -365,7 +367,11 @@ export const getShadowResponse = async (
   } catch (error: any) { 
       if (error.name === 'AbortError') throw error; 
       console.error("Gemini API Error:", error);
-      return { text: "مشكلة في الاتصال بعقل الذكاء الاصطناعي. تأكد من إعدادات المفتاح.", shouldUpgrade: false, toolAction: null }; 
+      let errorMsg = "مشكلة في الاتصال بعقل الذكاء الاصطناعي. تأكد من إعدادات المفتاح.";
+      // Better error messaging for UI
+      if (error.message?.includes('429')) errorMsg = "الظل عليه ضغط كبير دلوقتي، ثواني وهرجعلك.";
+      
+      return { text: errorMsg, shouldUpgrade: false, toolAction: null }; 
   } finally {
     isRequesting = false;
   }
@@ -397,18 +403,19 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
 
 export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {
   try {
-    const key = getApiKey();
+    const key = process.env.API_KEY;
     if (!key) return null;
 
     const ai = new GoogleGenAI({ apiKey: key });
-    const response = await ai.models.generateContent({
+    // Wrapped in retry logic
+    const response: GenerateContentResponse = await fetchWithRetry(() => ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }], 
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' } } }, 
       },
-    });
+    }));
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
   } catch (e) { return null; }
 };
