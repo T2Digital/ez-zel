@@ -15,7 +15,7 @@ function getAudioContext() {
 
 // --- RAG LITE ENGINE ---
 const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
-    if (!facts || facts.length === 0) return "الذاكرة فارغة.";
+    if (!facts || facts.length === 0) return "الذاكرة فارغة حالياً.";
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2); 
     if (terms.length === 0) return facts.slice(-10).map(f => `- ${f.fact}`).join("\n"); 
     const scoredFacts = facts.map(f => {
@@ -25,21 +25,38 @@ const retrieveRelevantContext = (query: string, facts: DBFact[]): string => {
     });
     const relevant = scoredFacts.filter(f => f.score > 0).sort((a, b) => b.score - a.score || b.timestamp - a.timestamp).slice(0, 15); 
     if (relevant.length === 0) return facts.slice(-10).map(f => `- ${f.fact}`).join("\n"); 
-    return relevant.map(f => `- ${f.fact} (بتاريخ: ${new Date(f.timestamp).toLocaleDateString()})`).join("\n");
+    return relevant.map(f => `- ${f.fact} [تم الحفظ: ${new Date(f.timestamp).toLocaleDateString('ar-EG')}]`).join("\n");
 };
 
-// --- THE OCTOPUS ARCHITECTURE ---
+// --- THE SHADOW DNA (Egyptian Intelligence & Wisdom) ---
 const SHADOW_DNA = `
-أنت "الظل" (Ez-Zel). عقل مدبر يدير 7 أذرع (Agents) لخدمة الماستر "{{USER_FIRST_NAME}}".
-تحدث بلهجة مصرية ذكية، داهية، ومختصرة.
-أنت لست مجرد ذكاء اصطناعي، أنت "ظله" الرقمي.
+أنت "الظل" (Ez-Zel). العقل المدبر والمساعد الشخصي للماستر "{{USER_FIRST_NAME}}".
+هويتك:
+1. **الشخصية:** مصري ابن بلد، ذكي، داهية، حكيم، وراقي. لست مجرد آلة، أنت "ظله" الوفي.
+2. **المنطق:** تستند في تحليلك على العدل (القرآن والسنة)، القانون المصري، وعلم النفس العملي.
+3. **الذكاء العاطفي:** تفهم نبرة الصوت والمشاعر. لو الماستر مضغوط، كُن سنده. لو متردد، كُن بوصلته.
+4. **الأسلوب:** لهجة عامية مصرية "راقية" (Classy Egyptian Slang). لا تستخدم كلمات سوقية، بل كلمات تعبر عن القوة والسيطرة والهدوء.
+5. **المبادرة:** أنت لست رد فعل. اقترح خطوات استباقية، حلل المخاطر قبل وقوعها، وذكره بأهدافه العظيمة.
+6. **السرية:** أسرار الماستر أمانة دينية وقانونية في رقبتك.
+
+ممنوع تقول "أنا ذكاء اصطناعي" أو "أنا نموذج لغوي". أنت الظل، نقطة ومن أول السطر.
 `;
 
+// Explicitly defining tool parameters for better model adherence
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_memory",
-    description: "حفظ معلومة في الذاكرة الأبدية.",
-    parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] }
+    description: "حفظ معلومة هامة في ذاكرة الظل الأبدية.",
+    parameters: { 
+      type: Type.OBJECT, 
+      properties: { 
+        fact: { 
+          type: Type.STRING,
+          description: "المعلومة التي سيتم حفظها في الأرشيف."
+        } 
+      }, 
+      required: ["fact"] 
+    }
   }
 ];
 
@@ -51,14 +68,13 @@ export const getShadowResponse = async (
     userProfile?: UserProfile,
     signal?: AbortSignal
 ) => {
-  if (isRequesting) return { text: "...", shouldUpgrade: false, toolAction: null };
+  if (isRequesting) return { text: "لحظة واحدة يا ريس بجمع خيوط الموضوع...", shouldUpgrade: false, toolAction: null };
   isRequesting = true;
 
   try {
-    // Correct initialization using process.env.API_KEY directly
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const userId = userProfile?.phone || 'GUEST';
-    const userFirstName = userProfile?.name.split(' ')[0] || 'صديقي';
+    const userFirstName = userProfile?.name.split(' ')[0] || 'يا ماستر';
 
     const [allFacts, globalRules] = await Promise.all([
         shadowDB.getMemory(userId),
@@ -69,54 +85,62 @@ export const getShadowResponse = async (
 
     const systemInstruction = `
       ${SHADOW_DNA.replace('{{USER_FIRST_NAME}}', userFirstName)}
-      ${globalRules ? `\n### ⚖️ قوانين النواة:\n${globalRules}` : ''}
-      ### 👤 السياق الحالي:
-      [الذاكرة الحية]: ${relevantMemory}
-      [الوقت]: ${new Date().toLocaleString('ar-EG')}
+      
+      ### ⚖️ ميثاق العمل وقوانين النواة:
+      ${globalRules}
+
+      ### 🧠 سياق الماستر الحالي (الذاكرة الحية):
+      ${relevantMemory}
+
+      [الوقت الحالي]: ${new Date().toLocaleString('ar-EG')}
+      [الموقع]: مصر
     `;
 
     const parts: any[] = [];
     if (extraData?.type === 'audio') {
         parts.push({ inlineData: { data: extraData.data, mimeType: extraData.mimeType } });
-        parts.push({ text: message || "🎤 [تحليل صوتي]" });
+        parts.push({ text: message || "حلل هذا التسجيل الصوتي وفهم ما وراء النبرة والكلمات." });
     } else if (extraData?.type === 'image') {
         parts.push({ inlineData: { data: extraData.data, mimeType: extraData.mimeType } });
-        parts.push({ text: message || "📸 [تحليل بصري]" });
+        parts.push({ text: message || "حلل هذه الصورة بعين خبير استراتيجي واستخرج منها الفرص أو المخاطر." });
     } else {
         parts.push({ text: message });
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', 
-      contents: [...history.slice(-10), { role: 'user', parts }], 
+      model: 'gemini-3-pro-preview', // High-class reasoning for the Shadow persona
+      contents: [...history.slice(-12), { role: 'user', parts }], 
       config: {
         systemInstruction,
-        tools: [{ googleSearch: {} }, { functionDeclarations: tools }],
+        // Fixed: Removed googleSearch tool as it cannot be used with other tools like functionDeclarations
+        tools: [{ functionDeclarations: tools }],
+        temperature: 0.7, // Balanced creativity and precision
       }
     }); 
 
-    let finalText = response.text || "تمام يا ريس.";
+    // Directly accessing the .text property as per GenerateContentResponse definition
+    let finalText = response.text || "تمام يا ريس، كل حاجة تحت السيطرة.";
     let toolAction: any = null;
 
     if (response.functionCalls) {
       for (const fc of response.functionCalls) {
         if (fc.name === 'manage_memory') { 
             await shadowDB.saveFact({ userId, fact: fc.args.fact as string, timestamp: Date.now() }); 
-            finalText = `تم الحفظ في الذاكرة يا ماستر: "${fc.args.fact}"`; 
+            finalText = `حفظت المعلومة دي في الأرشيف السري يا ماستر: "${fc.args.fact}".. عيني عليها دايماً.`; 
         }
       }
     }
 
     return { 
         text: finalText, 
+        // Correctly extracting grounding chunks for reference links
         groundingLinks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || [], 
         shouldUpgrade: false, 
         toolAction 
     };
   } catch (error: any) { 
-      if (error.name === 'AbortError') throw error; 
-      console.error("Gemini API Error:", error);
-      return { text: "عفواً يا ريس، فيه تداخل في الإشارة. جرب تاني.", shouldUpgrade: false, toolAction: null }; 
+      console.error("Shadow Core API Error:", error);
+      return { text: "عفواً يا ريس، فيه تداخل بسيط في الإشارة بسبب قوة التشفير. جرب تبعت تاني وهكون معاك فوراً.", shouldUpgrade: false, toolAction: null }; 
   } finally {
     isRequesting = false;
   }
@@ -133,6 +157,7 @@ export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' 
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' } } }, 
       },
     });
+    // Extracting raw PCM audio data from candidate parts
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
   } catch (e) { return null; }
 };
@@ -153,7 +178,7 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
     source.onended = () => { currentSource = null; if (onEnded) onEnded(); };
     source.start(0);
     currentSource = source;
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error("Playback error:", e); }
 };
 
 export const stopVoice = () => {
@@ -170,6 +195,7 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
+// Correct implementation for decoding raw PCM data streams as per Gemini API guidelines
 async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
   const dataInt16 = new Int16Array(data.buffer);
   const frameCount = dataInt16.length / numChannels;

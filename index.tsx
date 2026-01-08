@@ -22,6 +22,11 @@ interface ErrorBoundaryState {
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   // Use property initializer for state to avoid generic typing issues in the constructor
   state: ErrorBoundaryState = { hasError: false, error: null };
+
+  // Added constructor to ensure 'this.props' is correctly typed and available in the class instance
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+  }
   
   static getDerivedStateFromError(error: any): ErrorBoundaryState { 
     return { hasError: true, error }; 
@@ -37,6 +42,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
+    // Fixed: 'this.props' is now correctly recognized as existing on type 'ErrorBoundary'
     return this.props.children;
   }
 }
