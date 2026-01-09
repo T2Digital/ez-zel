@@ -84,6 +84,23 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const isRestrictedMode = currentUser.phone === 'GUEST' || (currentUser.tier === 'lite' && currentUser.affiliate?.isMarketer);
   const [isLimitReached, setIsLimitReached] = useState(false);
 
+  // Ensure Audio Context is resumed on first user interaction
+  useEffect(() => {
+      const resumeAudio = () => {
+          const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+          if (Ctx) {
+             const ctx = new Ctx();
+             if (ctx.state === 'suspended') ctx.resume();
+          }
+      };
+      window.addEventListener('click', resumeAudio, { once: true });
+      window.addEventListener('touchstart', resumeAudio, { once: true });
+      return () => {
+          window.removeEventListener('click', resumeAudio);
+          window.removeEventListener('touchstart', resumeAudio);
+      };
+  }, []);
+
   useEffect(() => {
     if (isRestrictedMode) {
         const trialStartStr = localStorage.getItem('shadow_guest_start');
@@ -406,7 +423,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
       if (stateRef.current.isListening) {
-           // Auto-send silence timer (Magic Touch)
+           // Auto-send silence timer
            silenceTimerRef.current = setTimeout(() => {
                if (stateRef.current.isListening && stateRef.current.finalTranscript.trim().length > 0) {
                    stopListeningAndSend();
@@ -546,7 +563,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
               let desc = '';
               let iconType = 'generic';
 
-              // STRICT DEEP LINKING LOGIC
               if (appName.includes('youtube music') || action === 'music_search') {
                   url = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
                   desc = `بحث موسيقى: ${query}`;
@@ -556,7 +572,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                   desc = `بحث فيديو: ${query}`;
                   iconType = 'video';
               } else if (appName.includes('whatsapp')) {
-                  // Direct WhatsApp Send
                   url = `https://wa.me/?text=${encodeURIComponent(query)}`;
                   desc = 'فتح واتساب';
                   iconType = 'message';
@@ -569,13 +584,11 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                   desc = `مشوار إلى: ${query}`;
                   iconType = 'car';
               } else {
-                  // Fallback: Google Play Search or Browser
                   url = `https://www.google.com/search?q=${encodeURIComponent(appName + ' app')}`;
                   desc = `تطبيق: ${appName}`;
               }
 
               if (url) {
-                  // Attempt to open automatically, but provide fallback card for popup blockers
                   const win = window.open(url, '_blank');
                   if (!win) {
                       setActiveAppCard({ cardType: 'deep_link_fallback', title: desc, description: 'المتصفح منع الفتح التلقائي. اضغط هنا:', url, number: iconType });
@@ -595,7 +608,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
 
       let voiceData: string | null = null;
-      // CRITICAL CHECK: Only generate voice if NO ERROR
       if (!isMuted && !result.isError) {
           voiceData = await getShadowVoice(result.text, 'male');
       }
@@ -645,7 +657,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
     } catch (e: any) { 
         console.error(e);
-        const errorText = "الشبكة بتفصل يا ريس.. جرب تاني كمان لحظة.";
+        const errorText = "الشبكة مضغوطة جداً دلوقتي يا ريس. دقيقة واحدة وهجمعلك البيانات تاني.";
         
         const errorMsg: ExtendedMessage = {
              userId: currentUser.phone,

@@ -7,31 +7,25 @@
     <title>Ez-Zel | الظل الرقمي - المساعد الشخصي للنخبة</title>
     <meta name="description" content="أول مساعد شخصي عربي بالذكاء الاصطناعي مخصص للإدارة الاستراتيجية، المال، والنمو الشخصي. ذاكرة أبدية، خصوصية مشفرة، وتفكير قيادي.">
     
-    <!-- Environment Variable Shim for Runtime -->
+    <!-- Environment Variable Shim for Vercel/Runtime -->
     <script>
       (function() {
-        // Ensure process.env exists
         window.process = window.process || {};
         window.process.env = window.process.env || {};
         
-        // Smart Key Detection Strategy
-        // Google AI Studio often injects keys via specific globals or build replacements.
-        // We prioritize finding ANY valid key and assigning it to process.env.API_KEY
-        
-        const foundKey = 
-            window.VITE_API_KEY || 
-            window.API_KEY || 
-            window.GOOGLE_API_KEY ||
-            (typeof process !== 'undefined' && process.env ? process.env.API_KEY : '') ||
-            '';
+        // Critical: Detect keys injected by Vercel or Vite at runtime
+        const possibleKeys = [
+            window.VITE_API_KEY, 
+            window.API_KEY,
+            // @ts-ignore
+            (typeof import !== 'undefined' && import.meta && import.meta.env ? import.meta.env.VITE_API_KEY : '')
+        ];
 
-        if (foundKey && foundKey.length > 0) {
-            // Unify the key location for the app
-            window.process.env.API_KEY = foundKey;
-            // Also set VITE_API_KEY for consistency
-            window.VITE_API_KEY = foundKey;
-        } else {
-            console.warn("Shadow Core: No API Key detected in HTML shim. Waiting for app injection.");
+        const validKey = possibleKeys.find(k => k && k.length > 10);
+        
+        if (validKey) {
+            window.process.env.API_KEY = validKey;
+            window.VITE_API_KEY = validKey;
         }
       })();
     </script>
@@ -79,4 +73,3 @@
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>
-    

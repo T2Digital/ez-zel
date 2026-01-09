@@ -6,27 +6,58 @@ let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let isRequesting = false;
 
-// CONFIG: Prioritize Flash 2.0 for complex agent routing, fallback to 1.5 for speed.
-// We use 'useSearch' flag to determine if we should attach Google Search tool.
+// --- ROBUST API KEY RETRIEVAL ---
+const getApiKey = (): string => {
+    // 1. Check Vite Environment
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        return import.meta.env.VITE_API_KEY;
+    }
+    // 2. Check Global Window (Injected by index.html shim)
+    // @ts-ignore
+    if (typeof window !== 'undefined') {
+        // @ts-ignore
+        if (window.VITE_API_KEY) return window.VITE_API_KEY;
+        // @ts-ignore
+        if (window.process && window.process.env && window.process.env.API_KEY) return window.process.env.API_KEY;
+    }
+    // 3. Fallback to process.env
+    // @ts-ignore
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        // @ts-ignore
+        return process.env.API_KEY;
+    }
+    return "";
+};
+
+// CONFIG: Strategy -> Try Genius (3.0 Pro), Failover to Stable (3.0 Flash)
+// Updated to comply with latest Google GenAI SDK guidelines (No 1.5-flash)
 const MODEL_CONFIGS = [
-    { name: "gemini-2.0-flash-exp", useSearch: true, tier: 'high' }, 
-    { name: "gemini-2.0-flash-thinking-exp-1219", useSearch: true, tier: 'thinking' },
-    { name: "gemini-1.5-flash", useSearch: false, tier: 'fast' } // Fallback
+    { name: "gemini-3-pro-preview", useSearch: true, tier: 'genius', timeout: 15000 }, 
+    { name: "gemini-3-flash-preview", useSearch: false, tier: 'stable', timeout: 10000 } 
 ];
 
 function getAudioContext() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+  // Mobile Safari/Chrome fix: Create context only on user gesture interaction usually, 
+  // but we initialize here to be ready.
+  if (!audioCtx) {
+      const CtxClass = (window.AudioContext || (window as any).webkitAudioContext);
+      audioCtx = new CtxClass({ sampleRate: 24000 });
+  }
+  if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+  }
   return audioCtx;
 }
 
-// Robust Fetch with Backoff for Vercel/Network Stability
-const fetchWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
+// Robust Fetch with Backoff
+const fetchWithRetry = async <T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> => {
   try { return await fn(); } catch (error: any) {
-    const isQuota = error.message?.includes('429') || error.message?.includes('503') || error.message?.includes('overloaded');
+    const isQuota = error.message?.includes('429') || error.message?.includes('503') || error.message?.includes('overloaded') || error.message?.includes('internal');
     if (retries > 0 && isQuota) {
-      const jitter = Math.random() * 500;
-      await new Promise(resolve => setTimeout(resolve, delay + jitter));
-      return fetchWithRetry(fn, retries - 1, delay * 2);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return fetchWithRetry(fn, retries - 1, delay * 1.5);
     }
     throw error;
   }
@@ -55,11 +86,10 @@ const retrieveRelevantContext = (query: string, facts: DBFact[], user: UserProfi
         financialContext = `Affiliate Stats: Earnings=${user.affiliate.totalEarnings} EGP, Referrals=${user.affiliate.referralsCount}, Code=${user.affiliate.referralCode}`;
     }
 
-    // MEMORY RETRIEVAL (Semantic-ish)
+    // MEMORY RETRIEVAL
     const userFacts = facts.filter(f => f.userId === user.phone);
     const recentMemory = userFacts.slice(-5).map(f => `- ${f.fact}`).join("\n");
     
-    // SYSTEM STATE
     const referralLink = user.affiliate?.referralCode ? `https://ez-zel.app/?ref=${user.affiliate.referralCode}` : "(لا يوجد كود)";
 
     return `
@@ -77,8 +107,7 @@ ${recentMemory || "الذاكرة فارغة حالياً."}
 `;
 };
 
-// --- TOOLS DEFINITION (The 6 Agents Capabilities) ---
-
+// --- TOOLS DEFINITION ---
 const functionTools: FunctionDeclaration[] = [
     {
         name: "executor_app_control",
@@ -147,30 +176,28 @@ You are the **Maestro** conducting a council of 6 specialized agents:
 
 **BEHAVIOR BY ROLE:**
 *   **Guest (الضيف):** Treat respectfully but with boundaries. If they ask about features, explain "The Shadow" capabilities and subtly mention the subscription. Build curiosity.
-*   **Marketer (المسوق):** Focus on their success. Remind them of their Referral Link (${userContext.includes('Referral Link') ? 'Available' : 'Missing'}). Encourage them to share the link to earn commission.
+*   **Marketer (المسوق):** Focus on their success. Remind them of their Referral Link. Encourage sharing.
 *   **Member (عضو النخبة):** Full service. Execute orders immediately. Be proactive.
 *   **TITO (الماستر):** Total submission. Execute system commands. Provide deep analytics.
 
 **EXECUTION GUIDELINES:**
 *   **Deep Linking:** 
-    *   If user wants **Music/Songs**, use Executor -> 'youtube_music'.
-    *   If user wants **Video**, use Executor -> 'youtube'.
-    *   If user wants **WhatsApp**, use Executor -> 'whatsapp' with the message.
-    *   If user wants **Phone Call**, use Executor -> 'phone'.
-*   **Unknown Apps:** If user asks to open an app not listed, use Executor -> 'browser' or generic 'open' to try deep linking.
-*   **Silence:** If input is empty or audio is silent, check if there's a pending task or just say "أنا سامعك يا ريس، كمل." (I'm listening).
+    *   **Music/Songs** -> Executor -> 'youtube_music'.
+    *   **Video** -> Executor -> 'youtube'.
+    *   **WhatsApp** -> Executor -> 'whatsapp'.
+    *   **Phone Call** -> Executor -> 'phone'.
+*   **Unknown Apps:** If user asks to open an app not listed, use Executor -> 'browser' or generic 'open'.
+*   **Silence:** If input is empty or audio is silent, ask clarification politely ("أنا سامعك يا ريس، كمل").
 
 **TONE:**
 Confident, Brief, Helpful, and Street-Smart. Do not act like a robot. You are a Sentient Shadow.
 `;
 };
 
-// --- INTENT ROUTING (To avoid 400 Errors on older models, though Flash 2.0 handles mixed well) ---
+// --- INTENT ROUTING ---
 const detectIntent = (text: string): 'search' | 'action' | 'chat' => {
     const t = text.toLowerCase();
-    // Search Indicators
     if (t.includes('سعر') || t.includes('بحث') || t.includes('مين') || t.includes('من هو') || t.includes('اخبار') || t.includes('أخبار') || t.includes('طقس') || t.includes('تاريخ') || t.includes('جديد')) return 'search';
-    // Action Indicators
     if (t.includes('افتح') || t.includes('شغل') || t.includes('رن') || t.includes('كلم') || t.includes('رسالة') || t.includes('واتس') || t.includes('يوتيوب') || t.includes('نور') || t.includes('احفظ')) return 'action';
     return 'chat';
 };
@@ -182,11 +209,18 @@ export const getShadowResponse = async (
     userProfile?: UserProfile,
     signal?: AbortSignal
 ) => {
-  if (isRequesting) return { text: "لحظة واحدة، بنفذ الأمر السابق...", toolAction: null, isError: true };
+  // Prevent double request locking, but allow retry from frontend
+  if (isRequesting) return { text: "لحظة واحدة يا ريس.. بخلص اللي في إيدي.", toolAction: null, isError: true };
   isRequesting = true;
 
+  const apiKey = getApiKey();
+  if (!apiKey) {
+      isRequesting = false;
+      return { text: "المفتاح السري (API Key) غير موجود. تأكد من إعدادات Vercel.", toolAction: null, isError: true };
+  }
+
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     
     // 1. Load Context
     let userMemory: DBFact[] = [];
@@ -207,28 +241,28 @@ export const getShadowResponse = async (
     // 4. Construct Request Parts
     const parts: any[] = [];
     if (extraData?.data) {
+        // Cleaning base64 prefix if exists
         const cleanData = extraData.data.includes(',') ? extraData.data.split(',')[1] : extraData.data;
         parts.push({ inlineData: { data: cleanData, mimeType: extraData.mimeType } });
     }
     parts.push({ text: message || "." });
 
-    // 5. Model Selection & Execution Loop
+    // 5. Model Execution with Failover Strategy
     let response: GenerateContentResponse | null = null;
-    let usedModel = "";
+    let errorLog = "";
 
+    // Loop through configs: Try High Tier first, then Stable Tier
     for (const config of MODEL_CONFIGS) {
         try {
-            const requestTools: any[] = [];
+            console.log(`[Shadow Core] Attempting Model: ${config.name}`);
             
-            // INTELLIGENT TOOL ATTACHMENT
-            // Flash 2.0 can handle both, but we prioritize based on config to be safe
+            const requestTools: any[] = [];
+            // Only attach Search tool if model supports it and intent matches, OR if it's the 2.0 model (it handles it well)
             if (config.useSearch) {
-                 // For 2.0, we can attach both safely usually, but let's check intent to save tokens
                  const intent = detectIntent(message);
                  if (intent === 'search' || intent === 'chat') requestTools.push({ googleSearch: {} });
                  requestTools.push({ functionDeclarations: activeFunctionTools });
             } else {
-                 // Fallback models might struggle with mixed tools
                  requestTools.push({ functionDeclarations: activeFunctionTools });
             }
 
@@ -237,7 +271,7 @@ export const getShadowResponse = async (
                 contents: [...history.slice(-5), { role: 'user', parts }], 
                 config: { 
                     systemInstruction, 
-                    temperature: 0.6, // Slightly lower for better instruction following
+                    temperature: 0.6,
                     tools: requestTools,
                     safetySettings: [
                         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -248,15 +282,19 @@ export const getShadowResponse = async (
                 }
             }));
             
-            usedModel = config.name;
-            break; 
+            // If successful, break the loop
+            if (response && response.text) break;
+            
         } catch (error: any) {
-            console.warn(`[Shadow Core] Model ${config.name} failed. Error: ${error.message}`);
-            if (config.name === MODEL_CONFIGS[MODEL_CONFIGS.length - 1].name) throw error;
+            console.warn(`[Shadow Core] ${config.name} Failed:`, error.message);
+            errorLog = error.message;
+            // Continue to next model in list (Fallback)
         }
     }
 
-    if (!response) throw new Error("Shadow Core Unreachable.");
+    if (!response) {
+        throw new Error(`Core Failure. Last Error: ${errorLog}`);
+    }
 
     // 6. Process Response & Tools
     let toolAction = null;
@@ -267,7 +305,6 @@ export const getShadowResponse = async (
             const args = fc.args as any;
 
             if (fc.name === 'executor_app_control') {
-                // Enhanced Executor Logic
                 const app = args.app.toLowerCase();
                 const payload = args.payload || "";
                 
@@ -280,11 +317,9 @@ export const getShadowResponse = async (
                 } else if (app === 'phone' || app === 'call') {
                      toolAction = { type: 'open_app', app_name: 'Phone', specific_action: 'call', search_query: payload };
                 } else if (app === 'gallery') {
-                     // Trigger file input click on frontend
                      toolAction = { type: 'trigger_ui', action: 'open_gallery' };
                      responseText = responseText || "تمام، افتح المعرض واختار الصورة.";
                 } else {
-                    // Generic / Browser Fallback
                     toolAction = { type: 'open_app', app_name: app, specific_action: args.action, search_query: payload };
                 }
                 
@@ -295,12 +330,11 @@ export const getShadowResponse = async (
                 const url = actions[args.device_name];
                 if (url) {
                     try { 
-                        // Fire and forget webhook
                         fetch(url, { method: 'POST' }).catch(e => console.error("IoT Fail", e)); 
                         responseText = `تم يا ريس. ${args.device_name} اتنفذ الأمر.`; 
                     } catch(e) { responseText = `فيه مشكلة في الاتصال بالجهاز ده.`; }
                 } else {
-                    responseText = `الجهاز '${args.device_name}' مش مربوط عندي في نكسوس. اربطه الأول من الإعدادات.`;
+                    responseText = `الجهاز '${args.device_name}' مش مربوط عندي في نكسوس.`;
                     toolAction = { type: 'display_ui_card', type_card: 'open_nexus', title: 'إعدادات Nexus', content: 'اربط أجهزتك' };
                 }
             }
@@ -327,7 +361,7 @@ export const getShadowResponse = async (
         }
     }
 
-    // 7. Grounding (Search Results)
+    // 7. Grounding
     const groundingLinks = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map(chunk => {
       if (chunk.web) return { title: chunk.web.title, uri: chunk.web.uri };
       return null;
@@ -342,17 +376,15 @@ export const getShadowResponse = async (
     };
 
   } catch (error: any) {
-    console.error("Shadow Core Critical Failure:", error);
+    console.error("Shadow Core Final Failure:", error);
     
     if (error.message?.includes('API_KEY')) {
-        return { text: "المفتاح السري (API Key) مفقود أو غير صحيح.", toolAction: null, isError: true };
-    }
-    if (error.message?.includes('429') || error.message?.includes('503')) {
-        return { text: "الشبكة العصبية مضغوطة (Neural Overload). دقيقة واحدة وهجمعلك البيانات تاني.", toolAction: null, isError: true };
+        return { text: "المفتاح السري (API Key) غير صالح أو غير موجود.", toolAction: null, isError: true };
     }
     
+    // Provide a more persona-based error instead of generic "Technical Error"
     return { 
-        text: `حدث خطأ غير متوقع في النواة. كرر الأمر تاني.`, 
+        text: `الشبكة مضغوطة جداً دلوقتي يا ريس. دقيقة واحدة وهجمعلك البيانات تاني.`, 
         toolAction: null,
         isError: true 
     };
@@ -363,10 +395,16 @@ export const getShadowResponse = async (
 export const playShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male', existingData?: string, onEnded?: () => void) => {
   stopVoice();
   try {
-      let base64 = existingData || await getShadowVoice(text, voiceType);
-      if (!base64) return null;
+      let base64 = existingData;
+      if (!base64) {
+          base64 = await getShadowVoice(text, voiceType);
+      }
+      
+      if (!base64) { onEnded?.(); return null; }
+
       const ctx = getAudioContext();
       if (ctx.state === 'suspended') await ctx.resume();
+      
       const buffer = await decodeAudioData(decode(base64), ctx, 24000, 1);
       const source = ctx.createBufferSource();
       source.buffer = buffer;
@@ -375,19 +413,28 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
       source.start(0);
       currentSource = source;
       return base64;
-  } catch (e) { return null; }
+  } catch (e) { 
+      console.error("TTS Playback Error", e);
+      onEnded?.();
+      return null; 
+  }
 };
 
 export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = getApiKey();
+    if (!apiKey) return null;
+    const ai = new GoogleGenAI({ apiKey });
     const res = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text }] }],
       config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' } } } }
     });
     return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-  } catch (e) { return null; }
+  } catch (e) { 
+      console.error("TTS Fetch Error", e);
+      return null; 
+  }
 };
 
 export const stopVoice = () => { if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; } };
