@@ -8,35 +8,46 @@ let isRequesting = false;
 
 // --- 1. ROBUST API KEY EXTRACTION (The Fix) ---
 const getApiKey = (): string => {
-  let key = "";
-  
-  // 1. Try Vite Import Meta (Most likely for Vercel/Vite)
+  // 1. Check process.env.API_KEY (Primary instruction)
+  try {
+      // @ts-ignore
+      if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+          // @ts-ignore
+          return process.env.API_KEY;
+      }
+  } catch (e) {}
+
+  // 2. Check Vite Import Meta
   try {
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env) {
         // @ts-ignore
-        key = import.meta.env.VITE_API_KEY || "";
+        if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
+        // @ts-ignore
+        if (import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
     }
   } catch (e) {}
 
-  // 2. Try Standard Process Env (Node/Webpack fallback)
-  if (!key) {
-      try {
+  // 3. Fallback to older process env vars
+  try {
+    // @ts-ignore
+    if (typeof process !== 'undefined' && process.env) {
         // @ts-ignore
-        if (typeof process !== 'undefined' && process.env) {
-            // @ts-ignore
-            key = process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY || "";
-        }
-      } catch (e) {}
-  }
+        if (process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
+        // @ts-ignore
+        if (process.env.REACT_APP_API_KEY) return process.env.REACT_APP_API_KEY;
+    }
+  } catch (e) {}
 
-  // 3. Try Window Object (Last Resort)
-  if (!key && typeof window !== 'undefined') {
+  // 4. Try Window Object (Last Resort)
+  if (typeof window !== 'undefined') {
       // @ts-ignore
-      key = (window as any).VITE_API_KEY || "";
+      if ((window as any).API_KEY) return (window as any).API_KEY;
+      // @ts-ignore
+      if ((window as any).VITE_API_KEY) return (window as any).VITE_API_KEY;
   }
 
-  return key;
+  return "";
 };
 
 function getAudioContext() {
@@ -141,9 +152,6 @@ const adminTools: FunctionDeclaration[] = [
 
 // --- 4. THE MAESTRO PROMPT (The Soul of El-Zel) ---
 const generateMaestroSystemInstruction = (user: UserProfile, memoryContext: string, globalRules: string) => {
-    const isGuest = user.phone === 'GUEST';
-    const isTito = user.phone === 'TITO' || user.name.includes('تيتو');
-    
     return `
 ### CLASSIFIED SYSTEM INSTRUCTION: PROJECT SHADOW (EZ-ZEL)
 **Identity:** You are "الظل" (The Shadow). An elite Egyptian AI Personal Assistant.
@@ -226,11 +234,9 @@ export const getShadowResponse = async (
     parts.push({ text: message || "أنا جاهز يا ريس. سمعني صوتك." });
 
     // 5. Call Gemini (The Brain)
-    // Using 'gemini-2.0-flash-exp' or 'gemini-1.5-flash' depending on what's available/stable. 
-    // Recommended: 'gemini-1.5-flash' for speed/cost, 'gemini-1.5-pro' for complex reasoning.
-    // User requested "Masterpiece", so we aim for 'gemini-1.5-pro' capabilities if possible, but 'flash' is safer for quotas.
-    // Let's use the explicit model name provided in guidelines or standard.
-    const modelName = 'gemini-1.5-flash'; // Switching to stable Flash to avoid "Neural Network Pressure" 429s
+    // Using 'gemini-3-flash-preview' for basic text tasks as per instructions.
+    // 'gemini-1.5-flash' is prohibited.
+    const modelName = 'gemini-3-flash-preview'; 
 
     const response: GenerateContentResponse = await fetchWithRetry(() => ai.models.generateContent({
       model: modelName,
@@ -269,12 +275,9 @@ export const getShadowResponse = async (
             if (!responseText) responseText = "تمام، جاري التنفيذ...";
         } 
         else if (fc.name === 'nexus_iot_control') {
-            // Logic to trigger webhook would ideally happen here or be passed to UI
-            // For now, pass to UI to execute the fetch if client-side
             const actions = userProfile?.iotActions || {};
             const url = actions[args.device_name];
             if (url) {
-                // We can try to fetch here if it's a simple GET/POST, or pass to UI
                 try { await fetch(url, { method: 'POST' }); responseText = `تم يا ريس. ${args.device_name} اتنفذ الأمر.`; } 
                 catch(e) { responseText = `حاولت اتصل بالجهاز بس فيه مشكلة في الرابط.`; }
             } else {
