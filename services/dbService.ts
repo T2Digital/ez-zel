@@ -1,5 +1,6 @@
 
-import { supabase } from './supabaseClient'; // Import Supabase
+import { db } from './firebaseConfig';
+import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, addDoc } from "firebase/firestore";
 
 export interface DBMessage {
   id?: number;
@@ -144,7 +145,7 @@ const decryptData = (cipher: string, userId: string): string => {
 class ShadowDB {
   private dbName = 'ShadowCore_V18'; 
   private version = 10;
-  private realtimeChannel: any = null;
+  private unsubscribeListeners: Function[] = [];
 
   constructor() {
       if (navigator.storage && navigator.storage.persist) {
@@ -179,93 +180,75 @@ class ShadowDB {
     });
   }
 
-  // --- SUPABASE SYNC LOGIC (REALTIME) ---
+  // --- FIREBASE SYNC LOGIC (REALTIME) ---
   
-  // 3. LISTEN: Subscribe to Supabase changes
+  // 3. LISTEN: Subscribe to Firestore changes
   subscribeToRealtime(userId: string, onUpdate: (table: string, payload: any) => void) {
-      if (!supabase) return;
+      if (!db || userId === 'GUEST') return;
       
-      // Cleanup previous channel
-      if (this.realtimeChannel) {
-          supabase.removeChannel(this.realtimeChannel);
-      }
-
-      this.realtimeChannel = supabase.channel('public:db_changes')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public' },
-          (payload) => {
-              // Filter logic to prevent echoing back own changes if needed, 
-              // or to update local DB.
-              // For simplicity: We notify the app to re-fetch or update state.
-              if (payload.table === 'history' && payload.new && (payload.new as any).user_id === userId) {
-                  onUpdate('history', payload.new);
-              }
-              if (payload.table === 'profiles' && (payload.new as any).phone === userId) {
-                  onUpdate('profiles', payload.new);
-              }
-              if (payload.table === 'tasks' && (payload.new as any).user_id === userId) {
-                  onUpdate('tasks', payload.new);
-              }
-              // Admin listener
-              if (userId === 'TITO') {
-                   onUpdate('admin_event', payload);
-              }
-          }
-        )
-        .subscribe();
-      
-      console.log(`[Realtime] Subscribed to changes for ${userId}`);
-  }
-
-  // 1. PUSH: Sends local data to Supabase (Upsert)
-  async pushToCloud(table: string, data: any) {
-      if (!supabase) return; 
       try {
-          const { error } = await supabase.from(table).upsert(data);
-          if (error) console.error(`[Sync Error] ${table}:`, error);
-      } catch (e) { }
-  }
+          // Cleanup previous listeners
+          this.unsubscribeListeners.forEach(unsub => unsub());
+          this.unsubscribeListeners = [];
 
-  // 2. SYNC: Pulls data from Supabase (Cloud First)
-  async syncWithBackend(userPhone: string): Promise<boolean> {
-      if (!supabase || !userPhone || userPhone === 'GUEST') return false;
-      try {
-          const { data: profile } = await supabase.from('profiles').select('*').eq('phone', userPhone).single();
-          if (profile) {
-              const localProfile: UserProfile = {
-                  phone: profile.phone,
-                  name: profile.name,
-                  tier: profile.tier as any,
-                  status: profile.status as any,
-                  joinedAt: profile.joined_at,
-                  affiliate: profile.affiliate_data,
-                  vaultState: profile.vault_state,
-                  iotActions: profile.iot_actions,
-                  shadowName: 'الظل',
-                  voicePreference: 'male',
-                  ...profile
-              };
-              await this.saveProfile(localProfile, true); 
-          }
-          const { data: tasks } = await supabase.from('tasks').select('*').eq('user_id', userPhone);
-          if (tasks) {
-              for (const t of tasks) {
-                  const localTask: DBTask = {
-                      userId: t.user_id,
-                      task: t.task,
-                      time: t.time,
-                      executionTime: t.execution_time,
-                      status: t.status as any,
-                      category: 'عام',
-                      notified: true
-                  };
-                  await this.saveTask(localTask, true);
+          // 1. Listen to User Profile Changes
+          const profileUnsub = onSnapshot(doc(db, "users", userId), (doc) => {
+              if (doc.exists()) {
+                  const data = doc.data();
+                  // Normalize Firestore data to App format
+                  const profile: UserProfile = { ...data, phone: userId } as any; 
+                  onUpdate('profiles', profile);
               }
-          }
-          return true;
+          });
+          this.unsubscribeListeners.push(profileUnsub);
+
+          // 2. Listen to History (Messages)
+          // Note: For history, we might only listen to the last 1 message to trigger UI update for cost saving
+          const historyQuery = query(collection(db, `users/${userId}/history`), where('timestamp', '>', Date.now() - 10000));
+          const historyUnsub = onSnapshot(historyQuery, (snapshot) => {
+              snapshot.docChanges().forEach((change) => {
+                  if (change.type === "added") {
+                      onUpdate('history', change.doc.data());
+                  }
+              });
+          });
+          this.unsubscribeListeners.push(historyUnsub);
+
+          // 3. Listen to Tasks
+          const tasksUnsub = onSnapshot(collection(db, `users/${userId}/tasks`), (snapshot) => {
+              snapshot.docChanges().forEach((change) => {
+                  if (change.type === "added" || change.type === "modified") {
+                      onUpdate('tasks', change.doc.data());
+                  }
+              });
+          });
+          this.unsubscribeListeners.push(tasksUnsub);
+
+          console.log(`[Firebase] Subscribed to changes for ${userId}`);
       } catch (e) {
-          return false;
+          console.warn("[Firebase] Realtime sync failed (probably offline or missing keys). Running local.", e);
+      }
+  }
+
+  // 1. PUSH: Sends local data to Firestore
+  async pushToCloud(collectionName: string, data: any, subCollection?: string, userId?: string) {
+      if (!db) return; 
+      try {
+          if (collectionName === 'profiles') {
+              // Users are stored as documents in 'users' collection
+              await setDoc(doc(db, "users", data.phone), data, { merge: true });
+          } else if (userId && subCollection) {
+              // History, Tasks, Memory stored in subcollections: users/{userId}/{collection}
+              // We use timestamp or a specific ID as doc ID to prevent duplicates if possible, or let Firestore auto-gen
+              const docId = data.id ? data.id.toString() : data.timestamp ? data.timestamp.toString() : undefined;
+              if (docId) {
+                  await setDoc(doc(db, `users/${userId}/${subCollection}`, docId), data, { merge: true });
+              } else {
+                  await addDoc(collection(db, `users/${userId}/${subCollection}`), data);
+              }
+          }
+      } catch (e) { 
+          console.error(`[Sync Error] ${collectionName}:`, e); 
       }
   }
 
@@ -278,13 +261,11 @@ class ShadowDB {
     
     if (!skipCloud && msg.userId !== 'GUEST') {
         this.pushToCloud('history', {
-            user_id: msg.userId,
-            role: msg.role,
-            text: secureMsg.text, // Store encrypted
-            timestamp: msg.timestamp,
-            voice_data: null, 
-            image: null 
-        });
+            ...msg,
+            // We store encrypted text in cloud for privacy too, or plain text if you want it searchable in console.
+            // Let's store ENCRYPTED for security promise.
+            text: secureMsg.text 
+        }, 'history', msg.userId);
     }
 
     return new Promise((resolve) => { request.onsuccess = () => resolve(request.result as number); });
@@ -297,13 +278,7 @@ class ShadowDB {
     if (task.notified === undefined) task.notified = false;
     
     if (!skipCloud && task.userId !== 'GUEST') {
-        this.pushToCloud('tasks', {
-            user_id: task.userId,
-            task: task.task,
-            time: task.time,
-            execution_time: task.executionTime,
-            status: task.status
-        });
+        this.pushToCloud('tasks', task, 'tasks', task.userId);
     }
 
     return tx.objectStore('tasks').put({ ...task, synced: true }); 
@@ -325,6 +300,10 @@ class ShadowDB {
       if (task) {
           const updated = { ...task, ...updates };
           store.put(updated);
+          // Sync update to cloud
+          if (task.userId !== 'GUEST') {
+             this.pushToCloud('tasks', updated, 'tasks', task.userId);
+          }
       }
   }
 
@@ -334,11 +313,7 @@ class ShadowDB {
     const tx = db.transaction('memory', 'readwrite');
     
     if (!skipCloud && fact.userId !== 'GUEST') {
-        this.pushToCloud('memory', {
-            user_id: fact.userId,
-            fact: fact.fact,
-            timestamp: fact.timestamp
-        });
+        this.pushToCloud('memory', fact, 'memory', fact.userId);
     }
 
     return tx.objectStore('memory').add({ ...fact, synced: true });
@@ -363,28 +338,19 @@ class ShadowDB {
           request.onerror = () => resolve(undefined);
       });
 
-      // ALWAYS TRY CLOUD SYNC FOR CRITICAL STATUS CHECKS (e.g. Activation)
-      if (supabase && phone !== 'GUEST') {
-          const { data, error } = await supabase.from('profiles').select('*').eq('phone', phone).single();
-          if (data && !error) {
-              const cloudProfile: UserProfile = {
-                  phone: data.phone,
-                  name: data.name,
-                  tier: data.tier as any,
-                  status: data.status as any,
-                  joinedAt: data.joined_at,
-                  affiliate: data.affiliate_data,
-                  vaultState: data.vault_state,
-                  iotActions: data.iot_actions,
-                  synced: true,
-                  // Keep local prefs if exists
-                  shadowName: localProfile?.shadowName || 'الظل',
-                  password: localProfile?.password || '....'
-              };
-              // Save latest status to local
-              await this.saveProfile(cloudProfile, true); 
-              return cloudProfile;
-          }
+      // SYNC: Fetch latest from Firestore if online and not guest
+      if (this.canSync(phone)) {
+          try {
+             // @ts-ignore
+             const docSnap = await getDoc(doc(db, "users", phone));
+             if (docSnap.exists()) {
+                 const cloudData = docSnap.data() as UserProfile;
+                 // Merge cloud data with local
+                 const merged = { ...localProfile, ...cloudData, synced: true };
+                 await this.saveProfile(merged, true); // Save to local, skip cloud push
+                 return merged;
+             }
+          } catch(e) { console.error("Profile fetch error", e); }
       }
       return localProfile;
   }
@@ -394,55 +360,35 @@ class ShadowDB {
       const tx = db.transaction('profiles', 'readwrite');
       
       if (!skipCloud && profile.phone !== 'GUEST') {
-          this.pushToCloud('profiles', {
-              phone: profile.phone,
-              name: profile.name,
-              tier: profile.tier,
-              status: profile.status,
-              joined_at: profile.joinedAt,
-              affiliate_data: profile.affiliate,
-              vault_state: profile.vaultState,
-              iot_actions: profile.iotActions
-          });
+          this.pushToCloud('profiles', profile);
       }
 
       return tx.objectStore('profiles').put({ ...profile, synced: true });
   }
 
-  // --- CRITICAL: ADMIN DASHBOARD DATA SYNC ---
+  // --- ADMIN & SYSTEM ---
   async getAllProfiles(): Promise<UserProfile[]> {
-      // 1. Try Cloud First (For Admin to see fresh data)
-      if (supabase) {
-          const { data } = await supabase.from('profiles').select('*');
-          if (data) {
-              const db = await this.init();
-              const tx = db.transaction('profiles', 'readwrite');
-              const store = tx.objectStore('profiles');
+      // Admin: Fetch directly from Firestore for latest data
+      if (db) {
+          try {
+              const querySnapshot = await getDocs(collection(db, "users"));
+              const profiles: UserProfile[] = [];
+              querySnapshot.forEach((doc) => {
+                  profiles.push(doc.data() as UserProfile);
+              });
               
-              const mappedProfiles = data.map((p: any) => ({
-                  phone: p.phone,
-                  name: p.name,
-                  tier: p.tier,
-                  status: p.status,
-                  joinedAt: p.joined_at,
-                  affiliate: p.affiliate_data,
-                  vaultState: p.vault_state,
-                  iotActions: p.iot_actions,
-                  synced: true
-              }));
+              // Cache locally
+              const dbLocal = await this.init();
+              const tx = dbLocal.transaction('profiles', 'readwrite');
+              profiles.forEach(p => tx.objectStore('profiles').put(p));
 
-              // Bulk Update Local
-              for (const p of mappedProfiles) {
-                  store.put(p);
-              }
-              
-              return mappedProfiles;
-          }
+              return profiles;
+          } catch (e) { console.error("Admin fetch error", e); }
       }
 
-      // 2. Fallback Local
-      const db = await this.init();
-      const tx = db.transaction('profiles', 'readonly');
+      // Fallback Local
+      const dbLocal = await this.init();
+      const tx = dbLocal.transaction('profiles', 'readonly');
       const request = tx.objectStore('profiles').getAll();
       return new Promise((resolve) => {
           request.onsuccess = () => resolve(request.result || []);
@@ -450,8 +396,11 @@ class ShadowDB {
       });
   }
 
-  // --- HELPER METHODS REMAIN UNCHANGED ---
-  
+  // --- HELPER METHODS ---
+  private canSync(phone: string): boolean {
+      return !!db && phone !== 'GUEST';
+  }
+
   async updateMessage(id: number, updates: Partial<DBMessage>) {
     const db = await this.init();
     const tx = db.transaction('history', 'readwrite');
@@ -480,17 +429,33 @@ class ShadowDB {
     });
   }
 
-  // Config, Contacts, Feedback, etc. (Keeping logic simple for now)
+  // Config, Contacts, Feedback
   async setGlobalPulse(text: string) {
       const db = await this.init();
       const tx = db.transaction('config', 'readwrite');
       const pulseData = { text, timestamp: Date.now() };
+      
+      // Cloud Push
+      if (this.canSync('TITO')) { // Only admin pushes pulse
+          // @ts-ignore
+          await setDoc(doc(db, "system", "pulse"), pulseData);
+      }
+      
       return tx.objectStore('config').put({ key: 'latest_pulse', value: pulseData, lastUpdated: Date.now() });
   }
 
   async getGlobalPulse(): Promise<{ text: string, timestamp: number } | null> {
-      const db = await this.init();
-      const tx = db.transaction('config', 'readonly');
+      // Try Cloud Check First
+      if (db) {
+          try {
+              // @ts-ignore
+              const docSnap = await getDoc(doc(db, "system", "pulse"));
+              if (docSnap.exists()) return docSnap.data() as any;
+          } catch(e) {}
+      }
+
+      const dbLocal = await this.init();
+      const tx = dbLocal.transaction('config', 'readonly');
       const request = tx.objectStore('config').get('latest_pulse');
       return new Promise((resolve) => {
           request.onsuccess = () => resolve(request.result?.value || null);
@@ -507,7 +472,7 @@ class ShadowDB {
 
   async migrateGuestMessages(messages: DBMessage[]) { return; }
 
-  async getSyncStats(): Promise<number> { return 100; }
+  async getSyncStats(): Promise<number> { return db ? 100 : 0; }
 
   async getFSItemsByParent(userId: string, parentId: number | null): Promise<DBFSItem[]> {
       const db = await this.init();
@@ -539,43 +504,33 @@ class ShadowDB {
   }
 
   async registerReferral(referrerCode: string, commissionAmount: number) {
-      const db = await this.init();
-      const tx = db.transaction('profiles', 'readwrite');
-      const store = tx.objectStore('profiles');
-      const profiles: UserProfile[] = await new Promise(r => store.getAll().onsuccess = (e: any) => r(e.target.result));
-      const referrer = profiles.find(p => p.affiliate?.referralCode === referrerCode);
+      // Must fetch from Cloud to ensure integrity
+      const allProfiles = await this.getAllProfiles();
+      const referrer = allProfiles.find(p => p.affiliate?.referralCode === referrerCode);
+      
       if (referrer && referrer.affiliate) {
           referrer.affiliate.totalEarnings += commissionAmount; 
           referrer.affiliate.referralsCount += 1;
-          await store.put(referrer);
-          // Sync changes
-          this.pushToCloud('profiles', {
-              phone: referrer.phone,
-              affiliate_data: referrer.affiliate
-          });
+          await this.saveProfile(referrer);
       }
   }
 
   async recordPayout(phone: string, amount: number) {
-      const db = await this.init();
-      const tx = db.transaction('profiles', 'readwrite');
-      const store = tx.objectStore('profiles');
-      const profile: UserProfile = await new Promise(r => store.get(phone).onsuccess = (e: any) => r(e.target.result));
+      const profile = await this.getProfile(phone);
       if (profile && profile.affiliate) {
           profile.affiliate.payoutHistory.push({ date: Date.now(), amount: amount, status: 'paid' });
           profile.affiliate.totalEarnings = Math.max(0, profile.affiliate.totalEarnings - amount);
-          await store.put(profile);
-          this.pushToCloud('profiles', {
-              phone: profile.phone,
-              affiliate_data: profile.affiliate
-          });
+          await this.saveProfile(profile);
       }
   }
 
   async saveContact(contact: DBContact) {
       const db = await this.init();
       const tx = db.transaction('contacts', 'readwrite');
-      return tx.objectStore('contacts').add({ ...contact, synced: false });
+      if (contact.userId !== 'GUEST') {
+           this.pushToCloud('contacts', contact, 'contacts', contact.userId);
+      }
+      return tx.objectStore('contacts').add({ ...contact, synced: true });
   }
 
   async getContacts(userId?: string): Promise<DBContact[]> {
@@ -594,19 +549,41 @@ class ShadowDB {
   async saveFeedback(feedback: DBFeedback) {
       const db = await this.init();
       const tx = db.transaction('feedback', 'readwrite');
+      // Push to system/feedback collection
+      if (this.canSync(feedback.userId)) {
+          // @ts-ignore
+           try { await addDoc(collection(this.db!, "feedback"), feedback); } catch(e){}
+      }
       return tx.objectStore('feedback').add(feedback);
   }
 
   async getAllFeedback(): Promise<DBFeedback[]> {
-      const db = await this.init();
-      const tx = db.transaction('feedback', 'readonly');
+      if (db) {
+          try {
+              const querySnapshot = await getDocs(collection(db, "feedback"));
+              const items: DBFeedback[] = [];
+              querySnapshot.forEach((doc) => items.push(doc.data() as DBFeedback));
+              return items;
+          } catch(e) {}
+      }
+      const dbLocal = await this.init();
+      const tx = dbLocal.transaction('feedback', 'readonly');
       const request = tx.objectStore('feedback').getAll();
       return new Promise((resolve) => { request.onsuccess = () => resolve(request.result || []); });
   }
 
   async getGlobalRules(): Promise<string> {
-      const db = await this.init();
-      const tx = db.transaction('config', 'readonly');
+      // Cloud check
+      if (db) {
+          try {
+              // @ts-ignore
+               const docSnap = await getDoc(doc(db, "system", "rules"));
+               if (docSnap.exists()) return docSnap.data().text;
+          } catch(e) {}
+      }
+
+      const dbLocal = await this.init();
+      const tx = dbLocal.transaction('config', 'readonly');
       const request = tx.objectStore('config').get('global_rules');
       return new Promise((resolve) => {
           request.onsuccess = () => {
@@ -618,8 +595,12 @@ class ShadowDB {
   }
 
   async updateGlobalRules(rules: string) {
-      const db = await this.init();
-      const tx = db.transaction('config', 'readwrite');
+      if (db) {
+           // @ts-ignore
+           await setDoc(doc(db, "system", "rules"), { text: rules, updated: Date.now() });
+      }
+      const dbLocal = await this.init();
+      const tx = dbLocal.transaction('config', 'readwrite');
       return tx.objectStore('config').put({ key: 'global_rules', value: rules, lastUpdated: Date.now() });
   }
 

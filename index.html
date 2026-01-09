@@ -7,15 +7,33 @@
     <title>Ez-Zel | الظل الرقمي - المساعد الشخصي للنخبة</title>
     <meta name="description" content="أول مساعد شخصي عربي بالذكاء الاصطناعي مخصص للإدارة الاستراتيجية، المال، والنمو الشخصي. ذاكرة أبدية، خصوصية مشفرة، وتفكير قيادي.">
     
-    <!-- Robust process shim for browser environments -->
+    <!-- Environment Variable Shim for Runtime -->
     <script>
-      window.process = window.process || {};
-      window.process.env = window.process.env || {};
-      // Fallback injection if build doesn't replace
-      if (!window.process.env.VITE_API_KEY) {
-          // This allows Vercel or other runtimes to inject env vars globally if needed
-          window.VITE_API_KEY = ""; 
-      }
+      (function() {
+        // Ensure process.env exists
+        window.process = window.process || {};
+        window.process.env = window.process.env || {};
+        
+        // Smart Key Detection Strategy
+        // Google AI Studio often injects keys via specific globals or build replacements.
+        // We prioritize finding ANY valid key and assigning it to process.env.API_KEY
+        
+        const foundKey = 
+            window.VITE_API_KEY || 
+            window.API_KEY || 
+            window.GOOGLE_API_KEY ||
+            (typeof process !== 'undefined' && process.env ? process.env.API_KEY : '') ||
+            '';
+
+        if (foundKey && foundKey.length > 0) {
+            // Unify the key location for the app
+            window.process.env.API_KEY = foundKey;
+            // Also set VITE_API_KEY for consistency
+            window.VITE_API_KEY = foundKey;
+        } else {
+            console.warn("Shadow Core: No API Key detected in HTML shim. Waiting for app injection.");
+        }
+      })();
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -46,7 +64,11 @@
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.90.0"
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+    "firebase/": "https://esm.sh/firebase@^12.7.0/",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.90.1"
   }
 }
 </script>
@@ -57,3 +79,4 @@
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>
+    

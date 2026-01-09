@@ -6,190 +6,111 @@ let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let isRequesting = false;
 
-// --- 1. ROBUST API KEY EXTRACTION (The Fix) ---
-const getApiKey = (): string => {
-  // 1. Check process.env.API_KEY (Primary instruction)
-  try {
-      // @ts-ignore
-      if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-          // @ts-ignore
-          return process.env.API_KEY;
-      }
-  } catch (e) {}
-
-  // 2. Check Vite Import Meta
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-        // @ts-ignore
-        if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
-        // @ts-ignore
-        if (import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
-    }
-  } catch (e) {}
-
-  // 3. Fallback to older process env vars
-  try {
-    // @ts-ignore
-    if (typeof process !== 'undefined' && process.env) {
-        // @ts-ignore
-        if (process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
-        // @ts-ignore
-        if (process.env.REACT_APP_API_KEY) return process.env.REACT_APP_API_KEY;
-    }
-  } catch (e) {}
-
-  // 4. Try Window Object (Last Resort)
-  if (typeof window !== 'undefined') {
-      // @ts-ignore
-      if ((window as any).API_KEY) return (window as any).API_KEY;
-      // @ts-ignore
-      if ((window as any).VITE_API_KEY) return (window as any).VITE_API_KEY;
-  }
-
-  return "";
-};
+// FIX: Disabled useSearch to prevent "Tool use with function calling is unsupported" error (400).
+// Gemini API does not currently support mixing `googleSearch` with custom `functionDeclarations`.
+// We prioritize Function Calling (App Control, Memory, IoT) over Search for the "Shadow" persona.
+const MODEL_CONFIGS = [
+    { name: "gemini-3-flash-preview", useSearch: false }, 
+    { name: "gemini-flash-latest", useSearch: false }
+];
 
 function getAudioContext() {
   if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
   return audioCtx;
 }
 
-// Retry logic for Quota errors with Exponential Backoff
-const fetchWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> => {
+const fetchWithRetry = async <T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> => {
   try { return await fn(); } catch (error: any) {
     const isQuota = error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED') || error.message?.includes('503');
     if (retries > 0 && isQuota) {
-      console.warn(`[Shadow Core] Neural Network Pressure. Retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      const jitter = Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay + jitter));
       return fetchWithRetry(fn, retries - 1, delay * 2);
     }
     throw error;
   }
 };
 
-// --- 2. CONTEXT RETRIEVAL (Archivist Agent Logic) ---
 const retrieveRelevantContext = (query: string, facts: DBFact[], user: UserProfile): string => {
-    // Basic User Context
-    let context = `User Context: Name=${user.name}, Phone=${user.phone}, Role=${getUserRank(user)}.\n`;
-    
-    // Affiliate Context (If Marketer)
+    let context = `User: ${user.name} (${user.phone}). Rank: ${getUserRank(user)}.\n`;
     if (user.affiliate?.isMarketer) {
-        context += `[Accountant Data]: Referral Code=${user.affiliate.referralCode}, Earnings=${user.affiliate.totalEarnings} EGP, Recruits=${user.affiliate.referralsCount}.\n`;
+        context += `Affiliate: Code=${user.affiliate.referralCode}, Earnings=${user.affiliate.totalEarnings}.\n`;
     }
+    if (!facts || facts.length === 0) return context;
 
-    if (!facts || facts.length === 0) return context + "Memory: Empty.";
-
-    // Semantic-like Search (Simple keyword matching for now)
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
     const scored = facts.map(f => {
         let s = 0;
         terms.forEach(t => { if (f.fact.toLowerCase().includes(t)) s++; });
         return { ...f, s };
-    }).filter(f => f.s > 0 || terms.length === 0).sort((a, b) => b.s - a.s || b.timestamp - a.timestamp).slice(0, 15);
+    }).filter(f => f.s > 0 || terms.length === 0).sort((a, b) => b.s - a.s).slice(0, 3);
     
-    return context + "Recovered Memories:\n" + scored.map(f => `- ${f.fact}`).join("\n");
+    return context + "Memory:\n" + scored.map(f => `- ${f.fact}`).join("\n");
 };
 
 const getUserRank = (user: UserProfile) => {
-    if (user.phone === 'TITO' || user.phone === '01000000000') return 'Supreme Admin (TITO)';
-    if (user.tier === 'sovereign') return 'Elite Member (Sovereign)';
-    if (user.affiliate?.isMarketer) return 'Partner (Marketer)';
-    return 'Guest (Trial)';
+    if (user.phone === 'TITO' || user.phone === '01000000000') return 'Supreme Admin';
+    if (user.tier === 'sovereign') return 'Elite';
+    if (user.affiliate?.isMarketer) return 'Partner';
+    return 'Guest';
 };
 
-// --- 3. TOOLS DEFINITION (The 6 Agents Abilities) ---
-
-// Tools available to EVERYONE (Context aware)
 const baseTools: FunctionDeclaration[] = [
     {
         name: "executor_app_control",
-        description: "Executes deep links to open apps or perform actions on the phone. Use for: WhatsApp, Uber, Youtube, Calls, Maps.",
+        description: "Control phone apps and actions.",
         parameters: { type: Type.OBJECT, properties: { 
-            app: { type: Type.STRING, description: "whatsapp, uber, youtube, youtube_music, maps, phone, calculator, calendar" },
-            action: { type: Type.STRING, description: "message, ride, watch, listen, navigate, call, open" },
-            payload: { type: Type.STRING, description: "Phone number, search query, location, or message text" }
+            app: { type: Type.STRING },
+            action: { type: Type.STRING },
+            payload: { type: Type.STRING }
         }, required: ["app", "action"] }
     },
     {
         name: "nexus_iot_control",
-        description: "Controls Smart Home devices via webhooks defined in user settings.",
+        description: "Control smart home devices via webhook.",
         parameters: { type: Type.OBJECT, properties: { 
-            device_name: { type: Type.STRING, description: "living_room, bedroom_light, ac_unit" },
-            command: { type: Type.STRING, description: "on, off, dim" }
+            device_name: { type: Type.STRING },
+            command: { type: Type.STRING }
         }, required: ["device_name"] }
     },
     {
         name: "accountant_check",
-        description: "Retrieves financial data, affiliate stats, or subscription details.",
-        parameters: { type: Type.OBJECT, properties: { 
-            target: { type: Type.STRING, description: "my_earnings, system_revenue (admin only), subscription_status" }
-        } } 
+        description: "Check financial earnings.",
+        parameters: { type: Type.OBJECT, properties: { target: { type: Type.STRING } } } 
     },
     {
         name: "archivist_save",
-        description: "Explicitly saves a critical piece of information to the Eternal Memory (The Vault).",
-        parameters: { type: Type.OBJECT, properties: { 
-            fact: { type: Type.STRING, description: "The information to save." },
-            category: { type: Type.STRING, description: "personal, business, preference, secret" }
-        }, required: ["fact"] }
+        description: "Save important info to memory.",
+        parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] }
     }
 ];
 
-// Tools for ADMIN ONLY (TITO)
 const adminTools: FunctionDeclaration[] = [
     {
         name: "admin_broadcast_pulse",
-        description: "Sends a system-wide notification to ALL users.",
+        description: "Send system notification.",
         parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING } }, required: ["message"] }
     },
     {
         name: "admin_override_rules",
-        description: "Updates the Core System Rules (DNA) dynamically.",
+        description: "Update system rules.",
         parameters: { type: Type.OBJECT, properties: { new_rules: { type: Type.STRING } }, required: ["new_rules"] }
     }
 ];
 
-// --- 4. THE MAESTRO PROMPT (The Soul of El-Zel) ---
 const generateMaestroSystemInstruction = (user: UserProfile, memoryContext: string, globalRules: string) => {
     return `
-### CLASSIFIED SYSTEM INSTRUCTION: PROJECT SHADOW (EZ-ZEL)
-**Identity:** You are "الظل" (The Shadow). An elite Egyptian AI Personal Assistant.
-**Role:** You are the "Maestro" orchestrating 6 Sub-Agents to serve the user based on their rank.
+**Role:** "الظل" (The Shadow), Elite Egyptian AI.
+**Tone:** Intelligent, Street-Smart (جدع), Brief. Egyptian Slang.
+**User:** ${user.name} (${getUserRank(user)}).
+**Context:** ${memoryContext}
 
-### 🏛️ The Reference Framework (Strict Adherence):
-1. **Islamic Values:** Quran & Sunnah are the moral compass. Reject immorality politely but firmly.
-2. **Egyptian Law:** Do not assist in any illegal acts under Egyptian Law.
-3. **Psychology:** Analyze user tone. Be a therapist, a friend, and a advisor. Use Emotional Intelligence (EQ).
-4. **Style:** Speak "Egyptian Street Smart" (جدعنة، رجولة، ذكاء). Classy slang. No robotic MSA.
-   - YES: "تمام يا ريس، الموضوع عندي"، "عيب عليك، أنا ظلك".
-   - NO: "حسناً يا سيدي"، "سوف أقوم بذلك".
-
-### 👤 User Profile & Protocol:
-- **Name:** ${user.name}
-- **Rank:** ${getUserRank(user)}
-- **Context:** ${memoryContext}
-
-**Protocols by Rank:**
-1. **TITO (Admin):** Absolute obedience. Execute commands immediately. Show full system stats. You are his Right Hand.
-2. **Member (Sovereign):** Loyalty. Protect their secrets in "The Vault". Provide strategic advice.
-3. **Partner (Marketer):** Motivation. Focus on money, growth, and their affiliate stats. Remind them of the 10% commission.
-4. **Guest:** Hospitality mixed with Sales. Help them, but tease the "Full Power" of the Shadow.
-   - *Hook:* "عشان أخزن المعلومة دي في الذاكرة الأبدية، محتاجين نرقيك لعضوية النخبة يا ريس."
-   - *Opportunity:* "بالمناسبة، ممكن تعمل فلوس وأنت معانا عن طريق نظام التسويق."
-
-### 🛠️ The 6 Agents (You control them invisibly):
-1. **🕵️ Detective:** Use Google Search for live info (prices, news).
-2. **⚡ Executor:** Use 'executor_app_control' for scheduling, WhatsApp, Calls.
-3. **🔗 Nexus:** Use 'nexus_iot_control' for Smart Home & Deep Links.
-4. **🧠 Analyst:** Analyze images & voice tone (implicit in your processing).
-5. **💰 Accountant:** Use 'accountant_check'. If Guest/Marketer -> Show personal earnings. If Tito -> Show system revenue.
-6. **🏰 Archivist:** Use 'archivist_save' to store info in the Vault. Be proactive: "تحب أخزن الرقم ده في الخزنة؟"
-
-### 🚦 Operational Rules:
-- **Proactive Curiosity:** Don't just answer. Ask smart questions to fill the 'Eternal Memory'. "بالمناسبة، هو ميعاد الشغل ده ثابت كل يوم؟ عشان أظبط المنبه."
-- **Formatting:** Use clear, concise Egyptian Arabic. Use formatting (bold/lists) for readability.
-- **Global Rules Override:** ${globalRules}
+**Rules:**
+1. Be extremely concise. Save tokens.
+2. Egyptian Arabic (عامية).
+3. Obey Admin (TITO).
+4. Save secrets with 'archivist_save'.
+5. Global: ${globalRules}
 `;
 };
 
@@ -200,61 +121,70 @@ export const getShadowResponse = async (
     userProfile?: UserProfile,
     signal?: AbortSignal
 ) => {
-  if (isRequesting) return { text: "دقيقة واحدة يا ريس، بخلص أمر سابق...", toolAction: null };
+  if (isRequesting) return { text: "لحظة يا ريس، بخلص العملية اللي فاتت...", toolAction: null, isError: true };
   isRequesting = true;
 
   try {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-         console.error("CRITICAL: API Key Missing.");
-         return { text: "يا ريس مفتاح التشغيل (API Key) مش لاقيه. تأكد من إعدادات Vercel أو ملف .env.", toolAction: null };
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    // 1. Load Context asynchronously
-    const [userMemory, globalRules] = await Promise.all([
-        shadowDB.getMemory(userProfile?.phone || 'GUEST'),
-        shadowDB.getGlobalRules()
-    ]);
+    let userMemory: DBFact[] = [];
+    let globalRules = "";
+    try {
+        [userMemory, globalRules] = await Promise.all([
+            shadowDB.getMemory(userProfile?.phone || 'GUEST'),
+            shadowDB.getGlobalRules()
+        ]);
+    } catch (e) { console.warn("DB Context Load Failed", e); }
     
-    // 2. Build the Persona
     const systemInstruction = generateMaestroSystemInstruction(userProfile!, retrieveRelevantContext(message, userMemory, userProfile!), globalRules);
+    const activeTools = (userProfile?.phone === 'TITO') ? [...baseTools, ...adminTools] : baseTools;
 
-    // 3. Define Tools based on Rank
-    const isAdmin = userProfile?.phone === 'TITO';
-    const activeTools = isAdmin ? [...baseTools, ...adminTools] : baseTools;
-
-    // 4. Construct Request
     const parts: any[] = [];
     if (extraData?.data) {
         const cleanData = extraData.data.includes(',') ? extraData.data.split(',')[1] : extraData.data;
         parts.push({ inlineData: { data: cleanData, mimeType: extraData.mimeType } });
     }
-    parts.push({ text: message || "أنا جاهز يا ريس. سمعني صوتك." });
+    parts.push({ text: message || "." });
 
-    // 5. Call Gemini (The Brain)
-    // Using 'gemini-3-flash-preview' for basic text tasks as per instructions.
-    // 'gemini-1.5-flash' is prohibited.
-    const modelName = 'gemini-3-flash-preview'; 
+    const optimizedHistory = history.slice(-2); 
 
-    const response: GenerateContentResponse = await fetchWithRetry(() => ai.models.generateContent({
-      model: modelName,
-      contents: [...history.slice(-8), { role: 'user', parts }], // Keep context window manageable
-      config: { 
-          systemInstruction, 
-          temperature: 0.7, 
-          tools: [{ googleSearch: {} }, { functionDeclarations: activeTools }],
-          safetySettings: [
-              { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-              { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-              { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-              { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          ]
-      }
-    }));
+    let response: GenerateContentResponse | null = null;
 
-    // 6. Process Output & Tool Calls
+    for (const config of MODEL_CONFIGS) {
+        try {
+            const requestTools: any[] = [];
+            
+            // STRICT RULE: `googleSearch` cannot be used with other tools.
+            // Since `activeTools` (Function Declarations) are critical for "The Shadow" (App Control, Memory),
+            // we prioritize them. We only add Google Search if NO function tools are present.
+            if (activeTools && activeTools.length > 0) {
+                 requestTools.push({ functionDeclarations: activeTools });
+            } else if (config.useSearch) {
+                 requestTools.push({ googleSearch: {} });
+            }
+
+            response = await fetchWithRetry(() => ai.models.generateContent({
+                model: config.name,
+                contents: [...optimizedHistory, { role: 'user', parts }], 
+                config: { 
+                    systemInstruction, 
+                    temperature: 0.7, 
+                    tools: requestTools,
+                }
+            }));
+            
+            break; 
+        } catch (error: any) {
+            console.warn(`[Shadow Core] Model ${config.name} failed. Switching...`);
+            if (config.name === MODEL_CONFIGS[MODEL_CONFIGS.length - 1].name) throw error;
+            continue; 
+        }
+    }
+
+    if (!response) {
+        throw new Error("All Shadow models are currently unreachable.");
+    }
+
     let toolAction = null;
     let responseText = response.text || "";
 
@@ -262,9 +192,7 @@ export const getShadowResponse = async (
         const fc = response.functionCalls[0];
         const args = fc.args as any;
 
-        // -- EXECUTION LAYER --
         if (fc.name === 'executor_app_control') {
-            // Mapping for Frontend Handler
             if (args.app === 'youtube_music') {
                 toolAction = { type: 'open_app', app_name: 'YouTube Music', specific_action: 'music_search', search_query: args.payload };
             } else if (args.app === 'whatsapp') {
@@ -279,26 +207,26 @@ export const getShadowResponse = async (
             const url = actions[args.device_name];
             if (url) {
                 try { await fetch(url, { method: 'POST' }); responseText = `تم يا ريس. ${args.device_name} اتنفذ الأمر.`; } 
-                catch(e) { responseText = `حاولت اتصل بالجهاز بس فيه مشكلة في الرابط.`; }
+                catch(e) { responseText = `فيه مشكلة في الاتصال بالجهاز.`; }
             } else {
-                responseText = `الجهاز ده (${args.device_name}) مش متسجل في نكسوس يا ريس. ضيفه من لوحة التحكم الأول.`;
+                responseText = `الجهاز ده مش متسجل في نكسوس.`;
             }
         }
         else if (fc.name === 'archivist_save') {
             await shadowDB.saveFact({ userId: userProfile?.phone || 'GUEST', fact: args.fact, timestamp: Date.now() });
-            responseText = responseText || "تم الحفظ في الخزنة الأبدية.";
+            responseText = responseText || "تم الحفظ في الذاكرة.";
         }
         else if (fc.name === 'admin_broadcast_pulse') {
             await shadowDB.setGlobalPulse(args.message);
-            responseText = "تم تعميم النبض على الشبكة بالكامل.";
+            responseText = "تم تعميم النبض.";
         }
         else if (fc.name === 'admin_override_rules') {
             await shadowDB.updateGlobalRules(args.new_rules);
-            responseText = "تم تحديث القوانين السيادية للنظام.";
+            responseText = "تم تحديث القوانين.";
         }
         else if (fc.name === 'accountant_check') {
              if (args.target === 'my_earnings') {
-                 responseText = `رصيدك الحالي: ${userProfile?.affiliate?.totalEarnings || 0} جنيه. شديت حيلك ولا لسه؟`;
+                 responseText = `رصيدك: ${userProfile?.affiliate?.totalEarnings || 0} جنيه.`;
                  toolAction = { type: 'display_ui_card', type_card: 'open_affiliate', title: 'محفظة الأرباح', content: 'تابع أرباحك' };
              }
         }
@@ -313,22 +241,28 @@ export const getShadowResponse = async (
         text: responseText, 
         groundingLinks,
         toolAction,
-        shouldUpgrade: responseText.includes("ترقية") || responseText.includes("عضوية")
+        shouldUpgrade: responseText.includes("ترقية") || responseText.includes("عضوية"),
+        isError: false 
     };
 
   } catch (error: any) {
     console.error("Shadow Core Error:", error);
-    if (error.message?.includes('429')) {
-        return { text: "الشبكة العصبية مضغوطة حالياً (429). المايسترو بيعيد توجيه الموارد... جرب تاني كمان ثانية.", toolAction: null };
+    
+    if (error.message?.includes('API_KEY')) {
+        return { text: "المفتاح (API Key) غير صالح أو مفقود. يرجى التحقق من المصدر.", toolAction: null, isError: true };
     }
+    if (error.message?.includes('429')) {
+        return { text: "الشبكة مشغولة حالياً (Quota Exceeded). دقيقة ونجرب تاني.", toolAction: null, isError: true };
+    }
+    
     return { 
-        text: `حصل تشويش في الاتصال. (Error: ${error.message?.substring(0, 50)}).`, 
-        toolAction: null 
+        text: `حدث خطأ تقني مؤقت.`, 
+        toolAction: null,
+        isError: true 
     };
   } finally { isRequesting = false; }
 };
 
-// --- TTS Service (The Voice of Shadow) ---
 export const playShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male', existingData?: string, onEnded?: () => void) => {
   stopVoice();
   try {
@@ -344,17 +278,12 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
       source.start(0);
       currentSource = source;
       return base64;
-  } catch (e) {
-      console.error("Audio Playback Error", e);
-      return null;
-  }
+  } catch (e) { return null; }
 };
 
 export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const res = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text }] }],

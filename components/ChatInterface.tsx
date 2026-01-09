@@ -107,20 +107,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       });
   }, []);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const passiveRecognitionRef = useRef<any>(null); 
-  const rafIdRef = useRef<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  
-  const isCancelledRef = useRef<boolean>(false);
-  const recordingStartTimeRef = useRef<number>(0);
-  const stateRef = useRef({ isBusy: false, isListening: false, finalTranscript: '', lastAudioTime: Date.now() });
-
   const getGreetingSubtitle = () => {
       if (isAdmin) return `مرحباً ${currentUser.name.split(' ')[0]} (الماستر)`;
       if (currentUser.phone === 'GUEST') return "مرحباً ضيف الظل";
@@ -287,6 +273,20 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           searchInputRef.current.focus();
       }
   }, [isSearchActive]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const passiveRecognitionRef = useRef<any>(null); 
+  const rafIdRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  const isCancelledRef = useRef<boolean>(false);
+  const recordingStartTimeRef = useRef<number>(0);
+  const stateRef = useRef({ isBusy: false, isListening: false, finalTranscript: '', lastAudioTime: Date.now() });
 
   const resetToIdle = useCallback(() => {
     if (recorderRef.current) {
@@ -533,10 +533,8 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           abortControllerRef.current.signal 
       );
       
-      // --- ROBUST TOOL HANDLER ---
       if (result.toolAction) {
           const t = result.toolAction;
-          
           if (t.type === 'open_app') {
               const appName = (t.app_name || '').toLowerCase();
               const action = t.specific_action;
@@ -559,12 +557,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                   desc = `مشوار إلى: ${query}`;
                   iconType = 'car';
               } else if (appName.includes('whatsapp')) {
-                  // Basic deep link, ideally needs phone number extraction
                   url = `whatsapp://send?text=${encodeURIComponent(query)}`;
                   desc = 'فتح واتساب';
                   iconType = 'message';
               } else {
-                  // Fallback store search
                   url = `https://play.google.com/store/search?q=${encodeURIComponent(appName)}`;
                   desc = `تطبيق: ${appName}`;
               }
@@ -585,17 +581,19 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
 
       let voiceData: string | null = null;
-      if (!isMuted) {
+      // CRITICAL CHECK: Only generate voice if NO ERROR
+      if (!isMuted && !result.isError) {
           voiceData = await getShadowVoice(result.text, 'male');
       }
 
-      const modelMsg: DBMessage = { 
+      const modelMsg: ExtendedMessage = { 
           userId: currentUser.phone,
           role: 'model', 
           text: result.text, 
           timestamp: Date.now(), 
           groundingLinks: result.groundingLinks,
-          voiceData: voiceData || undefined
+          voiceData: voiceData || undefined,
+          isError: result.isError // Flag the message
       };
       
       let modelId = Date.now() + 1;
@@ -621,7 +619,8 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           setAppStatus('idle');
           stateRef.current.isBusy = false; 
           if (isSentinelMode) startPassiveListening();
-          if (isMuted) {
+          // Pre-fetch voice even if muted, ONLY if not error
+          if (isMuted && !result.isError) {
             getShadowVoice(result.text, 'male').then(async (audio) => {
                 if (audio) await saveVoiceToMessage(modelId, audio);
             });
@@ -633,9 +632,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
     } catch (e: any) { 
         console.error(e);
-        const errorText = e.message?.includes('429') 
-            ? "الضغط عالي على السيرفر يا ريس، دقيقة ونجرب تاني." 
-            : "حصل خطأ في الاتصال، حاول مرة كمان.";
+        const errorText = "حصل خطأ في الاتصال، حاول مرة كمان.";
         
         const errorMsg: ExtendedMessage = {
              userId: currentUser.phone,
@@ -854,7 +851,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
             {m.role === 'system' ? (
                 <div className="w-full flex justify-center my-2"><div className="bg-amber-900/40 border border-amber-500/30 rounded-full px-6 py-2 flex items-center gap-3 backdrop-blur-md"><Clock className="w-4 h-4 text-amber-500 animate-pulse" /><span className="text-xs font-bold text-amber-200">{m.text}</span></div></div>
             ) : (
-                <div className={`max-w-[90%] md:max-w-[70%] p-4 rounded-[20px] relative border backdrop-blur-md ${m.role === 'user' ? 'bg-[#1a1a1a] border-white/5 text-white/90 rounded-tl-none' : 'bg-[#0f0f0f] border-purple-500/20 text-white rounded-tr-none shadow-lg'}`}>
+                <div className={`max-w-[90%] md:max-w-[70%] p-4 rounded-[20px] relative border backdrop-blur-md ${m.role === 'user' ? 'bg-[#1a1a1a] border-white/5 text-white/90 rounded-tl-none' : (m.isError ? 'bg-red-900/20 border-red-500/30 text-red-200' : 'bg-[#0f0f0f] border-purple-500/20 text-white shadow-lg')} ${m.role !== 'user' ? 'rounded-tr-none' : ''}`}>
                 {m.image && <img src={m.image} className="w-full h-auto max-h-56 object-cover rounded-xl mb-3 border border-white/5" />}
                 <div className="text-sm leading-6 font-medium whitespace-pre-wrap">{highlightText(m.text)}</div>
                 {m.groundingLinks && m.groundingLinks.length > 0 && (
@@ -881,7 +878,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                                 <Share2 className="w-2.5 h-2.5" />
                             </button>
                         )}
-                        {(m.role === 'model' || (m.role === 'user' && m.voiceData)) && (
+                        {(m.role === 'model' || (m.role === 'user' && m.voiceData)) && !m.isError && (
                             <div className="flex gap-2">
                                 {playingMessageId === m.id ? <button onClick={handleStopPlayback} className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1 hover:bg-red-500 hover:text-white transition-all"><Square className="w-2.5 h-2.5 fill-current" /> <span className="text-[9px] font-black">إيقاف</span></button> : <button onClick={() => handlePlayMessage(m)} className="px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1 hover:bg-cyan-500 hover:text-black transition-all"><Play className="w-2.5 h-2.5 fill-current" /> <span className="text-[9px] font-black">{m.role === 'user' ? 'تسميع' : 'تشغيل'}</span></button>}
                             </div>

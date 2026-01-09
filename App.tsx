@@ -75,32 +75,20 @@ const App: React.FC = () => {
         }
 
         // 2. SHADOW PULSE (Global Broadcast Check)
-        // Checks if there is a new "Pulse" in config that this user hasn't seen yet.
         const pulse = await shadowDB.getGlobalPulse();
         if (pulse) {
             const lastSeen = user.lastPulseReceived || 0;
             if (pulse.timestamp > lastSeen) {
-                // New Pulse Found!
                 const pulseMsg: DBMessage = {
                     userId: user.phone,
                     role: 'system',
                     text: `📢 **نبض الظل (System Broadcast):**\n\n${pulse.text}`,
                     timestamp: pulse.timestamp
                 };
-
-                // Save to history so it persists
                 await shadowDB.saveMessage(pulseMsg);
-                
-                // Update User Profile to avoid repetition
                 await shadowDB.updateLastPulseReceived(user.phone, pulse.timestamp);
-                
-                // Trigger UI
                 setLatestSystemMessage(pulseMsg);
-                
-                // Update Local State to prevent re-trigger in same session loop
                 setUser(prev => prev ? ({ ...prev, lastPulseReceived: pulse.timestamp }) : null);
-                
-                // Sound
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                 if (audio) { audio.play().catch(e => {}); }
             }
@@ -109,28 +97,22 @@ const App: React.FC = () => {
         // 3. Admin Notifier (Strictly TITO Only)
         if (user.phone === 'TITO') {
             const lastCheck = await shadowDB.getConfig('last_admin_check') || 0; 
-            
             const allProfiles = await shadowDB.getAllProfiles();
             const newPending = allProfiles.filter(p => p.status === 'pending' && p.paymentProof && p.joinedAt > lastCheck);
-            
             const allFeedback = await shadowDB.getAllFeedback();
             const newFeedback = allFeedback.filter(f => f.timestamp > lastCheck);
 
             if (newPending.length > 0 || newFeedback.length > 0) {
                 let msgText = "🔴 **تقرير عمليات (New Alert)**:\n";
-                
                 if (newPending.length > 0) {
                     msgText += `\n📌 **طلبات اشتراك جديدة (${newPending.length}):**\n`;
                     newPending.forEach(p => msgText += `- ${p.name} (${p.phone})\n`);
                 }
-                
                 if (newFeedback.length > 0) {
                     msgText += `\n💬 **رسائل رأي جديدة (${newFeedback.length}):**\n`;
                     newFeedback.forEach(f => msgText += `- من ${f.userName}: "${f.message.substring(0, 30)}..."\n`);
                 }
                 
-                msgText += "\n💡 *اضغط على لوحة التحكم للتفاصيل والتفعيل.*";
-
                 const adminMsg: DBMessage = {
                     userId: 'TITO',
                     role: 'system',
@@ -141,7 +123,6 @@ const App: React.FC = () => {
                 await shadowDB.saveMessage(adminMsg);
                 setLatestSystemMessage(adminMsg);
                 await shadowDB.setConfig('last_admin_check', Date.now());
-                
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                 if (audio) { audio.play().catch(e => {}); }
             }
@@ -149,7 +130,8 @@ const App: React.FC = () => {
     };
 
     if (Notification.permission === 'default') { Notification.requestPermission(); }
-    const interval = setInterval(runBackgroundChecks, 10000); 
+    // Increased interval to 120s (2 minutes) to reduce API resource usage significantly
+    const interval = setInterval(runBackgroundChecks, 120000); 
     return () => { clearInterval(interval); stopVoice(); };
   }, [user, isAppLocked]);
 
