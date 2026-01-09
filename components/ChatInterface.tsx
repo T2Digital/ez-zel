@@ -1,10 +1,9 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid } from 'lucide-react';
+import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera } from 'lucide-react';
 import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import CapabilitiesGuide from './CapabilitiesGuide';
-import SovereignVault from './SovereignVault'; 
 
 interface Props {
     currentUser: UserProfile;
@@ -67,7 +66,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const [playingMessageId, setPlayingMessageId] = useState<number | null>(null);
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
-  const [lastSpokenText, setLastSpokenText] = useState<string | null>(null);
   
   const [isSentinelMode, setIsSentinelMode] = useState(false);
   const wakeLockRef = useRef<any>(null);
@@ -408,11 +406,12 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       
       if (stateRef.current.isListening) {
+           // Auto-send silence timer (Magic Touch)
            silenceTimerRef.current = setTimeout(() => {
-               if (stateRef.current.isListening) {
+               if (stateRef.current.isListening && stateRef.current.finalTranscript.trim().length > 0) {
                    stopListeningAndSend();
                }
-           }, 5000); 
+           }, 3500); 
       }
     };
 
@@ -535,7 +534,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       
       if (result.toolAction) {
           const t = result.toolAction;
-          if (t.type === 'open_app') {
+          if (t.type === 'trigger_ui' && t.action === 'open_gallery') {
+              if (fileInputRef.current) fileInputRef.current.click();
+          }
+          else if (t.type === 'open_app') {
               const appName = (t.app_name || '').toLowerCase();
               const action = t.specific_action;
               const query = t.search_query || '';
@@ -544,30 +546,42 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
               let desc = '';
               let iconType = 'generic';
 
+              // STRICT DEEP LINKING LOGIC
               if (appName.includes('youtube music') || action === 'music_search') {
                   url = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
-                  desc = `بحث عن: ${query}`;
+                  desc = `بحث موسيقى: ${query}`;
                   iconType = 'music';
               } else if (appName.includes('youtube') || action === 'video_search') {
                   url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-                  desc = `فيديو: ${query}`;
+                  desc = `بحث فيديو: ${query}`;
                   iconType = 'video';
-              } else if (appName.includes('uber') || action === 'location_ride') {
+              } else if (appName.includes('whatsapp')) {
+                  // Direct WhatsApp Send
+                  url = `https://wa.me/?text=${encodeURIComponent(query)}`;
+                  desc = 'فتح واتساب';
+                  iconType = 'message';
+              } else if (appName.includes('phone') || action === 'call') {
+                  url = `tel:${query}`;
+                  desc = `اتصال بـ: ${query}`;
+                  iconType = 'phone';
+              } else if (appName.includes('uber') || action === 'navigate') {
                   url = `https://m.uber.com/ul/?action=setPickup&client_id=YOUR_CLIENT_ID&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(query)}`;
                   desc = `مشوار إلى: ${query}`;
                   iconType = 'car';
-              } else if (appName.includes('whatsapp')) {
-                  url = `whatsapp://send?text=${encodeURIComponent(query)}`;
-                  desc = 'فتح واتساب';
-                  iconType = 'message';
               } else {
-                  url = `https://play.google.com/store/search?q=${encodeURIComponent(appName)}`;
+                  // Fallback: Google Play Search or Browser
+                  url = `https://www.google.com/search?q=${encodeURIComponent(appName + ' app')}`;
                   desc = `تطبيق: ${appName}`;
               }
 
               if (url) {
-                  window.open(url, '_blank');
-                  setActiveAppCard({ cardType: 'deep_link_fallback', title: desc, description: 'تم التوجيه', url, number: iconType });
+                  // Attempt to open automatically, but provide fallback card for popup blockers
+                  const win = window.open(url, '_blank');
+                  if (!win) {
+                      setActiveAppCard({ cardType: 'deep_link_fallback', title: desc, description: 'المتصفح منع الفتح التلقائي. اضغط هنا:', url, number: iconType });
+                  } else {
+                      setActiveAppCard({ cardType: 'deep_link_fallback', title: desc, description: 'تم التوجيه بنجاح', url, number: iconType });
+                  }
               }
           }
           else if (t.type === 'get_referral_info') {
@@ -576,7 +590,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                setActiveAppCard({ cardType: 'copy_link', title: `كود الإحالة: ${refCode}`, description: "انسخ الرابط وابعته لصحابك", url: link });
           }
           else if (t.type === 'display_ui_card') {
-             setActiveAppCard({ cardType: t.type, title: t.title, description: t.content });
+             setActiveAppCard({ cardType: t.type_card, title: t.title, description: t.content });
           }
       }
 
@@ -593,7 +607,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           timestamp: Date.now(), 
           groundingLinks: result.groundingLinks,
           voiceData: voiceData || undefined,
-          isError: result.isError // Flag the message
+          isError: result.isError
       };
       
       let modelId = Date.now() + 1;
@@ -604,7 +618,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       if (voiceData) {
           setPlayingMessageId(modelId);
           setAppStatus('speaking');
-          setLastSpokenText(result.text);
           playShadowVoice(result.text, 'male', voiceData, () => { 
               setPlayingMessageId(null); 
               if (!stateRef.current.isBusy) {
@@ -632,7 +645,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
     } catch (e: any) { 
         console.error(e);
-        const errorText = "حصل خطأ في الاتصال، حاول مرة كمان.";
+        const errorText = "الشبكة بتفصل يا ريس.. جرب تاني كمان لحظة.";
         
         const errorMsg: ExtendedMessage = {
              userId: currentUser.phone,
@@ -725,12 +738,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       } else if (activeAppCard.cardType === 'copy_link' && activeAppCard.url) {
           navigator.clipboard.writeText(activeAppCard.url);
           alert("تم نسخ الرابط! 📋");
-      } else if (activeAppCard.cardType === 'install_app') { 
-          if (installPrompt) { 
-              installPrompt.prompt(); 
-              const { outcome } = await installPrompt.userChoice; 
-              if (outcome === 'accepted') setInstallPrompt(null); 
-          } 
       } else if (['open_vault', 'open_nexus', 'open_pricing'].includes(activeAppCard.cardType)) { 
           if (onNavigateTo) { 
               const section = activeAppCard.cardType.replace('open_', ''); 
@@ -747,6 +754,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       if (type === 'deep_link_fallback') {
           if (number === 'music') return <Music className="w-6 h-6 text-red-400" />;
           if (number === 'video') return <Video className="w-6 h-6 text-red-400" />;
+          if (number === 'phone') return <PhoneCall className="w-6 h-6 text-green-400" />;
           return <ExternalLink className="w-6 h-6 text-blue-400" />;
       }
       switch(type) { 
@@ -932,7 +940,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                     }} 
                     className={`p-3 transition-colors hover:bg-white/5 rounded-full mb-0.5 ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`}
                 >
-                    {isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
+                    {isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
                 </button>
                 <textarea 
                     value={input} 
