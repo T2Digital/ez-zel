@@ -73,7 +73,7 @@ const actionTools: FunctionDeclaration[] = [
         }, required: ["type", "partyA", "partyB"] }
     },
     {
-        name: "consult_healer",
+        name: "schedule_task",
         description: "Schedule reminders.",
         parameters: { type: Type.OBJECT, properties: { 
             task: { type: Type.STRING },
@@ -168,6 +168,14 @@ export const getShadowResponse = async (
                 } else if (fc.name === 'app_control_center') {
                     let url = args.app === 'whatsapp' ? `https://wa.me/${args.payload?.replace(/\D/g,'')}` : '';
                     if (url) toolAction = { type: 'display_ui_card', type_card: 'deep_link_fallback', title: args.app, description: args.payload, url, number: 'phone' };
+                } else if (fc.name === 'schedule_task') {
+                    await shadowDB.saveTask({ userId: userProfile?.phone || 'GUEST', task: args.task, time: args.executionTime, executionTime: new Date(args.executionTime).getTime(), category: 'general', status: 'pending' });
+                    actionDescriptions.push(`⏰ تم جدولة التذكير: ${args.task}`);
+                } else if (fc.name === 'government_broker') {
+                    let url = "https://digital.gov.eg/";
+                    if (args.service === 'traffic_fines') url = "https://ppo.gov.eg/web/traffic/services/niaba/qanun/mukhalafat";
+                    toolAction = { type: 'display_ui_card', type_card: 'government_action', title: `خدمة ${args.service}`, description: 'المخلصاتي جاهز', url, number: 'eagle' };
+                    actionDescriptions.push(`🦅 المخلصاتي: تم تجهيز خدمة ${args.service}`);
                 }
             }
         }
