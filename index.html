@@ -5,86 +5,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ez-Zel | الظل الرقمي - مساعد النخبة بالذكاء الاصطناعي</title>
-    <meta name="description" content="أول مساعد شخصي عربي بالذكاء الاصطناعي مخصص للإدارة الاستراتيجية، المال، والنمو الشخصي. ذاكرة أبدية، خصوصية مشفرة، وتفكير قيادي.">
     
-    <!-- Open Graph / Facebook / WhatsApp -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://ez-zel.vercel.app/">
-    <meta property="og:title" content="Ez-Zel | الظل الرقمي">
-    <meta property="og:description" content="امتلك ظلك الرقمي الآن. ذاكرة فولاذية، تحليل استراتيجي، وحماية مشفرة.">
-    <meta property="og:image" content="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:title" content="Ez-Zel | الظل الرقمي">
-    <meta property="twitter:description" content="مساعدك الشخصي الذكي. إدارة أعمال، حجز فنادق، تحكم منزلي، وذاكرة لا تنسى.">
-    <meta property="twitter:image" content="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     
-    <meta name="theme-color" content="#581c87">
-
-    <!-- Environment Variable Shim for Vercel/Runtime -->
-    <script>
-      (function() {
-        window.process = window.process || {};
-        window.process.env = window.process.env || {};
-        
-        // Critical: Detect keys injected by Vercel or Vite at runtime
-        const possibleKeys = [
-            window.VITE_API_KEY, 
-            window.API_KEY,
-            // @ts-ignore
-            (typeof import !== 'undefined' && import.meta && import.meta.env ? import.meta.env.VITE_API_KEY : '')
-        ];
-
-        const validKey = possibleKeys.find(k => k && k.length > 10);
-        
-        if (validKey) {
-            window.process.env.API_KEY = validKey;
-            window.VITE_API_KEY = validKey;
-        }
-      })();
-    </script>
-
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     
     <style>
         html { scroll-behavior: smooth; }
-        body {
-            font-family: 'Cairo', sans-serif;
-            background-color: #020202;
-            color: #e5e5e5;
-            overflow-x: hidden;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .glass {
-            background: rgba(255, 255, 255, 0.02);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        ::-webkit-scrollbar { width: 0px; background: transparent; }
-        * { scrollbar-width: none; -ms-overflow-style: none; }
+        body { font-family: 'Cairo', sans-serif; background-color: #020202; color: #e5e5e5; overflow-x: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        ::-webkit-scrollbar { width: 0px; }
+        @media print { .print\:hidden { display: none !important; } .printable-invoice { padding: 40px !important; } }
     </style>
-<script type="importmap">
+
+    <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
-    "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.90.1",
     "firebase/": "https://esm.sh/firebase@^12.7.0/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.90.1"
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
 </head>
 <body>
     <div id="root"></div>
-    <audio id="notification-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW register failed:', err));
+        });
+      }
+    </script>
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>
