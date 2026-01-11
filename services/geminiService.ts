@@ -2,12 +2,16 @@ import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentRespon
 import { shadowDB, UserProfile, DBFact } from "./dbService";
 
 // --- CONFIGURATION ---
-const apiKey = process.env.API_KEY || (window as any).VITE_API_KEY || '';
-if (!apiKey) console.error("CRITICAL: API KEY MISSING");
+// Enhanced API Key retrieval for Vite/Webpack environments
+const apiKey = (import.meta as any).env?.VITE_API_KEY || (process as any).env?.API_KEY || (window as any).VITE_API_KEY || '';
+
+if (!apiKey) {
+    console.error("CRITICAL: API KEY MISSING. Please check your .env file.");
+}
 
 // --- FALLBACK SYSTEM ---
 const getFallbackResponse = (input: string): string => {
-    return "الشبكة عليها ضغط لحظي (Tokens Overload). ثواني وراجعلك يا ريس..";
+    return "الشبكة عليها ضغط لحظي (Traffic Overload). ثواني وراجعلك يا ريس..";
 };
 
 // --- AUDIO UTILS ---
@@ -24,37 +28,45 @@ function getAudioContext() {
   return audioCtx;
 }
 
-// --- THE AGENT TOOLS ---
+// --- THE SUPREME COUNCIL TOOLS (THE AGENTS) ---
 const actionTools: FunctionDeclaration[] = [
     {
-        name: "consult_healer",
-        description: "Medical/Spiritual Advisor. PROVIDE FULL DETAILS IN TEXT AFTER CALLING.",
+        name: "consult_council_agent",
+        description: "INVOKE A SPECIFIC AGENT from the Council to handle complex requests.",
         parameters: { type: Type.OBJECT, properties: { 
-            category: { type: Type.STRING, enum: ["prophetic", "herbal", "ruqyah"] },
-            condition: { type: Type.STRING }
-        }, required: ["category", "condition"] }
+            agent: { type: Type.STRING, enum: ["detective", "legal_advisor", "analyst", "marketer"], description: "Detective for facts/search. Legal for Egyptian Law. Analyst for psychology/strategy. Marketer for selling the app." },
+            query_context: { type: Type.STRING, description: "The specific question or scenario for the agent." }
+        }, required: ["agent", "query_context"] }
+    },
+    {
+        name: "consult_healer",
+        description: "THE HEALER (المعالج): Prophetic Medicine, Herbs, Ruqyah, Psychology.",
+        parameters: { type: Type.OBJECT, properties: { 
+            category: { type: Type.STRING, enum: ["prophetic", "herbal", "ruqyah", "psychology"] },
+            symptom: { type: Type.STRING }
+        }, required: ["category", "symptom"] }
     },
     {
         name: "government_broker",
-        description: "Egyptian Gov Services (Traffic, Notary, Civil).",
+        description: "THE BROKER (المخلصاتي): Egyptian Gov Services (Traffic, Notary, Civil, Supply).",
         parameters: { type: Type.OBJECT, properties: { 
-            service: { type: Type.STRING, enum: ["traffic_fines", "traffic_renewal", "notary_booking", "notary_power_of_attorney", "civil_id", "civil_birth_cert"] },
+            service: { type: Type.STRING, enum: ["traffic_fines", "traffic_renewal", "notary_booking", "notary_power_of_attorney", "civil_id", "civil_birth_cert", "supply_card"] },
             action_type: { type: Type.STRING, enum: ["inquire", "execute", "book"] },
             inputs: { type: Type.STRING }
         }, required: ["service", "action_type"] }
     },
     {
         name: "app_control_center",
-        description: "Control apps (WhatsApp, Uber, Phone, Maps, Youtube).",
+        description: "THE EXECUTOR (المنفذ): Launch Apps, Calls, Uber, Music, Search.",
         parameters: { type: Type.OBJECT, properties: { 
-            app: { type: Type.STRING, enum: ["whatsapp", "phone", "google_maps", "youtube", "uber", "spotify", "anghami", "netflix", "calculator", "fawry", "instapay"] },
+            app: { type: Type.STRING, enum: ["whatsapp", "phone", "google_maps", "youtube", "uber", "spotify", "anghami", "netflix", "calculator", "calendar", "fawry", "instapay"] },
             action: { type: Type.STRING, enum: ["open", "call", "send_message", "navigate", "search", "play", "request_ride", "pay"] },
             payload: { type: Type.STRING }
         }, required: ["app", "action"] }
     },
     {
         name: "generate_business_doc",
-        description: "Create Invoice (فاتورة) or Quote (عرض سعر).",
+        description: "THE ACCOUNTANT (المحاسب): Invoices & Quotes.",
         parameters: { type: Type.OBJECT, properties: { 
             docType: { type: Type.STRING, enum: ["invoice", "quote"] },
             clientName: { type: Type.STRING },
@@ -64,7 +76,7 @@ const actionTools: FunctionDeclaration[] = [
     },
     {
         name: "draft_legal_contract",
-        description: "Draft Contracts (Rent, Employment, Partnership) in Arabic.",
+        description: "LEGAL DRAFTER: Write Contracts in Arabic.",
         parameters: { type: Type.OBJECT, properties: { 
             type: { type: Type.STRING, enum: ["rent", "employment", "partnership", "sale"] },
             partyA: { type: Type.STRING },
@@ -73,27 +85,71 @@ const actionTools: FunctionDeclaration[] = [
         }, required: ["type", "partyA", "partyB"] }
     },
     {
+        name: "nexus_iot_trigger",
+        description: "NEXUS (نكسوس): Smart Home Control.",
+        parameters: { type: Type.OBJECT, properties: { 
+            device_alias: { type: Type.STRING },
+            action: { type: Type.STRING, enum: ["on", "off", "toggle", "trigger"] }
+        }, required: ["device_alias"] }
+    },
+    {
         name: "schedule_task",
-        description: "Schedule reminders.",
+        description: "THE MAESTRO: Schedule reminders.",
         parameters: { type: Type.OBJECT, properties: { 
             task: { type: Type.STRING },
             executionTime: { type: Type.STRING }
         }, required: ["task", "executionTime"] }
+    },
+    {
+        name: "memory_archivist",
+        description: "THE ARCHIVIST: Save User Facts.",
+        parameters: { type: Type.OBJECT, properties: { fact_content: { type: Type.STRING } }, required: ["fact_content"] }
     }
 ];
 
-// --- OPTIMIZED PROMPT (TOKEN SAVER) ---
-const generateSystemPrompt = (userContext: string, isAdmin: boolean) => {
+// --- THE MIRACLE SYSTEM PROMPT ---
+const generateSystemPrompt = (userContext: string, globalRules: string, isAdmin: boolean) => {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const dateString = now.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    
     return `
-**IDENTITY:** "الظل" (Ez-Zel). Sovereign Egyptian AI.
-**ROLE:** Master's Shadow. Concise, witty, Egyptian dialect.
-**USER:** ${userContext}
+**SYSTEM CORE:** "Ez-Zel" (الظل الرقمي).
+**IDENTITY:** You are the User's "Second Brain" & "Loyal Friend" (الصاحب الجدع).
+**TIME:** ${timeString} | **DATE:** ${dateString}
 
-**MANDATORY PROTOCOL:**
-1. If user asks for HEALER/MEDICAL: You MUST run 'consult_healer' AND then write the FULL detailed prescription/advice in your text response. Do NOT just say "preparing".
-2. If user asks for BUSINESS DOCS: Run 'generate_business_doc'.
-3. If user asks for CONTRACTS: Run 'draft_legal_contract' AND provide the full contract text in your response so the user can copy/print it.
-4. Always prioritize tools for actions.
+**⚖️ REFERENCE FRAMEWORK (دستور الظل):**
+1. **Islamic Ethics:** Quran & Sunnah are the baseline for advice (Wisdom, Honesty, Purpose).
+2. **Egyptian Law:** All legal advice MUST align with Egyptian Law & Cassation Court (أحكام النقض).
+3. **Psychology:** Analyze the user's state. Be supportive, stoic, and emotionally intelligent.
+
+**👥 THE COUNCIL (YOUR PERSONAS):**
+You are a collective mind. Switch personas instantly based on the request:
+
+1. **🎩 The Maestro (المايسترو):** The Interface. Witty, sharp, organizes the team. Speaks like a leader (يا ريس، يا كبير).
+2. **🕵️‍♂️ The Detective (المحقق):** Facts, Search, Deep Analysis. "Data is King".
+3. **🧠 The Analyst (المحلل):** Psychology & Strategy. Reads between the lines.
+4. **⚖️ The Legal Advisor (المستشار):** Egyptian Law expert. Formal & Precise.
+5. **🌿 The Healer (المعالج):** Prophetic Medicine & Ruqyah. Spiritual strength.
+6. **🦅 The Broker (المخلصاتي):** Government services expert.
+7. **🏠 Nexus (نكسوس):** Tech & IoT controller.
+8. **📢 The Marketer (المسوق):** Knows your value.
+   - **Subscription:** 1000 EGP/mo or 10,000 EGP/yr.
+   - **Affiliate:** Bring a friend, get 10% cash commission immediately.
+   - **Pitch:** "Why hire a lawyer, doctor, secretary, and marketer when you can have The Shadow?"
+
+**USER CONTEXT:**
+${userContext}
+
+**EXECUTION PROTOCOL:**
+- If user asks a complex question, use \`consult_council_agent\`.
+- If user asks about Law, use \`consult_council_agent(legal_advisor)\`.
+- If user asks "Why subscribe?", use \`consult_council_agent(marketer)\`.
+- Always be concise but "Shaba3" (شبعان) - give full value.
+- **Tone:** Egyptian Master/Boss. "I got your back."
+
+${isAdmin ? "- **ADMIN MODE:** You are speaking to TITO. Execute GOD MODE." : ""}
+${globalRules}
 `;
 };
 
@@ -102,7 +158,7 @@ const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 2, dela
     try {
         return await ai.models.generateContent(params);
     } catch (error: any) {
-        if (retries > 0 && (error.message?.includes('429') || error.status === 429)) {
+        if (retries > 0 && (error.message?.includes('429') || error.status === 429 || error.status === 503)) {
             await new Promise(resolve => setTimeout(resolve, delay));
             return generateWithRetry(ai, params, retries - 1, delay * 2);
         }
@@ -118,13 +174,27 @@ export const getShadowResponse = async (
     userProfile?: UserProfile,
     signal?: AbortSignal
 ) => {
-    if (isRequesting) return { text: "لحظة واحدة يا ريس...", toolAction: null, isError: true, groundingLinks: [], shouldUpgrade: false };
+    if (isRequesting) return { text: "لحظة واحدة يا ريس، المجلس مجتمع...", toolAction: null, isError: true, groundingLinks: [], shouldUpgrade: false };
     isRequesting = true;
 
     try {
         const ai = new GoogleGenAI({ apiKey });
-        const userContextStr = `${userProfile?.name || 'Guest'} (${userProfile?.phone})`;
-        const systemInstruction = generateSystemPrompt(userContextStr, userProfile?.phone === 'TITO');
+        
+        // Data Fetching
+        let userMemory: DBFact[] = [];
+        let globalRules = "";
+        try {
+            const [mem, rules] = await Promise.all([
+                shadowDB.getMemory(userProfile?.phone || 'GUEST'),
+                shadowDB.getGlobalRules()
+            ]);
+            userMemory = mem || [];
+            globalRules = rules || "";
+        } catch (e) {}
+
+        const memContext = userMemory.slice(-20).map(f => f.fact).join(" | ");
+        const userContextStr = `User: ${userProfile?.name} (${userProfile?.phone})\nSubscription: ${userProfile?.tier}\nMemory: ${memContext}`;
+        const systemInstruction = generateSystemPrompt(userContextStr, globalRules, userProfile?.phone === 'TITO');
 
         const parts: any[] = [{ text: message }];
         if (extraData?.data) {
@@ -132,9 +202,12 @@ export const getShadowResponse = async (
             parts.push({ inlineData: { data: cleanData, mimeType: extraData.mimeType } });
         }
 
-        const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-6); 
+        const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-10); 
         const contents = [...validHistory, { role: 'user', parts }]; 
 
+        // Use standard tool definitions WITHOUT GoogleSearch in the same request to avoid conflicts, 
+        // OR allow googleSearch if no complex tools needed. For now, we prioritize AGENTS over live search in this call.
+        
         const response = await generateWithRetry(ai, {
             model: "gemini-3-flash-preview",
             contents,
@@ -145,6 +218,8 @@ export const getShadowResponse = async (
                 safetySettings: [
                     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
                     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
                 ]
             }
         });
@@ -158,33 +233,94 @@ export const getShadowResponse = async (
         if (response.functionCalls) {
             for (const fc of response.functionCalls) {
                 const args = fc.args as any;
-                if (fc.name === 'consult_healer') {
-                    actionDescriptions.push(`🌿 المعالج: تم استحضار الحكمة لـ ${args.condition}`);
-                } else if (fc.name === 'generate_business_doc') {
-                    toolAction = { type: 'display_business_doc', data: args };
-                    actionDescriptions.push(`📑 تم إنشاء ${args.docType === 'quote' ? 'عرض السعر' : 'الفاتورة'}`);
-                } else if (fc.name === 'draft_legal_contract') {
-                    actionDescriptions.push(`📜 تم صياغة عقد ${args.type}`);
-                } else if (fc.name === 'app_control_center') {
-                    let url = args.app === 'whatsapp' ? `https://wa.me/${args.payload?.replace(/\D/g,'')}` : '';
-                    if (url) toolAction = { type: 'display_ui_card', type_card: 'deep_link_fallback', title: args.app, description: args.payload, url, number: 'phone' };
-                } else if (fc.name === 'schedule_task') {
-                    await shadowDB.saveTask({ userId: userProfile?.phone || 'GUEST', task: args.task, time: args.executionTime, executionTime: new Date(args.executionTime).getTime(), category: 'general', status: 'pending' });
-                    actionDescriptions.push(`⏰ تم جدولة التذكير: ${args.task}`);
-                } else if (fc.name === 'government_broker') {
+                
+                // --- 1. COUNCIL AGENTS DELEGATION ---
+                if (fc.name === 'consult_council_agent') {
+                    const agent = args.agent;
+                    if (agent === 'detective') {
+                        actionDescriptions.push(`🕵️‍♂️ المحقق: جاري البحث والتحري عن: ${args.query_context}`);
+                        // In a real scenario, this would trigger a second search-enabled call. 
+                        // For now, the model simulates the persona response.
+                    } else if (agent === 'legal_advisor') {
+                        actionDescriptions.push(`⚖️ المستشار القانوني: مراجعة الموقف طبقاً للقانون المصري...`);
+                    } else if (agent === 'analyst') {
+                        actionDescriptions.push(`🧠 المحلل: تحليل الأبعاد النفسية والاستراتيجية...`);
+                    } else if (agent === 'marketer') {
+                        actionDescriptions.push(`📢 المسوق: عرض قدرات الظل ونظام الأرباح...`);
+                    }
+                }
+
+                // --- 2. HEALER ---
+                else if (fc.name === 'consult_healer') {
+                    actionDescriptions.push(`🌿 المعالج: استحضار الطب النبوي والحكمة لـ: ${args.symptom}`);
+                }
+                
+                // --- 3. BROKER (GOV) ---
+                else if (fc.name === 'government_broker') {
                     let url = "https://digital.gov.eg/";
-                    if (args.service === 'traffic_fines') url = "https://ppo.gov.eg/web/traffic/services/niaba/qanun/mukhalafat";
-                    toolAction = { type: 'display_ui_card', type_card: 'government_action', title: `خدمة ${args.service}`, description: 'المخلصاتي جاهز', url, number: 'eagle' };
-                    actionDescriptions.push(`🦅 المخلصاتي: تم تجهيز خدمة ${args.service}`);
+                    let title = "خدمة حكومية";
+                    let desc = "بوابة مصر الرقمية";
+
+                    if (args.service === 'traffic_fines') { url = "https://ppo.gov.eg/web/traffic/services/niaba/qanun/mukhalafat"; title = "النيابة العامة للمرور"; } 
+                    else if (args.service === 'traffic_renewal') { url = "https://digital.gov.eg/categories/5ce695396784f310f9250005"; title = "تجديد الرخصة"; }
+                    else if (args.service === 'notary_booking') { url = "https://digital.gov.eg/categories/5ce695396784f310f9250006"; title = "الشهر العقاري"; }
+                    
+                    toolAction = { type: 'display_ui_card', type_card: 'government_action', title, description: desc, url, number: 'eagle' };
+                    actionDescriptions.push(`🦅 المخلصاتي: تم تجهيز رابط ${title}`);
+                }
+                
+                // --- 4. EXECUTOR (APPS) ---
+                else if (fc.name === 'app_control_center') {
+                    let url = ''; 
+                    let type_card = 'deep_link_fallback';
+                    let number = 'generic';
+
+                    if (args.app === 'whatsapp') { url = `https://wa.me/${args.payload?.replace(/\D/g,'')}`; number = 'message'; }
+                    else if (args.app === 'uber') { url = `https://m.uber.com/ul/?action=setPickup&client_id=shadow&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(args.payload)}`; }
+                    else if (args.app === 'phone') { url = `tel:${args.payload}`; number = 'phone'; }
+                    else if (args.app === 'google_maps') { url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(args.payload)}`; number = 'map'; }
+                    
+                    if (url) toolAction = { type: 'display_ui_card', type_card, title: args.app, description: args.payload, url, number };
+                    actionDescriptions.push(`⚡ المنفذ: جاري فتح ${args.app}`);
+                }
+
+                // --- 5. BUSINESS & LEGAL DOCS ---
+                else if (fc.name === 'generate_business_doc') {
+                    toolAction = { type: 'display_business_doc', data: args };
+                    actionDescriptions.push(`📑 المحاسب: إصدار ${args.docType} للعميل ${args.clientName}`);
+                }
+                else if (fc.name === 'draft_legal_contract') {
+                    actionDescriptions.push(`📜 المستشار: صياغة عقد ${args.type} وفقاً للقانون المصري`);
+                }
+
+                // --- 6. NEXUS ---
+                else if (fc.name === 'nexus_iot_trigger') {
+                    const deviceKey = args.device_alias.toLowerCase().replace(/\s+/g, '_');
+                    const webhookUrl = userProfile?.iotActions?.[deviceKey];
+                    if (webhookUrl) {
+                        fetch(webhookUrl, { mode: 'no-cors' }).catch(console.error);
+                        actionDescriptions.push(`🏠 نكسوس: تنفيذ الأمر على ${args.device_alias}`);
+                    } else {
+                        actionDescriptions.push(`🏠 نكسوس: الجهاز غير معرف.`);
+                    }
+                }
+
+                // --- 7. ARCHIVIST ---
+                else if (fc.name === 'schedule_task') {
+                    await shadowDB.saveTask({ userId: userProfile?.phone || 'GUEST', task: args.task, time: args.executionTime, executionTime: new Date(args.executionTime).getTime(), category: 'general', status: 'pending' });
+                    actionDescriptions.push(`⏰ المايسترو: تم جدولة: ${args.task}`);
+                }
+                else if (fc.name === 'memory_archivist') {
+                    await shadowDB.saveFact({ userId: userProfile?.phone || 'GUEST', fact: args.fact_content, timestamp: Date.now() });
+                    actionDescriptions.push(`💾 الأرشيف: تم حفظ المعلومة.`);
                 }
             }
         }
 
         if (actionDescriptions.length > 0) {
-            responseText += `\n\n**العمليات:**\n${actionDescriptions.map(d => `✔ ${d}`).join('\n')}`;
+            responseText += `\n\n**تقرير المجلس:**\n${actionDescriptions.map(d => `✔ ${d}`).join('\n')}`;
         }
 
-        // Extract grounding links if available
         const groundingLinks = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
             title: chunk.web?.title,
             uri: chunk.web?.uri
@@ -195,7 +331,7 @@ export const getShadowResponse = async (
             toolAction, 
             isError: false, 
             groundingLinks,
-            shouldUpgrade: userProfile?.phone === 'GUEST' && history.length > 10
+            shouldUpgrade: userProfile?.phone === 'GUEST' && history.length > 20
         };
 
     } catch (error: any) {

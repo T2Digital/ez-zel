@@ -1,4 +1,3 @@
-
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
@@ -40,7 +39,7 @@ let app = null;
 let db: any = null;
 let auth: any = null;
 
-// Robust Initialization: Only init if keys exist, otherwise run in "Shadow Offline Mode"
+// Robust Initialization
 try {
     if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5) {
         app = initializeApp(firebaseConfig);

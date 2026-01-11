@@ -1,4 +1,3 @@
-
 import { db } from './firebaseConfig';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, addDoc } from "firebase/firestore";
 
@@ -142,6 +141,21 @@ const decryptData = (cipher: string, userId: string): string => {
     }
 };
 
+// --- FIRESTORE SANITIZER (CRITICAL FIX FOR UNDEFINED ERRORS) ---
+const sanitizeForFirestore = (data: any): any => {
+    if (data === null || data === undefined) return null;
+    if (Array.isArray(data)) return data.map(sanitizeForFirestore);
+    if (typeof data === 'object') {
+        const clean: any = {};
+        Object.keys(data).forEach(key => {
+            const val = data[key];
+            clean[key] = val === undefined ? null : sanitizeForFirestore(val);
+        });
+        return clean;
+    }
+    return data;
+};
+
 class ShadowDB {
   private dbName = 'ShadowCore_V18'; 
   private version = 10;
@@ -231,8 +245,12 @@ class ShadowDB {
   }
 
   // 1. PUSH: Sends local data to Firestore
-  async pushToCloud(collectionName: string, data: any, subCollection?: string, userId?: string) {
+  async pushToCloud(collectionName: string, rawData: any, subCollection?: string, userId?: string) {
       if (!db) return; 
+      
+      // SANITIZE DATA (Fix 'undefined' error)
+      const data = sanitizeForFirestore(rawData);
+
       try {
           if (collectionName === 'profiles') {
               // Users are stored as documents in 'users' collection
@@ -329,8 +347,8 @@ class ShadowDB {
 
   // --- PROFILES ---
   async getProfile(phone: string): Promise<UserProfile | undefined> {
-      const db = await this.init();
-      const tx = db.transaction('profiles', 'readonly');
+      const dbLocal = await this.init();
+      const tx = dbLocal.transaction('profiles', 'readonly');
       const request = tx.objectStore('profiles').get(phone);
       
       const localProfile = await new Promise<UserProfile | undefined>((resolve) => {
@@ -342,13 +360,16 @@ class ShadowDB {
       if (this.canSync(phone)) {
           try {
              // @ts-ignore
-             const docSnap = await getDoc(doc(db, "users", phone));
-             if (docSnap.exists()) {
-                 const cloudData = docSnap.data() as UserProfile;
-                 // Merge cloud data with local
-                 const merged = { ...localProfile, ...cloudData, synced: true };
-                 await this.saveProfile(merged, true); // Save to local, skip cloud push
-                 return merged;
+             // FIX: Check if db exists before calling doc
+             if (db) {
+                const docSnap = await getDoc(doc(db, "users", phone));
+                if (docSnap.exists()) {
+                    const cloudData = docSnap.data() as UserProfile;
+                    // Merge cloud data with local
+                    const merged = { ...localProfile, ...cloudData, synced: true };
+                    await this.saveProfile(merged, true); // Save to local, skip cloud push
+                    return merged;
+                }
              }
           } catch(e) { console.error("Profile fetch error", e); }
       }
@@ -431,12 +452,12 @@ class ShadowDB {
 
   // Config, Contacts, Feedback
   async setGlobalPulse(text: string) {
-      const db = await this.init();
-      const tx = db.transaction('config', 'readwrite');
+      const dbLocal = await this.init();
+      const tx = dbLocal.transaction('config', 'readwrite');
       const pulseData = { text, timestamp: Date.now() };
       
       // Cloud Push
-      if (this.canSync('TITO')) { // Only admin pushes pulse
+      if (this.canSync('TITO') && db) { 
           // @ts-ignore
           await setDoc(doc(db, "system", "pulse"), pulseData);
       }
@@ -547,12 +568,12 @@ class ShadowDB {
   }
 
   async saveFeedback(feedback: DBFeedback) {
-      const db = await this.init();
-      const tx = db.transaction('feedback', 'readwrite');
+      const localDB = await this.init();
+      const tx = localDB.transaction('feedback', 'readwrite');
       // Push to system/feedback collection
-      if (this.canSync(feedback.userId)) {
+      if (this.canSync(feedback.userId) && db) {
           // @ts-ignore
-           try { await addDoc(collection(this.db!, "feedback"), feedback); } catch(e){}
+           try { await addDoc(collection(db, "feedback"), feedback); } catch(e){}
       }
       return tx.objectStore('feedback').add(feedback);
   }
