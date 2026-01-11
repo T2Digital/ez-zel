@@ -81,8 +81,11 @@ const App: React.FC = () => {
             await shadowDB.saveMessage(alarmMsg);
             setLatestSystemMessage(alarmMsg);
 
-            if (Notification.permission === 'granted') {
-                new Notification('الظل الرقمي', { body: reminderText, icon: 'https://i.ibb.co/fYp5VRYb/1000053833.jpg' });
+            // SAFE NOTIFICATION CALL FOR IOS
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    new Notification('الظل الرقمي', { body: reminderText, icon: 'https://i.ibb.co/fYp5VRYb/1000053833.jpg' });
+                } catch(e) { console.warn("Notification failed", e); }
             }
             
             await shadowDB.updateTaskStatus(task.id!, { notified: true });
@@ -147,7 +150,9 @@ const App: React.FC = () => {
         }
     };
 
-    if (Notification.permission === 'default') { Notification.requestPermission(); }
+    if ('Notification' in window && Notification.permission === 'default') { 
+        Notification.requestPermission().catch(e => console.log("Notification permission error", e)); 
+    }
     
     const interval = setInterval(runBackgroundChecks, 30000); 
     return () => { clearInterval(interval); stopVoice(); };
@@ -221,9 +226,7 @@ const App: React.FC = () => {
 
   const handleAuthSuccess = async (profile: UserProfile) => {
     setUser(profile);
-    // Explicitly set persistent session
     localStorage.setItem('shadow_last_user', profile.phone);
-    
     setLatestSystemMessage(null);
 
     const guestHistory = localStorage.getItem('shadow_guest_history');
@@ -303,10 +306,6 @@ const App: React.FC = () => {
 
   const handleUpgradeRequest = () => {
       localStorage.removeItem('shadow_guest_active');
-      // Do NOT clear shadow_last_user here if they are just upgrading, 
-      // but if they are switching accounts, we might want to.
-      // For upgrade, we assume they want to use the same phone, but Register mode.
-      
       setUser(null);
       setLatestSystemMessage(null);
       setSelectedPlan('elite');
@@ -327,8 +326,6 @@ const App: React.FC = () => {
   }
 
   const handleLogout = () => {
-      // NOTE: We keep 'shadow_last_user' in localStorage so Auth screen can autofill phone
-      // But we clear the active session state here.
       localStorage.removeItem('shadow_guest_active');
       setUser(null);
       setLatestSystemMessage(null); 
@@ -442,9 +439,11 @@ const App: React.FC = () => {
                             status: 'pending' as const,
                             subscriptionCycle: finalCycle 
                         };
-                        await shadowDB.saveProfile(updatedUser);
-                        setUser(updatedUser);
-                        setView('pending_review'); 
+                        try {
+                            await shadowDB.saveProfile(updatedUser);
+                            setUser(updatedUser);
+                            setView('pending_review');
+                        } catch(e) { console.error(e); }
                     }
                 }}
                 onBack={() => setView('auth')}

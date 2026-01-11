@@ -391,16 +391,21 @@ class ShadowDB {
   async saveProfile(profile: UserProfile, skipCloud = false) {
       const dbLocal = await this.init();
       const tx = dbLocal.transaction('profiles', 'readwrite');
+      const store = tx.objectStore('profiles');
       
-      // 1. Save Local Immediately (User feels instant speed)
-      tx.objectStore('profiles').put({ ...profile, synced: true });
+      // 1. Create Request
+      const request = store.put({ ...profile, synced: true });
 
-      // 2. Sync to Cloud in Background
+      // 2. Fire & Forget Cloud Sync
       if (!skipCloud && profile.phone !== 'GUEST') {
           this.pushToCloud('profiles', profile);
       }
 
-      return true; // Always return success for UI flow
+      // 3. Return Promise that resolves ONLY when local DB write is complete
+      return new Promise((resolve, reject) => {
+          request.onsuccess = () => resolve(true);
+          request.onerror = () => reject(request.error);
+      });
   }
 
   // --- ADMIN & SYSTEM ---
