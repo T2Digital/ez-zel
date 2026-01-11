@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, User, Phone, ArrowLeft, Ghost, Loader2, Eye, EyeOff, Diamond, DollarSign } from 'lucide-react';
 import { shadowDB, UserProfile } from '../services/dbService';
@@ -146,8 +145,9 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
         </button>
 
         <div className="text-center mb-10">
-            <div className={`inline-flex p-5 rounded-[32px] border shadow-2xl mb-6 ${isAffiliateRegistration ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/5 border-white/10'}`}>
-                {isAffiliateRegistration ? <DollarSign className="w-10 h-10 text-emerald-500" /> : <Diamond className="w-10 h-10 text-white" />}
+            <div className={`relative inline-flex p-1 rounded-[32px] border shadow-2xl mb-6 ${isAffiliateRegistration ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/5 border-white/10'}`}>
+                <img src="https://i.ibb.co/fYp5VRYb/1000053833.jpg" alt="Logo" className="w-24 h-24 rounded-[28px] object-cover shadow-inner" />
+                {isAffiliateRegistration && <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-black p-1.5 rounded-full border border-black"><DollarSign className="w-4 h-4" /></div>}
             </div>
             <h1 className="text-3xl font-black italic text-white mb-2 tracking-tighter">
                 {isAffiliateRegistration ? 'تسجيل مسوق' : 'بوابة الأعضاء'}

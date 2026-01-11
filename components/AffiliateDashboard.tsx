@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { UserProfile, shadowDB } from '../services/dbService';
 import { Copy, Wallet, Users, ArrowRight, Share2, DollarSign, TrendingUp, Save, CheckCircle, History } from 'lucide-react';
@@ -72,7 +71,7 @@ const AffiliateDashboard: React.FC<Props> = ({ user, onBack, onUpdateUser }) => 
       );
   }
 
-  const referralLink = `https://ez-zel.app/?ref=${user.affiliate.referralCode}`;
+  const referralLink = `https://Ez-zel.vercel.app/?ref=${user.affiliate.referralCode}`;
 
   const copyToClipboard = () => {
       navigator.clipboard.writeText(referralLink);

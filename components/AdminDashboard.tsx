@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send } from 'lucide-react';
+import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather } from 'lucide-react';
 import { shadowDB, UserProfile, DBFeedback } from '../services/dbService';
 import ChatInterface from './ChatInterface';
 
@@ -177,7 +176,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
       { id: 'nexus', name: 'Nexus', role: 'نكسوس', status: 'READY', description: 'التحكم في المنزل الذكي (IoT)، وربط التطبيقات ببعضها.', color: 'cyan', icon: <Cpu className="w-5 h-5" /> },
       { id: 'analyst', name: 'Analyst', role: 'المحلل', status: 'ONLINE', description: 'التحليل النفسي، تحليل الصور، وتقديم المشورة الاستراتيجية.', color: 'purple', icon: <Eye className="w-5 h-5" /> },
       { id: 'archivist', name: 'Archivist', role: 'الأرشيف', status: 'STANDBY', description: 'إدارة الملفات، المشاريع، وتنظيم مساحة العمل (Workspace).', color: 'blue', icon: <FolderOpen className="w-5 h-5" /> },
-      { id: 'strategist', name: 'Strategist', role: 'المستشار', status: 'ACTIVE', description: 'التخطيط الاستراتيجي، دراسات الجدوى، وتحليل الفرص طويلة المدى.', color: 'rose', icon: <TrendingUp className="w-5 h-5" /> },
+      { id: 'healer', name: 'The Healer', role: 'المعالج', status: 'SPIRITUAL', description: 'الجانب الروحاني. يقدم النصائح من الطب النبوي، الأعشاب، والرقية الشرعية.', color: 'emerald', icon: <Feather className="w-5 h-5" /> },
   ];
 
   const filteredProfiles = profiles.filter(p => p.name.includes(searchQuery) || p.phone.includes(searchQuery));

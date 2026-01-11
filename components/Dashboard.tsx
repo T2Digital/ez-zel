@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Brain, Target, Zap, Activity, Clock, Database, CheckCircle2, Globe, BookOpen, Lightbulb, Play, Pause, DollarSign, MessageSquare, LogOut, ChevronRight, Fingerprint, Crown, User, Briefcase, Cpu, Link as LinkIcon, Save, X, Trash2, Megaphone, ExternalLink, Info, Shield } from 'lucide-react';
 import { shadowDB, DBTask, DBFact, UserProfile } from '../services/dbService';
@@ -303,6 +302,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
                             <li>ضيف الرابط ده هنا تحت، بنفس الاسم اللي اخترته (room_light).</li>
                             <li>قول للظل: "ولع نور الغرفة"، وهو هينفذ فوراً.</li>
                         </ol>
+                        <p className="text-[10px] text-white/40 mt-3 font-medium">ملاحظة: هذه هي الطريقة المعيارية لربط الأجهزة الذكية عبر الإنترنت بدون Hardware Hub خاص.</p>
                         <a href="https://ifttt.com/maker_webhooks" target="_blank" className="inline-flex items-center gap-1 mt-3 px-4 py-2 bg-cyan-900/30 rounded-lg text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-500/20">
                             فتح موقع IFTTT للإعداد <ExternalLink className="w-3 h-3" />
                         </a>

@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera } from 'lucide-react';
+import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer } from 'lucide-react';
 import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import CapabilitiesGuide from './CapabilitiesGuide';
@@ -19,7 +18,6 @@ interface ExtendedMessage extends DBMessage {
     isError?: boolean;
 }
 
-// Image Compression Helper
 const compressImage = (file: File): Promise<{ data: string, type: string, originalFile: File }> => {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -73,18 +71,18 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [activeAppCard, setActiveAppCard] = useState<{ cardType: string, title: string, description: string, url?: string, number?: string } | null>(null);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  // activeAppCard can be a Link Card OR an Invoice/Quote Data Object
+  const [activeAppCard, setActiveAppCard] = useState<any | null>(null);
 
   const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const silenceTimerRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastSystemMessageIdRef = useRef<number | undefined>(undefined);
+  const isSubmittingRef = useRef(false);
 
   const isRestrictedMode = currentUser.phone === 'GUEST' || (currentUser.tier === 'lite' && currentUser.affiliate?.isMarketer);
   const [isLimitReached, setIsLimitReached] = useState(false);
 
-  // Ensure Audio Context is resumed on first user interaction
   useEffect(() => {
       const resumeAudio = () => {
           const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
@@ -108,19 +106,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
             const trialStart = parseInt(trialStartStr);
             const now = Date.now();
             const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-            if (now - trialStart > threeDaysMs) {
-                setIsLimitReached(true);
-            }
+            if (now - trialStart > threeDaysMs) setIsLimitReached(true);
         }
     }
   }, [isRestrictedMode]);
-
-  useEffect(() => {
-      window.addEventListener('beforeinstallprompt', (e) => {
-          e.preventDefault();
-          setInstallPrompt(e);
-      });
-  }, []);
 
   const getGreetingSubtitle = () => {
       if (isAdmin) return `مرحباً ${currentUser.name.split(' ')[0]} (الماستر)`;
@@ -150,13 +139,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   }, [incomingSystemMessage]);
 
-  useEffect(() => {
-      const savedDraft = localStorage.getItem(`shadow_draft_${currentUser.phone}`);
-      if (savedDraft) {
-          setInput(savedDraft);
-      }
-  }, [currentUser.phone]);
-
   const toggleSentinelMode = async () => {
       if (!isSentinelMode) {
           try {
@@ -164,31 +146,41 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                   // @ts-ignore
                   wakeLockRef.current = await navigator.wakeLock.request('screen');
               }
-              setIsSentinelMode(true);
-              startPassiveListening();
-          } catch (err) {
-              console.error(err);
-              setIsSentinelMode(true);
-              startPassiveListening();
-          }
+          } catch (err) {}
+          setIsSentinelMode(true);
+          startPassiveListening();
       } else {
           if (wakeLockRef.current) {
-              wakeLockRef.current.release();
+              try { wakeLockRef.current.release(); } catch(e){}
               wakeLockRef.current = null;
           }
           setIsSentinelMode(false);
-          if (passiveRecognitionRef.current) passiveRecognitionRef.current.stop();
+          stopPassiveListening();
           setAppStatus('idle');
       }
   };
 
+  useEffect(() => {
+      const handleVisibilityChange = async () => {
+          if (isSentinelMode && document.visibilityState === 'visible' && !wakeLockRef.current) {
+              try {
+                  // @ts-ignore
+                  wakeLockRef.current = await navigator.wakeLock.request('screen');
+              } catch(e) {}
+          }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isSentinelMode]);
+
+  const passiveRecognitionRef = useRef<any>(null);
+  
   const startPassiveListening = () => {
+      if (stateRef.current.isListening) return;
+
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) return;
-
-      if (passiveRecognitionRef.current) {
-          try { passiveRecognitionRef.current.stop(); } catch(e) {}
-      }
+      if (passiveRecognitionRef.current) stopPassiveListening();
 
       const rec = new SpeechRecognition();
       rec.continuous = true;
@@ -196,50 +188,45 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       rec.lang = 'ar-EG';
 
       rec.onresult = (e: any) => {
-          if (stateRef.current.isBusy || appStatus !== 'idle') return;
-
+          if (stateRef.current.isListening || isSubmittingRef.current) return;
+          
           const results = e.results;
           const transcript = results[results.length - 1][0].transcript.trim().toLowerCase();
           
-          if (transcript.includes('يا ظل') || transcript.includes('يا تيتو') || transcript.includes('يا صاحبي')) {
-              rec.stop(); 
+          if (transcript.includes('يا ظل') || transcript.includes('يا تيتو') || transcript.includes('يا صاحبي') || transcript.includes('شادو')) {
+              stopPassiveListening(); 
               const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
               audio.volume = 0.5;
               audio.play().catch(() => {});
-              setTimeout(() => startListening(), 200);
+              startListening();
           }
       };
 
       rec.onend = () => {
-          if (isSentinelMode && !stateRef.current.isBusy && appStatus === 'idle') {
+          if (isSentinelMode && !stateRef.current.isListening && !isSubmittingRef.current) {
               try { rec.start(); } catch(e) {}
           }
       };
-
+      
       try { rec.start(); } catch(e) {}
       passiveRecognitionRef.current = rec;
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const val = e.target.value;
-      setInput(val);
-      localStorage.setItem(`shadow_draft_${currentUser.phone}`, val);
+  const stopPassiveListening = () => {
+      if (passiveRecognitionRef.current) {
+          passiveRecognitionRef.current.onend = null;
+          try { passiveRecognitionRef.current.stop(); } catch(e) {}
+          passiveRecognitionRef.current = null;
+      }
   };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
 
   useEffect(() => {
     if (!isRestrictedMode) {
         const load = async () => setMessages(await shadowDB.getHistory(currentUser.phone));
         load();
     } else {
-        const savedHistory = localStorage.getItem('shadow_trial_history');
-        if (savedHistory) {
-            try {
-                setMessages(JSON.parse(savedHistory));
-            } catch (e) {
-                localStorage.removeItem('shadow_trial_history');
-                setMessages([]);
-            }
-        }
         setMessages(prev => {
             if (prev.length === 0) {
                 return [{
@@ -257,137 +244,135 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     }
   }, [isRestrictedMode, currentUser.phone]);
 
-  useEffect(() => {
-      if (isRestrictedMode && messages.length > 0) {
-          try {
-            const safeHistory = messages.map(m => ({
-                ...m,
-                voiceData: undefined, 
-                image: m.image && m.image.length > 50000 ? undefined : m.image 
-            }));
-            localStorage.setItem('shadow_trial_history', JSON.stringify(safeHistory));
-          } catch (e) { }
-      }
-  }, [messages, isRestrictedMode]);
-
-  const saveVoiceToMessage = async (msgId: number, audioBase64: string) => {
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, voiceData: audioBase64 } : m));
-      if (!isRestrictedMode) {
-          await shadowDB.updateMessage(msgId, { voiceData: audioBase64 });
-      }
-  };
-
   useEffect(() => { 
     if (scrollRef.current && !isSearchActive && !searchQuery) {
         scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [messages.length, appStatus, liveTranscript, activeAppCard, isSearchActive, searchQuery]);
 
-  useEffect(() => {
-      if (isSearchActive && searchInputRef.current) {
-          searchInputRef.current.focus();
-      }
-  }, [isSearchActive]);
-
   const scrollRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const passiveRecognitionRef = useRef<any>(null); 
+  const activeRecognitionRef = useRef<any>(null);
   const rafIdRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
   const isCancelledRef = useRef<boolean>(false);
-  const recordingStartTimeRef = useRef<number>(0);
-  const stateRef = useRef({ isBusy: false, isListening: false, finalTranscript: '', lastAudioTime: Date.now() });
+  const stateRef = useRef({ isListening: false, finalTranscript: '' });
 
   const resetToIdle = useCallback(() => {
-    if (recorderRef.current) {
-        if(recorderRef.current.state !== 'inactive') recorderRef.current.stop();
-        recorderRef.current = null;
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+         recorderRef.current.onstop = null; 
+         recorderRef.current.stop();
     }
-    if (recognitionRef.current) {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
+    if (activeRecognitionRef.current) { 
+        activeRecognitionRef.current.onend = null;
+        activeRecognitionRef.current.stop(); 
+        activeRecognitionRef.current = null; 
     }
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    stateRef.current.isBusy = false;
+
     stateRef.current.isListening = false;
     stateRef.current.finalTranscript = '';
     isCancelledRef.current = false;
+    isSubmittingRef.current = false;
+    
     setAppStatus('idle');
     setLiveTranscript('');
     setPendingImage(null);
+
     if (isSentinelMode) {
-        setTimeout(startPassiveListening, 500); 
+        setTimeout(startPassiveListening, 1000); 
     }
   }, [isSentinelMode]);
 
   const startListening = async () => {
-    if (isLimitReached) return;
-    stateRef.current.isBusy = true;
-
-    if (passiveRecognitionRef.current) {
-        try { passiveRecognitionRef.current.stop(); } catch(e) {}
-    }
+    if (isLimitReached || isSubmittingRef.current) return;
     
-    if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch(e) {}
-    }
-    
+    stopPassiveListening();
     stopVoice();
+
+    stateRef.current.isListening = true;
+    stateRef.current.finalTranscript = '';
+    
+    setAppStatus('listening');
+    setLiveTranscript('');
+    isCancelledRef.current = false;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createMediaStreamSource(stream).context.createAnalyser();
       analyser.fftSize = 64; 
       source.connect(analyser);
       analyserRef.current = analyser;
+      startWaveformLoop();
 
-      setAppStatus('listening');
-      stateRef.current.isListening = true;
-      stateRef.current.finalTranscript = '';
-      stateRef.current.lastAudioTime = Date.now();
-      recordingStartTimeRef.current = Date.now(); 
-      isCancelledRef.current = false;
-
-      setupActiveSpeechRecognition();
-      
       audioChunksRef.current = [];
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       
       recorder.onstop = () => { 
-        if (isCancelledRef.current) { 
-            stream.getTracks().forEach(track => track.stop());
-            resetToIdle();
-            return;
-        }
-
-        const duration = Date.now() - recordingStartTimeRef.current;
-        if (duration < 1000 && !stateRef.current.finalTranscript.trim()) {
-            stream.getTracks().forEach(track => track.stop());
-            resetToIdle();
-            return;
-        }
-
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        handleSend(stateRef.current.finalTranscript, blob);
-        stream.getTracks().forEach(track => track.stop());
+          stream.getTracks().forEach(track => track.stop()); 
+          if (!isCancelledRef.current) {
+              const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+              if (stateRef.current.finalTranscript.trim() || blob.size > 1500) {
+                  handleSend(stateRef.current.finalTranscript, blob);
+              } else {
+                  resetToIdle();
+              }
+          } else {
+              resetToIdle();
+          }
       };
-      
       recorder.start(100);
       recorderRef.current = recorder;
-      startWaveformLoop();
+
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+          const rec = new SpeechRecognition();
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.lang = 'ar-EG';
+          
+          rec.onresult = (e: any) => {
+              let interim = '';
+              for (let i = e.resultIndex; i < e.results.length; ++i) {
+                  if (e.results[i].isFinal) stateRef.current.finalTranscript += e.results[i][0].transcript;
+                  else interim += e.results[i][0].transcript;
+              }
+              setLiveTranscript(stateRef.current.finalTranscript + interim);
+              resetSilenceTimer();
+          };
+          
+          rec.onstart = () => resetSilenceTimer();
+          rec.onend = () => {
+              if (stateRef.current.isListening && !isSubmittingRef.current) {
+                 try { rec.start(); } catch(e){}
+              }
+          }
+          rec.start();
+          activeRecognitionRef.current = rec;
+      }
+
     } catch (e) { 
-        console.error("Mic Access Error:", e);
+        console.error("Active Mic Error:", e);
         resetToIdle(); 
     }
+  };
+
+  const resetSilenceTimer = () => {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = setTimeout(() => {
+          if (stateRef.current.isListening) {
+             stopListeningAndSend();
+          }
+      }, 3500); 
   };
 
   const startWaveformLoop = () => {
@@ -397,103 +382,56 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         analyserRef.current.getByteFrequencyData(dataArray);
         const rawLevels = Array.from(dataArray).slice(0, 20); 
         setVisualLevels(rawLevels); 
+        
+        const sum = rawLevels.reduce((a, b) => a + b, 0);
+        const average = sum / rawLevels.length;
+
+        if (average > 10) {
+            resetSilenceTimer();
+        }
+
+        rafIdRef.current = requestAnimationFrame(update);
       }
-      rafIdRef.current = requestAnimationFrame(update);
     };
     rafIdRef.current = requestAnimationFrame(update);
   };
 
-  const setupActiveSpeechRecognition = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-    
-    const rec = new SpeechRecognition();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = 'ar-EG';
-    
-    rec.onresult = (e: any) => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; ++i) {
-        if (e.results[i].isFinal) stateRef.current.finalTranscript += e.results[i][0].transcript;
-        else interim += e.results[i][0].transcript;
-      }
-      setLiveTranscript(stateRef.current.finalTranscript + interim);
-      
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      
-      if (stateRef.current.isListening) {
-           // Auto-send silence timer
-           silenceTimerRef.current = setTimeout(() => {
-               if (stateRef.current.isListening && stateRef.current.finalTranscript.trim().length > 0) {
-                   stopListeningAndSend();
-               }
-           }, 3500); 
-      }
-    };
-
-    rec.onend = () => {
-        if (stateRef.current.isListening) {
-             try { rec.start(); } catch(e) { }
-        }
-    };
-
-    try { rec.start(); } catch(e) {}
-    recognitionRef.current = rec;
-  };
-
   const stopListeningAndSend = () => {
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    if (recognitionRef.current) {
-        recognitionRef.current.onend = null; 
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
-    }
-    if (recorderRef.current && recorderRef.current.state === 'recording') {
-        stateRef.current.isListening = false;
-        recorderRef.current.stop();
-    }
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+      if (activeRecognitionRef.current) {
+          activeRecognitionRef.current.onend = null; 
+          activeRecognitionRef.current.stop();
+          activeRecognitionRef.current = null;
+      }
+
+      if (recorderRef.current && recorderRef.current.state === 'recording') {
+          recorderRef.current.stop(); 
+      } else {
+          if (stateRef.current.finalTranscript) handleSend(stateRef.current.finalTranscript);
+          else resetToIdle();
+      }
   };
 
   const cancelRecording = () => {
-      isCancelledRef.current = true; 
-      stateRef.current.isListening = false;
-      stateRef.current.isBusy = false;
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      if (recorderRef.current && recorderRef.current.state === 'recording') {
-          recorderRef.current.stop();
-      }
-      if (recognitionRef.current) {
-          recognitionRef.current.onend = null; 
-          recognitionRef.current.stop();
-          recognitionRef.current = null;
-      }
-  };
-
-  const stopThinking = () => {
-      if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-          abortControllerRef.current = null;
-      }
-      setAppStatus('idle');
-      stateRef.current.isBusy = false;
-      if (isSentinelMode) startPassiveListening();
+      isCancelledRef.current = true;
+      resetToIdle();
   };
 
   const handleSend = async (forcedText?: string, audioBlob?: Blob, existingAudioBase64?: string) => {
-    if (isLimitReached) return; 
+    if (isSubmittingRef.current || isLimitReached) return;
     
-    if (isSearchActive) {
-        setIsSearchActive(false);
-        setSearchQuery('');
+    const textToSend = forcedText || input;
+    if (!textToSend.trim() && !audioBlob && !pendingImage && !existingAudioBase64) { 
+        resetToIdle(); 
+        return; 
     }
 
-    const textToSend = forcedText || input;
-    if (!textToSend.trim() && !audioBlob && !pendingImage && !existingAudioBase64) { resetToIdle(); return; }
+    isSubmittingRef.current = true;
+    setIsSearchActive(false);
     
     const displayText = textToSend.trim() ? textToSend : ((audioBlob || existingAudioBase64) ? 'رسالة صوتية 🎤' : '');
-
-    stateRef.current.isBusy = true;
+    stateRef.current.isListening = false;
     setAppStatus('thinking');
     setActiveAppCard(null); 
 
@@ -523,12 +461,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     setMessages(prev => [...prev, { ...userMsg, id }]);
     
     const currentImg = pendingImage;
-    
-    setInput(''); 
-    localStorage.removeItem(`shadow_draft_${currentUser.phone}`);
-    setPendingImage(null); 
-    setLiveTranscript('');
-
+    setInput(''); setPendingImage(null); setLiveTranscript('');
     abortControllerRef.current = new AbortController();
 
     try {
@@ -551,59 +484,24 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       
       if (result.toolAction) {
           const t = result.toolAction;
-          if (t.type === 'trigger_ui' && t.action === 'open_gallery') {
-              if (fileInputRef.current) fileInputRef.current.click();
+          if (t.type === 'display_business_doc') {
+              setActiveAppCard({
+                  cardType: 'business_doc',
+                  data: t.data
+              });
           }
-          else if (t.type === 'open_app') {
-              const appName = (t.app_name || '').toLowerCase();
-              const action = t.specific_action;
-              const query = t.search_query || '';
-              
-              let url = '';
-              let desc = '';
-              let iconType = 'generic';
-
-              if (appName.includes('youtube music') || action === 'music_search') {
-                  url = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
-                  desc = `بحث موسيقى: ${query}`;
-                  iconType = 'music';
-              } else if (appName.includes('youtube') || action === 'video_search') {
-                  url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-                  desc = `بحث فيديو: ${query}`;
-                  iconType = 'video';
-              } else if (appName.includes('whatsapp')) {
-                  url = `https://wa.me/?text=${encodeURIComponent(query)}`;
-                  desc = 'فتح واتساب';
-                  iconType = 'message';
-              } else if (appName.includes('phone') || action === 'call') {
-                  url = `tel:${query}`;
-                  desc = `اتصال بـ: ${query}`;
-                  iconType = 'phone';
-              } else if (appName.includes('uber') || action === 'navigate') {
-                  url = `https://m.uber.com/ul/?action=setPickup&client_id=YOUR_CLIENT_ID&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(query)}`;
-                  desc = `مشوار إلى: ${query}`;
-                  iconType = 'car';
-              } else {
-                  url = `https://www.google.com/search?q=${encodeURIComponent(appName + ' app')}`;
-                  desc = `تطبيق: ${appName}`;
-              }
-
-              if (url) {
-                  const win = window.open(url, '_blank');
-                  if (!win) {
-                      setActiveAppCard({ cardType: 'deep_link_fallback', title: desc, description: 'المتصفح منع الفتح التلقائي. اضغط هنا:', url, number: iconType });
-                  } else {
-                      setActiveAppCard({ cardType: 'deep_link_fallback', title: desc, description: 'تم التوجيه بنجاح', url, number: iconType });
-                  }
-              }
-          }
-          else if (t.type === 'get_referral_info') {
-               const refCode = currentUser.affiliate?.referralCode || 'غير مفعل';
-               const link = `https://ez-zel.app/?ref=${refCode}`;
-               setActiveAppCard({ cardType: 'copy_link', title: `كود الإحالة: ${refCode}`, description: "انسخ الرابط وابعته لصحابك", url: link });
-          }
-          else if (t.type === 'display_ui_card') {
-             setActiveAppCard({ cardType: t.type_card, title: t.title, description: t.content });
+          else if (t.type === 'display_ui_card' || t.type === 'open_app') {
+             const card = {
+                 cardType: t.type_card || 'deep_link_fallback',
+                 title: t.title || t.app_name || 'Action',
+                 description: t.description || t.specific_action || '',
+                 url: t.url || t.search_query,
+                 number: t.number || 'generic'
+             };
+             setActiveAppCard(card);
+             if (t.type === 'open_app' && t.url) {
+                  setTimeout(() => window.open(t.url, '_blank'), 1500);
+             }
           }
       }
 
@@ -613,116 +511,75 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
 
       const modelMsg: ExtendedMessage = { 
-          userId: currentUser.phone,
-          role: 'model', 
-          text: result.text, 
-          timestamp: Date.now(), 
-          groundingLinks: result.groundingLinks,
-          voiceData: voiceData || undefined,
-          isError: result.isError
+          userId: currentUser.phone, role: 'model', text: result.text, timestamp: Date.now(), 
+          groundingLinks: result.groundingLinks, voiceData: voiceData || undefined, isError: result.isError
       };
       
       let modelId = Date.now() + 1;
       if (!isRestrictedMode) modelId = await shadowDB.saveMessage(modelMsg);
-      
       setMessages(prev => [...prev, { ...modelMsg, id: modelId }]);
       
+      isSubmittingRef.current = false;
+
       if (voiceData) {
           setPlayingMessageId(modelId);
           setAppStatus('speaking');
           playShadowVoice(result.text, 'male', voiceData, () => { 
-              setPlayingMessageId(null); 
-              if (!stateRef.current.isBusy) {
-                  setAppStatus('idle'); 
-                  if (isSentinelMode) startPassiveListening();
-              }
-              if (result.shouldUpgrade) {
-                  setTimeout(() => onUpgrade(), 500);
-              }
+              setPlayingMessageId(null);
+              resetToIdle(); 
+              if (result.shouldUpgrade) setTimeout(() => onUpgrade(), 500);
           });
       } else {
-          setAppStatus('idle');
-          stateRef.current.isBusy = false; 
-          if (isSentinelMode) startPassiveListening();
-          // Pre-fetch voice even if muted, ONLY if not error
+          resetToIdle();
           if (isMuted && !result.isError) {
-            getShadowVoice(result.text, 'male').then(async (audio) => {
-                if (audio) await saveVoiceToMessage(modelId, audio);
-            });
+            getShadowVoice(result.text, 'male').then(async (audio) => { if (audio) await shadowDB.updateMessage(modelId, { voiceData: audio }); });
           }
-          if (result.shouldUpgrade) {
-               setTimeout(() => onUpgrade(), 1500);
-          }
+          if (result.shouldUpgrade) setTimeout(() => onUpgrade(), 1500);
       }
 
     } catch (e: any) { 
-        console.error(e);
-        const errorText = "الشبكة مضغوطة جداً دلوقتي يا ريس. دقيقة واحدة وهجمعلك البيانات تاني.";
-        
+        // Logic handled in geminiService fallback, but if that fails too:
         const errorMsg: ExtendedMessage = {
-             userId: currentUser.phone,
-             role: 'model',
-             text: errorText,
-             timestamp: Date.now(),
-             isError: true
+             userId: currentUser.phone, role: 'model', text: "السيستم عليه ضغط بسيط يا ريس. دقيقة وراجعلك.", timestamp: Date.now(), isError: true
         };
         setMessages(prev => [...prev, errorMsg]);
-        
-        setAppStatus('idle'); 
-        stateRef.current.isBusy = false;
-        if (isSentinelMode) startPassiveListening();
+        resetToIdle();
     }
   };
 
   const handleShareMessage = async (text: string) => {
       const refCode = currentUser.affiliate?.referralCode || '';
-      const url = `https://ez-zel.app/${refCode ? `?ref=${refCode}` : ''}`;
-      const shareText = `${text}\n\n💡 الظل مش مجرد ذكاء اصطناعي، ده عقلك التاني.\nجربه من هنا: ${url}`;
-
+      const url = `https://Ez-zel.vercel.app/${refCode ? `?ref=${refCode}` : ''}`;
       if (navigator.share) {
-          try {
-              await navigator.share({
-                  title: 'رسالة من الظل',
-                  text: shareText,
-              });
-          } catch (e) { console.log("Share skipped"); }
+          try { await navigator.share({ title: 'رسالة من الظل', text: `${text}\n\n💡 ${url}` }); } catch (e) {}
       } else {
-          navigator.clipboard.writeText(shareText);
-          alert("تم نسخ الرسالة مع رابط الدعوة! 📋");
+          navigator.clipboard.writeText(`${text}\n\n${url}`);
+          alert("تم النسخ!");
       }
   };
 
-  const handleResendUserMessage = (msg: ExtendedMessage) => {
-      if (msg.voiceData) {
-          handleSend(msg.text, undefined, msg.voiceData);
-      } else {
-          handleSend(msg.text);
-      }
-  };
-
-  const handleStopPlayback = () => { stopVoice(); if (userAudioPlayerRef.current) { userAudioPlayerRef.current.pause(); userAudioPlayerRef.current = null; } setPlayingMessageId(null); 
-    if (!stateRef.current.isBusy) setAppStatus('idle'); 
+  const handleStopPlayback = () => { 
+      stopVoice(); 
+      if (userAudioPlayerRef.current) { userAudioPlayerRef.current.pause(); userAudioPlayerRef.current = null; } 
+      setPlayingMessageId(null); 
+      if (!stateRef.current.isListening) resetToIdle(); 
   };
   
   const handlePlayMessage = (msg: DBMessage) => { 
-      if (playingMessageId === msg.id) { 
-          handleStopPlayback(); 
-          return; 
-      } 
+      if (playingMessageId === msg.id) { handleStopPlayback(); return; } 
       handleStopPlayback(); 
       setPlayingMessageId(msg.id!); 
-      const wasThinking = appStatus === 'thinking';
-
+      
       if (msg.role === 'user' && msg.voiceData) { 
           const audio = new Audio(msg.voiceData); 
           userAudioPlayerRef.current = audio; 
           audio.onended = () => { setPlayingMessageId(null); userAudioPlayerRef.current = null; }; 
-          audio.play().catch(e => { console.error("Playback failed", e); setPlayingMessageId(null); }); 
+          audio.play().catch(e => setPlayingMessageId(null)); 
       } else { 
-          if (!wasThinking) setAppStatus('speaking');
+          setAppStatus('speaking'); 
           playShadowVoice(msg.text, 'male', msg.voiceData, () => { 
               setPlayingMessageId(null); 
-              if (!wasThinking && !stateRef.current.isBusy) setAppStatus('idle'); 
+              setAppStatus('idle'); 
           }); 
       } 
   };
@@ -731,64 +588,39 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       const file = e.target.files?.[0]; 
       if (file) { 
           setIsProcessingImage(true); 
-          try { 
-              const compressed = await compressImage(file); 
-              setPendingImage(compressed); 
-          } catch(err) { 
-              console.error("Compression failed", err); 
-          } finally { 
-              setIsProcessingImage(false); 
-              if (fileInputRef.current) fileInputRef.current.value = '';
-          } 
+          try { const compressed = await compressImage(file); setPendingImage(compressed); } catch(err) { console.error(err); } finally { setIsProcessingImage(false); if (fileInputRef.current) fileInputRef.current.value = ''; } 
       } 
   };
   
   const handleAppCardAction = async () => { 
       if (!activeAppCard) return; 
-      if (activeAppCard.cardType === 'deep_link_fallback' && activeAppCard.url) { 
-          window.open(activeAppCard.url, '_blank'); 
-      } else if (activeAppCard.cardType === 'copy_link' && activeAppCard.url) {
-          navigator.clipboard.writeText(activeAppCard.url);
-          alert("تم نسخ الرابط! 📋");
-      } else if (['open_vault', 'open_nexus', 'open_pricing'].includes(activeAppCard.cardType)) { 
-          if (onNavigateTo) { 
-              const section = activeAppCard.cardType.replace('open_', ''); 
-              onNavigateTo(section); 
-          } 
-      } else if (activeAppCard.cardType === 'open_affiliate') { 
-          if (onOpenAffiliate) onOpenAffiliate(); 
-      } else if (activeAppCard.cardType === 'open_capabilities') { 
-          setShowCapabilities(true); setActiveAppCard(null); 
+      
+      // Invoice/Quote Print Logic
+      if (activeAppCard.cardType === 'business_doc') {
+          window.print();
+          return;
+      }
+
+      if (activeAppCard.url) { 
+          window.open(activeAppCard.url, '_blank', 'noopener,noreferrer'); 
       } 
   };
 
   const getCardIcon = (type: string, number?: string) => { 
+      if (type === 'business_doc') return <Printer className="w-6 h-6 text-white" />;
+      if (type === 'government_action') return <Landmark className="w-6 h-6 text-amber-400" />;
       if (type === 'deep_link_fallback') {
           if (number === 'music') return <Music className="w-6 h-6 text-red-400" />;
           if (number === 'video') return <Video className="w-6 h-6 text-red-400" />;
           if (number === 'phone') return <PhoneCall className="w-6 h-6 text-green-400" />;
+          if (number === 'message') return <MessageCircle className="w-6 h-6 text-green-400" />;
+          if (number === 'hotel') return <Hotel className="w-6 h-6 text-blue-400" />;
+          if (number === 'govt') return <Landmark className="w-6 h-6 text-amber-400" />;
+          if (number === 'pay') return <CreditCard className="w-6 h-6 text-purple-400" />;
           return <ExternalLink className="w-6 h-6 text-blue-400" />;
       }
-      switch(type) { 
-          case 'install_app': return <Download className="w-6 h-6 text-white" />; 
-          case 'open_vault': return <Shield className="w-6 h-6 text-purple-400" />; 
-          case 'open_affiliate': return <DollarSign className="w-6 h-6 text-emerald-400" />; 
-          case 'open_nexus': return <Cpu className="w-6 h-6 text-cyan-400" />; 
-          case 'open_capabilities': return <Star className="w-6 h-6 text-amber-400" />; 
-          case 'copy_link': return <Copy className="w-6 h-6 text-emerald-400" />;
-          default: return <Grid className="w-6 h-6 text-white" />; 
-      } 
-  };
-
-  const getCardColor = (type: string) => { 
-      switch(type) { 
-          case 'install_app': return 'bg-blue-600 hover:bg-blue-500'; 
-          case 'open_vault': return 'bg-purple-600 hover:bg-purple-500'; 
-          case 'open_affiliate': case 'copy_link': return 'bg-emerald-600 hover:bg-emerald-500'; 
-          case 'open_nexus': return 'bg-cyan-600 hover:bg-cyan-500'; 
-          case 'deep_link_fallback': return 'bg-white/10 hover:bg-white/20 border border-white/10'; 
-          default: return 'bg-white/10 hover:bg-white/20'; 
-      } 
+      if (activeAppCard?.title === 'Uber') return <Car className="w-6 h-6 text-black" />;
+      return <ExternalLink className="w-6 h-6 text-white" />;
   };
 
   const displayedMessages = messages.filter(m => {
@@ -798,65 +630,41 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
   return (
     <div className="flex flex-col h-full w-full bg-[#000] text-white font-['Cairo'] overflow-hidden relative">
-      
       {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={onOpenAffiliate} />}
-      
       <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
 
-      {/* Listening Overlay */}
       {appStatus === 'listening' && (
           <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in duration-300">
-              <div className="absolute top-10 left-10">
-                  <button onClick={cancelRecording} className="p-4 bg-white/10 rounded-full hover:bg-white/20 hover:text-red-500 transition-all border border-white/5">
-                      <X className="w-8 h-8" />
-                  </button>
-              </div>
+              <div className="absolute top-10 left-10"><button onClick={cancelRecording} className="p-4 bg-white/10 rounded-full hover:bg-white/20"><X className="w-8 h-8" /></button></div>
               <div className="text-center mb-10"><h2 className="text-3xl font-black text-white mb-2 animate-pulse">جاري الاستماع...</h2><p className="text-white/50 text-lg font-medium">{liveTranscript || "سامعك يا ريس..."}</p></div>
               <div className="flex items-end gap-1.5 h-32 mb-12">{visualLevels.map((level, i) => (<div key={i} className="w-3 bg-gradient-to-t from-cyan-600 to-purple-500 rounded-full transition-all duration-75" style={{ height: `${Math.max(10, level / 2)}%`, opacity: Math.max(0.3, level / 255) }}></div>))}</div>
               <button onClick={() => stopListeningAndSend()} className="p-6 bg-red-600 rounded-full shadow-[0_0_50px_rgba(220,38,38,0.5)] hover:scale-110 transition-transform"><Square className="w-8 h-8 fill-current" /></button>
           </div>
       )}
 
-      {/* Top Command Bar */}
       <div className="h-14 px-4 border-b border-white/10 bg-[#0a0a0a] flex justify-between items-center shrink-0 z-50 shadow-md relative transition-all">
         <div className="flex items-center gap-3 flex-1 overflow-hidden">
-          <button onClick={onBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all group shrink-0">
-             <Home className="w-4 h-4 group-hover:text-cyan-400 transition-colors" />
-          </button>
-
+          <button onClick={onBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all group shrink-0"><Home className="w-4 h-4 group-hover:text-cyan-400 transition-colors" /></button>
           {isSearchActive ? (
               <div className="flex-1 flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
-                  <div className="relative flex-1">
-                      <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                      <input ref={searchInputRef} type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="ابحث في الذاكرة..." className="w-full bg-[#1a1a1a] border border-white/10 rounded-full py-1.5 pr-9 pl-4 text-sm text-white focus:border-purple-500/50 outline-none" />
-                  </div>
+                  <div className="relative flex-1"><Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" /><input ref={searchInputRef} type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="ابحث في الذاكرة..." className="w-full bg-[#1a1a1a] border border-white/10 rounded-full py-1.5 pr-9 pl-4 text-sm text-white focus:border-purple-500/50 outline-none" /></div>
                   <button onClick={() => { setIsSearchActive(false); setSearchQuery(''); }} className="p-1.5 bg-white/5 rounded-full hover:bg-red-500/20 text-white/50 hover:text-red-400 transition-all"><X className="w-4 h-4" /></button>
               </div>
           ) : (
               <div className="flex items-center gap-3 overflow-hidden">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500 shrink-0 ${appStatus === 'thinking' ? 'bg-purple-600 shadow-purple-500/50' : 'bg-white/10'}`}>
-                     {appStatus === 'thinking' ? <Brain className="w-4 h-4 text-white animate-pulse" /> : <Activity className="w-4 h-4 text-cyan-400" />}
-                  </div>
-                  <div className="overflow-hidden">
-                      <h1 className="text-base font-black tracking-tighter leading-none text-white whitespace-nowrap">غرفة عمليات الظل</h1>
-                      <div className="flex items-center gap-1"><span className={`text-[10px] font-bold truncate ${isAdmin ? 'text-amber-500' : 'text-purple-500'}`}>{getGreetingSubtitle()}</span><span className="text-[10px] text-white/30">•</span><span className="text-[9px] text-white/40 font-bold uppercase tracking-widest">{isSentinelMode ? 'Sentinel ON' : 'Live'}</span></div>
-                  </div>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500 shrink-0 ${appStatus === 'thinking' ? 'bg-purple-600 shadow-purple-500/50' : 'bg-white/10'}`}>{appStatus === 'thinking' ? <Brain className="w-4 h-4 text-white animate-pulse" /> : <Activity className="w-4 h-4 text-cyan-400" />}</div>
+                  <div className="overflow-hidden"><h1 className="text-base font-black tracking-tighter leading-none text-white whitespace-nowrap">غرفة عمليات الظل</h1><div className="flex items-center gap-1"><span className={`text-[10px] font-bold truncate ${isAdmin ? 'text-amber-500' : 'text-purple-500'}`}>{getGreetingSubtitle()}</span><span className="text-[10px] text-white/30">•</span><span className={`text-[9px] font-bold uppercase tracking-widest ${isSentinelMode ? 'text-red-500 animate-pulse' : 'text-white/40'}`}>{isSentinelMode ? 'Sentinel ON' : 'Live'}</span></div></div>
               </div>
           )}
         </div>
-        
         <div className="flex items-center gap-3 pl-2">
             {!isSearchActive && (
                 <>
-                    <button 
-                        onClick={toggleSentinelMode} 
-                        className={`p-2 rounded-full border transition-all ${isSentinelMode ? 'bg-red-600 text-white border-red-500 animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`} 
-                        title="وضع الحارس (استماع دائم)"
-                    >
-                        <Ear className="w-4 h-4" />
+                    <button onClick={toggleSentinelMode} className={`px-3 py-1.5 rounded-full border transition-all flex items-center gap-2 ${isSentinelMode ? 'bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}>
+                        <Ear className={`w-4 h-4 ${isSentinelMode ? 'animate-pulse' : ''}`} />
+                        <span className="text-[10px] font-bold hidden md:inline">{isSentinelMode ? 'الحارس نشط' : 'الحارس'}</span>
                     </button>
-
-                    {onOpenAffiliate && !isRestrictedMode && <button onClick={onOpenAffiliate} className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-full text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all shadow-[0_0_10px_rgba(16,185,129,0.2)]" title="اربح المال"><DollarSign className="w-4 h-4" /></button>}
+                    {onOpenAffiliate && !isRestrictedMode && <button onClick={onOpenAffiliate} className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-full text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all"><DollarSign className="w-4 h-4" /></button>}
                     <button onClick={() => setIsSearchActive(true)} className="p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all"><Search className="w-4 h-4" /></button>
                     <button onClick={() => setIsMuted(!isMuted)} className={`p-2 rounded-full border transition-all ${isMuted ? 'bg-white/5 border-white/10 text-white/30' : 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'}`}>{isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}</button>
                 </>
@@ -864,7 +672,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         </div>
       </div>
 
-      {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-44 space-y-4 scrollbar-hide bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative">
         {displayedMessages.map((m, idx) => (
           <div key={idx} className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
@@ -876,31 +683,23 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                 <div className="text-sm leading-6 font-medium whitespace-pre-wrap">{highlightText(m.text)}</div>
                 {m.groundingLinks && m.groundingLinks.length > 0 && (
                     <div className="mt-3 pt-2 border-t border-white/5">
-                        <div className="text-[8px] text-white/30 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Globe className="w-3 h-3" /> المصادر (Detective Agent)</div>
+                        <div className="text-[8px] text-white/30 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Globe className="w-3 h-3" /> المصادر الحية (Realtime News)</div>
                         <div className="flex flex-col gap-1">{m.groundingLinks.slice(0, 3).map((link, i) => (<a key={i} href={link.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/5 transition-all group"><span className="text-[10px] text-cyan-200 truncate flex-1 font-bold group-hover:text-cyan-400">{link.title || link.uri}</span></a>))}</div>
                     </div>
                 )}
                 <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
                     <span className="text-[9px] text-white/20 font-black tracking-widest">{new Date(m.timestamp).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
                     <div className="flex gap-2 items-center">
-                        {m.isError && (
-                            <button onClick={() => handleSend(m.text)} className="flex items-center gap-1 text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-1 rounded-full border border-red-500/30 hover:bg-red-500 hover:text-white transition-all">
-                                <RefreshCw className="w-3 h-3" /> إعادة محاولة
+                        {m.isError && <button onClick={() => handleSend(m.text)} className="flex items-center gap-1 text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-1 rounded-full border border-red-500/30"><RefreshCw className="w-3 h-3" /></button>}
+                        {m.role === 'user' && !m.voiceData && (
+                            <button onClick={() => setInput(m.text)} className="px-2 py-1 rounded-full bg-white/5 text-white/40 border border-white/5 flex items-center gap-1 hover:bg-white/10" title="إعادة استخدام">
+                                <Edit3 className="w-2.5 h-2.5" />
                             </button>
                         )}
-                        {m.role === 'user' && (
-                            <button onClick={() => handleResendUserMessage(m)} className="px-2 py-1 rounded-full bg-white/5 text-white/40 border border-white/5 flex items-center gap-1 hover:bg-white/10 hover:text-white transition-all" title="إعادة إرسال">
-                                <RefreshCw className="w-2.5 h-2.5" />
-                            </button>
-                        )}
-                        {m.role === 'model' && (
-                            <button onClick={() => handleShareMessage(m.text)} className="px-2 py-1 rounded-full bg-white/5 text-white/40 border border-white/5 flex items-center gap-1 hover:bg-white/10 hover:text-white transition-all">
-                                <Share2 className="w-2.5 h-2.5" />
-                            </button>
-                        )}
+                        {m.role === 'model' && <button onClick={() => handleShareMessage(m.text)} className="px-2 py-1 rounded-full bg-white/5 text-white/40 border border-white/5 flex items-center gap-1 hover:bg-white/10"><Share2 className="w-2.5 h-2.5" /></button>}
                         {(m.role === 'model' || (m.role === 'user' && m.voiceData)) && !m.isError && (
                             <div className="flex gap-2">
-                                {playingMessageId === m.id ? <button onClick={handleStopPlayback} className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1 hover:bg-red-500 hover:text-white transition-all"><Square className="w-2.5 h-2.5 fill-current" /> <span className="text-[9px] font-black">إيقاف</span></button> : <button onClick={() => handlePlayMessage(m)} className="px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1 hover:bg-cyan-500 hover:text-black transition-all"><Play className="w-2.5 h-2.5 fill-current" /> <span className="text-[9px] font-black">{m.role === 'user' ? 'تسميع' : 'تشغيل'}</span></button>}
+                                {playingMessageId === m.id ? <button onClick={handleStopPlayback} className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1"><Square className="w-2.5 h-2.5 fill-current" /> <span className="text-[9px] font-black">إيقاف</span></button> : <button onClick={() => handlePlayMessage(m)} className="px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1"><Play className="w-2.5 h-2.5 fill-current" /> <span className="text-[9px] font-black">{m.role === 'user' ? 'تسميع' : 'تشغيل'}</span></button>}
                             </div>
                         )}
                     </div>
@@ -911,79 +710,89 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         ))}
         {activeAppCard && !searchQuery && (
             <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2">
-                <div className="max-w-[85%] md:max-w-[60%] p-1 rounded-[24px] bg-gradient-to-br from-white/10 to-transparent shadow-xl border border-white/20 backdrop-blur-md">
-                    <div className="bg-[#0f0f0f]/90 rounded-[22px] p-5">
-                        <div className="flex items-center gap-3 mb-4"><div className={`p-2 rounded-xl ${getCardColor(activeAppCard.cardType).split(' ')[0]} bg-opacity-20`}>{getCardIcon(activeAppCard.cardType, activeAppCard.number)}</div><div><h3 className="font-black text-white text-sm">{activeAppCard.title}</h3><p className="text-[10px] text-white/50">{activeAppCard.description}</p></div></div>
-                        <button onClick={handleAppCardAction} className={`w-full py-3 ${getCardColor(activeAppCard.cardType)} text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95`}>{activeAppCard.cardType === 'deep_link_fallback' ? <ExternalLink className="w-4 h-4" /> : (activeAppCard.cardType === 'copy_link' ? <Copy className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}{activeAppCard.cardType === 'deep_link_fallback' ? 'فتح الآن' : (activeAppCard.cardType === 'copy_link' ? 'نسخ الرابط' : 'تنفيذ')}</button>
-                    </div>
+                <div className="max-w-[90%] md:max-w-[70%] p-1 rounded-[24px] bg-gradient-to-br from-white/10 to-transparent shadow-xl border border-white/20 backdrop-blur-md">
+                    {activeAppCard.cardType === 'business_doc' ? (
+                        <div className="bg-white text-black rounded-[22px] p-6 shadow-2xl printable-invoice">
+                            <div className="flex justify-between items-center mb-6 border-b border-black/10 pb-4">
+                                <div>
+                                    <h2 className="text-2xl font-black">{activeAppCard.data.docType === 'quote' ? 'عرض سعر (Quote)' : 'فاتورة (Invoice)'}</h2>
+                                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">#{Math.floor(Math.random() * 10000)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-sm">التاريخ</p>
+                                    <p className="text-xs text-gray-600 font-mono">{new Date().toLocaleDateString('en-EG')}</p>
+                                </div>
+                            </div>
+                            <div className="mb-6">
+                                <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">إلى السيد/السادة</p>
+                                <h3 className="text-xl font-bold">{activeAppCard.data.clientName}</h3>
+                            </div>
+                            <table className="w-full text-right text-sm mb-6">
+                                <thead className="border-b border-black/10 text-gray-500">
+                                    <tr>
+                                        <th className="py-2">الوصف</th>
+                                        <th className="py-2 text-left">القيمة</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activeAppCard.data.items.map((item: any, i: number) => (
+                                        <tr key={i} className="border-b border-black/5 last:border-0">
+                                            <td className="py-3 font-bold">{item.desc}</td>
+                                            <td className="py-3 text-left font-mono">{item.price} {activeAppCard.data.currency}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <div className={`flex justify-between items-center p-4 rounded-xl mb-4 ${activeAppCard.data.docType === 'quote' ? 'bg-amber-100 text-amber-900' : 'bg-black text-white'}`}>
+                                <span className="font-bold text-sm">الإجمالي</span>
+                                <span className="font-black text-xl font-mono">
+                                    {activeAppCard.data.items.reduce((s:number, i:any) => s + i.price, 0)} {activeAppCard.data.currency}
+                                </span>
+                            </div>
+                            <button onClick={handleAppCardAction} className="w-full py-3 border-2 border-black rounded-xl font-black flex items-center justify-center gap-2 hover:bg-black hover:text-white transition-all print:hidden">
+                                <Printer className="w-4 h-4" /> طباعة / PDF
+                            </button>
+                        </div>
+                    ) : (
+                        <div className={`rounded-[22px] p-5 ${activeAppCard.cardType === 'government_action' ? 'bg-[#0f0f0f] border border-amber-500/20' : 'bg-[#0f0f0f]/90'}`}>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className={`p-2 rounded-xl ${activeAppCard.cardType === 'government_action' ? 'bg-amber-500/10' : 'bg-white/10'}`}>
+                                    {getCardIcon(activeAppCard.cardType, activeAppCard.number)}
+                                </div>
+                                <div>
+                                    <h3 className={`font-black text-sm ${activeAppCard.cardType === 'government_action' ? 'text-amber-500' : 'text-white'}`}>{activeAppCard.title}</h3>
+                                    <p className="text-[10px] text-white/50">{activeAppCard.description}</p>
+                                </div>
+                            </div>
+                            <button onClick={handleAppCardAction} className={`w-full py-3 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border ${activeAppCard.cardType === 'government_action' ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-600' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'}`}>
+                                {activeAppCard.cardType === 'deep_link_fallback' || activeAppCard.cardType === 'government_action' ? <ExternalLink className="w-4 h-4" /> : (activeAppCard.cardType === 'copy_link' ? <Copy className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
+                                {activeAppCard.cardType === 'government_action' ? 'بدء الخدمة' : (activeAppCard.cardType === 'deep_link_fallback' ? 'فتح الرابط' : (activeAppCard.cardType === 'copy_link' ? 'نسخ' : 'تنفيذ'))}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         )}
         
         {appStatus === 'thinking' && !searchQuery && (
             <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 items-center gap-3">
-                <div className="bg-[#0f0f0f] border border-purple-500/20 rounded-[20px] rounded-tr-none p-4 flex items-center gap-3 shadow-lg">
-                    <Brain className="w-4 h-4 text-purple-500 animate-pulse" />
-                    <div className="flex flex-col"><span className="text-[10px] font-black text-purple-400 animate-pulse tracking-wide">الظل بيفكر...</span></div>
-                </div>
-                <button onClick={stopThinking} className="p-3 bg-red-600 rounded-full text-white shadow-lg shadow-red-600/30 hover:scale-110 active:scale-95 transition-all" title="إلغاء التفكير">
-                    <StopCircle className="w-5 h-5" />
-                </button>
+                <div className="bg-[#0f0f0f] border border-purple-500/20 rounded-[20px] rounded-tr-none p-4 flex items-center gap-3 shadow-lg"><Brain className="w-4 h-4 text-purple-500 animate-pulse" /><div className="flex flex-col"><span className="text-[10px] font-black text-purple-400 animate-pulse tracking-wide">الظل بيفكر...</span></div></div>
+                <button onClick={() => { if(abortControllerRef.current) abortControllerRef.current.abort(); resetToIdle(); }} className="p-3 bg-red-600 rounded-full text-white shadow-lg"><StopCircle className="w-5 h-5" /></button>
             </div>
         )}
       </div>
 
-      {/* Input Deck */}
       <div className={`fixed bottom-[32px] left-0 w-full p-3 md:p-4 bg-[#0a0a0a] border-t border-white/5 z-50 transition-all duration-500 ${isLimitReached ? 'opacity-0 pointer-events-none translate-y-full' : 'opacity-100'}`}>
-        {pendingImage && (
-            <div className="mb-2 flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg w-fit border border-white/10">
-                <span className="text-[10px] text-white/70 font-bold">صورة مرفقة (مضغوطة)</span>
-                <button onClick={() => setPendingImage(null)}><X className="w-3 h-3 text-white/50 hover:text-red-400" /></button>
-            </div>
-        )}
+        {pendingImage && (<div className="mb-2 flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg w-fit border border-white/10"><span className="text-[10px] text-white/70 font-bold">صورة مرفقة</span><button onClick={() => setPendingImage(null)}><X className="w-3 h-3 text-white/50 hover:text-red-400" /></button></div>)}
         <div className="flex items-end gap-2 max-w-4xl mx-auto w-full">
             <div className="flex-1 bg-[#151515] border border-white/10 rounded-[24px] flex items-end p-2 focus-within:border-cyan-500/30 transition-colors shadow-inner">
-                {/* File Upload Trigger */}
-                <button 
-                    disabled={isProcessingImage} 
-                    onClick={() => {
-                        if(fileInputRef.current) fileInputRef.current.value = '';
-                        fileInputRef.current?.click();
-                    }} 
-                    className={`p-3 transition-colors hover:bg-white/5 rounded-full mb-0.5 ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`}
-                >
-                    {isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-                </button>
-                <textarea 
-                    value={input} 
-                    onChange={handleInputChange} 
-                    onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                    placeholder={isRestrictedMode ? "اكتب رسالتك (فترة تجربة)..." : (isSentinelMode ? "وضع الحارس مفعل (قل: يا ظل)..." : (isAdmin ? "أمرك يا ريس..." : "قولي يا ريس..."))} 
-                    className="flex-1 bg-transparent border-none text-sm text-white placeholder:text-white/20 focus:ring-0 resize-none min-h-[50px] max-h-[150px] py-3 px-2 scrollbar-hide font-medium leading-relaxed"
-                    rows={1}
-                    style={{ height: 'auto', minHeight: '50px' }}
-                    onInput={(e) => {
-                        const target = e.target as HTMLTextAreaElement;
-                        target.style.height = 'auto';
-                        target.style.height = `${Math.min(target.scrollHeight, 150)}px`;
-                    }}
-                />
-                {(input.trim() || pendingImage) && (
-                    <button onClick={() => handleSend()} className="p-3 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-all shadow-lg hover:shadow-cyan-600/20 mb-0.5 animate-in zoom-in">
-                        <Send className="w-5 h-5 text-white" />
-                    </button>
-                )}
+                <button disabled={isProcessingImage} onClick={() => { if(fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click(); }} className={`p-3 transition-colors hover:bg-white/5 rounded-full mb-0.5 ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`}>{isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}</button>
+                <textarea value={input} onChange={handleInputChange} onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={isRestrictedMode ? "اكتب رسالتك (فترة تجربة)..." : (isSentinelMode ? "وضع الحارس مفعل..." : (isAdmin ? "أمرك يا ريس..." : "قولي يا ريس..."))} className="flex-1 bg-transparent border-none text-sm text-white placeholder:text-white/20 focus:ring-0 resize-none min-h-[50px] max-h-[150px] py-3 px-2 scrollbar-hide font-medium leading-relaxed" rows={1} style={{ height: 'auto', minHeight: '50px' }} onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = `${Math.min(target.scrollHeight, 150)}px`; }} />
+                {(input.trim() || pendingImage) && <button onClick={() => handleSend()} className="p-3 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-all shadow-lg hover:shadow-cyan-600/20 mb-0.5 animate-in zoom-in"><Send className="w-5 h-5 text-white" /></button>}
             </div>
-            
-            <button 
-                onClick={startListening}
-                className={`p-4 rounded-[24px] border shadow-lg transition-all active:scale-95 mb-0.5 ${isSentinelMode ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}
-            >
-                {isSentinelMode ? <Ear className="w-6 h-6 animate-pulse" /> : <Mic className="w-6 h-6" />}
-            </button>
+            <button onClick={startListening} className={`p-4 rounded-[24px] border shadow-lg transition-all active:scale-95 mb-0.5 ${isSentinelMode ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}>{isSentinelMode ? <Ear className="w-6 h-6 animate-pulse" /> : <Mic className="w-6 h-6" />}</button>
         </div>
       </div>
-
     </div>
   );
 };

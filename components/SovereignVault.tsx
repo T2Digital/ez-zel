@@ -47,8 +47,6 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
     setIsEncrypting(true);
     try {
       let contactsReceived = false;
-
-      // Check for Iframe environment which blocks Contacts API
       const isIframe = window.self !== window.top;
 
       // @ts-ignore
@@ -60,20 +58,24 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
             
             if (contacts.length > 0) {
                 let count = 0;
-                for (const contact of contacts) {
-                    const phone = contact.tel ? contact.tel[0] : 'No Number';
-                    const name = contact.name ? contact.name[0] : 'Unknown';
-                    
-                    await shadowDB.saveContact({
-                        userId: user.phone,
-                        name: name, 
-                        phones: [phone], 
-                        emails: [], 
-                        lastInteraction: Date.now(), 
-                        encryptedData: "REAL_DEVICE_DATA"
-                    });
-                    count++;
-                }
+                // Using Promise.all for parallel saving to ensure speed
+                await Promise.all(contacts.map(async (contact: any) => {
+                    try {
+                        const phone = contact.tel ? contact.tel[0] : 'No Number';
+                        const name = contact.name ? contact.name[0] : 'Unknown';
+                        
+                        await shadowDB.saveContact({
+                            userId: user.phone,
+                            name: name, 
+                            phones: [phone], 
+                            emails: [], 
+                            lastInteraction: Date.now(), 
+                            encryptedData: "REAL_DEVICE_DATA"
+                        });
+                        count++;
+                    } catch(e) { console.warn("Skipped contact", e); }
+                }));
+
                 setContactsCount(prev => prev + count);
                 const updatedList = await shadowDB.getContacts(user.phone);
                 setContactsList(updatedList);
@@ -90,7 +92,6 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
       } 
       
       if (!contactsReceived) {
-        // Fallback or Iframe Logic
         const confirmDemo = confirm(
             "تنبيه تقني: \n" +
             "تعذر الوصول لجهات الاتصال الحقيقية (بسبب قيود المتصفح أو التشغيل في إطار).\n\n" +
@@ -118,12 +119,10 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
 
   const handleBiometricSetup = async () => {
       if (permissions.biometrics) return;
-
       const isIframe = window.self !== window.top;
 
       try {
         if (window.PublicKeyCredential && !isIframe) {
-             // Real WebAuthn Attempt
              await navigator.credentials.create({
                 publicKey: {
                     challenge: new Uint8Array(32),
@@ -136,15 +135,11 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
             });
             await updateVaultState('biometrics', true);
         } else {
-            // Iframe/Fallback handling
             if (isIframe) {
                 alert("تم تفعيل وضع المحاكاة (يعمل التطبيق داخل إطار/Preview).");
                 await updateVaultState('biometrics', true);
                 return;
             }
-            
-            alert("المصادقة البيومترية غير مدعومة حالياً على هذا المتصفح.");
-            // Enable anyway if simulated
             if(confirm("جهازك لا يدعم WebAuthn. هل تريد تفعيل المحاكاة؟")) {
                  await updateVaultState('biometrics', true);
             }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import ChatInterface from './components/ChatInterface';
 import Pricing from './components/Pricing';
@@ -28,6 +27,26 @@ const App: React.FC = () => {
   const [isAppLocked, setIsAppLocked] = useState(true);
   const [latestSystemMessage, setLatestSystemMessage] = useState<DBMessage | null>(null);
 
+  // --- POKA-YOKE NAVIGATION HANDLER ---
+  useEffect(() => {
+      // 1. When switching views, push state to history stack
+      if (view === 'chat' || view === 'affiliate') {
+          window.history.pushState({ view }, '');
+      }
+
+      // 2. Handle Back Button (PopState)
+      const handlePopState = (event: PopStateEvent) => {
+          // If we are in Chat or Affiliate, back button should go to Dashboard
+          if (view === 'chat' || view === 'affiliate') {
+              setView('dashboard'); 
+          } 
+          // If we are in Dashboard and user presses back, let browser handle it (or warn)
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+  }, [view]);
+
   useEffect(() => {
     checkSession();
   }, []);
@@ -41,6 +60,7 @@ const App: React.FC = () => {
 
         // 1. Alarms (For Everyone)
         const allTasks = await shadowDB.getTasks(user.phone);
+        // Find tasks that are due, pending, and NOT notified yet
         const dueTasks = allTasks.filter(t => 
             t.status === 'pending' && 
             !t.notified && 
@@ -49,46 +69,55 @@ const App: React.FC = () => {
         );
 
         if (dueTasks.length > 0) {
+            const task = dueTasks[0]; // Handle one at a time to avoid spam
+            const reminderText = `🔔 تنبيه: ميعاد "${task.task}" جه يا ريس.`;
+
+            // A. Play Audio
             const audio = document.getElementById('notification-sound') as HTMLAudioElement;
             if (audio) { audio.volume = 1.0; audio.play().catch(e => console.log("Audio play prevented:", e)); }
             
-            const task = dueTasks[0];
-            const reminderText = `يا ريس.. تنبيه هام: ${task.task}. الميعاد وصل.`;
-            setTimeout(() => { playShadowVoice(reminderText, user.voicePreference || 'male'); }, 1000);
+            // B. Voice Notification
+            setTimeout(() => { playShadowVoice(reminderText, user.voicePreference || 'male'); }, 1500);
 
-            if (Notification.permission === 'granted') {
-                new Notification('تنبيه من الظل 🔔', { 
-                    body: `حان موعد: ${task.task}`,
-                    icon: 'https://cdn-icons-png.flaticon.com/512/2098/2098402.png'
-                });
-            }
-
+            // C. Insert into Chat History (DB) so ChatInterface picks it up
             const alarmMsg: DBMessage = {
                 userId: user.phone,
                 role: 'system',
-                text: `🔔 تنبيه: حان موعد "${task.task}"`,
+                text: reminderText,
                 timestamp: Date.now()
             };
-            setLatestSystemMessage(alarmMsg);
+            await shadowDB.saveMessage(alarmMsg); // Save to DB
+            setLatestSystemMessage(alarmMsg); // Push to State for immediate UI update
+
+            // D. Browser Notification
+            if (Notification.permission === 'granted') {
+                new Notification('الظل الرقمي', { body: reminderText, icon: 'https://i.ibb.co/fYp5VRYb/1000053833.jpg' });
+            }
             
-            for (const t of dueTasks) { await shadowDB.updateTaskStatus(t.id!, { notified: true }); }
+            // E. Mark as notified
+            await shadowDB.updateTaskStatus(task.id!, { notified: true });
         }
 
         // 2. SHADOW PULSE (Global Broadcast Check)
         const pulse = await shadowDB.getGlobalPulse();
         if (pulse) {
             const lastSeen = user.lastPulseReceived || 0;
-            if (pulse.timestamp > lastSeen) {
+            // Check if pulse is newer than last seen (buffer 5 sec to avoid double firing on very fresh installs)
+            if (pulse.timestamp > lastSeen + 1000) {
                 const pulseMsg: DBMessage = {
                     userId: user.phone,
                     role: 'system',
-                    text: `📢 **نبض الظل (System Broadcast):**\n\n${pulse.text}`,
+                    text: `📢 **نداء عام (Shadow Pulse):**\n\n${pulse.text}`,
                     timestamp: pulse.timestamp
                 };
+                
                 await shadowDB.saveMessage(pulseMsg);
                 await shadowDB.updateLastPulseReceived(user.phone, pulse.timestamp);
                 setLatestSystemMessage(pulseMsg);
+                
+                // Update local user state
                 setUser(prev => prev ? ({ ...prev, lastPulseReceived: pulse.timestamp }) : null);
+                
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                 if (audio) { audio.play().catch(e => {}); }
             }
@@ -123,6 +152,7 @@ const App: React.FC = () => {
                 await shadowDB.saveMessage(adminMsg);
                 setLatestSystemMessage(adminMsg);
                 await shadowDB.setConfig('last_admin_check', Date.now());
+                
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                 if (audio) { audio.play().catch(e => {}); }
             }
@@ -130,8 +160,9 @@ const App: React.FC = () => {
     };
 
     if (Notification.permission === 'default') { Notification.requestPermission(); }
-    // Increased interval to 120s (2 minutes) to reduce API resource usage significantly
-    const interval = setInterval(runBackgroundChecks, 120000); 
+    
+    // Check every 30 seconds (balance between resource usage and responsiveness)
+    const interval = setInterval(runBackgroundChecks, 30000); 
     return () => { clearInterval(interval); stopVoice(); };
   }, [user, isAppLocked]);
 
