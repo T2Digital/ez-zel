@@ -29,18 +29,14 @@ const App: React.FC = () => {
 
   // --- POKA-YOKE NAVIGATION HANDLER ---
   useEffect(() => {
-      // 1. When switching views, push state to history stack
       if (view === 'chat' || view === 'affiliate') {
           window.history.pushState({ view }, '');
       }
 
-      // 2. Handle Back Button (PopState)
       const handlePopState = (event: PopStateEvent) => {
-          // If we are in Chat or Affiliate, back button should go to Dashboard
           if (view === 'chat' || view === 'affiliate') {
               setView('dashboard'); 
           } 
-          // If we are in Dashboard and user presses back, let browser handle it (or warn)
       };
 
       window.addEventListener('popstate', handlePopState);
@@ -60,7 +56,6 @@ const App: React.FC = () => {
 
         // 1. Alarms (For Everyone)
         const allTasks = await shadowDB.getTasks(user.phone);
-        // Find tasks that are due, pending, and NOT notified yet
         const dueTasks = allTasks.filter(t => 
             t.status === 'pending' && 
             !t.notified && 
@@ -69,32 +64,27 @@ const App: React.FC = () => {
         );
 
         if (dueTasks.length > 0) {
-            const task = dueTasks[0]; // Handle one at a time to avoid spam
+            const task = dueTasks[0];
             const reminderText = `🔔 تنبيه: ميعاد "${task.task}" جه يا ريس.`;
 
-            // A. Play Audio
             const audio = document.getElementById('notification-sound') as HTMLAudioElement;
             if (audio) { audio.volume = 1.0; audio.play().catch(e => console.log("Audio play prevented:", e)); }
             
-            // B. Voice Notification
             setTimeout(() => { playShadowVoice(reminderText, user.voicePreference || 'male'); }, 1500);
 
-            // C. Insert into Chat History (DB) so ChatInterface picks it up
             const alarmMsg: DBMessage = {
                 userId: user.phone,
                 role: 'system',
                 text: reminderText,
                 timestamp: Date.now()
             };
-            await shadowDB.saveMessage(alarmMsg); // Save to DB
-            setLatestSystemMessage(alarmMsg); // Push to State for immediate UI update
+            await shadowDB.saveMessage(alarmMsg);
+            setLatestSystemMessage(alarmMsg);
 
-            // D. Browser Notification
             if (Notification.permission === 'granted') {
                 new Notification('الظل الرقمي', { body: reminderText, icon: 'https://i.ibb.co/fYp5VRYb/1000053833.jpg' });
             }
             
-            // E. Mark as notified
             await shadowDB.updateTaskStatus(task.id!, { notified: true });
         }
 
@@ -102,7 +92,6 @@ const App: React.FC = () => {
         const pulse = await shadowDB.getGlobalPulse();
         if (pulse) {
             const lastSeen = user.lastPulseReceived || 0;
-            // Check if pulse is newer than last seen (buffer 5 sec to avoid double firing on very fresh installs)
             if (pulse.timestamp > lastSeen + 1000) {
                 const pulseMsg: DBMessage = {
                     userId: user.phone,
@@ -115,7 +104,6 @@ const App: React.FC = () => {
                 await shadowDB.updateLastPulseReceived(user.phone, pulse.timestamp);
                 setLatestSystemMessage(pulseMsg);
                 
-                // Update local user state
                 setUser(prev => prev ? ({ ...prev, lastPulseReceived: pulse.timestamp }) : null);
                 
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
@@ -123,7 +111,7 @@ const App: React.FC = () => {
             }
         }
 
-        // 3. Admin Notifier (Strictly TITO Only)
+        // 3. Admin Notifier
         if (user.phone === 'TITO') {
             const lastCheck = await shadowDB.getConfig('last_admin_check') || 0; 
             const allProfiles = await shadowDB.getAllProfiles();
@@ -161,7 +149,6 @@ const App: React.FC = () => {
 
     if (Notification.permission === 'default') { Notification.requestPermission(); }
     
-    // Check every 30 seconds (balance between resource usage and responsiveness)
     const interval = setInterval(runBackgroundChecks, 30000); 
     return () => { clearInterval(interval); stopVoice(); };
   }, [user, isAppLocked]);
@@ -193,25 +180,28 @@ const App: React.FC = () => {
       const guestSession = localStorage.getItem('shadow_guest_active');
 
       if (lastUserPhone) {
+          // Attempt rapid restore
           const profile = await shadowDB.getProfile(lastUserPhone);
-          if (profile && profile.status === 'active') {
-             setUser(profile);
-             if (profile.phone === 'TITO') {
-                 setView('admin');
-                 setIsAppLocked(false);
-             } else {
-                 setView('dashboard');
-                 setIsAppLocked(true); 
-             }
-             return;
-          } else if (profile && profile.status === 'pending') {
-             setUser(profile);
-             if (profile.paymentProof) {
-                 setView('pending_review');
-             } else {
-                 setView('payment');
-             }
-             return;
+          
+          if (profile) {
+              setUser(profile);
+              if (profile.status === 'active') {
+                 if (profile.phone === 'TITO') {
+                     setView('admin');
+                     setIsAppLocked(false);
+                 } else {
+                     setView('dashboard');
+                     setIsAppLocked(true); 
+                 }
+                 return;
+              } else if (profile.status === 'pending') {
+                 if (profile.paymentProof) {
+                     setView('pending_review');
+                 } else {
+                     setView('payment');
+                 }
+                 return;
+              }
           }
       }
 
@@ -231,6 +221,7 @@ const App: React.FC = () => {
 
   const handleAuthSuccess = async (profile: UserProfile) => {
     setUser(profile);
+    // Explicitly set persistent session
     localStorage.setItem('shadow_last_user', profile.phone);
     
     setLatestSystemMessage(null);
@@ -312,7 +303,10 @@ const App: React.FC = () => {
 
   const handleUpgradeRequest = () => {
       localStorage.removeItem('shadow_guest_active');
-      localStorage.removeItem('shadow_last_user');
+      // Do NOT clear shadow_last_user here if they are just upgrading, 
+      // but if they are switching accounts, we might want to.
+      // For upgrade, we assume they want to use the same phone, but Register mode.
+      
       setUser(null);
       setLatestSystemMessage(null);
       setSelectedPlan('elite');
@@ -333,7 +327,8 @@ const App: React.FC = () => {
   }
 
   const handleLogout = () => {
-      localStorage.removeItem('shadow_last_user');
+      // NOTE: We keep 'shadow_last_user' in localStorage so Auth screen can autofill phone
+      // But we clear the active session state here.
       localStorage.removeItem('shadow_guest_active');
       setUser(null);
       setLatestSystemMessage(null); 
@@ -363,7 +358,7 @@ const App: React.FC = () => {
                     <Fingerprint className="w-16 h-16 text-purple-500 animate-pulse" />
                   </div>
               </div>
-              <h1 className="text-2xl font-black text-white/90 tracking-tighter mb-2">جاري تأمين الاتصال...</h1>
+              <h1 className="text-2xl font-black text-white/90 tracking-tighter mb-2">جاري استعادة الاتصال...</h1>
           </div>
       );
   }

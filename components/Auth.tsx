@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Lock, User, Phone, ArrowLeft, Ghost, Loader2, Eye, EyeOff, Diamond, DollarSign } from 'lucide-react';
+import { ShieldCheck, Lock, User, Phone, ArrowLeft, Ghost, Loader2, Eye, EyeOff, Diamond, DollarSign, KeyRound } from 'lucide-react';
 import { shadowDB, UserProfile } from '../services/dbService';
 
 interface Props {
@@ -25,6 +25,12 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
 
   useEffect(() => {
     setIsLogin(defaultTab === 'login');
+    // Auto-fill phone if available in local storage (Simulating "Remembered User")
+    const lastPhone = localStorage.getItem('shadow_last_user');
+    if (lastPhone && defaultTab === 'login') {
+        setPhone(lastPhone);
+    }
+
     // Check URL for ref
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
@@ -46,8 +52,8 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
         
         if (isLogin) {
             // --- LOGIN FLOW ---
-            if (!existing) { setError('هذا الرقم غير مسجل.'); setIsLoading(false); return; }
-            if (existing.password !== password) { setError('بيانات خاطئة.'); setIsLoading(false); return; }
+            if (!existing) { setError('هذا الرقم غير مسجل. سجل عضوية جديدة.'); setIsLoading(false); return; }
+            if (existing.password !== password) { setError('مفتاح المرور غير صحيح.'); setIsLoading(false); return; }
             onAuthSuccess(existing);
         } else {
             // --- REGISTRATION FLOW ---
@@ -65,14 +71,12 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                 // SCENARIO 1: Existing User trying to become a MARKETER
                 if (isAffiliateRegistration) {
                     if (existing.affiliate?.isMarketer) {
-                        // Already a marketer
-                        setError('لديك حساب مسوق بالفعل. يرجى تسجيل الدخول.');
+                        setError('لديك حساب مسوق بالفعل. سجل دخولك.');
                         setIsLogin(true);
                         setIsLoading(false);
                         return;
                     }
                     
-                    // Upgrade to Marketer (Merge)
                     const updatedUser: UserProfile = {
                         ...existing,
                         affiliate: generateAffiliateData(existing.name)
@@ -85,22 +89,19 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                 // SCENARIO 2: Existing Marketer (Lite) trying to become a MEMBER (Sovereign)
                 if (!isAffiliateRegistration) {
                     if (existing.tier === 'sovereign') {
-                        // Already a member
-                        setError('أنت مشترك بالفعل في باقة النخبة. سجل دخولك.');
+                        setError('أنت مشترك بالفعل. سجل دخولك.');
                         setIsLogin(true);
                         setIsLoading(false);
                         return;
                     }
 
-                    // Upgrade Marketer to Pending Member (Merge)
-                    // We update status to 'pending' so they are redirected to Payment
                     const updatedUser: UserProfile = {
                         ...existing,
-                        name: name || existing.name, // Allow name update
-                        password: password, // Allow password update
+                        name: name || existing.name, 
+                        password: password, 
                         shadowName: shadowName || existing.shadowName || 'الظل',
                         tier: 'sovereign',
-                        status: 'pending', // IMPORTANT: This triggers the Payment View in App.tsx
+                        status: 'pending', 
                         subscriptionCycle: billingCycle as 'monthly' | 'yearly',
                         commissionPaid: false
                     };
@@ -120,7 +121,6 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                 phone, name, 
                 shadowName: isAffiliateRegistration ? 'Marketer' : (shadowName || 'الظل'),
                 voicePreference: 'male', password, 
-                // Marketers are Lite & Active immediately. Members are Sovereign & Pending.
                 tier: isAffiliateRegistration ? 'lite' : 'sovereign',
                 status: isAffiliateRegistration ? 'active' : 'pending', 
                 joinedAt: Date.now(),
@@ -150,10 +150,10 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                 {isAffiliateRegistration && <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-black p-1.5 rounded-full border border-black"><DollarSign className="w-4 h-4" /></div>}
             </div>
             <h1 className="text-3xl font-black italic text-white mb-2 tracking-tighter">
-                {isAffiliateRegistration ? 'تسجيل مسوق' : 'بوابة الأعضاء'}
+                {isLogin ? 'العودة للظل' : (isAffiliateRegistration ? 'تسجيل مسوق' : 'بوابة الأعضاء')}
             </h1>
             <p className="text-white/30 text-xs font-bold uppercase tracking-[0.2em]">
-                {isAffiliateRegistration ? 'Join The Family Business' : 'Secure Access Point'}
+                {isLogin ? 'Welcome Back, Sovereign' : (isAffiliateRegistration ? 'Join The Family Business' : 'Secure Access Point')}
             </p>
             {referralCode && <p className="text-emerald-400 text-xs mt-2 font-bold animate-pulse">دعوة خاصة مفعلة ✅</p>}
         </div>
@@ -162,9 +162,9 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
             {error && <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold text-center">{error}</div>}
 
             <div className="flex gap-2 mb-8 bg-white/5 p-1 rounded-2xl border border-white/5">
-                <button onClick={() => setIsLogin(true)} className={`flex-1 py-3 rounded-xl text-[11px] font-black transition-all ${isLogin ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white/60'}`}>تسجيل دخول</button>
+                <button onClick={() => setIsLogin(true)} className={`flex-1 py-3 rounded-xl text-[11px] font-black transition-all ${isLogin ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white/60'}`}>دخول (عضو حالي)</button>
                 <button onClick={() => setIsLogin(false)} className={`flex-1 py-3 rounded-xl text-[11px] font-black transition-all ${!isLogin ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white/60'}`}>
-                    {isAffiliateRegistration ? 'حساب مسوق' : 'طلب عضوية'}
+                    {isAffiliateRegistration ? 'حساب مسوق' : 'عضو جديد'}
                 </button>
             </div>
 
@@ -176,7 +176,6 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                             <input type="text" required placeholder="الاسم الكامل" className="w-full bg-white/5 border border-white/10 rounded-[24px] py-4 pr-14 pl-6 text-white text-sm focus:border-white/30 transition-colors" value={name} onChange={(e) => setName(e.target.value)} />
                         </div>
                         
-                        {/* Shadow Name only for regular users */}
                         {!isAffiliateRegistration && (
                             <div className="relative group animate-in slide-in-from-right-2 delay-75">
                                 <Ghost className="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
@@ -198,11 +197,11 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                     />
                 </div>
                 <div className="relative group">
-                    <Lock className="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
+                    <KeyRound className="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20" />
                     <input 
                         type={showPassword ? "text" : "password"} 
                         required 
-                        placeholder="كلمة المرور" 
+                        placeholder={isLogin ? "مفتاح المرور (Secure Key)" : "إنشاء مفتاح مرور"}
                         className="w-full bg-white/5 border border-white/10 rounded-[24px] py-4 pr-14 pl-14 text-white text-sm focus:border-white/30 transition-colors font-mono" 
                         dir="ltr"
                         value={password} 
@@ -211,11 +210,17 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20 hover:text-white">{showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button>
                 </div>
 
-                <button disabled={isLoading} className={`w-full py-5 hover:bg-white/90 rounded-[24px] text-black font-black text-lg flex items-center justify-center gap-4 transition-all shadow-xl group mt-4 active:scale-95 ${isAffiliateRegistration && !isLogin ? 'bg-emerald-400 hover:bg-emerald-300' : 'bg-white'}`}>
-                    {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>{isLogin ? 'دخول آمن' : (isAffiliateRegistration ? 'ابدأ البيزنس' : 'إرسال الطلب')}</span>}
+                {/* Implicit "Keep me logged in" text */}
+                <div className="flex items-center justify-center gap-2 mt-2">
+                    <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                    <span className="text-[10px] text-white/30 font-bold">جلسة آمنة (سيتم حفظ الدخول)</span>
+                </div>
+
+                <button disabled={isLoading} className={`w-full py-5 hover:bg-white/90 rounded-[24px] text-black font-black text-lg flex items-center justify-center gap-4 transition-all shadow-xl group mt-2 active:scale-95 ${isAffiliateRegistration && !isLogin ? 'bg-emerald-400 hover:bg-emerald-300' : 'bg-white'}`}>
+                    {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>{isLogin ? 'فتح السيستم' : (isAffiliateRegistration ? 'ابدأ البيزنس' : 'إرسال الطلب')}</span>}
                 </button>
             </form>
-            <p className="text-center text-white/10 text-[8px] mt-6 font-black tracking-widest uppercase">Elite Security Protocol v4.0</p>
+            <p className="text-center text-white/10 text-[8px] mt-6 font-black tracking-widest uppercase">Elite Security Protocol v4.0 • No OTP Required</p>
         </div>
       </div>
     </div>

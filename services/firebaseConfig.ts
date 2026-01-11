@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const getEnvVar = (key: string) => {
@@ -43,7 +43,12 @@ let auth: any = null;
 try {
     if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5) {
         app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
+        
+        // Initialize Firestore with settings to avoid "Offline" issues
+        db = initializeFirestore(app, {
+            localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+        });
+
         auth = getAuth(app);
         console.log("[Shadow Core] Firebase Connected Successfully.");
     } else {
