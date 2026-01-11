@@ -2,19 +2,15 @@ import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentRespon
 import { shadowDB, UserProfile, DBFact } from "./dbService";
 
 // --- CONFIGURATION ---
-// Enhanced API Key retrieval for Vite/Webpack environments
 const apiKey = (import.meta as any).env?.VITE_API_KEY || (process as any).env?.API_KEY || (window as any).VITE_API_KEY || '';
-
-if (!apiKey) {
-    console.error("CRITICAL: API KEY MISSING. Please check your .env file.");
-}
+if (!apiKey) console.error("CRITICAL: API KEY MISSING");
 
 // --- FALLBACK SYSTEM ---
 const getFallbackResponse = (input: string): string => {
     return "الشبكة عليها ضغط لحظي (Traffic Overload). ثواني وراجعلك يا ريس..";
 };
 
-// --- AUDIO UTILS ---
+// --- AUDIO UTILS (iOS Safe) ---
 let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let isRequesting = false;
@@ -24,7 +20,11 @@ function getAudioContext() {
       const CtxClass = (window.AudioContext || (window as any).webkitAudioContext);
       audioCtx = new CtxClass({ sampleRate: 24000 });
   }
-  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  // iOS requirement: resume must be called inside a user event. 
+  // We try here, but might fail if not triggered by event.
+  if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch((err) => console.log("Audio resume waiting for user gesture:", err));
+  }
   return audioCtx;
 }
 
@@ -205,9 +205,6 @@ export const getShadowResponse = async (
         const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-10); 
         const contents = [...validHistory, { role: 'user', parts }]; 
 
-        // Use standard tool definitions WITHOUT GoogleSearch in the same request to avoid conflicts, 
-        // OR allow googleSearch if no complex tools needed. For now, we prioritize AGENTS over live search in this call.
-        
         const response = await generateWithRetry(ai, {
             model: "gemini-3-flash-preview",
             contents,
@@ -239,8 +236,6 @@ export const getShadowResponse = async (
                     const agent = args.agent;
                     if (agent === 'detective') {
                         actionDescriptions.push(`🕵️‍♂️ المحقق: جاري البحث والتحري عن: ${args.query_context}`);
-                        // In a real scenario, this would trigger a second search-enabled call. 
-                        // For now, the model simulates the persona response.
                     } else if (agent === 'legal_advisor') {
                         actionDescriptions.push(`⚖️ المستشار القانوني: مراجعة الموقف طبقاً للقانون المصري...`);
                     } else if (agent === 'analyst') {
@@ -249,13 +244,9 @@ export const getShadowResponse = async (
                         actionDescriptions.push(`📢 المسوق: عرض قدرات الظل ونظام الأرباح...`);
                     }
                 }
-
-                // --- 2. HEALER ---
                 else if (fc.name === 'consult_healer') {
                     actionDescriptions.push(`🌿 المعالج: استحضار الطب النبوي والحكمة لـ: ${args.symptom}`);
                 }
-                
-                // --- 3. BROKER (GOV) ---
                 else if (fc.name === 'government_broker') {
                     let url = "https://digital.gov.eg/";
                     let title = "خدمة حكومية";
@@ -268,8 +259,6 @@ export const getShadowResponse = async (
                     toolAction = { type: 'display_ui_card', type_card: 'government_action', title, description: desc, url, number: 'eagle' };
                     actionDescriptions.push(`🦅 المخلصاتي: تم تجهيز رابط ${title}`);
                 }
-                
-                // --- 4. EXECUTOR (APPS) ---
                 else if (fc.name === 'app_control_center') {
                     let url = ''; 
                     let type_card = 'deep_link_fallback';
@@ -283,8 +272,6 @@ export const getShadowResponse = async (
                     if (url) toolAction = { type: 'display_ui_card', type_card, title: args.app, description: args.payload, url, number };
                     actionDescriptions.push(`⚡ المنفذ: جاري فتح ${args.app}`);
                 }
-
-                // --- 5. BUSINESS & LEGAL DOCS ---
                 else if (fc.name === 'generate_business_doc') {
                     toolAction = { type: 'display_business_doc', data: args };
                     actionDescriptions.push(`📑 المحاسب: إصدار ${args.docType} للعميل ${args.clientName}`);
@@ -292,8 +279,6 @@ export const getShadowResponse = async (
                 else if (fc.name === 'draft_legal_contract') {
                     actionDescriptions.push(`📜 المستشار: صياغة عقد ${args.type} وفقاً للقانون المصري`);
                 }
-
-                // --- 6. NEXUS ---
                 else if (fc.name === 'nexus_iot_trigger') {
                     const deviceKey = args.device_alias.toLowerCase().replace(/\s+/g, '_');
                     const webhookUrl = userProfile?.iotActions?.[deviceKey];
@@ -304,8 +289,6 @@ export const getShadowResponse = async (
                         actionDescriptions.push(`🏠 نكسوس: الجهاز غير معرف.`);
                     }
                 }
-
-                // --- 7. ARCHIVIST ---
                 else if (fc.name === 'schedule_task') {
                     await shadowDB.saveTask({ userId: userProfile?.phone || 'GUEST', task: args.task, time: args.executionTime, executionTime: new Date(args.executionTime).getTime(), category: 'general', status: 'pending' });
                     actionDescriptions.push(`⏰ المايسترو: تم جدولة: ${args.task}`);
@@ -347,7 +330,13 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
   try {
       let base64 = existingData || await getShadowVoice(text, voiceType);
       if (!base64) return null;
+      
       const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+          // Attempt resume again
+          await ctx.resume().catch(() => {});
+      }
+      
       const buffer = await decodeAudioData(decode(base64), ctx);
       const source = ctx.createBufferSource();
       source.buffer = buffer;
@@ -356,7 +345,7 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
       source.start(0);
       currentSource = source;
       return base64;
-  } catch (e) { onEnded?.(); return null; }
+  } catch (e) { console.error("Play error:", e); onEnded?.(); return null; }
 };
 
 export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {

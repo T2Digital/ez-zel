@@ -62,6 +62,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
 
   useEffect(() => { 
       const initData = async () => {
+          // 1. Fetch Admin Profile
           const titoProfile = await shadowDB.getProfile('TITO');
           if (titoProfile) {
               const mergedProfile = { ...adminProfile, ...titoProfile, affiliate: titoProfile.affiliate || adminProfile.affiliate };
@@ -70,32 +71,30 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
           } else {
               await shadowDB.saveProfile(adminProfile);
           }
-          
-          loadData();
-          
-          shadowDB.subscribeToRealtime('TITO', (table, payload) => {
-              console.log("Admin Dashboard Realtime Update:", table);
-              loadData();
-          });
+
+          // 2. Initial Data Load
+          const [allProfiles, allFeedback, rules] = await Promise.all([
+              shadowDB.getAllProfiles(),
+              shadowDB.getAllFeedback(),
+              shadowDB.getGlobalRules()
+          ]);
+          setProfiles(allProfiles);
+          setFeedbacks(allFeedback.reverse());
+          setGlobalRules(rules);
+
+          // 3. ACTIVATE EAGLE EYE (Realtime Global Listener)
+          shadowDB.subscribeToAdminFeed(
+              (updatedProfiles) => {
+                  console.log("🦅 Eagle Eye: Profiles Updated", updatedProfiles.length);
+                  setProfiles(updatedProfiles);
+              },
+              (updatedFeedback) => {
+                  setFeedbacks(updatedFeedback);
+              }
+          );
       };
       initData();
-  }, []); // Run once on mount
-
-  // Force reload when view changes to ensure fresh data
-  useEffect(() => {
-      loadData();
-  }, [activeView]);
-
-  const loadData = async () => {
-    const [allProfiles, allFeedback, rules] = await Promise.all([
-        shadowDB.getAllProfiles(),
-        shadowDB.getAllFeedback(),
-        shadowDB.getGlobalRules()
-    ]);
-    setProfiles(allProfiles);
-    setFeedbacks(allFeedback.reverse());
-    setGlobalRules(rules);
-  };
+  }, []); 
 
   const handleStatusUpdate = async (phone: string, status: 'active' | 'blocked' | 'pending') => {
     const profile = await shadowDB.getProfile(phone);
@@ -106,8 +105,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
             profile.commissionPaid = true; 
         }
         await shadowDB.saveProfile({ ...profile, status });
-        // Force refresh
-        await loadData();
+        // No need to call loadData() manually, the Realtime Listener will catch it!
     }
   };
   
@@ -128,7 +126,6 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
 
       await shadowDB.recordPayout(payoutModal.user.phone, amount);
       setPayoutModal({ isOpen: false });
-      loadData();
   };
 
   const saveGlobalRules = async () => { setIsSavingRules(true); await shadowDB.updateGlobalRules(globalRules); setTimeout(() => setIsSavingRules(false), 1000); };

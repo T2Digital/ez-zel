@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Lock, User, Phone, ArrowLeft, Ghost, Loader2, Eye, EyeOff, Diamond, DollarSign, KeyRound } from 'lucide-react';
+import { ShieldCheck, Lock, User, Phone, ArrowLeft, Ghost, Loader2, Eye, EyeOff, Diamond, DollarSign, KeyRound, AlertTriangle } from 'lucide-react';
 import { shadowDB, UserProfile } from '../services/dbService';
 
 interface Props {
   selectedPlan: string;
   defaultTab?: 'login' | 'register';
   isAffiliateRegistration?: boolean; 
-  billingCycle?: 'monthly' | 'yearly'; // New Prop
+  billingCycle?: 'monthly' | 'yearly';
   onAuthSuccess: (user: UserProfile) => void;
   onAdminLogin: () => void;
   onBack: () => void;
@@ -25,13 +25,10 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
 
   useEffect(() => {
     setIsLogin(defaultTab === 'login');
-    // Auto-fill phone if available in local storage (Simulating "Remembered User")
     const lastPhone = localStorage.getItem('shadow_last_user');
     if (lastPhone && defaultTab === 'login') {
         setPhone(lastPhone);
     }
-
-    // Check URL for ref
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
     if (ref) setReferralCode(ref);
@@ -42,76 +39,52 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
     setError('');
     setIsLoading(true);
 
+    // ADMIN BYPASS
     if ((phone === '01000000000' || phone.toUpperCase() === 'TITO') && password === 'admin') {
         setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 1000);
         return;
     }
 
     try {
+        // Step 1: Check Local/Cloud Profile
         const existing = await shadowDB.getProfile(phone);
         
         if (isLogin) {
             // --- LOGIN FLOW ---
-            if (!existing) { setError('هذا الرقم غير مسجل. سجل عضوية جديدة.'); setIsLoading(false); return; }
+            if (!existing) { 
+                setError('هذا الرقم غير مسجل. جاري تحويلك للتسجيل...'); 
+                setTimeout(() => setIsLogin(false), 1500);
+                setIsLoading(false); 
+                return; 
+            }
             if (existing.password !== password) { setError('مفتاح المرور غير صحيح.'); setIsLoading(false); return; }
             onAuthSuccess(existing);
         } else {
             // --- REGISTRATION FLOW ---
             
-            // Generate Affiliate Data Helper
-            const generateAffiliateData = (userName: string) => ({
-                isMarketer: true,
-                referralCode: (userName.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(),
-                totalEarnings: 0,
-                referralsCount: 0,
-                payoutHistory: []
-            });
-
             if (existing) {
-                // SCENARIO 1: Existing User trying to become a MARKETER
-                if (isAffiliateRegistration) {
-                    if (existing.affiliate?.isMarketer) {
-                        setError('لديك حساب مسوق بالفعل. سجل دخولك.');
-                        setIsLogin(true);
-                        setIsLoading(false);
-                        return;
-                    }
-                    
-                    const updatedUser: UserProfile = {
-                        ...existing,
-                        affiliate: generateAffiliateData(existing.name)
-                    };
-                    await shadowDB.saveProfile(updatedUser);
-                    onAuthSuccess(updatedUser);
-                    return;
-                }
-
-                // SCENARIO 2: Existing Marketer (Lite) trying to become a MEMBER (Sovereign)
-                if (!isAffiliateRegistration) {
-                    if (existing.tier === 'sovereign') {
-                        setError('أنت مشترك بالفعل. سجل دخولك.');
-                        setIsLogin(true);
-                        setIsLoading(false);
-                        return;
-                    }
-
-                    const updatedUser: UserProfile = {
-                        ...existing,
-                        name: name || existing.name, 
-                        password: password, 
-                        shadowName: shadowName || existing.shadowName || 'الظل',
-                        tier: 'sovereign',
-                        status: 'pending', 
-                        subscriptionCycle: billingCycle as 'monthly' | 'yearly',
-                        commissionPaid: false
-                    };
-                    await shadowDB.saveProfile(updatedUser);
-                    onAuthSuccess(updatedUser);
+                // If user exists but tries to register, verify password and log them in
+                if (existing.password === password) {
+                     // Check if they want to upgrade to Marketer or Sovereign
+                     if (isAffiliateRegistration && !existing.affiliate?.isMarketer) {
+                         const updatedUser = { ...existing, affiliate: generateAffiliateData(existing.name) };
+                         await shadowDB.saveProfile(updatedUser);
+                         onAuthSuccess(updatedUser);
+                         return;
+                     }
+                     
+                     // If just regular login via register form
+                     setError('لديك حساب بالفعل. جاري الدخول...');
+                     setTimeout(() => onAuthSuccess(existing), 1000);
+                     return;
+                } else {
+                    setError('هذا الرقم مسجل مسبقاً بمفتاح مرور مختلف. حاول الدخول.');
+                    setIsLoading(false);
                     return;
                 }
             }
 
-            // SCENARIO 3: Brand New User (Create)
+            // Create New User
             let affiliateData = undefined;
             if (isAffiliateRegistration) {
                 affiliateData = generateAffiliateData(name);
@@ -133,8 +106,21 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
             await shadowDB.saveProfile(newUser);
             onAuthSuccess(newUser);
         }
-    } catch (e) { setError('خطأ في النظام.'); } finally { setIsLoading(false); }
+    } catch (e) { 
+        console.error("Auth System Error:", e);
+        setError('حدث خطأ في النظام. تأكد من اتصالك بالإنترنت وحاول مجدداً.'); 
+    } finally { 
+        setIsLoading(false); 
+    }
   };
+
+  const generateAffiliateData = (userName: string) => ({
+    isMarketer: true,
+    referralCode: (userName.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(),
+    totalEarnings: 0,
+    referralsCount: 0,
+    payoutHistory: []
+  });
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#020202] font-['Cairo'] relative overflow-hidden">
@@ -159,7 +145,7 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
         </div>
 
         <div className="glass rounded-[48px] p-8 border border-white/10 shadow-2xl bg-[#080808]">
-            {error && <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold text-center">{error}</div>}
+            {error && <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold text-center flex items-center justify-center gap-2"><AlertTriangle className="w-4 h-4" /> {error}</div>}
 
             <div className="flex gap-2 mb-8 bg-white/5 p-1 rounded-2xl border border-white/5">
                 <button onClick={() => setIsLogin(true)} className={`flex-1 py-3 rounded-xl text-[11px] font-black transition-all ${isLogin ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white/60'}`}>دخول (عضو حالي)</button>
@@ -220,7 +206,7 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                     {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>{isLogin ? 'فتح السيستم' : (isAffiliateRegistration ? 'ابدأ البيزنس' : 'إرسال الطلب')}</span>}
                 </button>
             </form>
-            <p className="text-center text-white/10 text-[8px] mt-6 font-black tracking-widest uppercase">Elite Security Protocol v4.0 • No OTP Required</p>
+            <p className="text-center text-white/10 text-[8px] mt-6 font-black tracking-widest uppercase">Elite Security Protocol v5.1 • No OTP Required</p>
         </div>
       </div>
     </div>

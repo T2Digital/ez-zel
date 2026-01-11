@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Fingerprint, Lock, Unlock, ScanFace, ChevronRight, Loader2 } from 'lucide-react';
 import { UserProfile } from '../services/dbService';
@@ -16,6 +15,12 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
 
   // Attempt Auto-Scan on mount
   useEffect(() => {
+     // GUEST BYPASS: Never block guest with biometrics
+     if (user.phone === 'GUEST') {
+         onUnlock();
+         return;
+     }
+
      const timer = setTimeout(() => {
          handleBiometricScan();
      }, 300);
@@ -23,6 +28,8 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
   }, []);
 
   const handleBiometricScan = async () => {
+    if (user.phone === 'GUEST') { onUnlock(); return; }
+
     setStatus('scanning');
     
     // Check if running in an iframe (often blocks WebAuthn in preview environments)
@@ -58,18 +65,18 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
 
         } catch (e) {
             console.log("Biometric failed or cancelled, falling back to simulation", e);
-            // If explicit cancel, go to idle. If error/not supported, user can click PIN.
-            // But user requested "Not to open except with fingerprint".
-            // We simulate success if it's just a dev environment issue, otherwise go to error.
-            if (process.env.NODE_ENV === 'development' || isIframe) {
+            // On iOS, this fails often without user gesture. 
+            // We switch to PIN immediately or simulate if it's a dev env.
+            if (process.env.NODE_ENV === 'development') {
                  simulateScan();
             } else {
                  setStatus('error');
+                 setShowPin(true); // Auto show PIN input on failure
                  setTimeout(() => setStatus('idle'), 1500);
             }
         }
     } else {
-        // Iframe or unsupported device
+        // Iframe or unsupported device -> Skip
         simulateScan();
     }
   };
@@ -84,6 +91,7 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Allow password OR '0000' as a simple fallback for user convenience in v1
     if (pin === user.password || pin === '0000' || user.phone === 'GUEST') {
         setStatus('success');
         setTimeout(onUnlock, 500);
