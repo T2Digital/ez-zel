@@ -212,21 +212,20 @@ class ShadowDB {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
       
-      // 2. Try to get Profile
+      // 2. Try to get Profile from Local First (Faster)
       const cleanEmail = email.toLowerCase();
       let profile = await this.getProfile(cleanEmail);
 
-      // 3. AUTO-HEAL: If Auth passed but Profile missing, create it immediately.
+      // 3. AUTO-HEAL: If Auth passed but Profile missing (or failed to fetch), create it immediately.
       // This fixes the "Profile not found" error for manually created or migrated users.
       if (!profile) {
           console.warn("[Shadow Core] Profile missing for authenticated user. Auto-healing...");
           const namePart = email.split('@')[0];
-          // Check if it looks like an admin email
           const isAdmin = cleanEmail.includes('tito') || cleanEmail.includes('admin');
           
           profile = {
               email: cleanEmail,
-              phone: cleanEmail, // Backward compat
+              phone: cleanEmail,
               uid: uid,
               name: isAdmin ? 'تيتو (الماستر)' : namePart,
               shadowName: isAdmin ? 'الماستر' : 'الظل',
@@ -241,7 +240,16 @@ class ShadowDB {
                   payoutHistory: []
               } : undefined
           };
-          await this.saveProfile(profile);
+          
+          try {
+              // Try cloud save first to ensure consistency with rules
+              if (db) await setDoc(doc(db, "users", cleanEmail), profile, { merge: true });
+              await this.saveProfile(profile);
+          } catch(e) {
+              console.error("[Shadow Core] Auto-heal failed on cloud:", e);
+              // Fallback to local save only so user can at least login
+              await this.saveProfile(profile, true);
+          }
       }
 
       if (!profile) throw new Error("Profile creation failed");
@@ -263,6 +271,7 @@ class ShadowDB {
       try {
           this.unsubscribeListeners.forEach(unsub => unsub());
           this.unsubscribeListeners = [];
+          
           const profileUnsub = onSnapshot(doc(db, "users", email), (doc) => {
               if (doc.exists()) {
                   const data = doc.data();
@@ -270,8 +279,11 @@ class ShadowDB {
                   onUpdate('profiles', profile);
                   this.saveProfile(profile, true);
               }
+          }, (error) => {
+              console.warn("[Firebase] Profile sync error (permission?):", error.code);
           });
           this.unsubscribeListeners.push(profileUnsub);
+
           const historyQuery = query(collection(db, `users/${email}/history`), where('timestamp', '>', Date.now() - 10000));
           const historyUnsub = onSnapshot(historyQuery, (snapshot) => {
               snapshot.docChanges().forEach((change) => {
@@ -279,9 +291,11 @@ class ShadowDB {
                       onUpdate('history', change.doc.data());
                   }
               });
+          }, (error) => {
+              // Silently ignore permission errors for history to prevent crash
           });
           this.unsubscribeListeners.push(historyUnsub);
-      } catch (e) { console.warn("[Firebase] Realtime sync failed.", e); }
+      } catch (e) { console.warn("[Firebase] Realtime sync init failed.", e); }
   }
 
   subscribeToAdminFeed(onProfilesUpdate: (profiles: UserProfile[]) => void, onFeedbackUpdate: (feedbacks: DBFeedback[]) => void) {
@@ -293,13 +307,20 @@ class ShadowDB {
               const profiles: UserProfile[] = [];
               snapshot.forEach((doc) => profiles.push({ ...doc.data(), email: doc.id } as UserProfile));
               onProfilesUpdate(profiles);
+          }, (error) => {
+              console.warn("[Admin Feed] Profile feed blocked (Permissions):", error.code);
+              // Do not propagate error to prevent UI crash
           });
+
           const qFeed = query(collection(db, "feedback"), orderBy("timestamp", "desc"));
           const unsubFeedback = onSnapshot(qFeed, (snapshot) => {
              const items: DBFeedback[] = [];
              snapshot.forEach(doc => items.push(doc.data() as DBFeedback));
              onFeedbackUpdate(items);
+          }, (error) => {
+              console.warn("[Admin Feed] Feedback feed blocked:", error.code);
           });
+
           this.adminUnsubscribe = () => { unsubProfiles(); unsubFeedback(); };
       } catch (e) { console.error("[Admin] Sync Error:", e); }
   }
@@ -404,18 +425,18 @@ class ShadowDB {
           request.onerror = () => resolve(undefined);
       });
 
-      // If local profile missing but we have network, try fetch from cloud NOW (await it)
+      // If local missing, try Cloud. Safe logic.
       if (!localProfile && db && cleanEmail !== 'guest') {
          try {
              const docSnap = await getDoc(doc(db, "users", cleanEmail));
              if (docSnap.exists()) {
                  const cloudData = docSnap.data() as UserProfile;
                  localProfile = { ...cloudData, email: cleanEmail };
-                 await this.saveProfile(localProfile, true); // Cache locally
+                 await this.saveProfile(localProfile, true); 
              }
-         } catch(e) { console.warn("Could not fetch profile from cloud:", e); }
+         } catch(e) { console.warn("[DB] Cloud fetch failed/skipped:", e); }
       } else if (localProfile && db && cleanEmail !== 'guest') {
-         // Background sync if we already have local data
+         // Background Sync
          getDoc(doc(db, "users", cleanEmail)).then((docSnap) => {
             if (docSnap.exists()) {
                 const cloudData = docSnap.data() as UserProfile;
@@ -449,7 +470,6 @@ class ShadowDB {
     return new Promise((resolve) => { 
         request.onsuccess = () => {
             const raw = request.result || [];
-            // Parse uiCard if it exists in the message (no encryption for uiCard structure)
             resolve(raw.map((m: DBMessage) => ({ ...m, text: decryptData(m.text, userId) })));
         }; 
     });
