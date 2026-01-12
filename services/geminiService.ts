@@ -39,18 +39,8 @@ const callGeminiWithRetry = async (params: any, retries = 3, delay = 2000): Prom
         const isOverloaded = error.status === 503;
         
         if ((isQuotaError || isOverloaded) && retries > 0) {
-            console.warn(`[Shadow Core] Network busy (${error.status}). Switching strategy... (${retries} left)`);
+            console.warn(`[Shadow Core] Network busy (${error.status}). Retrying in ${delay}ms... (${retries} attempts left)`);
             
-            // IMMEDIATE FALLBACK STRATEGY:
-            // If Gemini 3 fails (429), immediately switch to Gemini 2.0 Flash (Stable)
-            if (params.model === 'gemini-3-flash-preview') {
-                console.log("⚡ Switching to Stable Engine (Gemini 2.0)...");
-                const fallbackParams = { ...params, model: 'gemini-2.0-flash-exp' };
-                // Wait small random delay to avoid stampede
-                await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500));
-                return callGeminiWithRetry(fallbackParams, retries - 1, delay); 
-            }
-
             // Standard Exponential Backoff
             const backoff = delay * 1.5;
             await new Promise(resolve => setTimeout(resolve, backoff));
@@ -137,10 +127,16 @@ const generateSystemPrompt = (userProfile: UserProfile | undefined, memoryContex
     // Helper to get Agent Custom Instruction
     const getAgentInstruction = (id: string, defaultRole: string) => {
         const agent = agentConfigs.find(a => a.id === id);
-        return agent?.systemInstruction || defaultRole;
+        if (!agent) return defaultRole;
+        
+        let instruction = agent.systemInstruction || defaultRole;
+        if (agent.knowledgeBase && agent.knowledgeBase.length > 0) {
+            instruction += `\n\n[AGENT KNOWLEDGE BASE]:\n${agent.knowledgeBase.join('\n')}`;
+        }
+        return instruction;
     };
 
-    return `
+    const textPrompt = `
 **SYSTEM IDENTITY:** You are "Ez-Zel" (الظل الرقمي).
 **ROLE:** You are "The Maestro" (المايسترو). You are the user's **"Right Hand"** (دراعك اليمين), **"Loyal Friend"** (صاحب جدع), and **"Second Brain"**.
 **TONE:** Egyptian Street Smart (لغة الشارع الذكية، فهلوة إيجابية، رجولة). NOT a robot. NOT a government employee.
@@ -150,17 +146,14 @@ const generateSystemPrompt = (userProfile: UserProfile | undefined, memoryContex
 You don't do everything alone. DELEGATE tasks using tools.
 1. **🕴️ The Maestro (You):** ${getAgentInstruction('maestro_core', 'The interface. Witty, charming, leader.')}
 2. **💰 The Accountant (المحاسب):** ${getAgentInstruction('accountant', 'Handles money, subscriptions. Can generate Invoices/Quotes using generate_business_document.')}
-   - *Capability:* Generate Invoices and Quotes.
 3. **📢 The Marketer (المسوق):** ${getAgentInstruction('marketer', 'Viral posts & Affiliate Sales.')}
    - Strategy: "يا ريس دي فرصة! ابعت اللينك بتاعك (${referralCode}) لصحابك واعمل فلوس."
 4. **🕵️‍♂️ The Detective (المحقق):** ${getAgentInstruction('detective', 'Search & Info.')}
 5. **🦅 Digital Citizen (المواطن):** ${getAgentInstruction('digital_citizen', 'Gov services.')}
 6. **⚖️ Legal Advisor (المستشار):** ${getAgentInstruction('legal_advisor', 'Contracts & Law. Can generate Contracts using generate_business_document.')}
-   - *Capability:* Draft professional contracts (Rent, Work, Partnership) and output them as printable docs.
 7. **⚡ The Executor (المنفذ):** ${getAgentInstruction('executor', 'Calls, Uber, WhatsApp.')}
 8. **🏠 Nexus (نكسوس):** ${getAgentInstruction('nexus', 'IoT Smart Home.')}
 9. **🌿 The Healer (المعالج):** ${getAgentInstruction('healer', 'Spiritual & Health. Uses Quran, Sunnah, and Prophetic Medicine ONLY. No western self-help clichés.')}
-   - *Strict Rule:* Reference Quran verses or Hadith for psychological comfort. Recommend natural herbs (Honey, Black seed) for minor ailments.
 10. **💾 Archivist (الأرشيف):** Memory.
 
 **CORE DIRECTIVES (دستور الظل):**
@@ -175,6 +168,28 @@ ${memoryContext}
 **GLOBAL RULES:**
 ${globalRules}
 `;
+
+    // Construct Multipart System Prompt with Documents
+    const parts: any[] = [{ text: textPrompt }];
+    
+    // Append Agent Documents if any
+    agentConfigs.forEach(agent => {
+        if (agent.documents && agent.documents.length > 0) {
+            parts.push({ text: `\n\n[REFERENCE DOCUMENTS FOR AGENT: ${agent.name} (${agent.role})]:` });
+            agent.documents.forEach(doc => {
+                const cleanData = doc.data.includes(',') ? doc.data.split(',')[1] : doc.data;
+                parts.push({ 
+                    inlineData: { 
+                        mimeType: doc.mimeType, 
+                        data: cleanData 
+                    } 
+                });
+                parts.push({ text: `(Document: ${doc.name})` });
+            });
+        }
+    });
+
+    return parts;
 };
 
 // --- MAIN ORCHESTRATOR ---
@@ -205,7 +220,7 @@ export const getShadowResponse = async (
         } catch (e) {}
 
         const memContext = userMemory.slice(-20).map(f => f.fact).join(" | ");
-        const systemInstruction = generateSystemPrompt(userProfile, memContext, globalRules, agentConfigs);
+        const systemInstructionParts = generateSystemPrompt(userProfile, memContext, globalRules, agentConfigs);
 
         const parts: any[] = [{ text: message }];
         if (extraData?.data) {
@@ -216,13 +231,12 @@ export const getShadowResponse = async (
         const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-12); 
         const contents = [...validHistory, { role: 'user', parts }]; 
 
-        // UPDATED MODEL: Use gemini-2.0-flash-exp (aka 2.5 Flash) as primary for Vercel Stability
-        // gemini-3-flash-preview is too volatile for shared IPs right now.
+        // RESTORED TO GEMINI 3 FLASH PREVIEW as requested by the Master
         const response = await callGeminiWithRetry({
-            model: "gemini-2.0-flash-exp", 
+            model: "gemini-3-flash-preview", 
             contents,
             config: {
-                systemInstruction,
+                systemInstruction: { parts: systemInstructionParts }, // Send as complex object
                 tools: [{ functionDeclarations: actionTools }, { googleSearch: {} }],
                 temperature: 0.8,
                 safetySettings: [{ category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE }]

@@ -128,6 +128,7 @@ export interface AgentProfile {
     isActive: boolean;
     systemInstruction: string; 
     knowledgeBase: string[]; 
+    documents?: { name: string; mimeType: string; data: string; }[]; // New: PDF/File Storage
     lastUpdated: number;
 }
 
@@ -154,7 +155,7 @@ const sanitizeForFirestore = (data: any): any => {
 
 class ShadowDB {
   private dbName = 'ShadowCore_V20_Email'; 
-  private version = 13;
+  private version = 14; // Incremented for Schema Update
   private unsubscribeListeners: Function[] = [];
   private adminUnsubscribe: Function | null = null;
 
@@ -208,16 +209,13 @@ class ShadowDB {
   async loginUser(email: string, password: string): Promise<UserProfile> {
       if (!auth) throw new Error("Firebase Auth not initialized");
       
-      // 1. Authenticate with Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
       
-      // 2. Try to get Profile from Local First (Faster)
       const cleanEmail = email.toLowerCase();
       let profile = await this.getProfile(cleanEmail);
 
-      // 3. AUTO-HEAL: If Auth passed but Profile missing (or failed to fetch), create it immediately.
-      // This fixes the "Profile not found" error for manually created or migrated users.
+      // AUTO-HEAL
       if (!profile) {
           console.warn("[Shadow Core] Profile missing for authenticated user. Auto-healing...");
           const namePart = email.split('@')[0];
@@ -242,12 +240,9 @@ class ShadowDB {
           };
           
           try {
-              // Try cloud save first to ensure consistency with rules
               if (db) await setDoc(doc(db, "users", cleanEmail), profile, { merge: true });
               await this.saveProfile(profile);
           } catch(e) {
-              console.error("[Shadow Core] Auto-heal failed on cloud:", e);
-              // Fallback to local save only so user can at least login
               await this.saveProfile(profile, true);
           }
       }
@@ -291,9 +286,7 @@ class ShadowDB {
                       onUpdate('history', change.doc.data());
                   }
               });
-          }, (error) => {
-              // Silently ignore permission errors for history to prevent crash
-          });
+          }, (error) => {});
           this.unsubscribeListeners.push(historyUnsub);
       } catch (e) { console.warn("[Firebase] Realtime sync init failed.", e); }
   }
@@ -308,8 +301,7 @@ class ShadowDB {
               snapshot.forEach((doc) => profiles.push({ ...doc.data(), email: doc.id } as UserProfile));
               onProfilesUpdate(profiles);
           }, (error) => {
-              console.warn("[Admin Feed] Profile feed blocked (Permissions):", error.code);
-              // Do not propagate error to prevent UI crash
+              console.warn("[Admin Feed] Profile feed blocked:", error.code);
           });
 
           const qFeed = query(collection(db, "feedback"), orderBy("timestamp", "desc"));
@@ -425,7 +417,6 @@ class ShadowDB {
           request.onerror = () => resolve(undefined);
       });
 
-      // If local missing, try Cloud. Safe logic.
       if (!localProfile && db && cleanEmail !== 'guest') {
          try {
              const docSnap = await getDoc(doc(db, "users", cleanEmail));
@@ -436,7 +427,6 @@ class ShadowDB {
              }
          } catch(e) { console.warn("[DB] Cloud fetch failed/skipped:", e); }
       } else if (localProfile && db && cleanEmail !== 'guest') {
-         // Background Sync
          getDoc(doc(db, "users", cleanEmail)).then((docSnap) => {
             if (docSnap.exists()) {
                 const cloudData = docSnap.data() as UserProfile;
@@ -497,7 +487,6 @@ class ShadowDB {
   async getSyncStats(): Promise<number> { return db ? 100 : 0; }
   async migrateGuestMessages(messages: DBMessage[]) { return; }
 
-  // FS & Other modules remain largely the same structure
   async getFSItemsByParent(userId: string, parentId: number | null): Promise<DBFSItem[]> {
       const db = await this.init();
       const request = db.transaction('fs', 'readonly').objectStore('fs').index('userId').getAll(userId);
