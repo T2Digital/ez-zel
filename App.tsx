@@ -10,9 +10,44 @@ import Dashboard from './components/Dashboard';
 import LiveTickers from './components/LiveTickers'; 
 import { shadowDB, UserProfile, DBMessage } from './services/dbService';
 import { playShadowVoice, stopVoice } from './services/geminiService';
-import { Loader2, Fingerprint, ShieldCheck, Clock, CheckCircle2, Home, LogOut, RefreshCw } from 'lucide-react';
+import { Loader2, Fingerprint, ShieldCheck, Clock, CheckCircle2, Home, LogOut, RefreshCw, Download } from 'lucide-react';
 
 type ViewState = 'loading' | 'pricing' | 'auth' | 'payment' | 'dashboard' | 'chat' | 'admin' | 'blocked' | 'pending_review' | 'affiliate';
+
+// --- PWA INSTALL PROMPT COMPONENT ---
+const InstallPrompt = () => {
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        const handler = (e: any) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+            setIsVisible(true);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const handleInstall = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') setIsVisible(false);
+        setDeferredPrompt(null);
+    };
+
+    if (!isVisible) return null;
+
+    return (
+        <div className="fixed bottom-20 right-4 z-[150] animate-in slide-in-from-right">
+            <button onClick={handleInstall} className="flex items-center gap-3 px-4 py-3 bg-white text-black rounded-2xl shadow-2xl font-bold text-sm border-2 border-white hover:scale-105 transition-transform">
+                <Download className="w-5 h-5" />
+                <span>تثبيت التطبيق</span>
+            </button>
+        </div>
+    );
+};
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('loading');
@@ -81,7 +116,6 @@ const App: React.FC = () => {
             await shadowDB.saveMessage(alarmMsg);
             setLatestSystemMessage(alarmMsg);
 
-            // SAFE NOTIFICATION CALL FOR IOS
             if ('Notification' in window && Notification.permission === 'granted') {
                 try {
                     new Notification('الظل الرقمي', { body: reminderText, icon: 'https://i.ibb.co/fYp5VRYb/1000053833.jpg' });
@@ -92,10 +126,11 @@ const App: React.FC = () => {
         }
 
         // 2. SHADOW PULSE (Global Broadcast Check)
+        // Force sync check
         const pulse = await shadowDB.getGlobalPulse();
         if (pulse) {
             const lastSeen = user.lastPulseReceived || 0;
-            if (pulse.timestamp > lastSeen + 1000) {
+            if (pulse.timestamp > lastSeen + 2000) {
                 const pulseMsg: DBMessage = {
                     userId: user.phone,
                     role: 'system',
@@ -104,6 +139,7 @@ const App: React.FC = () => {
                 };
                 
                 await shadowDB.saveMessage(pulseMsg);
+                // Important: Update User Profile locally and in cloud so we don't spam
                 await shadowDB.updateLastPulseReceived(user.phone, pulse.timestamp);
                 setLatestSystemMessage(pulseMsg);
                 
@@ -154,7 +190,8 @@ const App: React.FC = () => {
         Notification.requestPermission().catch(e => console.log("Notification permission error", e)); 
     }
     
-    const interval = setInterval(runBackgroundChecks, 30000); 
+    // Check every 20 seconds for Pulse/Alarms
+    const interval = setInterval(runBackgroundChecks, 20000); 
     return () => { clearInterval(interval); stopVoice(); };
   }, [user, isAppLocked]);
 
@@ -507,6 +544,7 @@ const App: React.FC = () => {
 
   return (
       <>
+          <InstallPrompt />
           <LiveTickers />
           {renderView()}
       </>
