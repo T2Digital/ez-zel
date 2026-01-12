@@ -8,6 +8,7 @@ import SecurityGate from './components/SecurityGate';
 import AffiliateDashboard from './components/AffiliateDashboard';
 import Dashboard from './components/Dashboard'; 
 import LiveTickers from './components/LiveTickers'; 
+import InstallPrompt from './components/InstallPrompt';
 import { shadowDB, UserProfile, DBMessage } from './services/dbService';
 import { playShadowVoice, stopVoice } from './services/geminiService';
 import { Loader2, Fingerprint, ShieldCheck, Clock, CheckCircle2, Home, LogOut, RefreshCw } from 'lucide-react';
@@ -55,7 +56,7 @@ const App: React.FC = () => {
         const now = Date.now();
 
         // 1. Alarms (For Everyone)
-        const allTasks = await shadowDB.getTasks(user.phone);
+        const allTasks = await shadowDB.getTasks(user.email);
         const dueTasks = allTasks.filter(t => 
             t.status === 'pending' && 
             !t.notified && 
@@ -73,7 +74,7 @@ const App: React.FC = () => {
             setTimeout(() => { playShadowVoice(reminderText, user.voicePreference || 'male'); }, 1500);
 
             const alarmMsg: DBMessage = {
-                userId: user.phone,
+                userId: user.email,
                 role: 'system',
                 text: reminderText,
                 timestamp: Date.now()
@@ -81,7 +82,6 @@ const App: React.FC = () => {
             await shadowDB.saveMessage(alarmMsg);
             setLatestSystemMessage(alarmMsg);
 
-            // SAFE NOTIFICATION CALL FOR IOS
             if ('Notification' in window && Notification.permission === 'granted') {
                 try {
                     new Notification('الظل الرقمي', { body: reminderText, icon: 'https://i.ibb.co/fYp5VRYb/1000053833.jpg' });
@@ -91,31 +91,29 @@ const App: React.FC = () => {
             await shadowDB.updateTaskStatus(task.id!, { notified: true });
         }
 
-        // 2. SHADOW PULSE (Global Broadcast Check)
+        // 2. SHADOW PULSE
         const pulse = await shadowDB.getGlobalPulse();
         if (pulse) {
             const lastSeen = user.lastPulseReceived || 0;
             if (pulse.timestamp > lastSeen + 1000) {
                 const pulseMsg: DBMessage = {
-                    userId: user.phone,
+                    userId: user.email,
                     role: 'system',
                     text: `📢 **نداء عام (Shadow Pulse):**\n\n${pulse.text}`,
                     timestamp: pulse.timestamp
                 };
                 
                 await shadowDB.saveMessage(pulseMsg);
-                await shadowDB.updateLastPulseReceived(user.phone, pulse.timestamp);
+                await shadowDB.updateLastPulseReceived(user.email, pulse.timestamp);
                 setLatestSystemMessage(pulseMsg);
-                
                 setUser(prev => prev ? ({ ...prev, lastPulseReceived: pulse.timestamp }) : null);
-                
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                 if (audio) { audio.play().catch(e => {}); }
             }
         }
 
-        // 3. Admin Notifier
-        if (user.phone === 'TITO') {
+        // 3. Admin Notifier (TITO)
+        if (user.email === 'TITO' || user.email === 'tito@shadow.com') {
             const lastCheck = await shadowDB.getConfig('last_admin_check') || 0; 
             const allProfiles = await shadowDB.getAllProfiles();
             const newPending = allProfiles.filter(p => p.status === 'pending' && p.paymentProof && p.joinedAt > lastCheck);
@@ -126,11 +124,11 @@ const App: React.FC = () => {
                 let msgText = "🔴 **تقرير عمليات (New Alert)**:\n";
                 if (newPending.length > 0) {
                     msgText += `\n📌 **طلبات اشتراك جديدة (${newPending.length}):**\n`;
-                    newPending.forEach(p => msgText += `- ${p.name} (${p.phone})\n`);
+                    newPending.forEach(p => msgText += `- ${p.name}\n`);
                 }
                 if (newFeedback.length > 0) {
                     msgText += `\n💬 **رسائل رأي جديدة (${newFeedback.length}):**\n`;
-                    newFeedback.forEach(f => msgText += `- من ${f.userName}: "${f.message.substring(0, 30)}..."\n`);
+                    newFeedback.forEach(f => msgText += `- من ${f.userName}\n`);
                 }
                 
                 const adminMsg: DBMessage = {
@@ -143,7 +141,6 @@ const App: React.FC = () => {
                 await shadowDB.saveMessage(adminMsg);
                 setLatestSystemMessage(adminMsg);
                 await shadowDB.setConfig('last_admin_check', Date.now());
-                
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                 if (audio) { audio.play().catch(e => {}); }
             }
@@ -171,7 +168,7 @@ const App: React.FC = () => {
   const checkStatusManual = async () => {
       if (!user) return;
       setIsCheckingStatus(true);
-      const updatedProfile = await shadowDB.getProfile(user.phone);
+      const updatedProfile = await shadowDB.getProfile(user.email);
       if (updatedProfile && updatedProfile.status === 'active') {
           setUser(updatedProfile);
           setView('dashboard'); 
@@ -181,17 +178,17 @@ const App: React.FC = () => {
 
   const checkSession = async () => {
     try {
-      const lastUserPhone = localStorage.getItem('shadow_last_user');
+      const lastUserEmail = localStorage.getItem('shadow_last_user');
       const guestSession = localStorage.getItem('shadow_guest_active');
 
-      if (lastUserPhone) {
-          // Attempt rapid restore
-          const profile = await shadowDB.getProfile(lastUserPhone);
+      if (lastUserEmail && lastUserEmail !== 'GUEST') {
+          // Attempt rapid restore using local DB
+          const profile = await shadowDB.getProfile(lastUserEmail);
           
           if (profile) {
               setUser(profile);
               if (profile.status === 'active') {
-                 if (profile.phone === 'TITO') {
+                 if (profile.email === 'TITO' || profile.email === 'tito@shadow.com') {
                      setView('admin');
                      setIsAppLocked(false);
                  } else {
@@ -211,7 +208,7 @@ const App: React.FC = () => {
       }
 
       if (guestSession === 'true') {
-        const guestUser: UserProfile = { phone: 'GUEST', name: 'ضيف', tier: 'lite', status: 'active', joinedAt: Date.now() };
+        const guestUser: UserProfile = { email: 'GUEST', name: 'ضيف', tier: 'lite', status: 'active', joinedAt: Date.now() };
         setUser(guestUser);
         setView('dashboard');
         setIsAppLocked(true); 
@@ -226,21 +223,16 @@ const App: React.FC = () => {
 
   const handleAuthSuccess = async (profile: UserProfile) => {
     setUser(profile);
-    localStorage.setItem('shadow_last_user', profile.phone);
+    localStorage.setItem('shadow_last_user', profile.email);
     setLatestSystemMessage(null);
 
-    const guestHistory = localStorage.getItem('shadow_guest_history');
-    if (guestHistory) {
-        try {
-            const messages = JSON.parse(guestHistory);
-            await shadowDB.migrateGuestMessages(messages);
-            localStorage.removeItem('shadow_guest_history');
-            localStorage.removeItem('shadow_guest_active');
-            localStorage.removeItem('shadow_guest_start'); 
-        } catch (e) { console.error("Migration failed", e); }
+    // Guest Migration (Basic)
+    if (localStorage.getItem('shadow_guest_history')) {
+        localStorage.removeItem('shadow_guest_history');
+        localStorage.removeItem('shadow_guest_active');
     }
 
-    if (profile.phone === 'TITO' || profile.phone === '01000000000' || (profile.tier === 'sovereign' && profile.name.includes('تيتو'))) {
+    if (profile.email === 'TITO' || profile.email === 'tito@shadow.com' || (profile.tier === 'sovereign' && profile.name.includes('تيتو'))) {
         setView('admin');
         setIsAppLocked(false); 
         return;
@@ -268,7 +260,7 @@ const App: React.FC = () => {
       if (!localStorage.getItem('shadow_guest_start')) {
           localStorage.setItem('shadow_guest_start', Date.now().toString());
       }
-      const guestUser: UserProfile = { phone: 'GUEST', name: 'ضيف', tier: 'lite', status: 'active', joinedAt: Date.now() };
+      const guestUser: UserProfile = { email: 'GUEST', name: 'ضيف', tier: 'lite', status: 'active', joinedAt: Date.now() };
       setUser(guestUser);
       setLatestSystemMessage(null);
       setView('dashboard');
@@ -280,7 +272,7 @@ const App: React.FC = () => {
       
       if (!adminProfile) {
           adminProfile = { 
-              phone: 'TITO', 
+              email: 'TITO', 
               name: 'تيتو (المالك)', 
               shadowName: 'الظل الأبدي', 
               tier: 'sovereign', 
@@ -297,10 +289,6 @@ const App: React.FC = () => {
           await shadowDB.saveProfile(adminProfile);
       }
       
-      if (adminProfile.phone !== 'TITO') {
-          adminProfile.phone = 'TITO';
-      }
-      
       handleAuthSuccess(adminProfile);
   };
 
@@ -315,7 +303,7 @@ const App: React.FC = () => {
   };
   
   const handleStartAffiliate = () => {
-      if (user?.phone === 'GUEST') {
+      if (user?.email === 'GUEST') {
         localStorage.removeItem('shadow_guest_active');
         setUser(null);
         setLatestSystemMessage(null);
@@ -326,7 +314,9 @@ const App: React.FC = () => {
   }
 
   const handleLogout = () => {
+      shadowDB.logout(); // Firebase Logout
       localStorage.removeItem('shadow_guest_active');
+      localStorage.removeItem('shadow_last_user');
       setUser(null);
       setLatestSystemMessage(null); 
       setView('pricing');
@@ -374,7 +364,7 @@ const App: React.FC = () => {
                       onClearAction={() => setDashboardAction(null)} 
                       onOpenChat={() => setView('chat')}
                       onOpenAffiliate={() => setView('affiliate')}
-                      onLogout={user.phone === 'TITO' ? () => setView('admin') : handleLogout} 
+                      onLogout={user.email === 'TITO' || user.email === 'tito@shadow.com' ? () => setView('admin') : handleLogout} 
                       onUpgrade={handleUpgradeRequest}
                       onStartAffiliate={handleStartAffiliate}
                   />
@@ -388,7 +378,7 @@ const App: React.FC = () => {
                     onUpgrade={handleUpgradeRequest} 
                     onBack={() => setView('dashboard')} 
                     onOpenAffiliate={() => setView('affiliate')}
-                    isAdmin={user.phone === 'TITO'}
+                    isAdmin={user.email === 'TITO' || user.email === 'tito@shadow.com'}
                     onNavigateTo={handleChatNavigation}
                     incomingSystemMessage={latestSystemMessage} 
                 />
@@ -432,7 +422,7 @@ const App: React.FC = () => {
                 planId={selectedPlan} 
                 billingCycle={billingCycle}
                 onSuccess={async (proof, finalCycle) => {
-                    if (user && user.phone !== 'GUEST') {
+                    if (user && user.email !== 'GUEST') {
                         const updatedUser = { 
                             ...user, 
                             paymentProof: proof, 
@@ -508,6 +498,7 @@ const App: React.FC = () => {
   return (
       <>
           <LiveTickers />
+          <InstallPrompt />
           {renderView()}
       </>
   );

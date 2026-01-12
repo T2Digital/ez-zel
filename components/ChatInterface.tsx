@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer } from 'lucide-react';
+import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool } from 'lucide-react';
 import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import CapabilitiesGuide from './CapabilitiesGuide';
@@ -70,9 +70,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // activeAppCard can be a Link Card OR an Invoice/Quote Data Object
-  const [activeAppCard, setActiveAppCard] = useState<any | null>(null);
 
   const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const silenceTimerRef = useRef<any>(null);
@@ -248,7 +245,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     if (scrollRef.current && !isSearchActive && !searchQuery) {
         scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
-  }, [messages.length, appStatus, liveTranscript, activeAppCard, isSearchActive, searchQuery]);
+  }, [messages.length, appStatus, liveTranscript, isSearchActive, searchQuery]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -433,7 +430,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     const displayText = textToSend.trim() ? textToSend : ((audioBlob || existingAudioBase64) ? 'رسالة صوتية 🎤' : '');
     stateRef.current.isListening = false;
     setAppStatus('thinking');
-    setActiveAppCard(null); 
 
     let userVoiceDataURI = existingAudioBase64 || '';
     let geminiAudioInput = ''; 
@@ -482,37 +478,34 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           abortControllerRef.current.signal 
       );
       
+      let voiceData: string | null = null;
+      if (!isMuted && !result.isError) {
+          voiceData = await getShadowVoice(result.text, 'male');
+      }
+
+      // Format Action Card Data for UI
+      let uiCard = undefined;
       if (result.toolAction) {
           const t = result.toolAction;
           if (t.type === 'display_business_doc') {
-              setActiveAppCard({
-                  cardType: 'business_doc',
-                  data: t.data
-              });
-          }
-          else if (t.type === 'display_ui_card' || t.type === 'open_app') {
-             const card = {
+              uiCard = { cardType: 'business_doc', data: t.data };
+          } else if (t.type === 'display_ui_card' || t.type === 'open_app') {
+             uiCard = {
                  cardType: t.type_card || 'deep_link_fallback',
                  title: t.title || t.app_name || 'Action',
                  description: t.description || t.specific_action || '',
                  url: t.url || t.search_query,
                  number: t.number || 'generic'
              };
-             setActiveAppCard(card);
-             if (t.type === 'open_app' && t.url) {
-                  setTimeout(() => window.open(t.url, '_blank'), 1500);
-             }
+             // Auto open link if needed
+             if (t.type === 'open_app' && t.url) setTimeout(() => window.open(t.url, '_blank'), 1500);
           }
-      }
-
-      let voiceData: string | null = null;
-      if (!isMuted && !result.isError) {
-          voiceData = await getShadowVoice(result.text, 'male');
       }
 
       const modelMsg: ExtendedMessage = { 
           userId: currentUser.phone, role: 'model', text: result.text, timestamp: Date.now(), 
-          groundingLinks: result.groundingLinks, voiceData: voiceData || undefined, isError: result.isError
+          groundingLinks: result.groundingLinks, voiceData: voiceData || undefined, isError: result.isError,
+          uiCard: uiCard // Save Card to Message
       };
       
       let modelId = Date.now() + 1;
@@ -538,7 +531,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
 
     } catch (e: any) { 
-        // Logic handled in geminiService fallback, but if that fails too:
         const errorMsg: ExtendedMessage = {
              userId: currentUser.phone, role: 'model', text: "السيستم عليه ضغط بسيط يا ريس. دقيقة وراجعلك.", timestamp: Date.now(), isError: true
         };
@@ -592,17 +584,17 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       } 
   };
   
-  const handleAppCardAction = async () => { 
-      if (!activeAppCard) return; 
+  const handleAppCardAction = async (card: any) => { 
+      if (!card) return; 
       
       // Invoice/Quote Print Logic
-      if (activeAppCard.cardType === 'business_doc') {
+      if (card.cardType === 'business_doc') {
           window.print();
           return;
       }
 
-      if (activeAppCard.url) { 
-          window.open(activeAppCard.url, '_blank', 'noopener,noreferrer'); 
+      if (card.url) { 
+          window.open(card.url, '_blank', 'noopener,noreferrer'); 
       } 
   };
 
@@ -619,8 +611,93 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           if (number === 'pay') return <CreditCard className="w-6 h-6 text-purple-400" />;
           return <ExternalLink className="w-6 h-6 text-blue-400" />;
       }
-      if (activeAppCard?.title === 'Uber') return <Car className="w-6 h-6 text-black" />;
       return <ExternalLink className="w-6 h-6 text-white" />;
+  };
+
+  const renderCard = (card: any) => {
+      if (card.cardType === 'business_doc') {
+          return (
+            <div className="mt-4 bg-white text-black rounded-[22px] p-6 shadow-2xl printable-invoice w-full md:w-[400px]">
+                <div className="flex justify-between items-start mb-6 border-b border-black/10 pb-4">
+                    <div>
+                        <h2 className="text-xl font-black">{card.data.docType === 'quote' ? 'عرض سعر' : (card.data.docType === 'contract' ? 'عقد اتفاق' : 'فاتورة')}</h2>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">#{Math.floor(Math.random() * 10000)}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="font-bold text-xs">التاريخ</p>
+                        <p className="text-[10px] text-gray-600 font-mono">{new Date().toLocaleDateString('en-EG')}</p>
+                    </div>
+                </div>
+                <div className="mb-4">
+                    <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">إلى السيد/السادة</p>
+                    <h3 className="text-lg font-bold">{card.data.clientName}</h3>
+                </div>
+                
+                {card.data.docType === 'contract' ? (
+                    <div className="mb-6 text-xs leading-relaxed whitespace-pre-wrap font-medium border p-3 rounded-xl bg-gray-50 border-gray-200">
+                        {card.data.contractBody || "..."}
+                        <div className="mt-6 flex justify-between pt-4 border-t border-black/10">
+                            <div className="text-center w-1/3">
+                                <p className="font-bold text-[10px] mb-6">توقيع الطرف الأول</p>
+                                <div className="h-0.5 bg-black/20 w-full"></div>
+                            </div>
+                            <div className="text-center w-1/3">
+                                <p className="font-bold text-[10px] mb-6">توقيع الطرف الثاني</p>
+                                <div className="h-0.5 bg-black/20 w-full"></div>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <table className="w-full text-right text-xs mb-4">
+                            <thead className="border-b border-black/10 text-gray-500">
+                                <tr>
+                                    <th className="py-2">الوصف</th>
+                                    <th className="py-2 text-left">القيمة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {card.data.items?.map((item: any, i: number) => (
+                                    <tr key={i} className="border-b border-black/5 last:border-0">
+                                        <td className="py-2 font-bold">{item.desc}</td>
+                                        <td className="py-2 text-left font-mono">{item.price} {card.data.currency}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <div className={`flex justify-between items-center p-3 rounded-xl mb-4 ${card.data.docType === 'quote' ? 'bg-amber-100 text-amber-900' : 'bg-black text-white'}`}>
+                            <span className="font-bold text-xs">الإجمالي</span>
+                            <span className="font-black text-lg font-mono">
+                                {card.data.items?.reduce((s:number, i:any) => s + i.price, 0)} {card.data.currency}
+                            </span>
+                        </div>
+                    </>
+                )}
+                
+                <button onClick={() => window.print()} className="w-full py-2 border-2 border-black rounded-xl font-black flex items-center justify-center gap-2 hover:bg-black hover:text-white transition-all text-xs print:hidden">
+                    <Printer className="w-3 h-3" /> طباعة / PDF
+                </button>
+            </div>
+          );
+      } else {
+          return (
+            <div className={`mt-4 rounded-[22px] p-4 w-full md:w-[320px] ${card.cardType === 'government_action' ? 'bg-[#0f0f0f] border border-amber-500/20' : 'bg-[#0f0f0f]/90 border border-white/10'}`}>
+                <div className="flex items-center gap-3 mb-3">
+                    <div className={`p-2 rounded-xl ${card.cardType === 'government_action' ? 'bg-amber-500/10' : 'bg-white/10'}`}>
+                        {getCardIcon(card.cardType, card.number)}
+                    </div>
+                    <div>
+                        <h3 className={`font-black text-xs ${card.cardType === 'government_action' ? 'text-amber-500' : 'text-white'}`}>{card.title}</h3>
+                        <p className="text-[10px] text-white/50 truncate max-w-[200px]">{card.description}</p>
+                    </div>
+                </div>
+                <button onClick={() => handleAppCardAction(card)} className={`w-full py-2.5 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-xs border ${card.cardType === 'government_action' ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-600' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'}`}>
+                    {card.cardType === 'deep_link_fallback' || card.cardType === 'government_action' ? <ExternalLink className="w-3 h-3" /> : (card.cardType === 'copy_link' ? <Copy className="w-3 h-3" /> : <ArrowRight className="w-3 h-3" />)}
+                    {card.cardType === 'government_action' ? 'بدء الخدمة' : (card.cardType === 'deep_link_fallback' ? 'فتح الرابط' : (card.cardType === 'copy_link' ? 'نسخ' : 'تنفيذ'))}
+                </button>
+            </div>
+          );
+      }
   };
 
   const displayedMessages = messages.filter(m => {
@@ -642,6 +719,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           </div>
       )}
 
+      {/* HEADER */}
       <div className="h-14 px-4 border-b border-white/10 bg-[#0a0a0a] flex justify-between items-center shrink-0 z-50 shadow-md relative transition-all">
         <div className="flex items-center gap-3 flex-1 overflow-hidden">
           <button onClick={onBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all group shrink-0"><Home className="w-4 h-4 group-hover:text-cyan-400 transition-colors" /></button>
@@ -681,6 +759,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                 <div className={`max-w-[90%] md:max-w-[70%] p-4 rounded-[20px] relative border backdrop-blur-md ${m.role === 'user' ? 'bg-[#1a1a1a] border-white/5 text-white/90 rounded-tl-none' : (m.isError ? 'bg-red-900/20 border-red-500/30 text-red-200' : 'bg-[#0f0f0f] border-purple-500/20 text-white shadow-lg')} ${m.role !== 'user' ? 'rounded-tr-none' : ''}`}>
                 {m.image && <img src={m.image} className="w-full h-auto max-h-56 object-cover rounded-xl mb-3 border border-white/5" />}
                 <div className="text-sm leading-6 font-medium whitespace-pre-wrap">{highlightText(m.text)}</div>
+                
+                {/* PERSISTENT ACTION CARD RENDERING */}
+                {m.uiCard && renderCard(m.uiCard)}
+
                 {m.groundingLinks && m.groundingLinks.length > 0 && (
                     <div className="mt-3 pt-2 border-t border-white/5">
                         <div className="text-[8px] text-white/30 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Globe className="w-3 h-3" /> المصادر الحية (Realtime News)</div>
@@ -708,71 +790,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
             )}
           </div>
         ))}
-        {activeAppCard && !searchQuery && (
-            <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2">
-                <div className="max-w-[90%] md:max-w-[70%] p-1 rounded-[24px] bg-gradient-to-br from-white/10 to-transparent shadow-xl border border-white/20 backdrop-blur-md">
-                    {activeAppCard.cardType === 'business_doc' ? (
-                        <div className="bg-white text-black rounded-[22px] p-6 shadow-2xl printable-invoice">
-                            <div className="flex justify-between items-center mb-6 border-b border-black/10 pb-4">
-                                <div>
-                                    <h2 className="text-2xl font-black">{activeAppCard.data.docType === 'quote' ? 'عرض سعر (Quote)' : 'فاتورة (Invoice)'}</h2>
-                                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">#{Math.floor(Math.random() * 10000)}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-bold text-sm">التاريخ</p>
-                                    <p className="text-xs text-gray-600 font-mono">{new Date().toLocaleDateString('en-EG')}</p>
-                                </div>
-                            </div>
-                            <div className="mb-6">
-                                <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">إلى السيد/السادة</p>
-                                <h3 className="text-xl font-bold">{activeAppCard.data.clientName}</h3>
-                            </div>
-                            <table className="w-full text-right text-sm mb-6">
-                                <thead className="border-b border-black/10 text-gray-500">
-                                    <tr>
-                                        <th className="py-2">الوصف</th>
-                                        <th className="py-2 text-left">القيمة</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {activeAppCard.data.items.map((item: any, i: number) => (
-                                        <tr key={i} className="border-b border-black/5 last:border-0">
-                                            <td className="py-3 font-bold">{item.desc}</td>
-                                            <td className="py-3 text-left font-mono">{item.price} {activeAppCard.data.currency}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            <div className={`flex justify-between items-center p-4 rounded-xl mb-4 ${activeAppCard.data.docType === 'quote' ? 'bg-amber-100 text-amber-900' : 'bg-black text-white'}`}>
-                                <span className="font-bold text-sm">الإجمالي</span>
-                                <span className="font-black text-xl font-mono">
-                                    {activeAppCard.data.items.reduce((s:number, i:any) => s + i.price, 0)} {activeAppCard.data.currency}
-                                </span>
-                            </div>
-                            <button onClick={handleAppCardAction} className="w-full py-3 border-2 border-black rounded-xl font-black flex items-center justify-center gap-2 hover:bg-black hover:text-white transition-all print:hidden">
-                                <Printer className="w-4 h-4" /> طباعة / PDF
-                            </button>
-                        </div>
-                    ) : (
-                        <div className={`rounded-[22px] p-5 ${activeAppCard.cardType === 'government_action' ? 'bg-[#0f0f0f] border border-amber-500/20' : 'bg-[#0f0f0f]/90'}`}>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className={`p-2 rounded-xl ${activeAppCard.cardType === 'government_action' ? 'bg-amber-500/10' : 'bg-white/10'}`}>
-                                    {getCardIcon(activeAppCard.cardType, activeAppCard.number)}
-                                </div>
-                                <div>
-                                    <h3 className={`font-black text-sm ${activeAppCard.cardType === 'government_action' ? 'text-amber-500' : 'text-white'}`}>{activeAppCard.title}</h3>
-                                    <p className="text-[10px] text-white/50">{activeAppCard.description}</p>
-                                </div>
-                            </div>
-                            <button onClick={handleAppCardAction} className={`w-full py-3 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border ${activeAppCard.cardType === 'government_action' ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-600' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'}`}>
-                                {activeAppCard.cardType === 'deep_link_fallback' || activeAppCard.cardType === 'government_action' ? <ExternalLink className="w-4 h-4" /> : (activeAppCard.cardType === 'copy_link' ? <Copy className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
-                                {activeAppCard.cardType === 'government_action' ? 'بدء الخدمة' : (activeAppCard.cardType === 'deep_link_fallback' ? 'فتح الرابط' : (activeAppCard.cardType === 'copy_link' ? 'نسخ' : 'تنفيذ'))}
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-        )}
         
         {appStatus === 'thinking' && !searchQuery && (
             <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 items-center gap-3">

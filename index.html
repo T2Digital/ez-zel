@@ -3,12 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ez-Zel | الظل الرقمي - مساعد النخبة بالذكاء الاصطناعي</title>
     
+    <!-- SEO & Metadata -->
+    <title>Ez-Zel | الظل الرقمي - المساعد الشخصي الأول بالذكاء الاصطناعي في مصر</title>
+    <meta name="description" content="تطبيق الظل الرقمي (Ez-Zel). أقوى مساعد شخصي مصري بالذكاء الاصطناعي. إدارة مهام، استشارات قانونية، تحليل نفسي، تحكم منزلي، وأرباح بالدولار. حمل التطبيق الآن وامتلك ظلك.">
+    <meta name="keywords" content="ذكاء اصطناعي, مصر, مساعد شخصي, تطبيق الظل, Ez-Zel, AI assistant Egypt, Gemini AI, ربح من النت, تسويق بالعمولة, إدارة أعمال, استشارات قانونية, تحكم منزلي, سمارت هوم, شات بوت مصري, تيتو, Tito HQ">
+    <meta name="author" content="TITO HQ">
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+    
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://Ez-zel.vercel.app/">
+    <meta property="og:title" content="الظل الرقمي | عقلك التاني اللي مبيناش">
+    <meta property="og:description" content="مش مجرد تطبيق.. ده كيان كامل بيدير حياتك. جرب الظل الآن مجاناً.">
+    <meta property="og:image" content="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
+    <meta property="og:locale" content="ar_EG">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://Ez-zel.vercel.app/">
+    <meta property="twitter:title" content="الظل الرقمي | Ez-Zel AI">
+    <meta property="twitter:description" content="أول مساعد شخصي بلهجة مصرية وقدرات عالمية.">
+    <meta property="twitter:image" content="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
+    
+    <!-- PWA & Mobile -->
     <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/jpeg" href="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
     <link rel="apple-touch-icon" href="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#020202">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
@@ -41,7 +66,6 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // If sw.js is missing in dev, catch 404 silently
           navigator.serviceWorker.register('./sw.js').catch(err => {
               if (!err.message.includes('404')) console.log('SW register failed:', err);
           });

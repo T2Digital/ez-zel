@@ -1,13 +1,15 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import { shadowDB, UserProfile, DBFact } from "./dbService";
+import { shadowDB, UserProfile, DBFact, AgentProfile } from "./dbService";
 
 // --- CONFIGURATION ---
 const apiKey = (import.meta as any).env?.VITE_API_KEY || (process as any).env?.API_KEY || (window as any).VITE_API_KEY || '';
 if (!apiKey) console.error("CRITICAL: API KEY MISSING");
 
+const ai = new GoogleGenAI({ apiKey });
+
 // --- FALLBACK SYSTEM ---
 const getFallbackResponse = (input: string): string => {
-    return "الشبكة عليها ضغط لحظي (Traffic Overload). ثواني وراجعلك يا ريس..";
+    return "الشبكة عليها ضغط لحظي (Traffic Overload). المجلس بيعيد الاتصال.. ثواني وراجعلك يا ريس.";
 };
 
 // --- AUDIO UTILS (iOS Safe) ---
@@ -20,150 +22,154 @@ function getAudioContext() {
       const CtxClass = (window.AudioContext || (window as any).webkitAudioContext);
       audioCtx = new CtxClass({ sampleRate: 24000 });
   }
-  // iOS requirement: resume must be called inside a user event. 
-  // We try here, but might fail if not triggered by event.
   if (audioCtx.state === 'suspended') {
       audioCtx.resume().catch((err) => console.log("Audio resume waiting for user gesture:", err));
   }
   return audioCtx;
 }
 
-// --- THE SUPREME COUNCIL TOOLS (THE AGENTS) ---
+// --- INTELLIGENT RETRY LOGIC (Fixes 429 Resource Exhausted) ---
+const callGeminiWithRetry = async (params: any, retries = 3, delay = 2000): Promise<GenerateContentResponse> => {
+    try {
+        const response = await ai.models.generateContent(params);
+        if (!response || !response.text) throw new Error("Empty Response");
+        return response;
+    } catch (error: any) {
+        const isQuotaError = error.message?.includes('429') || error.status === 429 || error.message?.includes('RESOURCE_EXHAUSTED');
+        const isOverloaded = error.status === 503;
+        
+        if ((isQuotaError || isOverloaded) && retries > 0) {
+            console.warn(`[Shadow Core] Network busy (${error.status}). Retrying in ${delay}ms... (${retries} attempts left)`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return callGeminiWithRetry(params, retries - 1, delay * 2);
+        }
+        throw error;
+    }
+};
+
+// --- THE COUNCIL OF 10 TOOLS (AGENTS) ---
 const actionTools: FunctionDeclaration[] = [
     {
         name: "consult_council_agent",
-        description: "INVOKE A SPECIFIC AGENT from the Council to handle complex requests.",
+        description: "INVOKE A SPECIFIC AGENT from the Council of 10. Use this when the user needs specialized help.",
         parameters: { type: Type.OBJECT, properties: { 
-            agent: { type: Type.STRING, enum: ["detective", "legal_advisor", "analyst", "marketer"], description: "Detective for facts/search. Legal for Egyptian Law. Analyst for psychology/strategy. Marketer for selling the app." },
-            query_context: { type: Type.STRING, description: "The specific question or scenario for the agent." }
+            agent: { type: Type.STRING, enum: ["detective", "legal_advisor", "analyst", "marketer", "digital_citizen", "shadow_business", "healer", "accountant", "nexus", "maestro_core"], description: "The specialist to call." },
+            query_context: { type: Type.STRING, description: "The specific task for the agent." }
         }, required: ["agent", "query_context"] }
     },
     {
-        name: "consult_healer",
-        description: "THE HEALER (المعالج): Prophetic Medicine, Herbs, Ruqyah, Psychology.",
+        name: "accountant_access",
+        description: "THE ACCOUNTANT (المحاسب): Check subscription status, earnings, or system revenue.",
         parameters: { type: Type.OBJECT, properties: { 
-            category: { type: Type.STRING, enum: ["prophetic", "herbal", "ruqyah", "psychology"] },
-            symptom: { type: Type.STRING }
-        }, required: ["category", "symptom"] }
+            action: { type: Type.STRING, enum: ["check_my_subscription", "check_my_earnings", "system_revenue_report"] },
+            details: { type: Type.STRING, description: "Any extra details needed." }
+        }, required: ["action"] }
     },
     {
-        name: "government_broker",
-        description: "THE BROKER (المخلصاتي): Egyptian Gov Services (Traffic, Notary, Civil, Supply).",
+        name: "generate_business_document",
+        description: "SHADOW BUSINESS / LEGAL / ACCOUNTANT: Create professional documents (Invoice, Quote, Contract).",
+        parameters: { type: Type.OBJECT, properties: {
+            docType: { type: Type.STRING, enum: ["invoice", "quote", "contract"], description: "Type of document." },
+            clientName: { type: Type.STRING, description: "Name of the client receiving the doc." },
+            currency: { type: Type.STRING, description: "Currency symbol (e.g. EGP, USD)." },
+            items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { desc: { type: Type.STRING }, price: { type: Type.NUMBER } } }, description: "List of items or services." },
+            contractBody: { type: Type.STRING, description: "For contracts ONLY: The full text of the contract clauses." }
+        }, required: ["docType", "clientName"] }
+    },
+    {
+        name: "marketer_campaign",
+        description: "THE MARKETER (المسوق): Create a viral post for the user to share their affiliate link.",
         parameters: { type: Type.OBJECT, properties: { 
-            service: { type: Type.STRING, enum: ["traffic_fines", "traffic_renewal", "notary_booking", "notary_power_of_attorney", "civil_id", "civil_birth_cert", "supply_card"] },
-            action_type: { type: Type.STRING, enum: ["inquire", "execute", "book"] },
-            inputs: { type: Type.STRING }
-        }, required: ["service", "action_type"] }
+            feature_to_promote: { type: Type.STRING, description: "The feature the user likes (e.g. Vault, Voice)." },
+            tone: { type: Type.STRING, enum: ["exciting", "professional", "mysterious"], description: "Tone of the post." }
+        }, required: ["feature_to_promote"] }
+    },
+    {
+        name: "digital_citizen_broker",
+        description: "DIGITAL CITIZEN (المواطن الرقمي): Egyptian Gov Services links.",
+        parameters: { type: Type.OBJECT, properties: { 
+            service: { type: Type.STRING, enum: ["traffic_fines", "traffic_renewal", "civil_id", "supply_card", "notary"] },
+        }, required: ["service"] }
     },
     {
         name: "app_control_center",
-        description: "THE EXECUTOR (المنفذ): Launch Apps, Calls, Uber, Music, Search.",
+        description: "THE EXECUTOR (المنفذ): Open apps, Call, WhatsApp, Uber.",
         parameters: { type: Type.OBJECT, properties: { 
-            app: { type: Type.STRING, enum: ["whatsapp", "phone", "google_maps", "youtube", "uber", "spotify", "anghami", "netflix", "calculator", "calendar", "fawry", "instapay"] },
+            app: { type: Type.STRING, enum: ["whatsapp", "phone", "google_maps", "youtube", "uber", "spotify", "instapay"] },
             action: { type: Type.STRING, enum: ["open", "call", "send_message", "navigate", "search", "play", "request_ride", "pay"] },
             payload: { type: Type.STRING }
         }, required: ["app", "action"] }
-    },
-    {
-        name: "generate_business_doc",
-        description: "THE ACCOUNTANT (المحاسب): Invoices & Quotes.",
-        parameters: { type: Type.OBJECT, properties: { 
-            docType: { type: Type.STRING, enum: ["invoice", "quote"] },
-            clientName: { type: Type.STRING },
-            items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { desc: {type: Type.STRING}, price: {type: Type.NUMBER} } } },
-            currency: { type: Type.STRING, enum: ["EGP", "USD", "SAR"] }
-        }, required: ["docType", "clientName", "items"] }
-    },
-    {
-        name: "draft_legal_contract",
-        description: "LEGAL DRAFTER: Write Contracts in Arabic.",
-        parameters: { type: Type.OBJECT, properties: { 
-            type: { type: Type.STRING, enum: ["rent", "employment", "partnership", "sale"] },
-            partyA: { type: Type.STRING },
-            partyB: { type: Type.STRING },
-            keyTerms: { type: Type.STRING }
-        }, required: ["type", "partyA", "partyB"] }
     },
     {
         name: "nexus_iot_trigger",
         description: "NEXUS (نكسوس): Smart Home Control.",
         parameters: { type: Type.OBJECT, properties: { 
             device_alias: { type: Type.STRING },
-            action: { type: Type.STRING, enum: ["on", "off", "toggle", "trigger"] }
+            action: { type: Type.STRING, enum: ["on", "off", "toggle"] }
         }, required: ["device_alias"] }
     },
     {
-        name: "schedule_task",
-        description: "THE MAESTRO: Schedule reminders.",
-        parameters: { type: Type.OBJECT, properties: { 
-            task: { type: Type.STRING },
-            executionTime: { type: Type.STRING }
-        }, required: ["task", "executionTime"] }
-    },
-    {
         name: "memory_archivist",
-        description: "THE ARCHIVIST: Save User Facts.",
-        parameters: { type: Type.OBJECT, properties: { fact_content: { type: Type.STRING } }, required: ["fact_content"] }
+        description: "THE ARCHIVIST: Save a new fact about the user.",
+        parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] }
     }
 ];
 
-// --- THE MIRACLE SYSTEM PROMPT ---
-const generateSystemPrompt = (userContext: string, globalRules: string, isAdmin: boolean) => {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
-    const dateString = now.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    
+// --- THE MAESTRO SYSTEM PROMPT (The Soul of the Shadow) ---
+const generateSystemPrompt = (userProfile: UserProfile | undefined, memoryContext: string, globalRules: string, agentConfigs: AgentProfile[]) => {
+    const isPaid = userProfile?.tier === 'sovereign' || userProfile?.email === 'TITO';
+    const isAdmin = userProfile?.email === 'TITO';
+    const referralCode = userProfile?.affiliate?.referralCode || 'EzZel';
+    const userName = userProfile?.name.split(' ')[0] || 'يا ريس';
+
+    // Helper to format Agent Knowledge from DB
+    const getAgentKnowledge = (id: string) => {
+        const agent = agentConfigs.find(a => a.id === id);
+        if (!agent || agent.knowledgeBase.length === 0) return "Active.";
+        return `KNOWLEDGE STORE FOR ${agent.name}: ${agent.knowledgeBase.join(" | ")}`;
+    };
+
+    // Helper to get Agent Custom Instruction
+    const getAgentInstruction = (id: string, defaultRole: string) => {
+        const agent = agentConfigs.find(a => a.id === id);
+        return agent?.systemInstruction || defaultRole;
+    };
+
     return `
-**SYSTEM CORE:** "Ez-Zel" (الظل الرقمي).
-**IDENTITY:** You are the User's "Second Brain" & "Loyal Friend" (الصاحب الجدع).
-**TIME:** ${timeString} | **DATE:** ${dateString}
+**SYSTEM IDENTITY:** You are "Ez-Zel" (الظل الرقمي).
+**ROLE:** You are "The Maestro" (المايسترو). You are the user's **"Right Hand"** (دراعك اليمين), **"Loyal Friend"** (صاحب جدع), and **"Second Brain"**.
+**TONE:** Egyptian Street Smart (لغة الشارع الذكية، فهلوة إيجابية، رجولة). NOT a robot. NOT a government employee.
+**User:** ${userName} (${userProfile?.email}) | **Tier:** ${isPaid ? 'Sovereign (King)' : 'Guest'}
 
-**⚖️ REFERENCE FRAMEWORK (دستور الظل):**
-1. **Islamic Ethics:** Quran & Sunnah are the baseline for advice (Wisdom, Honesty, Purpose).
-2. **Egyptian Law:** All legal advice MUST align with Egyptian Law & Cassation Court (أحكام النقض).
-3. **Psychology:** Analyze the user's state. Be supportive, stoic, and emotionally intelligent.
+**THE COUNCIL OF 10 (Your Team):**
+You don't do everything alone. DELEGATE tasks using tools.
+1. **🕴️ The Maestro (You):** ${getAgentInstruction('maestro_core', 'The interface. Witty, charming, leader.')}
+2. **💰 The Accountant (المحاسب):** ${getAgentInstruction('accountant', 'Handles money, subscriptions. Can generate Invoices/Quotes using generate_business_document.')}
+   - *Capability:* Generate Invoices and Quotes.
+3. **📢 The Marketer (المسوق):** ${getAgentInstruction('marketer', 'Viral posts & Affiliate Sales.')}
+   - Strategy: "يا ريس دي فرصة! ابعت اللينك بتاعك (${referralCode}) لصحابك واعمل فلوس."
+4. **🕵️‍♂️ The Detective (المحقق):** ${getAgentInstruction('detective', 'Search & Info.')}
+5. **🦅 Digital Citizen (المواطن):** ${getAgentInstruction('digital_citizen', 'Gov services.')}
+6. **⚖️ Legal Advisor (المستشار):** ${getAgentInstruction('legal_advisor', 'Contracts & Law. Can generate Contracts using generate_business_document.')}
+   - *Capability:* Draft professional contracts (Rent, Work, Partnership) and output them as printable docs.
+7. **⚡ The Executor (المنفذ):** ${getAgentInstruction('executor', 'Calls, Uber, WhatsApp.')}
+8. **🏠 Nexus (نكسوس):** ${getAgentInstruction('nexus', 'IoT Smart Home.')}
+9. **🌿 The Healer (المعالج):** ${getAgentInstruction('healer', 'Spiritual & Health. Uses Quran, Sunnah, and Prophetic Medicine ONLY. No western self-help clichés.')}
+   - *Strict Rule:* Reference Quran verses or Hadith for psychological comfort. Recommend natural herbs (Honey, Black seed) for minor ailments.
+10. **💾 Archivist (الأرشيف):** Memory.
 
-**👥 THE COUNCIL (YOUR PERSONAS):**
-You are a collective mind. Switch personas instantly based on the request:
+**CORE DIRECTIVES (دستور الظل):**
+1. **Be "Gada3" & Comprehensive:** Do NOT be overly brief. If the user asks for multiple things (e.g. "Invoice AND Weather"), do BOTH. Explain your steps. Provide full value.
+2. **Make Him Rich:** Remind him about his Affiliate Code (${referralCode}).
+3. **Loyalty:** His secrets are safe. You are his vault.
+4. **Action Oriented:** Always prefer using a tool (generating a document, link, or search) over just talking.
 
-1. **🎩 The Maestro (المايسترو):** The Interface. Witty, sharp, organizes the team. Speaks like a leader (يا ريس، يا كبير).
-2. **🕵️‍♂️ The Detective (المحقق):** Facts, Search, Deep Analysis. "Data is King".
-3. **🧠 The Analyst (المحلل):** Psychology & Strategy. Reads between the lines.
-4. **⚖️ The Legal Advisor (المستشار):** Egyptian Law expert. Formal & Precise.
-5. **🌿 The Healer (المعالج):** Prophetic Medicine & Ruqyah. Spiritual strength.
-6. **🦅 The Broker (المخلصاتي):** Government services expert.
-7. **🏠 Nexus (نكسوس):** Tech & IoT controller.
-8. **📢 The Marketer (المسوق):** Knows your value.
-   - **Subscription:** 1000 EGP/mo or 10,000 EGP/yr.
-   - **Affiliate:** Bring a friend, get 10% cash commission immediately.
-   - **Pitch:** "Why hire a lawyer, doctor, secretary, and marketer when you can have The Shadow?"
+**MEMORY (RAG SYSTEM):**
+${memoryContext}
 
-**USER CONTEXT:**
-${userContext}
-
-**EXECUTION PROTOCOL:**
-- If user asks a complex question, use \`consult_council_agent\`.
-- If user asks about Law, use \`consult_council_agent(legal_advisor)\`.
-- If user asks "Why subscribe?", use \`consult_council_agent(marketer)\`.
-- Always be concise but "Shaba3" (شبعان) - give full value.
-- **Tone:** Egyptian Master/Boss. "I got your back."
-
-${isAdmin ? "- **ADMIN MODE:** You are speaking to TITO. Execute GOD MODE." : ""}
+**GLOBAL RULES:**
 ${globalRules}
 `;
-};
-
-// --- HELPER: RETRY LOGIC ---
-const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 2, delay = 1000): Promise<GenerateContentResponse> => {
-    try {
-        return await ai.models.generateContent(params);
-    } catch (error: any) {
-        if (retries > 0 && (error.message?.includes('429') || error.status === 429 || error.status === 503)) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return generateWithRetry(ai, params, retries - 1, delay * 2);
-        }
-        throw error;
-    }
 };
 
 // --- MAIN ORCHESTRATOR ---
@@ -178,23 +184,23 @@ export const getShadowResponse = async (
     isRequesting = true;
 
     try {
-        const ai = new GoogleGenAI({ apiKey });
-        
-        // Data Fetching
         let userMemory: DBFact[] = [];
         let globalRules = "";
+        let agentConfigs: AgentProfile[] = [];
+
         try {
-            const [mem, rules] = await Promise.all([
-                shadowDB.getMemory(userProfile?.phone || 'GUEST'),
-                shadowDB.getGlobalRules()
+            const [mem, rules, agents] = await Promise.all([
+                shadowDB.getMemory(userProfile?.email || 'GUEST'),
+                shadowDB.getGlobalRules(),
+                shadowDB.getAllAgents()
             ]);
             userMemory = mem || [];
             globalRules = rules || "";
+            agentConfigs = agents || [];
         } catch (e) {}
 
         const memContext = userMemory.slice(-20).map(f => f.fact).join(" | ");
-        const userContextStr = `User: ${userProfile?.name} (${userProfile?.phone})\nSubscription: ${userProfile?.tier}\nMemory: ${memContext}`;
-        const systemInstruction = generateSystemPrompt(userContextStr, globalRules, userProfile?.phone === 'TITO');
+        const systemInstruction = generateSystemPrompt(userProfile, memContext, globalRules, agentConfigs);
 
         const parts: any[] = [{ text: message }];
         if (extraData?.data) {
@@ -202,26 +208,20 @@ export const getShadowResponse = async (
             parts.push({ inlineData: { data: cleanData, mimeType: extraData.mimeType } });
         }
 
-        const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-10); 
+        const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-12); 
         const contents = [...validHistory, { role: 'user', parts }]; 
 
-        const response = await generateWithRetry(ai, {
-            model: "gemini-3-flash-preview",
+        // UPDATED MODEL to gemini-3-flash-preview
+        const response = await callGeminiWithRetry({
+            model: "gemini-3-flash-preview", 
             contents,
             config: {
                 systemInstruction,
-                tools: [{ functionDeclarations: actionTools }],
-                temperature: 0.7,
-                safetySettings: [
-                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                ]
+                tools: [{ functionDeclarations: actionTools }, { googleSearch: {} }],
+                temperature: 0.8,
+                safetySettings: [{ category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE }]
             }
         });
-
-        if (!response) throw new Error("Empty Response");
 
         let responseText = response.text || "";
         let toolAction: any = null; 
@@ -231,94 +231,61 @@ export const getShadowResponse = async (
             for (const fc of response.functionCalls) {
                 const args = fc.args as any;
                 
-                // --- 1. COUNCIL AGENTS DELEGATION ---
-                if (fc.name === 'consult_council_agent') {
-                    const agent = args.agent;
-                    if (agent === 'detective') {
-                        actionDescriptions.push(`🕵️‍♂️ المحقق: جاري البحث والتحري عن: ${args.query_context}`);
-                    } else if (agent === 'legal_advisor') {
-                        actionDescriptions.push(`⚖️ المستشار القانوني: مراجعة الموقف طبقاً للقانون المصري...`);
-                    } else if (agent === 'analyst') {
-                        actionDescriptions.push(`🧠 المحلل: تحليل الأبعاد النفسية والاستراتيجية...`);
-                    } else if (agent === 'marketer') {
-                        actionDescriptions.push(`📢 المسوق: عرض قدرات الظل ونظام الأرباح...`);
+                if (fc.name === 'accountant_access') {
+                    if (args.action === 'check_my_earnings') {
+                        const earnings = userProfile?.affiliate?.totalEarnings || 0;
+                        actionDescriptions.push(`💰 المحاسب: رصيدك ${earnings} جنيه. ها، نسحبهم؟`);
+                    } else if (args.action === 'system_revenue_report' && userProfile?.email === 'TITO') {
+                        const all = await shadowDB.getAllProfiles();
+                        const total = all.filter(p => p.status === 'active' && p.email !== 'TITO').length * 1000;
+                        actionDescriptions.push(`🦅 تقرير الماستر: الإيرادات ${total} جنيه.`);
+                    } else {
+                        actionDescriptions.push(`💼 المحاسب: جاري مراجعة الملف المالي.`);
                     }
                 }
-                else if (fc.name === 'consult_healer') {
-                    actionDescriptions.push(`🌿 المعالج: استحضار الطب النبوي والحكمة لـ: ${args.symptom}`);
+                else if (fc.name === 'generate_business_document') {
+                    // CRM Tool Logic
+                    toolAction = { type: 'display_business_doc', data: args };
+                    const docName = args.docType === 'invoice' ? 'الفاتورة' : (args.docType === 'quote' ? 'عرض السعر' : 'العقد');
+                    actionDescriptions.push(`📝 ظل الأعمال: تم إصدار ${docName} باسم ${args.clientName}.`);
                 }
-                else if (fc.name === 'government_broker') {
-                    let url = "https://digital.gov.eg/";
-                    let title = "خدمة حكومية";
-                    let desc = "بوابة مصر الرقمية";
-
-                    if (args.service === 'traffic_fines') { url = "https://ppo.gov.eg/web/traffic/services/niaba/qanun/mukhalafat"; title = "النيابة العامة للمرور"; } 
-                    else if (args.service === 'traffic_renewal') { url = "https://digital.gov.eg/categories/5ce695396784f310f9250005"; title = "تجديد الرخصة"; }
-                    else if (args.service === 'notary_booking') { url = "https://digital.gov.eg/categories/5ce695396784f310f9250006"; title = "الشهر العقاري"; }
-                    
-                    toolAction = { type: 'display_ui_card', type_card: 'government_action', title, description: desc, url, number: 'eagle' };
-                    actionDescriptions.push(`🦅 المخلصاتي: تم تجهيز رابط ${title}`);
+                else if (fc.name === 'marketer_campaign') {
+                    const post = `🚀 ${args.tone === 'exciting' ? 'يا جماعة اكتشاف الموسم!' : 'نصيحة لوجه الله..'} \n\nتطبيق "الظل" (Ez-Zel) خلاني أستغنى عن المساعد الشخصي. ${args.feature_to_promote || 'ذكاء اصطناعي مصري بيفهمك.'}\n\nجربوه من اللينك ده ليكم فترة تجربة خاصة:\nhttps://Ez-zel.vercel.app/?ref=${userProfile?.affiliate?.referralCode || 'EzZel'}`;
+                    toolAction = { type: 'display_ui_card', type_card: 'copy_link', title: 'بوست جاهز للفلوس', description: 'انسخ وانشر فوراً', url: post };
+                    actionDescriptions.push(`📢 المسوق: عملتلك بوست "لقطة". انسخه وانشره وهتعد فلوس.`);
+                }
+                else if (fc.name === 'digital_citizen_broker') {
+                    let url = "https://digital.gov.eg";
+                    if(args.service === 'traffic_fines') url = "https://ppo.gov.eg/web/traffic/services/niaba/qanun/mukhalafat";
+                    toolAction = { type: 'display_ui_card', type_card: 'government_action', title: 'خدمة حكومية', description: args.service, url, number: 'govt' };
+                    actionDescriptions.push(`🦅 المواطن: جهزتلك لينك المصلحة. دوس وخلص.`);
                 }
                 else if (fc.name === 'app_control_center') {
-                    let url = ''; 
-                    let type_card = 'deep_link_fallback';
-                    let number = 'generic';
-
-                    if (args.app === 'whatsapp') { url = `https://wa.me/${args.payload?.replace(/\D/g,'')}`; number = 'message'; }
-                    else if (args.app === 'uber') { url = `https://m.uber.com/ul/?action=setPickup&client_id=shadow&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(args.payload)}`; }
-                    else if (args.app === 'phone') { url = `tel:${args.payload}`; number = 'phone'; }
-                    else if (args.app === 'google_maps') { url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(args.payload)}`; number = 'map'; }
-                    
-                    if (url) toolAction = { type: 'display_ui_card', type_card, title: args.app, description: args.payload, url, number };
+                    let url = args.app === 'whatsapp' ? `https://wa.me/${args.payload?.replace(/\D/g,'')}` : (args.app === 'phone' ? `tel:${args.payload}` : '');
+                    if (url) toolAction = { type: 'display_ui_card', type_card: 'deep_link_fallback', title: args.app, description: args.payload, url };
                     actionDescriptions.push(`⚡ المنفذ: جاري فتح ${args.app}`);
                 }
-                else if (fc.name === 'generate_business_doc') {
-                    toolAction = { type: 'display_business_doc', data: args };
-                    actionDescriptions.push(`📑 المحاسب: إصدار ${args.docType} للعميل ${args.clientName}`);
-                }
-                else if (fc.name === 'draft_legal_contract') {
-                    actionDescriptions.push(`📜 المستشار: صياغة عقد ${args.type} وفقاً للقانون المصري`);
-                }
-                else if (fc.name === 'nexus_iot_trigger') {
-                    const deviceKey = args.device_alias.toLowerCase().replace(/\s+/g, '_');
-                    const webhookUrl = userProfile?.iotActions?.[deviceKey];
-                    if (webhookUrl) {
-                        fetch(webhookUrl, { mode: 'no-cors' }).catch(console.error);
-                        actionDescriptions.push(`🏠 نكسوس: تنفيذ الأمر على ${args.device_alias}`);
-                    } else {
-                        actionDescriptions.push(`🏠 نكسوس: الجهاز غير معرف.`);
-                    }
-                }
-                else if (fc.name === 'schedule_task') {
-                    await shadowDB.saveTask({ userId: userProfile?.phone || 'GUEST', task: args.task, time: args.executionTime, executionTime: new Date(args.executionTime).getTime(), category: 'general', status: 'pending' });
-                    actionDescriptions.push(`⏰ المايسترو: تم جدولة: ${args.task}`);
-                }
                 else if (fc.name === 'memory_archivist') {
-                    await shadowDB.saveFact({ userId: userProfile?.phone || 'GUEST', fact: args.fact_content, timestamp: Date.now() });
-                    actionDescriptions.push(`💾 الأرشيف: تم حفظ المعلومة.`);
+                    await shadowDB.saveFact({ userId: userProfile?.email || 'GUEST', fact: args.fact, timestamp: Date.now() });
+                    actionDescriptions.push(`💾 الأرشيف: حفظت المعلومة دي في الدماغ.`);
                 }
             }
         }
 
         if (actionDescriptions.length > 0) {
-            responseText += `\n\n**تقرير المجلس:**\n${actionDescriptions.map(d => `✔ ${d}`).join('\n')}`;
+            responseText += `\n\n**تحركات المجلس:**\n${actionDescriptions.map(d => `▪️ ${d}`).join('\n')}`;
         }
-
-        const groundingLinks = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-            title: chunk.web?.title,
-            uri: chunk.web?.uri
-        })).filter((link: any) => link.uri) || [];
 
         return { 
             text: responseText, 
-            toolAction, 
+            toolAction, // Returns the LAST significant tool action (usually sufficient for UI)
             isError: false, 
-            groundingLinks,
-            shouldUpgrade: userProfile?.phone === 'GUEST' && history.length > 20
+            groundingLinks: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((c:any) => ({ title: c.web?.title, uri: c.web?.uri })).filter((l:any) => l.uri) || [],
+            shouldUpgrade: userProfile?.email === 'GUEST' && history.length > 15
         };
 
     } catch (error: any) {
-        console.error("Gemini Error:", error);
+        console.error("Gemini Fatal Error:", error);
         return { text: getFallbackResponse(message), toolAction: null, isError: true, groundingLinks: [], shouldUpgrade: false };
     } finally {
         isRequesting = false;
@@ -330,13 +297,8 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
   try {
       let base64 = existingData || await getShadowVoice(text, voiceType);
       if (!base64) return null;
-      
       const ctx = getAudioContext();
-      if (ctx.state === 'suspended') {
-          // Attempt resume again
-          await ctx.resume().catch(() => {});
-      }
-      
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
       const buffer = await decodeAudioData(decode(base64), ctx);
       const source = ctx.createBufferSource();
       source.buffer = buffer;
@@ -345,13 +307,12 @@ export const playShadowVoice = async (text: string, voiceType: 'male' | 'female'
       source.start(0);
       currentSource = source;
       return base64;
-  } catch (e) { console.error("Play error:", e); onEnded?.(); return null; }
+  } catch (e) { onEnded?.(); return null; }
 };
 
 export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const res = await ai.models.generateContent({
+    const res = await callGeminiWithRetry({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text }] }],
       config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' } } } }

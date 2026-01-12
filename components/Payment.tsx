@@ -1,6 +1,6 @@
-
 import React, { useState, useRef } from 'react';
-import { Phone, ArrowRight, CheckCircle, Copy, ExternalLink, ShieldCheck, Wallet, Sparkles, Smartphone, ArrowLeft, ImagePlus, X, Loader2, CreditCard } from 'lucide-react';
+import { Phone, ArrowRight, CheckCircle, Copy, ExternalLink, ShieldCheck, Wallet, Sparkles, Smartphone, ArrowLeft, ImagePlus, X, Loader2, CreditCard, Tag } from 'lucide-react';
+import { shadowDB } from '../services/dbService';
 
 interface Props {
   planId: string;
@@ -14,44 +14,49 @@ const Payment: React.FC<Props> = ({ planId, billingCycle, onSuccess, onBack }) =
   const [method, setMethod] = useState<'vodafone' | 'instapay' | 'orange' | 'etisalat' | 'we' | null>(null);
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [discount, setDiscount] = useState(0);
+  const [couponStatus, setCouponStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const priceEGP = currentCycle === 'yearly' ? '10,000' : '1,000';
-  const priceUSD = currentCycle === 'yearly' ? '200' : '20';
+  const basePrice = currentCycle === 'yearly' ? 10000 : 1000;
+  const finalPrice = Math.max(0, basePrice - discount);
+  const priceEGP = finalPrice.toLocaleString();
+  
   const planName = currentCycle === 'yearly' ? 'باقة النخبة (سنوي)' : 'باقة النخبة (شهري)';
 
   // رقم المحفظة الموحد
   const WALLET_NUMBER = "01030956097";
-  const AMOUNT = priceEGP.replace(/,/g, ''); // Remove commas for USSD
-
+  
   const wallets = {
       vodafone: {
           name: 'فودافون كاش',
           color: 'border-red-500 bg-red-500/10',
           iconColor: 'text-red-500',
-          ussd: `*9*7*${WALLET_NUMBER}*${AMOUNT}#`,
-          dialCode: `*9*7*${WALLET_NUMBER}*${AMOUNT}%23`
+          ussd: `*9*7*${WALLET_NUMBER}*${finalPrice}#`,
+          dialCode: `*9*7*${WALLET_NUMBER}*${finalPrice}%23`
       },
       orange: {
           name: 'أورانج كاش',
           color: 'border-orange-500 bg-orange-500/10',
           iconColor: 'text-orange-500',
-          ussd: `*7115*${WALLET_NUMBER}*${AMOUNT}#`,
-          dialCode: `*7115*${WALLET_NUMBER}*${AMOUNT}%23`
+          ussd: `*7115*${WALLET_NUMBER}*${finalPrice}#`,
+          dialCode: `*7115*${WALLET_NUMBER}*${finalPrice}%23`
       },
       etisalat: {
           name: 'إي آند (اتصالات)',
           color: 'border-emerald-500 bg-emerald-500/10',
           iconColor: 'text-emerald-500',
-          ussd: `*777*${WALLET_NUMBER}*${AMOUNT}#`,
-          dialCode: `*777*${WALLET_NUMBER}*${AMOUNT}%23`
+          ussd: `*777*${WALLET_NUMBER}*${finalPrice}#`,
+          dialCode: `*777*${WALLET_NUMBER}*${finalPrice}%23`
       },
       we: {
           name: 'وي باي (WE)',
           color: 'border-purple-500 bg-purple-500/10',
           iconColor: 'text-purple-500',
-          ussd: `*322*${WALLET_NUMBER}*${AMOUNT}#`,
-          dialCode: `*322*${WALLET_NUMBER}*${AMOUNT}%23`
+          ussd: `*322*${WALLET_NUMBER}*${finalPrice}#`,
+          dialCode: `*322*${WALLET_NUMBER}*${finalPrice}%23`
       }
   };
 
@@ -72,6 +77,18 @@ const Payment: React.FC<Props> = ({ planId, billingCycle, onSuccess, onBack }) =
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const verifyCoupon = async () => {
+      if(!couponCode) return;
+      const coupon = await shadowDB.getCoupon(couponCode);
+      if (coupon && (coupon.maxUses > coupon.usedCount)) {
+          setDiscount(coupon.discountAmount);
+          setCouponStatus('valid');
+      } else {
+          setDiscount(0);
+          setCouponStatus('invalid');
+      }
   };
 
   return (
@@ -108,17 +125,34 @@ const Payment: React.FC<Props> = ({ planId, billingCycle, onSuccess, onBack }) =
             </div>
         </div>
 
-        <div className="text-center mb-8 animate-in zoom-in duration-300">
+        <div className="text-center mb-6 animate-in zoom-in duration-300">
             <div className="flex justify-center items-center gap-4 mb-2">
                  <div className="px-6 py-3 bg-white text-black rounded-2xl text-3xl font-black inline-block shadow-[0_0_30px_rgba(255,255,255,0.2)]">
                     {priceEGP} <span className="text-sm align-top">ج.م</span>
                  </div>
             </div>
             {currentCycle === 'yearly' && (
-                <span className="text-emerald-400 text-[10px] font-bold bg-emerald-900/20 px-3 py-1 rounded-full border border-emerald-500/20 animate-pulse">
+                <span className="text-emerald-400 text-[10px] font-bold bg-emerald-900/20 px-3 py-1 rounded-full border border-emerald-500/20 animate-pulse block w-fit mx-auto mb-2">
                     ⚡ تم تطبيق خصم 20% للباقة السنوية
                 </span>
             )}
+            
+            {/* COUPON INPUT */}
+            <div className="flex items-center justify-center gap-2 max-w-xs mx-auto">
+                <div className="relative flex-1">
+                    <Tag className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                    <input 
+                        type="text" 
+                        placeholder="معاك كود خصم؟" 
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pr-9 pl-2 text-xs text-white focus:border-purple-500/50 outline-none text-center font-mono tracking-widest"
+                    />
+                </div>
+                <button onClick={verifyCoupon} className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-white transition-all">تفعيل</button>
+            </div>
+            {couponStatus === 'valid' && <p className="text-[10px] text-emerald-400 font-bold mt-1">تم تفعيل الخصم! ({discount}ج)</p>}
+            {couponStatus === 'invalid' && <p className="text-[10px] text-red-400 font-bold mt-1">الكود غير صالح أو انتهى.</p>}
         </div>
 
         {/* Instapay Special Box */}
@@ -157,7 +191,7 @@ const Payment: React.FC<Props> = ({ planId, billingCycle, onSuccess, onBack }) =
                     <p className="text-white/40 text-[10px] mb-1">كود التحويل المباشر</p>
                     <p className="text-white font-mono text-base font-bold tracking-widest" dir="ltr">{wallets[method as keyof typeof wallets].ussd}</p>
                     {currentCycle === 'yearly' && (
-                        <p className="text-amber-500 text-[9px] mt-2 font-bold">تنبيه: تأكد أن محفظتك تسمح بتحويل 10,000ج في عملية واحدة.</p>
+                        <p className="text-amber-500 text-[9px] mt-2 font-bold">تنبيه: تأكد أن محفظتك تسمح بتحويل {finalPrice}ج في عملية واحدة.</p>
                     )}
                 </div>
                 <button onClick={() => handleDial(wallets[method as keyof typeof wallets].dialCode)} className={`w-full py-3 rounded-[20px] font-black text-white flex items-center justify-center gap-2 transition-all text-sm ${method === 'vodafone' ? 'bg-red-600' : method === 'orange' ? 'bg-orange-600' : method === 'etisalat' ? 'bg-emerald-600' : 'bg-purple-600'}`}>
