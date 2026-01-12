@@ -29,7 +29,7 @@ function getAudioContext() {
 }
 
 // --- INTELLIGENT RETRY LOGIC (Fixes 429 Resource Exhausted) ---
-const callGeminiWithRetry = async (params: any, retries = 3, delay = 2500): Promise<GenerateContentResponse> => {
+const callGeminiWithRetry = async (params: any, retries = 3, delay = 2000): Promise<GenerateContentResponse> => {
     try {
         const response = await ai.models.generateContent(params);
         if (!response || !response.text) throw new Error("Empty Response");
@@ -39,17 +39,20 @@ const callGeminiWithRetry = async (params: any, retries = 3, delay = 2500): Prom
         const isOverloaded = error.status === 503;
         
         if ((isQuotaError || isOverloaded) && retries > 0) {
-            console.warn(`[Shadow Core] Network busy (${error.status}). Retrying in ${delay}ms... (${retries} attempts left)`);
+            console.warn(`[Shadow Core] Network busy (${error.status}). Switching strategy... (${retries} left)`);
             
-            // FALLBACK STRATEGY: If it's the last attempt and we got 429, try the lighter model
-            if (retries === 1 && params.model === 'gemini-3-flash-preview') {
-                console.log("[Shadow Core] Switching to Fallback Model (gemini-2.5-flash)...");
-                const fallbackParams = { ...params, model: 'gemini-2.5-flash-latest' };
-                // Remove tools that might not be compatible if needed, but 2.5 supports most
-                return callGeminiWithRetry(fallbackParams, 0, 0); 
+            // IMMEDIATE FALLBACK STRATEGY:
+            // If Gemini 3 fails (429), immediately switch to Gemini 2.0 Flash (Stable)
+            if (params.model === 'gemini-3-flash-preview') {
+                console.log("⚡ Switching to Stable Engine (Gemini 2.0)...");
+                const fallbackParams = { ...params, model: 'gemini-2.0-flash-exp' };
+                // Wait small random delay to avoid stampede
+                await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500));
+                return callGeminiWithRetry(fallbackParams, retries - 1, delay); 
             }
 
-            const backoff = delay * 1.5 + Math.random() * 500;
+            // Standard Exponential Backoff
+            const backoff = delay * 1.5;
             await new Promise(resolve => setTimeout(resolve, backoff));
             return callGeminiWithRetry(params, retries - 1, backoff);
         }
@@ -213,9 +216,10 @@ export const getShadowResponse = async (
         const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-12); 
         const contents = [...validHistory, { role: 'user', parts }]; 
 
-        // UPDATED MODEL to gemini-3-flash-preview
+        // UPDATED MODEL: Use gemini-2.0-flash-exp (aka 2.5 Flash) as primary for Vercel Stability
+        // gemini-3-flash-preview is too volatile for shared IPs right now.
         const response = await callGeminiWithRetry({
-            model: "gemini-3-flash-preview", 
+            model: "gemini-2.0-flash-exp", 
             contents,
             config: {
                 systemInstruction,
