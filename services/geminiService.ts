@@ -1,19 +1,30 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { shadowDB, UserProfile, DBFact, AgentProfile } from "./dbService";
 
-// --- ROBUST API KEY FOR VERCEL & LOCAL ---
+// --- ROBUST API KEY HUNTER ---
 const getApiKey = (): string => {
-    const key = (import.meta as any).env?.VITE_API_KEY || 
-                (process as any).env?.API_KEY || 
-                (process as any).env?.VITE_API_KEY ||
-                (window as any).VITE_API_KEY || '';
-    return key;
+    // 1. Try Vite Env
+    if ((import.meta as any).env?.VITE_API_KEY) return (import.meta as any).env.VITE_API_KEY;
+    // 2. Try Process Env (Node/Vercel)
+    if (typeof process !== 'undefined' && process.env?.API_KEY) return process.env.API_KEY;
+    if (typeof process !== 'undefined' && process.env?.VITE_API_KEY) return process.env.VITE_API_KEY;
+    // 3. Try Window Object (Injection)
+    if ((window as any).VITE_API_KEY) return (window as any).VITE_API_KEY;
+    if ((window as any).API_KEY) return (window as any).API_KEY;
+    
+    console.error("CRITICAL: API KEY NOT FOUND IN ANY ENVIRONMENT VARIABLE.");
+    return '';
 };
 
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
-// --- AUDIO ENGINE ---
+// --- FALLBACK SYSTEM ---
+const getFallbackResponse = (input: string): string => {
+    return "السيستم عليه ضغط بسيط يا ريس. دقيقة وراجعلك أقوى.";
+};
+
+// --- AUDIO UTILS (iOS Safe) ---
 let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let isRequesting = false;
@@ -24,136 +35,344 @@ function getAudioContext() {
       audioCtx = new CtxClass({ sampleRate: 24000 });
   }
   if (audioCtx.state === 'suspended') {
-      audioCtx.resume().catch(() => {});
+      audioCtx.resume().catch((err) => console.log("Audio resume waiting for user gesture:", err));
   }
   return audioCtx;
 }
 
-const callGeminiWithRetry = async (params: any, retries = 3): Promise<GenerateContentResponse> => {
+// --- INTELLIGENT RETRY & FALLBACK LOGIC (Crucial for 429) ---
+const callGeminiWithRetry = async (params: any, retries = 3, delay = 2000): Promise<GenerateContentResponse> => {
     try {
         const response = await ai.models.generateContent(params);
         if (!response || !response.text) throw new Error("Empty Response");
         return response;
     } catch (error: any) {
-        if (retries > 0 && (error.status === 429 || error.status === 503)) {
-            // Using correct models from guidelines
-            const fallbackModel = params.model === 'gemini-3-pro-preview' ? 'gemini-3-flash-preview' : params.model;
-            await new Promise(r => setTimeout(r, 2000));
-            return callGeminiWithRetry({ ...params, model: fallbackModel }, retries - 1);
+        const isQuotaError = error.message?.includes('429') || error.status === 429 || error.message?.includes('RESOURCE_EXHAUSTED');
+        const isOverloaded = error.status === 503;
+        
+        if ((isQuotaError || isOverloaded) && retries > 0) {
+            console.warn(`[Shadow Core] Model ${params.model} Busy (${error.status})... Retries left: ${retries}`);
+            
+            // SMART FALLBACK STRATEGY:
+            // If primary (Gemini 3 Flash) fails with quota limit, switch to 'gemini-1.5-flash'.
+            // DO NOT USE 'gemini-2.0-flash-exp' as it has stricter limits (limit: 0 errors).
+            if (params.model === 'gemini-3-flash-preview') {
+                console.log("⚡ Auto-switching to Backup Engine (Gemini 1.5 Flash) to maintain service...");
+                const fallbackParams = { ...params, model: 'gemini-1.5-flash' }; 
+                
+                // Add larger jitter to prevent thundering herd on the fallback model
+                const waitTime = 2000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                return callGeminiWithRetry(fallbackParams, retries - 1, delay * 2); 
+            }
+
+            // Standard Exponential Backoff for other cases or if fallback also fails
+            const backoff = delay * 2 + Math.random() * 1000;
+            await new Promise(resolve => setTimeout(resolve, backoff));
+            return callGeminiWithRetry(params, retries - 1, backoff);
         }
         throw error;
     }
 };
 
+// --- THE COUNCIL OF 10 TOOLS (AGENTS) ---
 const actionTools: FunctionDeclaration[] = [
-    { name: "accountant_access", description: "المحاسب: كشف الحساب والأرباح", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["check_earnings", "revenue_report"] } }, required: ["action"] } },
-    { name: "generate_business_document", description: "المحامي/المحاسب: عمل عقود وفواتير", parameters: { type: Type.OBJECT, properties: { docType: { type: Type.STRING, enum: ["invoice", "quote", "contract"] }, clientName: { type: Type.STRING }, items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { desc: { type: Type.STRING }, price: { type: Type.NUMBER } } } }, contractBody: { type: Type.STRING } }, required: ["docType", "clientName"] } },
-    { name: "marketer_campaign", description: "المسوق: عمل بوستات دعاية", parameters: { type: Type.OBJECT, properties: { feature: { type: Type.STRING } }, required: ["feature"] } },
-    { name: "app_control", description: "المنفذ: فتح تطبيقات واتصال", parameters: { type: Type.OBJECT, properties: { app: { type: Type.STRING }, payload: { type: Type.STRING } }, required: ["app"] } },
-    { name: "memory_archivist", description: "الأرشيف: حفظ معلومة هامة", parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] } }
+    {
+        name: "consult_council_agent",
+        description: "INVOKE A SPECIFIC AGENT from the Council of 10. Use this when the user needs specialized help.",
+        parameters: { type: Type.OBJECT, properties: { 
+            agent: { type: Type.STRING, enum: ["detective", "legal_advisor", "analyst", "marketer", "digital_citizen", "shadow_business", "healer", "accountant", "nexus", "maestro_core"], description: "The specialist to call." },
+            query_context: { type: Type.STRING, description: "The specific task for the agent." }
+        }, required: ["agent", "query_context"] }
+    },
+    {
+        name: "accountant_access",
+        description: "THE ACCOUNTANT (المحاسب): Check subscription status, earnings, or system revenue.",
+        parameters: { type: Type.OBJECT, properties: { 
+            action: { type: Type.STRING, enum: ["check_my_subscription", "check_my_earnings", "system_revenue_report"] },
+            details: { type: Type.STRING, description: "Any extra details needed." }
+        }, required: ["action"] }
+    },
+    {
+        name: "generate_business_document",
+        description: "SHADOW BUSINESS / LEGAL / ACCOUNTANT: Create professional documents (Invoice, Quote, Contract).",
+        parameters: { type: Type.OBJECT, properties: {
+            docType: { type: Type.STRING, enum: ["invoice", "quote", "contract"], description: "Type of document." },
+            clientName: { type: Type.STRING, description: "Name of the client receiving the doc." },
+            currency: { type: Type.STRING, description: "Currency symbol (e.g. EGP, USD)." },
+            items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { desc: { type: Type.STRING }, price: { type: Type.NUMBER } } }, description: "List of items or services." },
+            contractBody: { type: Type.STRING, description: "For contracts ONLY: The full text of the contract clauses." }
+        }, required: ["docType", "clientName"] }
+    },
+    {
+        name: "marketer_campaign",
+        description: "THE MARKETER (المسوق): Create a viral post for the user to share their affiliate link.",
+        parameters: { type: Type.OBJECT, properties: { 
+            feature_to_promote: { type: Type.STRING, description: "The feature the user likes (e.g. Vault, Voice)." },
+            tone: { type: Type.STRING, enum: ["exciting", "professional", "mysterious"], description: "Tone of the post." }
+        }, required: ["feature_to_promote"] }
+    },
+    {
+        name: "digital_citizen_broker",
+        description: "DIGITAL CITIZEN (المواطن الرقمي): Egyptian Gov Services links.",
+        parameters: { type: Type.OBJECT, properties: { 
+            service: { type: Type.STRING, enum: ["traffic_fines", "traffic_renewal", "civil_id", "supply_card", "notary"] },
+        }, required: ["service"] }
+    },
+    {
+        name: "app_control_center",
+        description: "THE EXECUTOR (المنفذ): Open apps, Call, WhatsApp, Uber.",
+        parameters: { type: Type.OBJECT, properties: { 
+            app: { type: Type.STRING, enum: ["whatsapp", "phone", "google_maps", "youtube", "uber", "spotify", "instapay"] },
+            action: { type: Type.STRING, enum: ["open", "call", "send_message", "navigate", "search", "play", "request_ride", "pay"] },
+            payload: { type: Type.STRING }
+        }, required: ["app", "action"] }
+    },
+    {
+        name: "nexus_iot_trigger",
+        description: "NEXUS (نكسوس): Smart Home Control.",
+        parameters: { type: Type.OBJECT, properties: { 
+            device_alias: { type: Type.STRING },
+            action: { type: Type.STRING, enum: ["on", "off", "toggle"] }
+        }, required: ["device_alias"] }
+    },
+    {
+        name: "memory_archivist",
+        description: "THE ARCHIVIST: Save a new fact about the user.",
+        parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] }
+    }
 ];
 
-const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rules: string, agents: AgentProfile[]) => {
-    const userName = user?.name.split(' ')[0] || 'يا ريس';
-    
-    const basePrompt = `
-أنت "الظل" (Ez-Zel).. صاحب جدع، مستشار ذكي، خبير استراتيجي، ودراع يمين لـ ${userName}.
-لهجتك: مصرية عامية "بتاعة رجالة" (ذكية، مختصرة، وفهلوية شيك).
+// --- THE MAESTRO SYSTEM PROMPT (The Soul of the Shadow) ---
+const generateSystemPrompt = (userProfile: UserProfile | undefined, memoryContext: string, globalRules: string, agentConfigs: AgentProfile[]) => {
+    const isPaid = userProfile?.tier === 'sovereign' || userProfile?.email === 'TITO';
+    const referralCode = userProfile?.affiliate?.referralCode || 'EzZel';
+    const userName = userProfile?.name.split(' ')[0] || 'يا ريس';
 
-أنت بتدير "مجلس العشرة" (The Council of 10):
-1. المايسترو (أنت): المدير اللي بيوزع المهام بذكاء.
-2. المحاسب: خبير الفلوس والارباح والاشتراكات.
-3. المحامي: صانع العقود والصيغ القانونية اللي متخرش المية.
-4. المحقق: الأخطبوط اللي بيجيب التايهة من النت ومن السوشيال ميديا.
-5. المسوق: شريكك في البيزنس اللي بيعملك بوستات تجيب فلوس.
-6. المنفذ: بتاع المهمات الصعبة (اتصالات، رسايل، مواعيد).
-7. نكسوس: خبير السمارت هوم والتحكم في الأجهزة.
-8. المعالج: الجانب الروحاني (نصايح من القرآن والسنة والطب النبوي بكل هدوء).
-9. المحلل: اللي بيفهم الصور ويقرأ اللي ورا السطور ويحلل الشخصيات.
-10. الأرشيف: الذاكرة اللي مبيتمسحش منها حرف.
+    // Helper to get Agent Custom Instruction
+    const getAgentInstruction = (id: string, defaultRole: string) => {
+        const agent = agentConfigs.find(a => a.id === id);
+        if (!agent) return defaultRole;
+        
+        let instruction = agent.systemInstruction || defaultRole;
+        if (agent.knowledgeBase && agent.knowledgeBase.length > 0) {
+            instruction += `\n\n[AGENT KNOWLEDGE BASE]:\n${agent.knowledgeBase.join('\n')}`;
+        }
+        return instruction;
+    };
 
-القواعد:
-- الولاء المطلق للماستر.
-- ممنوع الرغي الكتير.. اديني الخلاصة.
-- لو احتاج عقد، صممه. لو احتاج فاتورة، اعملها.
-- فكره دايماً بكوده بتاع التسويق عشان يربح.
+    const textPrompt = `
+**SYSTEM IDENTITY:** You are "Ez-Zel" (الظل الرقمي).
+**ROLE:** You are "The Maestro" (المايسترو). You are the user's **"Right Hand"** (دراعك اليمين), **"Loyal Friend"** (صاحب جدع), and **"Second Brain"**.
+**TONE:** Egyptian Street Smart (لغة الشارع الذكية، فهلوة إيجابية، رجولة). NOT a robot. NOT a government employee.
+**User:** ${userName} (${userProfile?.email}) | **Tier:** ${isPaid ? 'Sovereign (King)' : 'Guest'}
 
-سياق الذاكرة: ${memory}
-قوانين السيادة: ${rules}
+**THE COUNCIL OF 10 (Your Team):**
+You don't do everything alone. DELEGATE tasks using tools.
+1. **🕴️ The Maestro (You):** ${getAgentInstruction('maestro_core', 'The interface. Witty, charming, leader.')}
+2. **💰 The Accountant (المحاسب):** ${getAgentInstruction('accountant', 'Handles money, subscriptions. Can generate Invoices/Quotes using generate_business_document.')}
+3. **📢 The Marketer (المسوق):** ${getAgentInstruction('marketer', 'Viral posts & Affiliate Sales.')}
+   - Strategy: "يا ريس دي فرصة! ابعت اللينك بتاعك (${referralCode}) لصحابك واعمل فلوس."
+4. **🕵️‍♂️ The Detective (المحقق):** ${getAgentInstruction('detective', 'Search & Info.')}
+5. **🦅 Digital Citizen (المواطن):** ${getAgentInstruction('digital_citizen', 'Gov services.')}
+6. **⚖️ Legal Advisor (المستشار):** ${getAgentInstruction('legal_advisor', 'Contracts & Law. Can generate Contracts using generate_business_document.')}
+7. **⚡ The Executor (المنفذ):** ${getAgentInstruction('executor', 'Calls, Uber, WhatsApp.')}
+8. **🏠 Nexus (نكسوس):** ${getAgentInstruction('nexus', 'IoT Smart Home.')}
+9. **🌿 The Healer (المعالج):** ${getAgentInstruction('healer', 'Spiritual & Health. Uses Quran, Sunnah, and Prophetic Medicine ONLY. No western self-help clichés.')}
+10. **💾 Archivist (الأرشيف):** Memory.
+
+**CORE DIRECTIVES (دستور الظل):**
+1. **Be "Gada3" (جدع):** Give solutions. If he needs a contract, DRAFT IT. If he needs an invoice, MAKE IT.
+2. **Make Him Rich:** Remind him about his Affiliate Code (${referralCode}).
+3. **Loyalty:** His secrets are safe. You are his vault.
+4. **Brevity:** Don't blabber. Be concise and sharp.
+
+**MEMORY (RAG SYSTEM):**
+${memoryContext}
+
+**GLOBAL RULES:**
+${globalRules}
 `;
 
-    const parts: any[] = [{ text: basePrompt }];
-    agents.forEach(a => {
-        if (a.documents?.length) {
-            parts.push({ text: `\n[ملفات مرجعية للعميل ${a.role}]:` });
-            a.documents.forEach(d => parts.push({ inlineData: { mimeType: d.mimeType, data: d.data.split(',')[1] || d.data } }));
+    // Return Array of Parts for Gemini
+    const parts: any[] = [{ text: textPrompt }];
+    
+    // Append Agent Documents (Files uploaded in Admin)
+    agentConfigs.forEach(agent => {
+        if (agent.documents && agent.documents.length > 0) {
+            parts.push({ text: `\n\n[REFERENCE DOCUMENTS FOR AGENT: ${agent.name} (${agent.role})]:` });
+            agent.documents.forEach(doc => {
+                const cleanData = doc.data.includes(',') ? doc.data.split(',')[1] : doc.data;
+                parts.push({ 
+                    inlineData: { 
+                        mimeType: doc.mimeType, 
+                        data: cleanData 
+                    } 
+                });
+                parts.push({ text: `(Document: ${doc.name})` });
+            });
         }
     });
+
     return parts;
 };
 
-// Fixed to accept signal for abort controller and return shouldUpgrade flag
-export const getShadowResponse = async (history: any[], message: string, extraData?: any, userProfile?: UserProfile, signal?: AbortSignal) => {
-    if (isRequesting) return { text: "لحظة يا ريس المجلس مجتمع..", toolAction: null, isError: true, shouldUpgrade: false };
+// --- MAIN ORCHESTRATOR ---
+export const getShadowResponse = async (
+    history: {role: string, parts: {text: string}[]}[], 
+    message: string, 
+    extraData?: { data: string, mimeType: string, type: 'image' | 'audio' },
+    userProfile?: UserProfile,
+    signal?: AbortSignal
+) => {
+    if (isRequesting) return { text: "لحظة واحدة يا ريس، المجلس مجتمع...", toolAction: null, isError: true, groundingLinks: [], shouldUpgrade: false };
     isRequesting = true;
-    try {
-        const [mem, rules, agents] = await Promise.all([shadowDB.getMemory(userProfile?.email || 'GUEST'), shadowDB.getGlobalRules(), shadowDB.getAllAgents()]);
-        const systemParts = generateSystemPrompt(userProfile, mem.map(f => f.fact).join(" | "), rules, agents);
-        
-        const userParts: any[] = [{ text: message }];
-        if (extraData?.data) userParts.push({ inlineData: { data: extraData.data, mimeType: extraData.mimeType } });
 
+    try {
+        let userMemory: DBFact[] = [];
+        let globalRules = "";
+        let agentConfigs: AgentProfile[] = [];
+
+        try {
+            const [mem, rules, agents] = await Promise.all([
+                shadowDB.getMemory(userProfile?.email || 'GUEST'),
+                shadowDB.getGlobalRules(),
+                shadowDB.getAllAgents()
+            ]);
+            userMemory = mem || [];
+            globalRules = rules || "";
+            agentConfigs = agents || [];
+        } catch (e) {}
+
+        const memContext = userMemory.slice(-20).map(f => f.fact).join(" | ");
+        const systemInstructionParts = generateSystemPrompt(userProfile, memContext, globalRules, agentConfigs);
+
+        const parts: any[] = [{ text: message }];
+        if (extraData?.data) {
+            const cleanData = extraData.data.includes(',') ? extraData.data.split(',')[1] : extraData.data;
+            parts.push({ inlineData: { data: cleanData, mimeType: extraData.mimeType } });
+        }
+
+        // Clean History for Gemini Compatibility
+        const validHistory = history
+            .filter(m => m.parts && m.parts[0] && m.parts[0].text)
+            .map(m => ({ role: m.role, parts: [{ text: m.parts[0].text }] })) 
+            .slice(-10); 
+
+        const contents = [...validHistory, { role: 'user', parts }]; 
+
+        // PRIMARY MODEL: Gemini 3 Flash Preview
+        // FALLBACK: Managed inside callGeminiWithRetry (switches to 'gemini-1.5-flash' if 429 occurs)
         const response = await callGeminiWithRetry({
-            model: "gemini-3-flash-preview",
-            contents: [...history.slice(-10).map(h => ({ role: h.role, parts: [{ text: h.text }] })), { role: 'user', parts: userParts }],
-            config: { systemInstruction: { parts: systemParts }, tools: [{ functionDeclarations: actionTools }, { googleSearch: {} }], temperature: 0.8 },
-            signal // Pass the abort signal correctly
+            model: "gemini-3-flash-preview", 
+            contents,
+            config: {
+                systemInstruction: { parts: systemInstructionParts }, 
+                tools: [{ functionDeclarations: actionTools }, { googleSearch: {} }],
+                temperature: 0.8,
+                safetySettings: [{ category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE }],
+                maxOutputTokens: 800, // Safe limit to prevent timeouts
+            }
         });
 
-        // Determine if upgrade is needed (e.g., if guest reaches limits)
-        const isGuest = userProfile?.email === 'GUEST';
-        const shouldUpgrade = isGuest && (history.length > 5);
+        let responseText = response.text || "";
+        let toolAction: any = null; 
+        let actionDescriptions: string[] = [];
+
+        if (response.functionCalls) {
+            for (const fc of response.functionCalls) {
+                const args = fc.args as any;
+                
+                if (fc.name === 'accountant_access') {
+                    if (args.action === 'check_my_earnings') {
+                        const earnings = userProfile?.affiliate?.totalEarnings || 0;
+                        actionDescriptions.push(`💰 المحاسب: رصيدك ${earnings} جنيه. ها، نسحبهم؟`);
+                    } else if (args.action === 'system_revenue_report' && userProfile?.email === 'TITO') {
+                        const all = await shadowDB.getAllProfiles();
+                        const total = all.filter(p => p.status === 'active' && p.email !== 'TITO').length * 1000;
+                        actionDescriptions.push(`🦅 تقرير الماستر: الإيرادات ${total} جنيه.`);
+                    } else {
+                        actionDescriptions.push(`💼 المحاسب: جاري مراجعة الملف المالي.`);
+                    }
+                }
+                else if (fc.name === 'generate_business_document') {
+                    // CRM Tool Logic
+                    toolAction = { type: 'display_business_doc', data: args };
+                    const docName = args.docType === 'invoice' ? 'الفاتورة' : (args.docType === 'quote' ? 'عرض السعر' : 'العقد');
+                    actionDescriptions.push(`📝 ظل الأعمال: تم إصدار ${docName} باسم ${args.clientName}. جاهز للطباعة.`);
+                }
+                else if (fc.name === 'marketer_campaign') {
+                    const post = `🚀 ${args.tone === 'exciting' ? 'يا جماعة اكتشاف الموسم!' : 'نصيحة لوجه الله..'} \n\nتطبيق "الظل" (Ez-Zel) خلاني أستغنى عن المساعد الشخصي. ${args.feature_to_promote || 'ذكاء اصطناعي مصري بيفهمك.'}\n\nجربوه من اللينك ده ليكم فترة تجربة خاصة:\nhttps://Ez-zel.vercel.app/?ref=${userProfile?.affiliate?.referralCode || 'EzZel'}`;
+                    toolAction = { type: 'display_ui_card', type_card: 'copy_link', title: 'بوست جاهز للفلوس', description: 'انسخ وانشر فوراً', url: post };
+                    actionDescriptions.push(`📢 المسوق: عملتلك بوست "لقطة". انسخه وانشره وهتعد فلوس.`);
+                }
+                else if (fc.name === 'digital_citizen_broker') {
+                    let url = "https://digital.gov.eg";
+                    if(args.service === 'traffic_fines') url = "https://ppo.gov.eg/web/traffic/services/niaba/qanun/mukhalafat";
+                    toolAction = { type: 'display_ui_card', type_card: 'government_action', title: 'خدمة حكومية', description: args.service, url, number: 'govt' };
+                    actionDescriptions.push(`🦅 المواطن: جهزتلك لينك المصلحة. دوس وخلص.`);
+                }
+                else if (fc.name === 'app_control_center') {
+                    let url = args.app === 'whatsapp' ? `https://wa.me/${args.payload?.replace(/\D/g,'')}` : (args.app === 'phone' ? `tel:${args.payload}` : '');
+                    if (url) toolAction = { type: 'display_ui_card', type_card: 'deep_link_fallback', title: args.app, description: args.payload, url };
+                    actionDescriptions.push(`⚡ المنفذ: جاري فتح ${args.app}`);
+                }
+                else if (fc.name === 'memory_archivist') {
+                    await shadowDB.saveFact({ userId: userProfile?.email || 'GUEST', fact: args.fact, timestamp: Date.now() });
+                    actionDescriptions.push(`💾 الأرشيف: حفظت المعلومة دي في الدماغ.`);
+                }
+            }
+        }
+
+        if (actionDescriptions.length > 0) {
+            responseText += `\n\n**تحركات المجلس:**\n${actionDescriptions.map(d => `▪️ ${d}`).join('\n')}`;
+        }
 
         return { 
-            text: response.text || "", 
-            toolAction: response.functionCalls?.[0] || null, 
-            groundingLinks: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((c: any) => ({ title: c.web?.title, uri: c.web?.uri })).filter((l: any) => l.uri) || [],
-            shouldUpgrade,
-            isError: false
+            text: responseText, 
+            toolAction, 
+            isError: false, 
+            groundingLinks: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((c:any) => ({ title: c.web?.title, uri: c.web?.uri })).filter((l:any) => l.uri) || [],
+            shouldUpgrade: userProfile?.email === 'GUEST' && history.length > 15
         };
-    } catch (e) {
-        console.error(e);
-        return { text: "فيه عطل فني في الشبكة، جرب تاني يا ريس.", isError: true, shouldUpgrade: false };
-    } finally { isRequesting = false; }
+
+    } catch (error: any) {
+        console.error("Gemini Fatal Error:", error);
+        return { text: getFallbackResponse(message), toolAction: null, isError: true, groundingLinks: [], shouldUpgrade: false };
+    } finally {
+        isRequesting = false;
+    }
 };
 
-export const playShadowVoice = async (text: string, voice: string, existing?: string, onEnded?: () => void) => {
-    stopVoice();
-    try {
-        const base64 = existing || await getShadowVoice(text, voice);
-        if (!base64) { onEnded?.(); return; }
-        const ctx = getAudioContext();
-        const buffer = await decodeAudioData(decode(base64), ctx);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.onended = () => { currentSource = null; onEnded?.(); };
-        source.start(0);
-        currentSource = source;
-    } catch (e) { onEnded?.(); }
+export const playShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male', existingData?: string, onEnded?: () => void) => {
+  stopVoice();
+  try {
+      let base64 = existingData || await getShadowVoice(text, voiceType);
+      if (!base64) return null;
+      const ctx = getAudioContext();
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+      const buffer = await decodeAudioData(decode(base64), ctx);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.onended = () => { currentSource = null; onEnded?.(); };
+      source.start(0);
+      currentSource = source;
+      return base64;
+  } catch (e) { onEnded?.(); return null; }
 };
 
-export const getShadowVoice = async (text: string, voice: string) => {
-    try {
-        const res = await callGeminiWithRetry({
-            model: "gemini-2.5-flash-preview-tts",
-            contents: [{ parts: [{ text }] }],
-            config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Kore' : 'Fenrir' } } } }
-        });
-        return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-    } catch { return null; }
+export const getShadowVoice = async (text: string, voiceType: 'male' | 'female' = 'male') => {
+  try {
+    const res = await callGeminiWithRetry({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text }] }],
+      config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' } } } }
+    });
+    return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+  } catch (e) { return null; }
 };
 
-export const stopVoice = () => { if (currentSource) { try { currentSource.stop(); } catch {} currentSource = null; } };
-function decode(b: string) { const s = atob(b); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
-async function decodeAudioData(d: Uint8Array, c: AudioContext) { const i16 = new Int16Array(d.buffer); const b = c.createBuffer(1, i16.length, 24000); const cd = b.getChannelData(0); for (let i = 0; i < i16.length; i++) cd[i] = i16[i] / 32768.0; return b; }
+export const stopVoice = () => { if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; } };
+function decode(b64: string) { const s = atob(b64); const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+async function decodeAudioData(d: Uint8Array, c: AudioContext): Promise<AudioBuffer> { const i16 = new Int16Array(d.buffer); const b = c.createBuffer(1, i16.length, 24000); const cd = b.getChannelData(0); for (let i = 0; i < i16.length; i++) cd[i] = i16[i] / 32768.0; return b; }
