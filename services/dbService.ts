@@ -11,7 +11,7 @@ export interface DBMessage {
   voiceData?: string; 
   groundingLinks?: { title?: string; uri?: string }[];
   image?: string; 
-  uiCard?: any; // NEW: Persist the Action Card (Invoice, Link, etc.) inside the message
+  uiCard?: any; 
   synced?: boolean; 
 }
 
@@ -207,8 +207,38 @@ class ShadowDB {
 
   async loginUser(email: string, password: string): Promise<UserProfile> {
       if (!auth) throw new Error("Firebase Auth not initialized");
+      
+      // 1. Authenticate with Firebase
       await signInWithEmailAndPassword(auth, email, password);
-      const profile = await this.getProfile(email.toLowerCase());
+      
+      // 2. Try to get Profile
+      const cleanEmail = email.toLowerCase();
+      let profile = await this.getProfile(cleanEmail);
+
+      // 3. Emergency Admin Recovery (Create Profile if missing but Auth passed)
+      // This specifically fixes the "Profile not found" error for the Admin
+      if (!profile && (cleanEmail === 'tito@shadow.com' || cleanEmail === 'admin@ezzel.com')) {
+          console.warn("[Shadow Core] Admin Profile Missing. Creating Recovery Profile...");
+          profile = {
+              email: cleanEmail,
+              phone: 'TITO', // Keep TITO as identifier for legacy logic
+              uid: auth.currentUser?.uid,
+              name: 'تيتو (الماستر)',
+              shadowName: 'الماستر',
+              tier: 'sovereign',
+              status: 'active',
+              joinedAt: Date.now(),
+              affiliate: {
+                  isMarketer: true,
+                  referralCode: 'TITO_BOSS',
+                  totalEarnings: 0,
+                  referralsCount: 0,
+                  payoutHistory: []
+              }
+          };
+          await this.saveProfile(profile); // Save to local & cloud
+      }
+
       if (!profile) throw new Error("Profile not found");
       return profile;
   }
@@ -364,12 +394,23 @@ class ShadowDB {
       const tx = dbLocal.transaction('profiles', 'readonly');
       const request = tx.objectStore('profiles').get(cleanEmail);
       
-      const localProfile = await new Promise<UserProfile | undefined>((resolve) => {
+      let localProfile = await new Promise<UserProfile | undefined>((resolve) => {
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => resolve(undefined);
       });
 
-      if (db && cleanEmail !== 'guest') {
+      // If local profile missing but we have network, try fetch from cloud NOW (await it)
+      if (!localProfile && db && cleanEmail !== 'guest') {
+         try {
+             const docSnap = await getDoc(doc(db, "users", cleanEmail));
+             if (docSnap.exists()) {
+                 const cloudData = docSnap.data() as UserProfile;
+                 localProfile = { ...cloudData, email: cleanEmail };
+                 await this.saveProfile(localProfile, true); // Cache locally
+             }
+         } catch(e) { console.warn("Could not fetch profile from cloud:", e); }
+      } else if (localProfile && db && cleanEmail !== 'guest') {
+         // Background sync if we already have local data
          getDoc(doc(db, "users", cleanEmail)).then((docSnap) => {
             if (docSnap.exists()) {
                 const cloudData = docSnap.data() as UserProfile;
