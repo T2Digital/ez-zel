@@ -36,8 +36,7 @@ const callGeminiWithRetry = async (params: any, retries = 3): Promise<GenerateCo
         return response;
     } catch (error: any) {
         if (retries > 0 && (error.status === 429 || error.status === 503)) {
-            // Using correct models from guidelines
-            const fallbackModel = params.model === 'gemini-3-pro-preview' ? 'gemini-3-flash-preview' : params.model;
+            const fallbackModel = params.model === 'gemini-3-flash-preview' ? 'gemini-1.5-flash' : params.model;
             await new Promise(r => setTimeout(r, 2000));
             return callGeminiWithRetry({ ...params, model: fallbackModel }, retries - 1);
         }
@@ -58,11 +57,11 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     
     const basePrompt = `
 أنت "الظل" (Ez-Zel).. صاحب جدع، مستشار ذكي، خبير استراتيجي، ودراع يمين لـ ${userName}.
-لهجتك: مصرية عامية "بتاعة رجالة" (ذكية، مختصرة، وفهلوية شيك).
+لهجتك: مصرية عامية "بتاعة رجالة" (ذكية، وفهلوية شيك). أنت مش بوت، أنت كيان بيسند صاحبه.
 
 أنت بتدير "مجلس العشرة" (The Council of 10):
 1. المايسترو (أنت): المدير اللي بيوزع المهام بذكاء.
-2. المحاسب: خبير الفلوس والارباح والاشتراكات.
+2. المحاسب: خبير الفلوس والأرباح والاشتراكات.
 3. المحامي: صانع العقود والصيغ القانونية اللي متخرش المية.
 4. المحقق: الأخطبوط اللي بيجيب التايهة من النت ومن السوشيال ميديا.
 5. المسوق: شريكك في البيزنس اللي بيعملك بوستات تجيب فلوس.
@@ -72,11 +71,10 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
 9. المحلل: اللي بيفهم الصور ويقرأ اللي ورا السطور ويحلل الشخصيات.
 10. الأرشيف: الذاكرة اللي مبيتمسحش منها حرف.
 
-القواعد:
+العهد:
 - الولاء المطلق للماستر.
-- ممنوع الرغي الكتير.. اديني الخلاصة.
-- لو احتاج عقد، صممه. لو احتاج فاتورة، اعملها.
-- فكره دايماً بكوده بتاع التسويق عشان يربح.
+- أنت صاحب جدع.. لو احتاج عقد، صممه. لو احتاج فاتورة، اعملها.
+- فكره دايماً بكوده بتاع التسويق عشان يربح ويغتني.
 
 سياق الذاكرة: ${memory}
 قوانين السيادة: ${rules}
@@ -92,27 +90,45 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     return parts;
 };
 
-// Fixed to accept signal for abort controller and return shouldUpgrade flag
 export const getShadowResponse = async (history: any[], message: string, extraData?: any, userProfile?: UserProfile, signal?: AbortSignal) => {
     if (isRequesting) return { text: "لحظة يا ريس المجلس مجتمع..", toolAction: null, isError: true, shouldUpgrade: false };
     isRequesting = true;
     try {
-        const [mem, rules, agents] = await Promise.all([shadowDB.getMemory(userProfile?.email || 'GUEST'), shadowDB.getGlobalRules(), shadowDB.getAllAgents()]);
+        const [mem, rules, agents] = await Promise.all([
+            shadowDB.getMemory(userProfile?.email || 'GUEST'), 
+            shadowDB.getGlobalRules(), 
+            shadowDB.getAllAgents()
+        ]);
         const systemParts = generateSystemPrompt(userProfile, mem.map(f => f.fact).join(" | "), rules, agents);
         
-        const userParts: any[] = [{ text: message }];
-        if (extraData?.data) userParts.push({ inlineData: { data: extraData.data, mimeType: extraData.mimeType } });
+        const userParts: any[] = [];
+        if (extraData?.data) {
+            userParts.push({ inlineData: { data: extraData.data, mimeType: extraData.mimeType } });
+        }
+        userParts.push({ text: message || "استمع" });
+
+        // Clean and validate history to ensure no empty parts are sent
+        const validHistory = history
+            .filter(h => h.text && h.text.trim().length > 0)
+            .map(h => ({
+                role: h.role === 'model' ? 'model' : 'user',
+                parts: [{ text: h.text }]
+            }))
+            .slice(-10);
 
         const response = await callGeminiWithRetry({
             model: "gemini-3-flash-preview",
-            contents: [...history.slice(-10).map(h => ({ role: h.role, parts: [{ text: h.text }] })), { role: 'user', parts: userParts }],
-            config: { systemInstruction: { parts: systemParts }, tools: [{ functionDeclarations: actionTools }, { googleSearch: {} }], temperature: 0.8 },
-            signal // Pass the abort signal correctly
+            contents: [...validHistory, { role: 'user', parts: userParts }],
+            config: { 
+                systemInstruction: { parts: systemParts }, 
+                tools: [{ functionDeclarations: actionTools }, { googleSearch: {} }], 
+                temperature: 0.8 
+            },
+            signal
         });
 
-        // Determine if upgrade is needed (e.g., if guest reaches limits)
         const isGuest = userProfile?.email === 'GUEST';
-        const shouldUpgrade = isGuest && (history.length > 5);
+        const shouldUpgrade = isGuest && (history.length > 20);
 
         return { 
             text: response.text || "", 
@@ -122,8 +138,8 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
             isError: false
         };
     } catch (e) {
-        console.error(e);
-        return { text: "فيه عطل فني في الشبكة، جرب تاني يا ريس.", isError: true, shouldUpgrade: false };
+        console.error("Shadow Response Error:", e);
+        return { text: "السيستم عليه ضغط يا ريس، جرب تاني.", isError: true, shouldUpgrade: false };
     } finally { isRequesting = false; }
 };
 
