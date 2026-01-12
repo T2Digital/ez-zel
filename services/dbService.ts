@@ -299,6 +299,7 @@ class ShadowDB {
     const secureMsg = { ...msg, text: encryptData(msg.text, msg.userId), synced: true };
     const request = tx.objectStore('history').add(secureMsg);
     
+    // GUEST PERSISTENCE FIX: Save guest messages locally, but don't sync to cloud unless promoted
     if (!skipCloud && msg.userId !== 'GUEST') {
         this.pushToCloud('history', { ...msg, text: secureMsg.text }, 'history', msg.userId);
     }
@@ -457,7 +458,7 @@ class ShadowDB {
       const tx = dbLocal.transaction('config', 'readwrite');
       const pulseData = { text, timestamp: Date.now() };
       
-      if (this.canSync('TITO') && db) { 
+      if (db) { 
           // @ts-ignore
           setDoc(doc(db, "system", "pulse"), pulseData).catch(console.error);
       }
@@ -466,7 +467,23 @@ class ShadowDB {
   }
 
   async getGlobalPulse(): Promise<{ text: string, timestamp: number } | null> {
-      // Prefer Local Cache for speed
+      // 1. Try fetching from CLOUD first if online, to ensure global sync
+      if (db) {
+          try {
+              // @ts-ignore
+              const docSnap = await getDoc(doc(db, "system", "pulse"));
+              if (docSnap.exists()) {
+                  const data = docSnap.data();
+                  // Update local cache
+                  const dbLocal = await this.init();
+                  const tx = dbLocal.transaction('config', 'readwrite');
+                  tx.objectStore('config').put({ key: 'latest_pulse', value: data, lastUpdated: Date.now() });
+                  return data as any;
+              }
+          } catch(e) {}
+      }
+
+      // 2. Fallback to Local Cache
       const dbLocal = await this.init();
       const tx = dbLocal.transaction('config', 'readonly');
       const request = tx.objectStore('config').get('latest_pulse');
@@ -479,7 +496,7 @@ class ShadowDB {
   async updateLastPulseReceived(phone: string, timestamp: number) {
       const profile = await this.getProfile(phone);
       if (profile) {
-          await this.saveProfile({ ...profile, lastPulseReceived: timestamp }, true); 
+          await this.saveProfile({ ...profile, lastPulseReceived: timestamp }, false); // Sync to cloud
       }
   }
 

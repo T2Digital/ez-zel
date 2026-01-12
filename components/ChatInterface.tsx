@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer } from 'lucide-react';
+import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, HeartPulse, Feather, Briefcase } from 'lucide-react';
 import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import CapabilitiesGuide from './CapabilitiesGuide';
@@ -223,26 +223,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
 
   useEffect(() => {
-    if (!isRestrictedMode) {
-        const load = async () => setMessages(await shadowDB.getHistory(currentUser.phone));
-        load();
-    } else {
-        setMessages(prev => {
-            if (prev.length === 0) {
-                return [{
-                    role: 'model',
-                    userId: currentUser.phone,
-                    text: `يا مرحب بيك يا ${currentUser.name.split(' ')[0]}.
-أنا ظلك الرقمي.. عقلك التاني اللي بيحلل، وبيخطط، وبيحفظ أسرارك.
-أنا هنا عشان أشيل عنك الحمل.
-معاك 3 أيام تجرب قدراتي.. هات آخرك يا ريس.`,
-                    timestamp: Date.now()
-                }];
-            }
-            return prev;
-        });
-    }
-  }, [isRestrictedMode, currentUser.phone]);
+    // Force persistence even for Guest
+    const load = async () => setMessages(await shadowDB.getHistory(currentUser.phone));
+    load();
+  }, [currentUser.phone]);
 
   useEffect(() => { 
     if (scrollRef.current && !isSearchActive && !searchQuery) {
@@ -456,8 +440,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         isError: false
     };
     
-    let id = Date.now();
-    if (!isRestrictedMode) id = await shadowDB.saveMessage(userMsg);
+    let id = await shadowDB.saveMessage(userMsg);
     setMessages(prev => [...prev, { ...userMsg, id }]);
     
     const currentImg = pendingImage;
@@ -472,7 +455,8 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         extra = { data: currentImg.data, mimeType: currentImg.type, type: 'image' };
       }
       
-      const history = isRestrictedMode ? messages : await shadowDB.getHistory(currentUser.phone);
+      // Load ALL history, even for GUEST, to persist context
+      const history = await shadowDB.getHistory(currentUser.phone);
       
       const result = await getShadowResponse(
           history.map(m => ({ role: m.role, parts: [{ text: m.text }] })), 
@@ -515,8 +499,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           groundingLinks: result.groundingLinks, voiceData: voiceData || undefined, isError: result.isError
       };
       
-      let modelId = Date.now() + 1;
-      if (!isRestrictedMode) modelId = await shadowDB.saveMessage(modelMsg);
+      let modelId = await shadowDB.saveMessage(modelMsg);
       setMessages(prev => [...prev, { ...modelMsg, id: modelId }]);
       
       isSubmittingRef.current = false;
@@ -609,6 +592,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const getCardIcon = (type: string, number?: string) => { 
       if (type === 'business_doc') return <Printer className="w-6 h-6 text-white" />;
       if (type === 'government_action') return <Landmark className="w-6 h-6 text-amber-400" />;
+      if (type === 'healer_card') return <HeartPulse className="w-6 h-6 text-emerald-400" />;
       if (type === 'deep_link_fallback') {
           if (number === 'music') return <Music className="w-6 h-6 text-red-400" />;
           if (number === 'video') return <Video className="w-6 h-6 text-red-400" />;
@@ -754,20 +738,22 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                             </button>
                         </div>
                     ) : (
-                        <div className={`rounded-[22px] p-5 ${activeAppCard.cardType === 'government_action' ? 'bg-[#0f0f0f] border border-amber-500/20' : 'bg-[#0f0f0f]/90'}`}>
+                        <div className={`rounded-[22px] p-5 ${activeAppCard.cardType === 'government_action' ? 'bg-[#0f0f0f] border border-amber-500/20' : (activeAppCard.cardType === 'healer_card' ? 'bg-emerald-900/20 border border-emerald-500/30' : 'bg-[#0f0f0f]/90')}`}>
                             <div className="flex items-center gap-3 mb-4">
-                                <div className={`p-2 rounded-xl ${activeAppCard.cardType === 'government_action' ? 'bg-amber-500/10' : 'bg-white/10'}`}>
+                                <div className={`p-2 rounded-xl ${activeAppCard.cardType === 'government_action' ? 'bg-amber-500/10' : (activeAppCard.cardType === 'healer_card' ? 'bg-emerald-500/20' : 'bg-white/10')}`}>
                                     {getCardIcon(activeAppCard.cardType, activeAppCard.number)}
                                 </div>
                                 <div>
-                                    <h3 className={`font-black text-sm ${activeAppCard.cardType === 'government_action' ? 'text-amber-500' : 'text-white'}`}>{activeAppCard.title}</h3>
+                                    <h3 className={`font-black text-sm ${activeAppCard.cardType === 'government_action' ? 'text-amber-500' : (activeAppCard.cardType === 'healer_card' ? 'text-emerald-400' : 'text-white')}`}>{activeAppCard.title}</h3>
                                     <p className="text-[10px] text-white/50">{activeAppCard.description}</p>
                                 </div>
                             </div>
-                            <button onClick={handleAppCardAction} className={`w-full py-3 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border ${activeAppCard.cardType === 'government_action' ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-600' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'}`}>
-                                {activeAppCard.cardType === 'deep_link_fallback' || activeAppCard.cardType === 'government_action' ? <ExternalLink className="w-4 h-4" /> : (activeAppCard.cardType === 'copy_link' ? <Copy className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
-                                {activeAppCard.cardType === 'government_action' ? 'بدء الخدمة' : (activeAppCard.cardType === 'deep_link_fallback' ? 'فتح الرابط' : (activeAppCard.cardType === 'copy_link' ? 'نسخ' : 'تنفيذ'))}
-                            </button>
+                            {activeAppCard.cardType !== 'healer_card' && (
+                                <button onClick={handleAppCardAction} className={`w-full py-3 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border ${activeAppCard.cardType === 'government_action' ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-600' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'}`}>
+                                    {activeAppCard.cardType === 'deep_link_fallback' || activeAppCard.cardType === 'government_action' ? <ExternalLink className="w-4 h-4" /> : (activeAppCard.cardType === 'copy_link' ? <Copy className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
+                                    {activeAppCard.cardType === 'government_action' ? 'بدء الخدمة' : (activeAppCard.cardType === 'deep_link_fallback' ? 'فتح الرابط' : (activeAppCard.cardType === 'copy_link' ? 'نسخ' : 'تنفيذ'))}
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
