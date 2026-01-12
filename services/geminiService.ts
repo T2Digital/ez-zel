@@ -1,15 +1,27 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { shadowDB, UserProfile, DBFact, AgentProfile } from "./dbService";
 
-// --- CONFIGURATION ---
-const apiKey = (import.meta as any).env?.VITE_API_KEY || (process as any).env?.API_KEY || (window as any).VITE_API_KEY || '';
-if (!apiKey) console.error("CRITICAL: API KEY MISSING");
+// --- ROBUST API KEY HUNTER ---
+const getApiKey = (): string => {
+    // 1. Try Vite Env
+    if ((import.meta as any).env?.VITE_API_KEY) return (import.meta as any).env.VITE_API_KEY;
+    // 2. Try Process Env (Node/Vercel)
+    if (typeof process !== 'undefined' && process.env?.API_KEY) return process.env.API_KEY;
+    if (typeof process !== 'undefined' && process.env?.VITE_API_KEY) return process.env.VITE_API_KEY;
+    // 3. Try Window Object (Injection)
+    if ((window as any).VITE_API_KEY) return (window as any).VITE_API_KEY;
+    if ((window as any).API_KEY) return (window as any).API_KEY;
+    
+    console.error("CRITICAL: API KEY NOT FOUND IN ANY ENVIRONMENT VARIABLE.");
+    return '';
+};
 
+const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
 // --- FALLBACK SYSTEM ---
 const getFallbackResponse = (input: string): string => {
-    return "الشبكة عليها ضغط لحظي (Traffic Overload). المجلس بيعيد الاتصال.. ثواني وراجعلك يا ريس.";
+    return "السيستم عليه ضغط بسيط يا ريس. دقيقة وراجعلك أقوى.";
 };
 
 // --- AUDIO UTILS (iOS Safe) ---
@@ -28,7 +40,7 @@ function getAudioContext() {
   return audioCtx;
 }
 
-// --- INTELLIGENT RETRY LOGIC (Fixes 429 Resource Exhausted) ---
+// --- INTELLIGENT RETRY & FALLBACK LOGIC (Crucial for 429) ---
 const callGeminiWithRetry = async (params: any, retries = 3, delay = 2000): Promise<GenerateContentResponse> => {
     try {
         const response = await ai.models.generateContent(params);
@@ -39,10 +51,23 @@ const callGeminiWithRetry = async (params: any, retries = 3, delay = 2000): Prom
         const isOverloaded = error.status === 503;
         
         if ((isQuotaError || isOverloaded) && retries > 0) {
-            console.warn(`[Shadow Core] Network busy (${error.status}). Retrying in ${delay}ms... (${retries} attempts left)`);
+            console.warn(`[Shadow Core] Model ${params.model} Busy (${error.status})... Retries left: ${retries}`);
             
-            // Standard Exponential Backoff
-            const backoff = delay * 1.5;
+            // SMART FALLBACK STRATEGY:
+            // If primary (Gemini 3 Flash) fails with quota limit, switch to 'gemini-1.5-flash'.
+            // DO NOT USE 'gemini-2.0-flash-exp' as it has stricter limits (limit: 0 errors).
+            if (params.model === 'gemini-3-flash-preview') {
+                console.log("⚡ Auto-switching to Backup Engine (Gemini 1.5 Flash) to maintain service...");
+                const fallbackParams = { ...params, model: 'gemini-1.5-flash' }; 
+                
+                // Add larger jitter to prevent thundering herd on the fallback model
+                const waitTime = 2000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                return callGeminiWithRetry(fallbackParams, retries - 1, delay * 2); 
+            }
+
+            // Standard Exponential Backoff for other cases or if fallback also fails
+            const backoff = delay * 2 + Math.random() * 1000;
             await new Promise(resolve => setTimeout(resolve, backoff));
             return callGeminiWithRetry(params, retries - 1, backoff);
         }
@@ -169,10 +194,10 @@ ${memoryContext}
 ${globalRules}
 `;
 
-    // Construct Multipart System Prompt with Documents
+    // Return Array of Parts for Gemini
     const parts: any[] = [{ text: textPrompt }];
     
-    // Append Agent Documents if any
+    // Append Agent Documents (Files uploaded in Admin)
     agentConfigs.forEach(agent => {
         if (agent.documents && agent.documents.length > 0) {
             parts.push({ text: `\n\n[REFERENCE DOCUMENTS FOR AGENT: ${agent.name} (${agent.role})]:` });
@@ -228,18 +253,25 @@ export const getShadowResponse = async (
             parts.push({ inlineData: { data: cleanData, mimeType: extraData.mimeType } });
         }
 
-        const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-12); 
+        // Clean History for Gemini Compatibility
+        const validHistory = history
+            .filter(m => m.parts && m.parts[0] && m.parts[0].text)
+            .map(m => ({ role: m.role, parts: [{ text: m.parts[0].text }] })) 
+            .slice(-10); 
+
         const contents = [...validHistory, { role: 'user', parts }]; 
 
-        // RESTORED TO GEMINI 3 FLASH PREVIEW as requested by the Master
+        // PRIMARY MODEL: Gemini 3 Flash Preview
+        // FALLBACK: Managed inside callGeminiWithRetry (switches to 'gemini-1.5-flash' if 429 occurs)
         const response = await callGeminiWithRetry({
             model: "gemini-3-flash-preview", 
             contents,
             config: {
-                systemInstruction: { parts: systemInstructionParts }, // Send as complex object
+                systemInstruction: { parts: systemInstructionParts }, 
                 tools: [{ functionDeclarations: actionTools }, { googleSearch: {} }],
                 temperature: 0.8,
-                safetySettings: [{ category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE }]
+                safetySettings: [{ category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE }],
+                maxOutputTokens: 800, // Safe limit to prevent timeouts
             }
         });
 

@@ -88,23 +88,25 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
               await shadowDB.saveProfile(adminProfile);
           }
 
-          // 2. Initial Data Load
-          const [allProfiles, allFeedback, rules] = await Promise.all([
-              shadowDB.getAllProfiles(),
-              shadowDB.getAllFeedback(),
-              shadowDB.getGlobalRules()
-          ]);
-          setProfiles(allProfiles);
-          setFeedbacks(allFeedback.reverse());
-          setGlobalRules(rules);
+          // 2. Initial Data Load (FALLBACK FETCH to ensure data shows even if realtime fails)
+          try {
+              const [allProfiles, allFeedback, rules] = await Promise.all([
+                  shadowDB.getAllProfiles(),
+                  shadowDB.getAllFeedback(),
+                  shadowDB.getGlobalRules()
+              ]);
+              setProfiles(allProfiles);
+              setFeedbacks(allFeedback.reverse());
+              setGlobalRules(rules);
+          } catch(e) { console.error("Admin init fetch error:", e); }
 
           // 3. ACTIVATE EAGLE EYE (Realtime Global Listener)
           shadowDB.subscribeToAdminFeed(
               (updatedProfiles) => {
-                  setProfiles(updatedProfiles);
+                  if (updatedProfiles && updatedProfiles.length > 0) setProfiles(updatedProfiles);
               },
               (updatedFeedback) => {
-                  setFeedbacks(updatedFeedback);
+                  if (updatedFeedback && updatedFeedback.length > 0) setFeedbacks(updatedFeedback);
               }
           );
       };
@@ -171,7 +173,6 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
               setAgentDbData({ ...agentDbData, knowledgeBase: updatedKnowledge });
           } else {
               // Add as document attachment (Base64)
-              // Only remove the data URL prefix for storage if needed, but keeping it is safer for reconstruction
               const currentDocs = agentDbData.documents || [];
               const newDoc = { name: file.name, mimeType: file.type || 'application/pdf', data: content };
               setAgentDbData({ ...agentDbData, documents: [...currentDocs, newDoc] });
@@ -210,6 +211,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
             profile.commissionPaid = true; 
         }
         await shadowDB.saveProfile({ ...profile, status });
+        // Refresh local state if not updated by subscriber
+        setProfiles(prev => prev.map(p => p.phone === phone ? { ...p, status, commissionPaid: profile.commissionPaid } : p));
     }
   };
   
@@ -234,10 +237,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
 
   const saveGlobalRules = async () => { setIsSavingRules(true); await shadowDB.updateGlobalRules(globalRules); setTimeout(() => setIsSavingRules(false), 1000); };
   
-  const handleBroadcastMic = () => { 
-      setIsBroadcasting(true); 
-      // Mic logic here... simplified for now
-      setTimeout(() => setIsBroadcasting(false), 1000);
+  const handleDictation = (target: 'rules' | 'broadcast') => {
+      alert("خاصية الإملاء الصوتي للأدمن قادمة قريباً");
   };
 
   const handleSendBroadcast = async () => { 
@@ -418,7 +419,14 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
         {activeView === 'core' && (
             <div className="animate-in fade-in zoom-in duration-500 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-6"><div className="flex items-center gap-3"><div className="p-3 bg-red-600 rounded-full shadow-[0_0_30px_rgba(220,38,38,0.5)] animate-pulse"><Cpu className="w-6 h-6 text-white" /></div><div><h2 className="text-2xl font-black text-white">النواة الحية (Live Core)</h2><p className="text-[10px] text-red-500 font-bold uppercase tracking-[0.2em]">Top Secret • Global Overrides</p></div></div></div>
-                <div className="flex-1 bg-black border border-white/10 rounded-[32px] p-6 relative overflow-hidden flex flex-col shadow-2xl"><div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-red-600 via-transparent to-transparent"></div><textarea value={globalRules} onChange={(e) => setGlobalRules(e.target.value)} className="flex-1 bg-transparent border-none outline-none text-emerald-500 font-mono text-sm leading-relaxed resize-none placeholder:text-emerald-900/50" placeholder="// اكتب القوانين السيادية هنا..." /><div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5"><div className="flex items-center gap-2"></div><button onClick={saveGlobalRules} disabled={isSavingRules} className="px-8 py-3 bg-white text-black rounded-xl font-black flex items-center gap-2 hover:bg-white/90 transition-all">{isSavingRules ? <Activity className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{isSavingRules ? 'جاري الحفظ...' : 'حفظ التعديلات'}</button></div></div>
+                <div className="flex-1 bg-black border border-white/10 rounded-[32px] p-6 relative overflow-hidden flex flex-col shadow-2xl">
+                    <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-red-600 via-transparent to-transparent"></div>
+                    <textarea value={globalRules} onChange={(e) => setGlobalRules(e.target.value)} className="flex-1 bg-transparent border-none outline-none text-emerald-500 font-mono text-sm leading-relaxed resize-none placeholder:text-emerald-900/50" placeholder="// اكتب القوانين السيادية هنا..." />
+                    <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between mt-4 pt-4 border-t border-white/5">
+                        <button onClick={() => handleDictation('rules')} className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all"><Mic className="w-5 h-5" /></button>
+                        <button onClick={saveGlobalRules} disabled={isSavingRules} className="px-8 py-3 bg-white text-black rounded-xl font-black flex items-center gap-2 hover:bg-white/90 transition-all">{isSavingRules ? <Activity className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{isSavingRules ? 'جاري الحفظ...' : 'حفظ التعديلات'}</button>
+                    </div>
+                </div>
             </div>
         )}
 
@@ -431,7 +439,13 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
                  <div className="flex-1 bg-[#111] border border-amber-500/20 rounded-[32px] p-8 relative overflow-hidden flex flex-col shadow-2xl">
                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
                      <div className="mb-4"><label className="text-[10px] text-white/30 font-bold uppercase tracking-widest mb-2 block">محتوى النبضة (تظهر كتنبيه سيستم للجميع)</label><textarea value={broadcastMessage} onChange={(e) => setBroadcastMessage(e.target.value)} className="w-full h-40 bg-black border border-white/10 rounded-2xl p-4 text-white text-lg leading-relaxed resize-none focus:border-amber-500/50 outline-none transition-all placeholder:text-white/20" placeholder="اكتب رسالتك هنا.. (تهنئة، تحديث هام، تحذير، أو نصيحة عامة)..." /></div>
-                     <div className="mt-auto flex items-center justify-between border-t border-white/5 pt-6"><div className="flex items-center gap-3"><span className="text-[10px] text-white/30 max-w-[150px] hidden md:block">* سيتم إرسال هذا النبض لجميع المشتركين والمسوقين وتيتو فوراً.</span></div><button onClick={handleSendBroadcast} disabled={isBroadcasting || !broadcastMessage.trim()} className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-black rounded-2xl font-black flex items-center gap-3 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 shadow-[0_0_30px_rgba(245,158,11,0.3)]">{isBroadcasting ? <Activity className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}{isBroadcasting ? 'جاري البث...' : 'إرسال النبض للجميع'}</button></div>
+                     <div className="mt-auto flex items-center justify-between border-t border-white/5 pt-6">
+                         <div className="flex items-center gap-3">
+                             <button onClick={() => handleDictation('broadcast')} className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all"><Mic className="w-5 h-5" /></button>
+                             <span className="text-[10px] text-white/30 max-w-[150px] hidden md:block">* سيتم إرسال هذا النبض لجميع المشتركين والمسوقين وتيتو فوراً.</span>
+                         </div>
+                         <button onClick={handleSendBroadcast} disabled={isBroadcasting || !broadcastMessage.trim()} className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-black rounded-2xl font-black flex items-center gap-3 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 shadow-[0_0_30px_rgba(245,158,11,0.3)]">{isBroadcasting ? <Activity className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}{isBroadcasting ? 'جاري البث...' : 'إرسال النبض للجميع'}</button>
+                     </div>
                  </div>
              </div>
         )}

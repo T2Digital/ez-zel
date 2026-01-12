@@ -294,6 +294,16 @@ class ShadowDB {
   subscribeToAdminFeed(onProfilesUpdate: (profiles: UserProfile[]) => void, onFeedbackUpdate: (feedbacks: DBFeedback[]) => void) {
       if (!db) return;
       if (this.adminUnsubscribe) this.adminUnsubscribe();
+      
+      const safeFetchFallback = async () => {
+          try {
+              const snap = await getDocs(collection(db, "users"));
+              const profiles: UserProfile[] = [];
+              snap.forEach((doc) => profiles.push({ ...doc.data(), email: doc.id } as UserProfile));
+              onProfilesUpdate(profiles);
+          } catch(e) { console.error("Fallback fetch failed", e); }
+      };
+
       try {
           const q = query(collection(db, "users"));
           const unsubProfiles = onSnapshot(q, (snapshot) => {
@@ -302,6 +312,7 @@ class ShadowDB {
               onProfilesUpdate(profiles);
           }, (error) => {
               console.warn("[Admin Feed] Profile feed blocked:", error.code);
+              safeFetchFallback();
           });
 
           const qFeed = query(collection(db, "feedback"), orderBy("timestamp", "desc"));
@@ -314,7 +325,10 @@ class ShadowDB {
           });
 
           this.adminUnsubscribe = () => { unsubProfiles(); unsubFeedback(); };
-      } catch (e) { console.error("[Admin] Sync Error:", e); }
+      } catch (e) { 
+          console.error("[Admin] Sync Error:", e);
+          safeFetchFallback();
+      }
   }
 
   async pushToCloud(collectionName: string, rawData: any, subCollection?: string, userId?: string) {
@@ -450,7 +464,19 @@ class ShadowDB {
   async getAllProfiles(): Promise<UserProfile[]> {
       const dbLocal = await this.init();
       const request = dbLocal.transaction('profiles', 'readonly').objectStore('profiles').getAll();
-      return new Promise((resolve) => { request.onsuccess = () => resolve(request.result || []); request.onerror = () => resolve([]); });
+      
+      const localProfiles = await new Promise<UserProfile[]>((resolve) => { request.onsuccess = () => resolve(request.result || []); request.onerror = () => resolve([]); });
+
+      // Try ONE-OFF cloud fetch if connected to populate initial admin view
+      if (db) {
+          try {
+              const snap = await getDocs(collection(db, "users"));
+              const cloudProfiles: UserProfile[] = [];
+              snap.forEach((doc) => cloudProfiles.push({ ...doc.data(), email: doc.id } as UserProfile));
+              if (cloudProfiles.length > localProfiles.length) return cloudProfiles;
+          } catch(e) {}
+      }
+      return localProfiles;
   }
 
   async getHistory(userId: string): Promise<DBMessage[]> {
