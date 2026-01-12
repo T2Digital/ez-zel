@@ -28,8 +28,27 @@ function getAudioContext() {
   return audioCtx;
 }
 
+// --- TRUSTED KNOWLEDGE SOURCES (Hardcoded for Agents) ---
+const TRUSTED_SOURCES = {
+    digital_citizen: `
+    - Egypt Digital Portal: https://digital.gov.eg (لخدمات التموين، الشهر العقاري، السجل المدني)
+    - Traffic Fines: https://ppo.gov.eg/web/traffic/services/niaba/qanun/mukhalafat (مخالفات المرور)
+    - Civil Registry: https://cso.moi.gov.eg (الأحوال المدنية)
+    `,
+    healer: `
+    - Primary Source: Quran & Sahih Sunnah (Bukhari/Muslim).
+    - Medicine: Prophetic Medicine (Honey, Black Seed, Cupping) ONLY as complementary.
+    - Avoid: Unverified energy healing or western self-help clichés.
+    `,
+    detective: `
+    - Search: Use Google Search Tool for realtime news.
+    - Local News: Cairo24, Youm7, AlMasry AlYoum.
+    - Finance: Central Bank of Egypt (cbe.org.eg) for official rates.
+    `
+};
+
 // --- INTELLIGENT RETRY LOGIC (Fixes 429 Resource Exhausted) ---
-const callGeminiWithRetry = async (params: any, retries = 3, delay = 2000): Promise<GenerateContentResponse> => {
+const callGeminiWithRetry = async (params: any, retries = 3, delay = 3000): Promise<GenerateContentResponse> => {
     try {
         const response = await ai.models.generateContent(params);
         if (!response || !response.text) throw new Error("Empty Response");
@@ -40,8 +59,10 @@ const callGeminiWithRetry = async (params: any, retries = 3, delay = 2000): Prom
         
         if ((isQuotaError || isOverloaded) && retries > 0) {
             console.warn(`[Shadow Core] Network busy (${error.status}). Retrying in ${delay}ms... (${retries} attempts left)`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return callGeminiWithRetry(params, retries - 1, delay * 2);
+            // Exponential backoff with jitter
+            const backoff = delay * 1.5 + Math.random() * 500;
+            await new Promise(resolve => setTimeout(resolve, backoff));
+            return callGeminiWithRetry(params, retries - 1, backoff);
         }
         throw error;
     }
@@ -149,13 +170,16 @@ You don't do everything alone. DELEGATE tasks using tools.
 3. **📢 The Marketer (المسوق):** ${getAgentInstruction('marketer', 'Viral posts & Affiliate Sales.')}
    - Strategy: "يا ريس دي فرصة! ابعت اللينك بتاعك (${referralCode}) لصحابك واعمل فلوس."
 4. **🕵️‍♂️ The Detective (المحقق):** ${getAgentInstruction('detective', 'Search & Info.')}
+   - *TRUSTED SOURCES:* ${TRUSTED_SOURCES.detective}
 5. **🦅 Digital Citizen (المواطن):** ${getAgentInstruction('digital_citizen', 'Gov services.')}
+   - *TRUSTED SOURCES:* ${TRUSTED_SOURCES.digital_citizen}
 6. **⚖️ Legal Advisor (المستشار):** ${getAgentInstruction('legal_advisor', 'Contracts & Law. Can generate Contracts using generate_business_document.')}
    - *Capability:* Draft professional contracts (Rent, Work, Partnership) and output them as printable docs.
 7. **⚡ The Executor (المنفذ):** ${getAgentInstruction('executor', 'Calls, Uber, WhatsApp.')}
 8. **🏠 Nexus (نكسوس):** ${getAgentInstruction('nexus', 'IoT Smart Home.')}
 9. **🌿 The Healer (المعالج):** ${getAgentInstruction('healer', 'Spiritual & Health. Uses Quran, Sunnah, and Prophetic Medicine ONLY. No western self-help clichés.')}
    - *Strict Rule:* Reference Quran verses or Hadith for psychological comfort. Recommend natural herbs (Honey, Black seed) for minor ailments.
+   - *TRUSTED SOURCES:* ${TRUSTED_SOURCES.healer}
 10. **💾 Archivist (الأرشيف):** Memory.
 
 **CORE DIRECTIVES (دستور الظل):**
@@ -211,7 +235,7 @@ export const getShadowResponse = async (
         const validHistory = history.filter(m => m.parts?.[0]?.text?.trim()).slice(-12); 
         const contents = [...validHistory, { role: 'user', parts }]; 
 
-        // UPDATED MODEL to gemini-3-flash-preview
+        // UPDATED MODEL to gemini-3-flash-preview ONLY
         const response = await callGeminiWithRetry({
             model: "gemini-3-flash-preview", 
             contents,

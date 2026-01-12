@@ -209,37 +209,42 @@ class ShadowDB {
       if (!auth) throw new Error("Firebase Auth not initialized");
       
       // 1. Authenticate with Firebase
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const uid = userCredential.user.uid;
       
       // 2. Try to get Profile
       const cleanEmail = email.toLowerCase();
       let profile = await this.getProfile(cleanEmail);
 
-      // 3. Emergency Admin Recovery (Create Profile if missing but Auth passed)
-      // This specifically fixes the "Profile not found" error for the Admin
-      if (!profile && (cleanEmail === 'tito@shadow.com' || cleanEmail === 'admin@ezzel.com')) {
-          console.warn("[Shadow Core] Admin Profile Missing. Creating Recovery Profile...");
+      // 3. AUTO-HEAL: If Auth passed but Profile missing, create it immediately.
+      // This fixes the "Profile not found" error for manually created or migrated users.
+      if (!profile) {
+          console.warn("[Shadow Core] Profile missing for authenticated user. Auto-healing...");
+          const namePart = email.split('@')[0];
+          // Check if it looks like an admin email
+          const isAdmin = cleanEmail.includes('tito') || cleanEmail.includes('admin');
+          
           profile = {
               email: cleanEmail,
-              phone: 'TITO', // Keep TITO as identifier for legacy logic
-              uid: auth.currentUser?.uid,
-              name: 'تيتو (الماستر)',
-              shadowName: 'الماستر',
-              tier: 'sovereign',
+              phone: cleanEmail, // Backward compat
+              uid: uid,
+              name: isAdmin ? 'تيتو (الماستر)' : namePart,
+              shadowName: isAdmin ? 'الماستر' : 'الظل',
+              tier: isAdmin ? 'sovereign' : 'lite',
               status: 'active',
               joinedAt: Date.now(),
-              affiliate: {
+              affiliate: isAdmin ? {
                   isMarketer: true,
                   referralCode: 'TITO_BOSS',
                   totalEarnings: 0,
                   referralsCount: 0,
                   payoutHistory: []
-              }
+              } : undefined
           };
-          await this.saveProfile(profile); // Save to local & cloud
+          await this.saveProfile(profile);
       }
 
-      if (!profile) throw new Error("Profile not found");
+      if (!profile) throw new Error("Profile creation failed");
       return profile;
   }
 
