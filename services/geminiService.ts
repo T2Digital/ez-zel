@@ -54,10 +54,9 @@ const callGeminiWithRetry = async (params: any, retries = 2): Promise<GenerateCo
         
         // If Quota Exceeded (429) or Service Unavailable (503) or simple error, try fallback model
         if (retries > 0) {
-            console.log("⚠️ Switching to Backup Model (Gemini 3 Flash Preview)...");
+            console.log("⚠️ Switching to Backup Model (Gemini 1.5 Flash)...");
             // Force switch to the most stable, cheapest model for fallback
-            // gemini-1.5-flash is deprecated/not found in v1beta for some keys, using gemini-3-flash-preview
-            const fallbackParams = { ...params, model: 'gemini-3-flash-preview' };
+            const fallbackParams = { ...params, model: 'gemini-1.5-flash' };
             
             // Add a small delay to avoid hammering
             await new Promise(r => setTimeout(r, 1500));
