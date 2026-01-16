@@ -80,7 +80,7 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                     className="flex items-center gap-2 px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all group backdrop-blur-md"
                 >
                     <FileText className="w-3 h-3 text-white/40 group-hover:text-white transition-colors" />
-                    <span className="text-[9px] font-bold text-white/60 group-hover:text-white">الورقة البيضاء</span>
+                    <span className="text-[9px] font-bold text-white/60 group-hover:text-white">ميثاق الظل</span>
                 </button>
             </div>
         </div>
@@ -109,13 +109,13 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                             
                             <button 
                                 onClick={() => setBillingCycle('monthly')}
-                                className={`flex-1 rounded-full text-[10px] font-black transition-all relative z-10 h-full flex items-center justify-center ${billingCycle === 'monthly' ? 'text-black' : 'text-white/60 hover:text-white'}`}
+                                className={`flex-1 rounded-full text-xs font-black transition-all relative z-10 h-full flex items-center justify-center ${billingCycle === 'monthly' ? 'text-black' : 'text-white/60 hover:text-white'}`}
                             >
                                 شهري
                             </button>
                             <button 
                                 onClick={() => setBillingCycle('yearly')}
-                                className={`flex-1 rounded-full text-[10px] font-black transition-all relative z-10 h-full flex items-center justify-center ${billingCycle === 'yearly' ? 'text-black' : 'text-white/60 hover:text-white'}`}
+                                className={`flex-1 rounded-full text-xs font-black transition-all relative z-10 h-full flex items-center justify-center ${billingCycle === 'yearly' ? 'text-black' : 'text-white/60 hover:text-white'}`}
                             >
                                 سنوي
                             </button>
