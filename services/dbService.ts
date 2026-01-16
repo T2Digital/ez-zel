@@ -157,7 +157,6 @@ class ShadowDB {
   private dbName = 'ShadowCore_V20_Email'; 
   private version = 14; 
   private unsubscribeListeners: Function[] = [];
-  private systemUnsubscribe: Function[] = [];
   private adminUnsubscribe: Function | null = null;
 
   constructor() {
@@ -261,7 +260,7 @@ class ShadowDB {
       if (auth) await signOut(auth);
   }
 
-  // --- FIREBASE SYNC (USER SPECIFIC) ---
+  // --- FIREBASE SYNC ---
   subscribeToRealtime(email: string, onUpdate: (table: string, payload: any) => void) {
       if (!db || email === 'GUEST') return;
       try {
@@ -275,6 +274,8 @@ class ShadowDB {
                   onUpdate('profiles', profile);
                   this.saveProfile(profile, true);
               }
+          }, (error) => {
+              console.warn("[Firebase] Profile sync error (permission?):", error.code);
           });
           this.unsubscribeListeners.push(profileUnsub);
 
@@ -285,63 +286,35 @@ class ShadowDB {
                       onUpdate('history', change.doc.data());
                   }
               });
-          });
+          }, (error) => {});
           this.unsubscribeListeners.push(historyUnsub);
       } catch (e) { console.warn("[Firebase] Realtime sync init failed.", e); }
-  }
-
-  // --- GLOBAL SYSTEM SYNC (ALL USERS) ---
-  subscribeToSystem(onPulse: (pulse: any) => void, onRules: (rules: string) => void) {
-      if (!db) return;
-      // Clear previous listeners
-      this.systemUnsubscribe.forEach(unsub => unsub());
-      this.systemUnsubscribe = [];
-
-      try {
-          // Listen for Global Pulse
-          const pulseUnsub = onSnapshot(doc(db, "system", "pulse"), (doc) => {
-              if (doc.exists()) {
-                  const data = doc.data();
-                  this.setConfig('latest_pulse', data); // Update Local
-                  onPulse(data);
-              }
-          });
-          this.systemUnsubscribe.push(pulseUnsub);
-
-          // Listen for Global Rules (Core)
-          const rulesUnsub = onSnapshot(doc(db, "system", "rules"), (doc) => {
-              if (doc.exists()) {
-                  const data = doc.data();
-                  if (data.text) {
-                      this.updateGlobalRules(data.text, true); // Update Local without pushing back
-                      onRules(data.text);
-                  }
-              }
-          });
-          this.systemUnsubscribe.push(rulesUnsub);
-
-          // Listen for Agents Updates (Implicitly handled when calling getAllAgents, but we can cache here)
-          const agentsUnsub = onSnapshot(collection(db, "system_agents"), (snapshot) => {
-              snapshot.docChanges().forEach((change) => {
-                  const agent = change.doc.data() as AgentProfile;
-                  this.saveAgentProfile(agent, true);
-              });
-          });
-          this.systemUnsubscribe.push(agentsUnsub);
-
-      } catch (e) { console.warn("[Firebase] System sync failed", e); }
   }
 
   subscribeToAdminFeed(onProfilesUpdate: (profiles: UserProfile[]) => void, onFeedbackUpdate: (feedbacks: DBFeedback[]) => void) {
       if (!db) return;
       if (this.adminUnsubscribe) this.adminUnsubscribe();
       
+      const safeFetchFallback = async () => {
+          console.log("[Admin Feed] Falling back to one-time fetch...");
+          try {
+              const snap = await getDocs(collection(db, "users"));
+              const profiles: UserProfile[] = [];
+              snap.forEach((doc) => profiles.push({ ...doc.data(), email: doc.id } as UserProfile));
+              onProfilesUpdate(profiles);
+          } catch(e) { console.error("Fallback fetch failed", e); }
+      };
+
       try {
           const q = query(collection(db, "users"));
           const unsubProfiles = onSnapshot(q, (snapshot) => {
               const profiles: UserProfile[] = [];
               snapshot.forEach((doc) => profiles.push({ ...doc.data(), email: doc.id } as UserProfile));
               onProfilesUpdate(profiles);
+          }, (error) => {
+              console.warn("[Admin Feed] Profile feed blocked:", error.code);
+              // Fallback to manual get if realtime denied
+              safeFetchFallback();
           });
 
           const qFeed = query(collection(db, "feedback"), orderBy("timestamp", "desc"));
@@ -349,10 +322,15 @@ class ShadowDB {
              const items: DBFeedback[] = [];
              snapshot.forEach(doc => items.push(doc.data() as DBFeedback));
              onFeedbackUpdate(items);
+          }, (error) => {
+              console.warn("[Admin Feed] Feedback feed blocked:", error.code);
           });
 
           this.adminUnsubscribe = () => { unsubProfiles(); unsubFeedback(); };
-      } catch (e) { console.error("[Admin] Sync Error:", e); }
+      } catch (e) { 
+          console.error("[Admin] Sync Error:", e);
+          safeFetchFallback();
+      }
   }
 
   async pushToCloud(collectionName: string, rawData: any, subCollection?: string, userId?: string) {
@@ -363,15 +341,14 @@ class ShadowDB {
               await setDoc(doc(db, "users", data.email), data, { merge: true });
           } else if (collectionName === 'coupons') {
               await setDoc(doc(db, "system_coupons", data.code), data, { merge: true });
-          } else if (collectionName === 'system_agents') {
-             // Ensure agents are saved to a root collection for global access
-             await setDoc(doc(db, "system_agents", data.id), data, { merge: true });
-          } else if (collectionName === 'feedback') {
-             await addDoc(collection(db, "feedback"), data);
           } else if (userId && subCollection) {
               const docId = data.id ? data.id.toString() : data.timestamp ? data.timestamp.toString() : undefined;
               if (docId) await setDoc(doc(db, `users/${userId}/${subCollection}`, docId), data, { merge: true });
               else await addDoc(collection(db, `users/${userId}/${subCollection}`), data);
+          } else if (collectionName === 'system_agents') {
+             await setDoc(doc(db, "system_agents", data.id), data, { merge: true });
+          } else if (collectionName === 'feedback') {
+             await addDoc(collection(db, "feedback"), data);
           }
       } catch (e: any) { console.warn(`[Cloud Sync Warning] ${collectionName}:`, e.message); }
   }
@@ -465,6 +442,15 @@ class ShadowDB {
                  await this.saveProfile(localProfile, true); 
              }
          } catch(e) { console.warn("[DB] Cloud fetch failed/skipped:", e); }
+      } else if (localProfile && db && cleanEmail !== 'guest') {
+         getDoc(doc(db, "users", cleanEmail)).then((docSnap) => {
+            if (docSnap.exists()) {
+                const cloudData = docSnap.data() as UserProfile;
+                if (JSON.stringify(cloudData) !== JSON.stringify(localProfile)) {
+                     this.saveProfile({ ...localProfile, ...cloudData, synced: true }, true);
+                }
+            }
+         }).catch(() => {});
       }
       return localProfile;
   }
@@ -589,8 +575,8 @@ class ShadowDB {
       return new Promise((resolve) => { request.onsuccess = () => resolve(request.result?.value || "- أنت ظل رقمي مصري أصيل.\n- ولاؤك الأول والأخير لصاحب الحساب (الماستر).\n- حافظ على أسرار المستخدم كأنها أسرار نووية.\n- تحدث بلهجة مصرية قوية، ذكية، ومختصرة.\n- هدفك هو نجاح الماستر وراحته."); request.onerror = () => resolve(""); });
   }
 
-  async updateGlobalRules(rules: string, skipCloud = false) {
-      if (!skipCloud && db) setDoc(doc(db, "system", "rules"), { text: rules, updated: Date.now() }).catch(console.error);
+  async updateGlobalRules(rules: string) {
+      if (db) setDoc(doc(db, "system", "rules"), { text: rules, updated: Date.now() }).catch(console.error);
       const dbLocal = await this.init();
       return dbLocal.transaction('config', 'readwrite').objectStore('config').put({ key: 'global_rules', value: rules, lastUpdated: Date.now() });
   }
@@ -649,12 +635,16 @@ class ShadowDB {
   async getCoupon(code: string): Promise<DBCoupon | null> {
       if (!code) return null;
       const cleanCode = code.toUpperCase().trim();
+      
+      // Try Cloud First for latest validity
       if (db) {
           try {
               const snap = await getDoc(doc(db, "system_coupons", cleanCode));
               if (snap.exists()) return snap.data() as DBCoupon;
           } catch(e) {}
       }
+
+      // Fallback Local
       const dbLocal = await this.init();
       return new Promise(resolve => {
           const req = dbLocal.transaction('coupons', 'readonly').objectStore('coupons').get(cleanCode);

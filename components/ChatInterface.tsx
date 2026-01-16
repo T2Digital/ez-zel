@@ -136,30 +136,19 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   }, [incomingSystemMessage]);
 
-  // --- SENTINEL MODE LOGIC ---
   const toggleSentinelMode = async () => {
       if (!isSentinelMode) {
-          // ACTIVATE
           try {
               if ('wakeLock' in navigator) {
                   // @ts-ignore
                   wakeLockRef.current = await navigator.wakeLock.request('screen');
-                  console.log("Sentinel: Wake Lock Active");
               }
-          } catch (err) { console.log("Wake Lock Error", err); }
-          
+          } catch (err) {}
           setIsSentinelMode(true);
           startPassiveListening();
-          
-          // Audio feedback
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-          audio.volume = 0.3;
-          audio.play().catch(() => {});
-
       } else {
-          // DEACTIVATE
           if (wakeLockRef.current) {
-              try { await wakeLockRef.current.release(); } catch(e){}
+              try { wakeLockRef.current.release(); } catch(e){}
               wakeLockRef.current = null;
           }
           setIsSentinelMode(false);
@@ -168,7 +157,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   };
 
-  // Re-acquire Wake Lock if visibility changes (e.g. user minimized then returned)
   useEffect(() => {
       const handleVisibilityChange = async () => {
           if (isSentinelMode && document.visibilityState === 'visible' && !wakeLockRef.current) {
@@ -189,16 +177,12 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) return;
-      
-      // Prevent duplicates
-      if (passiveRecognitionRef.current) {
-          try { passiveRecognitionRef.current.stop(); } catch(e) {}
-      }
+      if (passiveRecognitionRef.current) stopPassiveListening();
 
       const rec = new SpeechRecognition();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = 'ar-EG'; // Listen for Arabic Wake Words
+      rec.lang = 'ar-EG';
 
       rec.onresult = (e: any) => {
           if (stateRef.current.isListening || isSubmittingRef.current) return;
@@ -206,35 +190,18 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           const results = e.results;
           const transcript = results[results.length - 1][0].transcript.trim().toLowerCase();
           
-          // WAKE WORDS
-          const wakeWords = ['يا ظل', 'يا شادو', 'يا تيتو', 'يا صاحبي', 'ya shadow', 'ya tito', 'ya sahby'];
-          
-          if (wakeWords.some(word => transcript.includes(word))) {
+          if (transcript.includes('يا ظل') || transcript.includes('يا تيتو') || transcript.includes('يا صاحبي') || transcript.includes('شادو')) {
               stopPassiveListening(); 
-              // Wake Sound
               const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
               audio.volume = 0.5;
               audio.play().catch(() => {});
-              
-              // Start Active Interaction
               startListening();
           }
       };
 
-      // INFINITE LOOP LOGIC
       rec.onend = () => {
           if (isSentinelMode && !stateRef.current.isListening && !isSubmittingRef.current) {
-              // Restart if Sentinel Mode is still active
-              try { rec.start(); } catch(e) {
-                  setTimeout(startPassiveListening, 500);
-              }
-          }
-      };
-      
-      rec.onerror = (e: any) => {
-          // Restart on error too if in Sentinel Mode
-          if (isSentinelMode && e.error !== 'aborted') {
-              setTimeout(startPassiveListening, 1000);
+              try { rec.start(); } catch(e) {}
           }
       };
       
@@ -245,7 +212,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const stopPassiveListening = () => {
       if (passiveRecognitionRef.current) {
           passiveRecognitionRef.current.onend = null;
-          passiveRecognitionRef.current.onerror = null;
           try { passiveRecognitionRef.current.stop(); } catch(e) {}
           passiveRecognitionRef.current = null;
       }
@@ -315,7 +281,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
     setLiveTranscript('');
     setPendingImage(null);
 
-    // AUTO-RESUME SENTINEL MODE
     if (isSentinelMode) {
         setTimeout(startPassiveListening, 1000); 
     }
@@ -324,7 +289,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const startListening = async () => {
     if (isLimitReached || isSubmittingRef.current) return;
     
-    stopPassiveListening(); // Must pause sentinel while active
+    stopPassiveListening();
     stopVoice();
 
     stateRef.current.isListening = true;
@@ -839,7 +804,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         <div className="flex items-end gap-2 max-w-4xl mx-auto w-full">
             <div className="flex-1 bg-[#151515] border border-white/10 rounded-[24px] flex items-end p-2 focus-within:border-cyan-500/30 transition-colors shadow-inner">
                 <button disabled={isProcessingImage} onClick={() => { if(fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click(); }} className={`p-3 transition-colors hover:bg-white/5 rounded-full mb-0.5 ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`}>{isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}</button>
-                <textarea value={input} onChange={handleInputChange} onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={isRestrictedMode ? "اكتب رسالتك (فترة تجربة)..." : (isSentinelMode ? "وضع الحارس مفعل... (قول يا ظل)" : (isAdmin ? "أمرك يا ريس..." : "قولي يا ريس..."))} className="flex-1 bg-transparent border-none text-sm text-white placeholder:text-white/20 focus:ring-0 resize-none min-h-[50px] max-h-[150px] py-3 px-2 scrollbar-hide font-medium leading-relaxed" rows={1} style={{ height: 'auto', minHeight: '50px' }} onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = `${Math.min(target.scrollHeight, 150)}px`; }} />
+                <textarea value={input} onChange={handleInputChange} onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={isRestrictedMode ? "اكتب رسالتك (فترة تجربة)..." : (isSentinelMode ? "وضع الحارس مفعل..." : (isAdmin ? "أمرك يا ريس..." : "قولي يا ريس..."))} className="flex-1 bg-transparent border-none text-sm text-white placeholder:text-white/20 focus:ring-0 resize-none min-h-[50px] max-h-[150px] py-3 px-2 scrollbar-hide font-medium leading-relaxed" rows={1} style={{ height: 'auto', minHeight: '50px' }} onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = `${Math.min(target.scrollHeight, 150)}px`; }} />
                 {(input.trim() || pendingImage) && <button onClick={() => handleSend()} className="p-3 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-all shadow-lg hover:shadow-cyan-600/20 mb-0.5 animate-in zoom-in"><Send className="w-5 h-5 text-white" /></button>}
             </div>
             <button onClick={startListening} className={`p-4 rounded-[24px] border shadow-lg transition-all active:scale-95 mb-0.5 ${isSentinelMode ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}>{isSentinelMode ? <Ear className="w-6 h-6 animate-pulse" /> : <Mic className="w-6 h-6" />}</button>
