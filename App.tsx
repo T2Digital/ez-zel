@@ -48,14 +48,42 @@ const App: React.FC = () => {
     checkSession();
   }, []);
 
-  // --- GLOBAL ALARM SYSTEM & ADMIN NOTIFIER & SHADOW PULSE ---
+  // --- GLOBAL SYSTEM SYNC (Pulse, Rules, Agents) ---
   useEffect(() => {
-    if (!user || isAppLocked) return;
+      if (!user) return;
 
-    const runBackgroundChecks = async () => {
+      // Subscribe to Global System Changes
+      shadowDB.subscribeToSystem(
+          (pulse) => {
+              if (pulse) {
+                  const lastSeen = user.lastPulseReceived || 0;
+                  if (pulse.timestamp > lastSeen + 1000) {
+                      const pulseMsg: DBMessage = {
+                          userId: user.email,
+                          role: 'system',
+                          text: `📢 **نداء عام (Shadow Pulse):**\n\n${pulse.text}`,
+                          timestamp: pulse.timestamp
+                      };
+                      shadowDB.saveMessage(pulseMsg).then(() => {
+                          setLatestSystemMessage(pulseMsg);
+                          shadowDB.updateLastPulseReceived(user.email, pulse.timestamp);
+                          setUser(prev => prev ? ({ ...prev, lastPulseReceived: pulse.timestamp }) : null);
+                          const audio = document.getElementById('notification-sound') as HTMLAudioElement;
+                          if (audio) { audio.volume = 1.0; audio.play().catch(e => {}); }
+                      });
+                  }
+              }
+          },
+          (rules) => {
+              // Rules updated silently in background via dbService
+              console.log("[System] Global rules updated.");
+          }
+      );
+
+      // Existing User-Specific Task Checks
+      const runBackgroundChecks = async () => {
+        if (isAppLocked) return;
         const now = Date.now();
-
-        // 1. Alarms (For Everyone)
         const allTasks = await shadowDB.getTasks(user.email);
         const dueTasks = allTasks.filter(t => 
             t.status === 'pending' && 
@@ -67,7 +95,6 @@ const App: React.FC = () => {
         if (dueTasks.length > 0) {
             const task = dueTasks[0];
             const reminderText = `🔔 تنبيه: ميعاد "${task.task}" جه يا ريس.`;
-
             const audio = document.getElementById('notification-sound') as HTMLAudioElement;
             if (audio) { audio.volume = 1.0; audio.play().catch(e => console.log("Audio play prevented:", e)); }
             
@@ -81,39 +108,18 @@ const App: React.FC = () => {
             };
             await shadowDB.saveMessage(alarmMsg);
             setLatestSystemMessage(alarmMsg);
-
-            if ('Notification' in window && Notification.permission === 'granted') {
-                try {
-                    new Notification('الظل الرقمي', { body: reminderText, icon: 'https://i.ibb.co/fYp5VRYb/1000053833.jpg' });
-                } catch(e) { console.warn("Notification failed", e); }
-            }
-            
             await shadowDB.updateTaskStatus(task.id!, { notified: true });
         }
+      };
 
-        // 2. SHADOW PULSE
-        const pulse = await shadowDB.getGlobalPulse();
-        if (pulse) {
-            const lastSeen = user.lastPulseReceived || 0;
-            if (pulse.timestamp > lastSeen + 1000) {
-                const pulseMsg: DBMessage = {
-                    userId: user.email,
-                    role: 'system',
-                    text: `📢 **نداء عام (Shadow Pulse):**\n\n${pulse.text}`,
-                    timestamp: pulse.timestamp
-                };
-                
-                await shadowDB.saveMessage(pulseMsg);
-                await shadowDB.updateLastPulseReceived(user.email, pulse.timestamp);
-                setLatestSystemMessage(pulseMsg);
-                setUser(prev => prev ? ({ ...prev, lastPulseReceived: pulse.timestamp }) : null);
-                const audio = document.getElementById('notification-sound') as HTMLAudioElement;
-                if (audio) { audio.play().catch(e => {}); }
-            }
-        }
+      const interval = setInterval(runBackgroundChecks, 30000);
+      return () => { clearInterval(interval); stopVoice(); };
+  }, [user?.email, isAppLocked]); // Re-run if user email changes
 
-        // 3. Admin Notifier (TITO)
-        if (user.email === 'TITO' || user.email === 'tito@shadow.com') {
+  // --- ADMIN NOTIFIER ---
+  useEffect(() => {
+      if (user && (user.email === 'TITO' || user.email === 'tito@shadow.com')) {
+          const interval = setInterval(async () => {
             const lastCheck = await shadowDB.getConfig('last_admin_check') || 0; 
             const allProfiles = await shadowDB.getAllProfiles();
             const newPending = allProfiles.filter(p => p.status === 'pending' && p.paymentProof && p.joinedAt > lastCheck);
@@ -122,38 +128,20 @@ const App: React.FC = () => {
 
             if (newPending.length > 0 || newFeedback.length > 0) {
                 let msgText = "🔴 **تقرير عمليات (New Alert)**:\n";
-                if (newPending.length > 0) {
-                    msgText += `\n📌 **طلبات اشتراك جديدة (${newPending.length}):**\n`;
-                    newPending.forEach(p => msgText += `- ${p.name}\n`);
-                }
-                if (newFeedback.length > 0) {
-                    msgText += `\n💬 **رسائل رأي جديدة (${newFeedback.length}):**\n`;
-                    newFeedback.forEach(f => msgText += `- من ${f.userName}\n`);
-                }
+                if (newPending.length > 0) msgText += `\n📌 **طلبات اشتراك جديدة (${newPending.length})**`;
+                if (newFeedback.length > 0) msgText += `\n💬 **رسائل رأي جديدة (${newFeedback.length})**`;
                 
-                const adminMsg: DBMessage = {
-                    userId: 'TITO',
-                    role: 'system',
-                    text: msgText,
-                    timestamp: Date.now()
-                };
-
+                const adminMsg: DBMessage = { userId: 'TITO', role: 'system', text: msgText, timestamp: Date.now() };
                 await shadowDB.saveMessage(adminMsg);
                 setLatestSystemMessage(adminMsg);
                 await shadowDB.setConfig('last_admin_check', Date.now());
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                 if (audio) { audio.play().catch(e => {}); }
             }
-        }
-    };
-
-    if ('Notification' in window && Notification.permission === 'default') { 
-        Notification.requestPermission().catch(e => console.log("Notification permission error", e)); 
-    }
-    
-    const interval = setInterval(runBackgroundChecks, 30000); 
-    return () => { clearInterval(interval); stopVoice(); };
-  }, [user, isAppLocked]);
+          }, 60000);
+          return () => clearInterval(interval);
+      }
+  }, [user]);
 
   useEffect(() => {
     let interval: any;
@@ -500,6 +488,7 @@ const App: React.FC = () => {
           <LiveTickers />
           <InstallPrompt />
           {renderView()}
+          <audio id="notification-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" />
       </>
   );
 };
