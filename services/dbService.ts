@@ -11,7 +11,7 @@ export interface DBMessage {
   voiceData?: string; 
   groundingLinks?: { title?: string; uri?: string }[];
   image?: string; 
-  uiCard?: any; 
+  uiCards?: any[]; // CHANGED: Array to support multitasking cards
   synced?: boolean; 
 }
 
@@ -32,7 +32,7 @@ export interface AffiliateStats {
         number: string;
         name: string;
     };
-    payoutHistory: { date: number, amount: number, status: 'paid' | 'pending' }[];
+    payoutHistory: { id?: number; date: number; amount: number; status: 'paid' | 'pending' }[];
 }
 
 export interface UserProfile {
@@ -155,7 +155,7 @@ const sanitizeForFirestore = (data: any): any => {
 
 class ShadowDB {
   private dbName = 'ShadowCore_V20_Email'; 
-  private version = 14; 
+  private version = 15; // Incremented version for schema change
   private unsubscribeListeners: Function[] = [];
   private systemUnsubscribe: Function[] = [];
   private adminUnsubscribe: Function | null = null;
@@ -218,7 +218,18 @@ class ShadowDB {
 
       // AUTO-HEAL
       if (!profile) {
-          console.warn("[Shadow Core] Profile missing for authenticated user. Auto-healing...");
+          if (db) {
+              try {
+                  const docSnap = await getDoc(doc(db, "users", cleanEmail));
+                  if (docSnap.exists()) {
+                      profile = docSnap.data() as UserProfile;
+                      await this.saveProfile(profile, true);
+                      return profile;
+                  }
+              } catch(e) {}
+          }
+
+          console.warn("[Shadow Core] Profile missing locally. Creating default/healing...");
           const namePart = email.split('@')[0];
           const isAdmin = cleanEmail.includes('tito') || cleanEmail.includes('admin');
           
@@ -293,34 +304,30 @@ class ShadowDB {
   // --- GLOBAL SYSTEM SYNC (ALL USERS) ---
   subscribeToSystem(onPulse: (pulse: any) => void, onRules: (rules: string) => void) {
       if (!db) return;
-      // Clear previous listeners
       this.systemUnsubscribe.forEach(unsub => unsub());
       this.systemUnsubscribe = [];
 
       try {
-          // Listen for Global Pulse
           const pulseUnsub = onSnapshot(doc(db, "system", "pulse"), (doc) => {
               if (doc.exists()) {
                   const data = doc.data();
-                  this.setConfig('latest_pulse', data); // Update Local
+                  this.setConfig('latest_pulse', data); 
                   onPulse(data);
               }
           });
           this.systemUnsubscribe.push(pulseUnsub);
 
-          // Listen for Global Rules (Core)
           const rulesUnsub = onSnapshot(doc(db, "system", "rules"), (doc) => {
               if (doc.exists()) {
                   const data = doc.data();
                   if (data.text) {
-                      this.updateGlobalRules(data.text, true); // Update Local without pushing back
+                      this.updateGlobalRules(data.text, true); 
                       onRules(data.text);
                   }
               }
           });
           this.systemUnsubscribe.push(rulesUnsub);
 
-          // Listen for Agents Updates (Implicitly handled when calling getAllAgents, but we can cache here)
           const agentsUnsub = onSnapshot(collection(db, "system_agents"), (snapshot) => {
               snapshot.docChanges().forEach((change) => {
                   const agent = change.doc.data() as AgentProfile;
@@ -364,7 +371,6 @@ class ShadowDB {
           } else if (collectionName === 'coupons') {
               await setDoc(doc(db, "system_coupons", data.code), data, { merge: true });
           } else if (collectionName === 'system_agents') {
-             // Ensure agents are saved to a root collection for global access
              await setDoc(doc(db, "system_agents", data.id), data, { merge: true });
           } else if (collectionName === 'feedback') {
              await addDoc(collection(db, "feedback"), data);
@@ -483,7 +489,6 @@ class ShadowDB {
       
       const localProfiles = await new Promise<UserProfile[]>((resolve) => { request.onsuccess = () => resolve(request.result || []); request.onerror = () => resolve([]); });
 
-      // Try ONE-OFF cloud fetch if connected to populate initial admin view
       if (db) {
           try {
               const snap = await getDocs(collection(db, "users"));
@@ -493,6 +498,23 @@ class ShadowDB {
           } catch(e) {}
       }
       return localProfiles;
+  }
+
+  // --- PAYOUT APPROVAL ---
+  async approvePayout(email: string, payoutId: number) {
+      const profile = await this.getProfile(email);
+      if (profile && profile.affiliate?.payoutHistory) {
+          const updatedHistory = profile.affiliate.payoutHistory.map(p => 
+              (p.date === payoutId || p.id === payoutId) ? { ...p, status: 'paid' as const } : p
+          );
+          
+          const updatedProfile = { 
+              ...profile, 
+              affiliate: { ...profile.affiliate, payoutHistory: updatedHistory } 
+          };
+          
+          await this.saveProfile(updatedProfile);
+      }
   }
 
   async getHistory(userId: string): Promise<DBMessage[]> {
@@ -553,7 +575,8 @@ class ShadowDB {
   async recordPayout(email: string, amount: number) {
       const profile = await this.getProfile(email);
       if (profile && profile.affiliate) {
-          profile.affiliate.payoutHistory.push({ date: Date.now(), amount: amount, status: 'paid' });
+          const payout = { date: Date.now(), amount: amount, status: 'pending' as const };
+          profile.affiliate.payoutHistory.push(payout);
           profile.affiliate.totalEarnings = Math.max(0, profile.affiliate.totalEarnings - amount);
           await this.saveProfile(profile);
       }

@@ -19,7 +19,7 @@ interface AgentInfo {
 }
 
 const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
-  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'settings'>('requests');
+  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts'>('requests');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [feedbacks, setFeedbacks] = useState<DBFeedback[]>([]);
   const [selectedProof, setSelectedProof] = useState<string | null>(null);
@@ -37,42 +37,26 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   const [newKnowledgeItem, setNewKnowledgeItem] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  
+  // Payout Modal State
+  const [selectedPayoutMarketer, setSelectedPayoutMarketer] = useState<UserProfile | null>(null);
 
-  // Admin Profile (Real DB Profile)
+  // Admin Profile
   const [adminProfile, setAdminProfile] = useState<UserProfile>({ 
-      email: 'TITO', 
-      name: 'تيتو (المالك)', 
-      shadowName: 'الماستر', 
-      tier: 'sovereign', 
-      status: 'active', 
-      joinedAt: Date.now(),
-      password: 'admin',
+      email: 'TITO', name: 'تيتو (المالك)', shadowName: 'الماستر', tier: 'sovereign', status: 'active', joinedAt: Date.now(), password: 'admin',
       affiliate: { isMarketer: true, referralCode: 'TITO_BOSS', totalEarnings: 0, referralsCount: 0, payoutHistory: [] }
   });
 
   useEffect(() => { 
       if ('Notification' in window && Notification.permission === 'granted') setNotificationsEnabled(true);
-
       const initData = async () => {
-          // 1. Fetch TITO
           const titoProfile = await shadowDB.getProfile('TITO');
           if (titoProfile) setAdminProfile(titoProfile);
-          
-          // 2. Fetch Initial Data (FORCE FETCH for Vercel/Latency)
-          const [allProfiles, allFeedback, rules] = await Promise.all([
-              shadowDB.getAllProfiles(),
-              shadowDB.getAllFeedback(),
-              shadowDB.getGlobalRules()
-          ]);
+          const [allProfiles, allFeedback, rules] = await Promise.all([shadowDB.getAllProfiles(), shadowDB.getAllFeedback(), shadowDB.getGlobalRules()]);
           setProfiles(allProfiles);
           setFeedbacks(allFeedback.reverse());
           setGlobalRules(rules);
-
-          // 3. Subscribe for Realtime
-          shadowDB.subscribeToAdminFeed(
-              (updated) => { if(updated.length > 0) setProfiles(updated); },
-              (updated) => { if(updated.length > 0) setFeedbacks(updated.reverse()); }
-          );
+          shadowDB.subscribeToAdminFeed((updated) => { if(updated.length > 0) setProfiles(updated); }, (updated) => { if(updated.length > 0) setFeedbacks(updated.reverse()); });
       };
       initData();
   }, []); 
@@ -80,15 +64,9 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   const startVoiceDictation = (target: 'rules' | 'broadcast') => {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) { alert("المتصفح لا يدعم الإملاء الصوتي (جرب Chrome)"); return; }
-      
-      const rec = new SpeechRecognition();
-      rec.lang = 'ar-EG';
+      const rec = new SpeechRecognition(); rec.lang = 'ar-EG';
       rec.onstart = () => setIsListening(target);
-      rec.onresult = (e: any) => {
-          const text = e.results[0][0].transcript;
-          if (target === 'rules') setGlobalRules(prev => prev + " " + text);
-          else setBroadcastMessage(prev => prev + " " + text);
-      };
+      rec.onresult = (e: any) => { const text = e.results[0][0].transcript; if (target === 'rules') setGlobalRules(prev => prev + " " + text); else setBroadcastMessage(prev => prev + " " + text); };
       rec.onend = () => setIsListening(null);
       rec.start();
   };
@@ -96,64 +74,17 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   const handleAgentClick = async (agent: AgentInfo) => {
       setSelectedAgent(agent);
       let data = await shadowDB.getAgentProfile(agent.id);
-      if (!data) {
-          data = { id: agent.id, name: agent.name, role: agent.role, isActive: true, systemInstruction: `أنت ${agent.role}. مهمتك: ${agent.description}. تحدث باختصار وذكاء.`, knowledgeBase: [], lastUpdated: Date.now() };
-      }
+      if (!data) data = { id: agent.id, name: agent.name, role: agent.role, isActive: true, systemInstruction: `أنت ${agent.role}. مهمتك: ${agent.description}.`, knowledgeBase: [], lastUpdated: Date.now() };
       setAgentDbData(data);
   };
 
-  const saveAgentChanges = async () => {
-      if (!agentDbData) return;
-      setIsSavingAgent(true);
-      await shadowDB.saveAgentProfile({ ...agentDbData, lastUpdated: Date.now() });
-      setTimeout(() => setIsSavingAgent(false), 800);
-  };
-
-  const addKnowledgeToAgent = () => {
-      if (!newKnowledgeItem.trim() || !agentDbData) return;
-      const updatedKnowledge = [...agentDbData.knowledgeBase, newKnowledgeItem.trim()];
-      setAgentDbData({ ...agentDbData, knowledgeBase: updatedKnowledge });
-      setNewKnowledgeItem('');
-  };
-
-  const removeKnowledgeFromAgent = (index: number) => {
-      if (!agentDbData) return;
-      const updatedKnowledge = agentDbData.knowledgeBase.filter((_, i) => i !== index);
-      setAgentDbData({ ...agentDbData, knowledgeBase: updatedKnowledge });
-  };
-
+  const saveAgentChanges = async () => { if (!agentDbData) return; setIsSavingAgent(true); await shadowDB.saveAgentProfile({ ...agentDbData, lastUpdated: Date.now() }); setTimeout(() => setIsSavingAgent(false), 800); };
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file || !agentDbData) return;
-
-      setIsUploadingFile(true);
-      const reader = new FileReader();
-      const isText = file.type.includes('text') || file.name.endsWith('.md') || file.name.endsWith('.json') || file.name.endsWith('.csv') || file.name.endsWith('.txt');
-      
-      reader.onload = async (ev) => {
-          const content = ev.target?.result as string;
-          if (isText) {
-              const textSnippet = `[FILE: ${file.name}]\n${content}`;
-              const updatedKnowledge = [...agentDbData.knowledgeBase, textSnippet];
-              setAgentDbData({ ...agentDbData, knowledgeBase: updatedKnowledge });
-          } else {
-              const currentDocs = agentDbData.documents || [];
-              const newDoc = { name: file.name, mimeType: file.type || 'application/pdf', data: content };
-              setAgentDbData({ ...agentDbData, documents: [...currentDocs, newDoc] });
-          }
-          setIsUploadingFile(false);
-          if (fileInputRef.current) fileInputRef.current.value = '';
-      };
-
-      if (isText) reader.readAsText(file);
-      else reader.readAsDataURL(file);
+      const file = e.target.files?.[0]; if (!file || !agentDbData) return; setIsUploadingFile(true); const reader = new FileReader(); const isText = file.type.includes('text') || file.name.endsWith('.txt');
+      reader.onload = async (ev) => { const content = ev.target?.result as string; if (isText) { const updatedKnowledge = [...agentDbData.knowledgeBase, `[FILE: ${file.name}]\n${content}`]; setAgentDbData({ ...agentDbData, knowledgeBase: updatedKnowledge }); } else { const newDoc = { name: file.name, mimeType: file.type || 'application/pdf', data: content }; setAgentDbData({ ...agentDbData, documents: [...(agentDbData.documents || []), newDoc] }); } setIsUploadingFile(false); if (fileInputRef.current) fileInputRef.current.value = ''; };
+      if (isText) reader.readAsText(file); else reader.readAsDataURL(file);
   };
-
-  const removeDocument = (index: number) => {
-      if (!agentDbData || !agentDbData.documents) return;
-      const updatedDocs = agentDbData.documents.filter((_, i) => i !== index);
-      setAgentDbData({ ...agentDbData, documents: updatedDocs });
-  };
+  const removeDocument = (index: number) => { if (!agentDbData || !agentDbData.documents) return; const updatedDocs = agentDbData.documents.filter((_, i) => i !== index); setAgentDbData({ ...agentDbData, documents: updatedDocs }); };
 
   const handleStatusUpdate = async (email: string, status: 'active' | 'blocked' | 'pending') => {
     const profile = await shadowDB.getProfile(email);
@@ -168,16 +99,17 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
     }
   };
 
-  const handleSendBroadcast = async () => { 
-      if (!broadcastMessage.trim()) return; 
-      setIsBroadcasting(true); 
-      await shadowDB.setGlobalPulse(broadcastMessage);
-      setBroadcastMessage(''); 
-      setIsBroadcasting(false);
-      alert("تم إطلاق نبض الظل. سيصل لجميع المستخدمين.");
-  };
-
+  const handleSendBroadcast = async () => { if (!broadcastMessage.trim()) return; setIsBroadcasting(true); await shadowDB.setGlobalPulse(broadcastMessage); setBroadcastMessage(''); setIsBroadcasting(false); alert("تم إطلاق نبض الظل."); };
   const saveGlobalRules = async () => { setIsSavingRules(true); await shadowDB.updateGlobalRules(globalRules); setTimeout(() => setIsSavingRules(false), 1000); };
+
+  const handleConfirmPayout = async (email: string, payoutId: number) => {
+      if (confirm("تأكيد صرف المبلغ للمسوق؟")) {
+          await shadowDB.approvePayout(email, payoutId);
+          const updated = await shadowDB.getAllProfiles();
+          setProfiles(updated);
+          setSelectedPayoutMarketer(null); // Close modal if open
+      }
+  };
 
   const councilAgents: AgentInfo[] = [
       { id: 'maestro_core', name: 'The Maestro', role: 'المايسترو', status: 'LEADER', description: 'العقل المدبر وإدارة الحوار.', color: 'purple', icon: <Brain className="w-5 h-5" /> },
@@ -194,34 +126,66 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   const pendingRequests = profiles.filter(p => p.status === 'pending' && p.paymentProof);
   const activeMembers = filteredProfiles.filter(p => p.status === 'active' && p.tier === 'sovereign' && p.email !== 'TITO');
   const marketersList = filteredProfiles.filter(p => p.affiliate?.isMarketer);
-
+  
   if (activeView === 'chat') return <div className="h-screen w-full bg-black"><ChatInterface currentUser={adminProfile} onUpgrade={() => {}} onBack={() => setActiveView('requests')} isAdmin={true} /></div>;
 
   return (
     <div className="min-h-screen bg-[#020202] text-white flex flex-col font-['Cairo'] pb-48">
       <div className="p-6 md:p-8 flex justify-between items-center bg-black/50 border-b border-white/5 sticky top-0 z-50 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">T</div>
-            <h2 className="text-xl font-black">TITO <span className="text-amber-500">HQ</span></h2>
-          </div>
-          <div className="flex items-center gap-2">
-              <button onClick={onSwitchToUserMode} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">وضع المستخدم</button>
-              <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-900/20 rounded-full transition-all"><LogOut className="w-5 h-5" /></button>
-          </div>
+          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">T</div><h2 className="text-xl font-black">TITO <span className="text-amber-500">HQ</span></h2></div>
+          <div className="flex items-center gap-2"><button onClick={onSwitchToUserMode} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">وضع المستخدم</button><button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-900/20 rounded-full transition-all"><LogOut className="w-5 h-5" /></button></div>
       </div>
 
       <div className="flex-1 p-6 space-y-8">
-        
-        {/* AGENTS GRID */}
         {activeView !== 'core' && activeView !== 'broadcast' && (
             <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
                 {councilAgents.map(agent => (
                     <div key={agent.id} onClick={() => handleAgentClick(agent)} className="p-4 rounded-2xl border border-white/5 bg-[#080808] flex flex-col items-center cursor-pointer hover:border-amber-500/30 transition-all group">
-                        <div className={`p-3 rounded-full bg-white/5 text-${agent.color}-400 mb-2 group-hover:scale-110 transition-transform`}>{agent.icon}</div>
-                        <span className="text-[9px] font-black uppercase text-white/40">{agent.name}</span>
+                        <div className={`p-3 rounded-full bg-white/5 text-${agent.color}-400 mb-2 group-hover:scale-110 transition-transform`}>{agent.icon}</div><span className="text-[9px] font-black uppercase text-white/40">{agent.name}</span>
                     </div>
                 ))}
             </div>
+        )}
+
+        {/* --- MARKETERS VIEW RESTORED --- */}
+        {activeView === 'marketers' && (
+            <>
+                <h3 className="text-sm font-black text-emerald-500 mb-4 flex items-center gap-2"><Briefcase className="w-4 h-4" /> فريق المسوقين ({marketersList.length})</h3>
+                {marketersList.map(u => {
+                    const pendingPayouts = u.affiliate?.payoutHistory?.filter(h => h.status === 'pending') || [];
+                    const totalPending = pendingPayouts.reduce((sum, h) => sum + h.amount, 0);
+                    
+                    return (
+                        <div key={u.email} className="p-5 bg-[#111] rounded-[24px] border border-emerald-500/20 mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-emerald-500/40 transition-all">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20">{u.name[0]}</div>
+                                <div>
+                                    <h4 className="font-bold text-base text-white">{u.name}</h4>
+                                    <p className="text-[10px] opacity-50 font-mono">{u.email}</p>
+                                    <div className="flex gap-3 mt-1">
+                                        <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-white/60">كود: <span className="font-bold text-white">{u.affiliate?.referralCode}</span></span>
+                                        <span className="text-[10px] bg-emerald-900/20 px-2 py-0.5 rounded text-emerald-400">إجمالي الأرباح: {u.affiliate?.totalEarnings || 0}ج</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {totalPending > 0 ? (
+                                <div className="flex items-center gap-4 bg-black/40 p-3 rounded-xl border border-amber-500/20">
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">مطلوب سحب</p>
+                                        <p className="text-xl font-black text-white">{totalPending} ج.م</p>
+                                    </div>
+                                    <button onClick={() => setSelectedPayoutMarketer(u)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-900/20 transition-all">
+                                        <DollarSign className="w-4 h-4" /> صرف
+                                    </button>
+                                </div>
+                            ) : (
+                                <span className="text-[10px] text-white/20 font-bold bg-white/5 px-3 py-1 rounded-lg">لا توجد مستحقات</span>
+                            )}
+                        </div>
+                    );
+                })}
+            </>
         )}
 
         {/* PENDING REQUESTS */}
@@ -254,14 +218,6 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
             </div>
         ))}
 
-        {/* MARKETERS */}
-        {activeView === 'marketers' && marketersList.map(u => (
-            <div key={u.email} className="p-4 bg-[#111] rounded-2xl border border-emerald-500/20 flex justify-between items-center mb-2">
-                <div><h4 className="font-bold text-emerald-400 text-sm">{u.name}</h4><p className="text-[10px] opacity-40">أرباح: {u.affiliate?.totalEarnings}ج | دعوات: {u.affiliate?.referralsCount}</p></div>
-                <div className="text-right"><p className="text-[10px] font-mono bg-white/5 px-2 py-1 rounded">{u.affiliate?.referralCode}</p></div>
-            </div>
-        ))}
-
         {/* FEEDBACK */}
         {activeView === 'feedback' && feedbacks.map((f, i) => (
             <div key={i} className="p-4 bg-[#111] rounded-2xl border border-purple-500/20 mb-2">
@@ -270,7 +226,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
             </div>
         ))}
 
-        {/* CORE / RULES - INCREASED HEIGHT */}
+        {/* CORE / RULES */}
         {activeView === 'core' && (
             <div className="flex-1 flex flex-col gap-4 h-full">
                 <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl mb-2 flex items-center gap-3">
@@ -314,7 +270,54 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
             </div>
         )}
 
-        {/* AGENT CONTROL MODAL (REUSED FROM PREVIOUS BUT ENSURED) */}
+        {/* PAYOUT MODAL */}
+        {selectedPayoutMarketer && (
+            <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md p-4 flex items-center justify-center animate-in zoom-in">
+                <div className="bg-[#111] border border-emerald-500/30 rounded-[32px] p-8 w-full max-w-md relative shadow-2xl">
+                    <button onClick={() => setSelectedPayoutMarketer(null)} className="absolute top-6 left-6 p-2 bg-white/5 rounded-full hover:bg-white/10"><X className="w-5 h-5" /></button>
+                    
+                    <div className="text-center mb-8">
+                        <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
+                            <DollarSign className="w-8 h-8 text-emerald-400" />
+                        </div>
+                        <h2 className="text-2xl font-black text-white">صرف أرباح</h2>
+                        <p className="text-white/50 text-sm mt-1">{selectedPayoutMarketer.name}</p>
+                    </div>
+
+                    <div className="bg-black/50 p-4 rounded-2xl border border-white/5 mb-6 space-y-3">
+                        <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                            <span className="text-white/40 text-xs font-bold">المبلغ المستحق</span>
+                            <span className="text-xl font-black text-emerald-400">
+                                {selectedPayoutMarketer.affiliate?.payoutHistory.filter(h => h.status === 'pending').reduce((a,b) => a + b.amount, 0)} ج.م
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                            <span className="text-white/40 text-xs font-bold">طريقة التحويل</span>
+                            <span className="text-sm font-bold text-white uppercase">{selectedPayoutMarketer.affiliate?.payoutDetails?.method || 'غير محدد'}</span>
+                        </div>
+                        <div>
+                            <p className="text-white/40 text-xs font-bold mb-1">بيانات الحساب</p>
+                            <p className="font-mono text-lg font-black text-white tracking-widest bg-white/5 p-2 rounded-lg text-center select-all">
+                                {selectedPayoutMarketer.affiliate?.payoutDetails?.number || 'لم يتم إدخال رقم'}
+                            </p>
+                            <p className="text-center text-[10px] text-white/30 mt-1">{selectedPayoutMarketer.affiliate?.payoutDetails?.name}</p>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={() => {
+                            const pending = selectedPayoutMarketer.affiliate?.payoutHistory.find(h => h.status === 'pending');
+                            if (pending) handleConfirmPayout(selectedPayoutMarketer.email, pending.date);
+                        }}
+                        className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/40 transition-all"
+                    >
+                        <CheckCircle className="w-5 h-5" /> تأكيد التحويل (Mark as Paid)
+                    </button>
+                </div>
+            </div>
+        )}
+
+        {/* AGENT CONTROL MODAL */}
         {selectedAgent && agentDbData && (
             <div className="fixed inset-0 z-[250] bg-black/95 backdrop-blur-md p-4 flex items-center justify-center animate-in zoom-in">
                 <div className="max-w-4xl w-full bg-[#111] border border-white/10 rounded-[32px] relative shadow-2xl flex flex-col h-[90vh]">

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool } from 'lucide-react';
-import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
+import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool, Layout, Calculator } from 'lucide-react';
+import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import CapabilitiesGuide from './CapabilitiesGuide';
 
@@ -72,24 +72,40 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const [searchQuery, setSearchQuery] = useState('');
 
   const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const silenceTimerRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastSystemMessageIdRef = useRef<number | undefined>(undefined);
   const isSubmittingRef = useRef(false);
+  
+  // --- ROBUST VAD (Voice Activity Detection) REFS ---
+  const lastSpeechTimeRef = useRef<number>(0);
+  const silenceCheckIntervalRef = useRef<any>(null);
+  const shouldContinueListeningRef = useRef(false); 
+  const currentTranscriptRef = useRef('');
 
-  const isRestrictedMode = currentUser.phone === 'GUEST' || (currentUser.tier === 'lite' && currentUser.affiliate?.isMarketer);
+  // --- STRICT RBAC: ADMIN OVERRIDE ---
+  const isTito = currentUser.email === 'TITO' || currentUser.email === 'tito@shadow.com' || isAdmin;
+  const isRestrictedMode = !isTito && (currentUser.phone === 'GUEST' || (currentUser.tier === 'lite' && currentUser.affiliate?.isMarketer));
   const [isLimitReached, setIsLimitReached] = useState(false);
+
+  // --- AUDIO & MIC CONFLICT MANAGEMENT ---
+  const suspendSentinel = () => {
+      if (isSentinelMode && passiveRecognitionRef.current) {
+          try { passiveRecognitionRef.current.stop(); } catch(e){}
+      }
+  };
+
+  const resumeSentinel = () => {
+      if (isSentinelMode && !shouldContinueListeningRef.current && appStatus === 'idle') {
+          startPassiveListening();
+      }
+  };
 
   useEffect(() => {
       const resumeAudio = () => {
-          const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
-          if (Ctx) {
-             const ctx = new Ctx();
-             if (ctx.state === 'suspended') ctx.resume();
-          }
+          resumeAudioContext();
       };
-      window.addEventListener('click', resumeAudio, { once: true });
-      window.addEventListener('touchstart', resumeAudio, { once: true });
+      window.addEventListener('click', resumeAudio);
+      window.addEventListener('touchstart', resumeAudio);
       return () => {
           window.removeEventListener('click', resumeAudio);
           window.removeEventListener('touchstart', resumeAudio);
@@ -105,28 +121,47 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
             const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
             if (now - trialStart > threeDaysMs) setIsLimitReached(true);
         }
+    } else {
+        setIsLimitReached(false);
     }
   }, [isRestrictedMode]);
 
   const getGreetingSubtitle = () => {
-      if (isAdmin) return `مرحباً ${currentUser.name.split(' ')[0]} (الماستر)`;
+      if (isTito) return `مرحباً تيتو (الماستر)`;
       if (currentUser.phone === 'GUEST') return "مرحباً ضيف الظل";
       if (currentUser.affiliate?.isMarketer && currentUser.tier === 'lite') return `مرحباً ${currentUser.name.split(' ')[0]} (شريك)`;
       return `مرحباً ${currentUser.name.split(' ')[0]} (عضو نخبة)`;
   };
 
   useEffect(() => {
+      let isMounted = true;
+      const loadHistory = async () => {
+          try {
+              const hist = await shadowDB.getHistory(currentUser.phone);
+              if (isMounted) {
+                  setMessages(prev => {
+                      const existingIds = new Set(prev.map(m => m.id));
+                      const newMsgs = hist.filter(m => !existingIds.has(m.id));
+                      return [...prev, ...newMsgs].sort((a,b) => a.timestamp - b.timestamp);
+                  });
+              }
+          } catch(e) { console.warn("History Load Error", e); }
+      };
+      
+      loadHistory();
+
       if (currentUser.phone !== 'GUEST') {
           shadowDB.subscribeToRealtime(currentUser.phone, (table, payload) => {
-              if (table === 'history') {
+              if (table === 'history' && isMounted) {
                   const newMsg = payload as DBMessage;
                   setMessages(prev => {
                       if (prev.some(m => m.timestamp === newMsg.timestamp)) return prev;
-                      return [...prev, newMsg];
+                      return [...prev, newMsg].sort((a,b) => a.timestamp - b.timestamp);
                   });
               }
           });
       }
+      return () => { isMounted = false; };
   }, [currentUser.phone]);
 
   useEffect(() => {
@@ -139,58 +174,38 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   // --- SENTINEL MODE LOGIC ---
   const toggleSentinelMode = async () => {
       if (!isSentinelMode) {
-          // ACTIVATE
           try {
               if ('wakeLock' in navigator) {
                   // @ts-ignore
                   wakeLockRef.current = await navigator.wakeLock.request('screen');
-                  console.log("Sentinel: Wake Lock Active");
               }
-          } catch (err) { console.log("Wake Lock Error", err); }
+          } catch (err) {}
           
           setIsSentinelMode(true);
           startPassiveListening();
-          
-          // Audio feedback
           const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
           audio.volume = 0.3;
           audio.play().catch(() => {});
 
       } else {
-          // DEACTIVATE
           if (wakeLockRef.current) {
               try { await wakeLockRef.current.release(); } catch(e){}
               wakeLockRef.current = null;
           }
           setIsSentinelMode(false);
           stopPassiveListening();
-          setAppStatus('idle');
+          if (appStatus === 'idle') setAppStatus('idle');
       }
   };
-
-  // Re-acquire Wake Lock if visibility changes (e.g. user minimized then returned)
-  useEffect(() => {
-      const handleVisibilityChange = async () => {
-          if (isSentinelMode && document.visibilityState === 'visible' && !wakeLockRef.current) {
-              try {
-                  // @ts-ignore
-                  wakeLockRef.current = await navigator.wakeLock.request('screen');
-              } catch(e) {}
-          }
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isSentinelMode]);
 
   const passiveRecognitionRef = useRef<any>(null);
   
   const startPassiveListening = () => {
-      if (stateRef.current.isListening) return;
+      if (shouldContinueListeningRef.current || appStatus === 'speaking') return;
 
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) return;
       
-      // Prevent duplicates
       if (passiveRecognitionRef.current) {
           try { passiveRecognitionRef.current.stop(); } catch(e) {}
       }
@@ -198,43 +213,27 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       const rec = new SpeechRecognition();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = 'ar-EG'; // Listen for Arabic Wake Words
+      rec.lang = 'ar-EG'; 
 
       rec.onresult = (e: any) => {
-          if (stateRef.current.isListening || isSubmittingRef.current) return;
-          
+          if (shouldContinueListeningRef.current || isSubmittingRef.current || appStatus === 'speaking') return;
           const results = e.results;
           const transcript = results[results.length - 1][0].transcript.trim().toLowerCase();
-          
-          // WAKE WORDS
           const wakeWords = ['يا ظل', 'يا شادو', 'يا تيتو', 'يا صاحبي', 'ya shadow', 'ya tito', 'ya sahby'];
           
           if (wakeWords.some(word => transcript.includes(word))) {
               stopPassiveListening(); 
-              // Wake Sound
               const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
               audio.volume = 0.5;
               audio.play().catch(() => {});
-              
-              // Start Active Interaction
-              startListening();
+              startListening(); // Hand off to active listening
           }
       };
 
-      // INFINITE LOOP LOGIC
+      // Auto-restart sentinel if it dies but shouldn't
       rec.onend = () => {
-          if (isSentinelMode && !stateRef.current.isListening && !isSubmittingRef.current) {
-              // Restart if Sentinel Mode is still active
-              try { rec.start(); } catch(e) {
-                  setTimeout(startPassiveListening, 500);
-              }
-          }
-      };
-      
-      rec.onerror = (e: any) => {
-          // Restart on error too if in Sentinel Mode
-          if (isSentinelMode && e.error !== 'aborted') {
-              setTimeout(startPassiveListening, 1000);
+          if (isSentinelMode && !shouldContinueListeningRef.current && !isSubmittingRef.current && appStatus !== 'speaking') {
+              try { rec.start(); } catch(e) { setTimeout(startPassiveListening, 500); }
           }
       };
       
@@ -244,42 +243,12 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
   const stopPassiveListening = () => {
       if (passiveRecognitionRef.current) {
-          passiveRecognitionRef.current.onend = null;
-          passiveRecognitionRef.current.onerror = null;
           try { passiveRecognitionRef.current.stop(); } catch(e) {}
           passiveRecognitionRef.current = null;
       }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
-
-  useEffect(() => {
-    if (!isRestrictedMode) {
-        const load = async () => setMessages(await shadowDB.getHistory(currentUser.phone));
-        load();
-    } else {
-        setMessages(prev => {
-            if (prev.length === 0) {
-                return [{
-                    role: 'model',
-                    userId: currentUser.phone,
-                    text: `يا مرحب بيك يا ${currentUser.name.split(' ')[0]}.
-أنا ظلك الرقمي.. عقلك التاني اللي بيحلل، وبيخطط، وبيحفظ أسرارك.
-أنا هنا عشان أشيل عنك الحمل.
-معاك 3 أيام تجرب قدراتي.. هات آخرك يا ريس.`,
-                    timestamp: Date.now()
-                }];
-            }
-            return prev;
-        });
-    }
-  }, [isRestrictedMode, currentUser.phone]);
-
-  useEffect(() => { 
-    if (scrollRef.current && !isSearchActive && !searchQuery) {
-        scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [messages.length, appStatus, liveTranscript, isSearchActive, searchQuery]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -291,9 +260,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const searchInputRef = useRef<HTMLInputElement>(null);
   
   const isCancelledRef = useRef<boolean>(false);
-  const stateRef = useRef({ isListening: false, finalTranscript: '' });
 
   const resetToIdle = useCallback(() => {
+    if (isSubmittingRef.current) return;
+
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
          recorderRef.current.onstop = null; 
          recorderRef.current.stop();
@@ -304,31 +274,29 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         activeRecognitionRef.current = null; 
     }
     if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    if (silenceCheckIntervalRef.current) clearInterval(silenceCheckIntervalRef.current);
 
-    stateRef.current.isListening = false;
-    stateRef.current.finalTranscript = '';
+    shouldContinueListeningRef.current = false;
+    currentTranscriptRef.current = '';
     isCancelledRef.current = false;
-    isSubmittingRef.current = false;
     
     setAppStatus('idle');
     setLiveTranscript('');
     setPendingImage(null);
 
-    // AUTO-RESUME SENTINEL MODE
-    if (isSentinelMode) {
-        setTimeout(startPassiveListening, 1000); 
-    }
+    if (isSentinelMode) setTimeout(startPassiveListening, 1000); 
   }, [isSentinelMode]);
 
   const startListening = async () => {
     if (isLimitReached || isSubmittingRef.current) return;
     
-    stopPassiveListening(); // Must pause sentinel while active
-    stopVoice();
+    stopPassiveListening(); 
+    stopVoice(); 
+    resumeAudioContext(); 
 
-    stateRef.current.isListening = true;
-    stateRef.current.finalTranscript = '';
+    shouldContinueListeningRef.current = true;
+    currentTranscriptRef.current = '';
+    lastSpeechTimeRef.current = Date.now(); // Init to now
     
     setAppStatus('listening');
     setLiveTranscript('');
@@ -336,31 +304,21 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createMediaStreamSource(stream).context.createAnalyser();
-      analyser.fftSize = 64; 
+      analyser.fftSize = 256; 
       source.connect(analyser);
       analyserRef.current = analyser;
-      startWaveformLoop();
+      startWaveformLoop(); // Also acts as VAD (Voice Activity Detection)
 
       audioChunksRef.current = [];
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       
+      // Safety: if stopped, preserve blob if meaningful
       recorder.onstop = () => { 
           stream.getTracks().forEach(track => track.stop()); 
-          if (!isCancelledRef.current) {
-              const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-              if (stateRef.current.finalTranscript.trim() || blob.size > 1500) {
-                  handleSend(stateRef.current.finalTranscript, blob);
-              } else {
-                  resetToIdle();
-              }
-          } else {
-              resetToIdle();
-          }
       };
       recorder.start(100);
       recorderRef.current = recorder;
@@ -374,54 +332,63 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           
           rec.onresult = (e: any) => {
               let interim = '';
+              let final = '';
               for (let i = e.resultIndex; i < e.results.length; ++i) {
-                  if (e.results[i].isFinal) stateRef.current.finalTranscript += e.results[i][0].transcript;
+                  if (e.results[i].isFinal) final += e.results[i][0].transcript + ' '; 
                   else interim += e.results[i][0].transcript;
               }
-              setLiveTranscript(stateRef.current.finalTranscript + interim);
-              resetSilenceTimer();
+              currentTranscriptRef.current = (currentTranscriptRef.current + final).replace(/undefined/g, ''); 
+              setLiveTranscript(currentTranscriptRef.current + interim);
+              
+              // Only update timestamp if we actually have text
+              if (final.trim() || interim.trim()) {
+                  lastSpeechTimeRef.current = Date.now();
+              }
           };
           
-          rec.onstart = () => resetSilenceTimer();
+          // FORCE RESTART on 'end' unless we decided to stop
           rec.onend = () => {
-              if (stateRef.current.isListening && !isSubmittingRef.current) {
+              if (shouldContinueListeningRef.current && !isSubmittingRef.current && !isCancelledRef.current) {
                  try { rec.start(); } catch(e){}
               }
           }
+          
           rec.start();
           activeRecognitionRef.current = rec;
       }
 
+      // --- CUSTOM VAD SILENCE CHECKER ---
+      if (silenceCheckIntervalRef.current) clearInterval(silenceCheckIntervalRef.current);
+      silenceCheckIntervalRef.current = setInterval(() => {
+          const timeSinceSpeech = Date.now() - lastSpeechTimeRef.current;
+          // 4000ms strict silence
+          if (timeSinceSpeech > 4000 && shouldContinueListeningRef.current && (currentTranscriptRef.current.trim().length > 2 || audioChunksRef.current.length > 10)) {
+              stopListeningAndSend();
+          }
+      }, 500);
+
     } catch (e) { 
-        console.error("Active Mic Error:", e);
+        console.error("Mic Error", e);
         resetToIdle(); 
     }
-  };
-
-  const resetSilenceTimer = () => {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = setTimeout(() => {
-          if (stateRef.current.isListening) {
-             stopListeningAndSend();
-          }
-      }, 3500); 
   };
 
   const startWaveformLoop = () => {
     const dataArray = new Uint8Array(analyserRef.current?.frequencyBinCount || 0);
     const update = () => {
-      if (analyserRef.current && stateRef.current.isListening) {
+      if (analyserRef.current && shouldContinueListeningRef.current) {
         analyserRef.current.getByteFrequencyData(dataArray);
-        const rawLevels = Array.from(dataArray).slice(0, 20); 
-        setVisualLevels(rawLevels); 
         
-        const sum = rawLevels.reduce((a, b) => a + b, 0);
-        const average = sum / rawLevels.length;
-
+        // Calculate Volume
+        const sum = dataArray.reduce((a, b) => a + b, 0);
+        const average = sum / dataArray.length;
+        
+        // VAD THRESHOLD: If volume > 10 (out of 255), it's speech/noise
         if (average > 10) {
-            resetSilenceTimer();
+            lastSpeechTimeRef.current = Date.now();
         }
 
+        setVisualLevels(Array.from(dataArray).slice(0, 20)); 
         rafIdRef.current = requestAnimationFrame(update);
       }
     };
@@ -429,23 +396,35 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   };
 
   const stopListeningAndSend = () => {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-
+      shouldContinueListeningRef.current = false; // Stop the loop
+      if (silenceCheckIntervalRef.current) clearInterval(silenceCheckIntervalRef.current);
+      
       if (activeRecognitionRef.current) {
-          activeRecognitionRef.current.onend = null; 
+          activeRecognitionRef.current.onend = null; // Prevent auto-restart now
           activeRecognitionRef.current.stop();
           activeRecognitionRef.current = null;
       }
-
+      
       if (recorderRef.current && recorderRef.current.state === 'recording') {
+          // Send on recorder stop
+          recorderRef.current.onstop = () => {
+              if (currentTranscriptRef.current.trim() || audioChunksRef.current.length > 5) {
+                  const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                  handleSend(currentTranscriptRef.current, blob);
+              } else {
+                  resetToIdle();
+              }
+          };
           recorderRef.current.stop(); 
       } else {
-          if (stateRef.current.finalTranscript) handleSend(stateRef.current.finalTranscript);
+          // Fallback if recorder failed but text exists
+          if (currentTranscriptRef.current.trim()) handleSend(currentTranscriptRef.current);
           else resetToIdle();
       }
   };
 
   const cancelRecording = () => {
+      shouldContinueListeningRef.current = false;
       isCancelledRef.current = true;
       resetToIdle();
   };
@@ -453,17 +432,22 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const handleSend = async (forcedText?: string, audioBlob?: Blob, existingAudioBase64?: string) => {
     if (isSubmittingRef.current || isLimitReached) return;
     
+    stopPassiveListening();
+    stopVoice();
+    resumeAudioContext(); 
+
     const textToSend = forcedText || input;
-    if (!textToSend.trim() && !audioBlob && !pendingImage && !existingAudioBase64) { 
+    // Strict Filter: Don't send empty or super short noise
+    if ((!textToSend.trim() || textToSend.trim().length < 2) && !audioBlob && !pendingImage && !existingAudioBase64) { 
         resetToIdle(); 
         return; 
     }
 
     isSubmittingRef.current = true;
+    shouldContinueListeningRef.current = false;
     setIsSearchActive(false);
     
     const displayText = textToSend.trim() ? textToSend : ((audioBlob || existingAudioBase64) ? 'رسالة صوتية 🎤' : '');
-    stateRef.current.isListening = false;
     setAppStatus('thinking');
 
     let userVoiceDataURI = existingAudioBase64 || '';
@@ -503,7 +487,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         extra = { data: currentImg.data, mimeType: currentImg.type, type: 'image' };
       }
       
-      const history = isRestrictedMode ? messages : await shadowDB.getHistory(currentUser.phone);
+      const history = await shadowDB.getHistory(currentUser.phone);
       
       const result = await getShadowResponse(
           history.map(m => ({ role: m.role, parts: [{ text: m.text }] })), 
@@ -514,33 +498,74 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       );
       
       let voiceData: string | null = null;
-      if (!isMuted && !result.isError) {
+      if (!isMuted && !result.isError && result.text) {
           voiceData = await getShadowVoice(result.text, 'male');
       }
 
-      // Format Action Card Data for UI
-      let uiCard = undefined;
-      if (result.toolAction) {
-          const t = result.toolAction;
-          if (t.type === 'display_business_doc') {
-              uiCard = { cardType: 'business_doc', data: t.data };
-          } else if (t.type === 'display_ui_card' || t.type === 'open_app') {
-             uiCard = {
-                 cardType: t.type_card || 'deep_link_fallback',
-                 title: t.title || t.app_name || 'Action',
-                 description: t.description || t.specific_action || '',
-                 url: t.url || t.search_query,
-                 number: t.number || 'generic'
-             };
-             // Auto open link if needed
-             if (t.type === 'open_app' && t.url) setTimeout(() => window.open(t.url, '_blank'), 1500);
+      // --- MULTI-TOOL EXECUTION (MULTITASKING) ---
+      const uiCards: any[] = [];
+      let finalResponseText = result.text;
+
+      if (result.toolActions && result.toolActions.length > 0) {
+          for (const t of result.toolActions) {
+              if (t.name === 'generate_business_document') {
+                  const data = t.args; 
+                  uiCards.push({ cardType: 'business_doc', data });
+              } 
+              else if (t.name === 'schedule_reminder') {
+                  const args = t.args;
+                  const task: DBTask = {
+                      userId: currentUser.phone,
+                      task: args.task,
+                      time: args.time_description,
+                      executionTime: Date.now() + 600000, 
+                      category: 'general',
+                      status: 'pending'
+                  };
+                  await shadowDB.saveTask(task);
+                  uiCards.push({ cardType: 'task_success', title: args.task, description: args.time_description });
+              }
+              else if (t.name === 'app_control') {
+                 const args = t.args;
+                 let url = args.detail;
+                 let label = args.target.toLowerCase();
+                 let iconType = 'generic';
+
+                 if (args.action_type === 'navigate_internal') {
+                     uiCards.push({ cardType: 'internal_nav', title: `فتح: ${label}`, description: 'الانتقال لصفحة داخلية', targetSection: label });
+                 } else {
+                     // Smart App Mapping Logic
+                     if (label.includes('what') || url.includes('wa.me')) { url = url || 'https://wa.me'; iconType = 'chat'; }
+                     else if (label.includes('tube') || args.action_type === 'search_media') { url = url || `https://www.youtube.com/results?search_query=${encodeURIComponent(args.detail || '')}`; iconType = 'video'; }
+                     else if (label.includes('uber')) { url = url || 'https://m.uber.com/ul'; iconType = 'car'; }
+                     else if (label.includes('book') || label.includes('hotel')) { url = url || `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(args.detail || 'hotels')}`; iconType = 'hotel'; }
+                     else if (label.includes('map') || label.includes('location')) { url = url || `https://www.google.com/maps/search/${encodeURIComponent(args.detail || '')}`; iconType = 'map'; }
+                     else if (label.includes('calc')) { iconType = 'calculator'; }
+                     else if (label.includes('phon') || args.action_type === 'call_number') { url = `tel:${args.detail}`; iconType = 'phone'; }
+                     else if (!url.startsWith('http') && !url.startsWith('tel')) { url = `https://google.com/search?q=${encodeURIComponent(args.detail || label)}`; }
+
+                     uiCards.push({
+                         cardType: 'deep_link_fallback',
+                         title: `فتح: ${label}`,
+                         description: args.detail || 'اضغط للفتح',
+                         url: url,
+                         number: iconType
+                     });
+                 }
+              }
           }
       }
 
+      if (!finalResponseText && (uiCards.length > 0 || result.groundingLinks.length > 0)) {
+          finalResponseText = "تمام، جاري التنفيذ...";
+      } else if (!finalResponseText) {
+          finalResponseText = "معلش مفهمتش، ممكن توضح؟";
+      }
+
       const modelMsg: ExtendedMessage = { 
-          userId: currentUser.phone, role: 'model', text: result.text, timestamp: Date.now(), 
+          userId: currentUser.phone, role: 'model', text: finalResponseText, timestamp: Date.now(), 
           groundingLinks: result.groundingLinks, voiceData: voiceData || undefined, isError: result.isError,
-          uiCard: uiCard // Save Card to Message
+          uiCards: uiCards 
       };
       
       let modelId = Date.now() + 1;
@@ -552,25 +577,20 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       if (voiceData) {
           setPlayingMessageId(modelId);
           setAppStatus('speaking');
-          playShadowVoice(result.text, 'male', voiceData, () => { 
+          playShadowVoice(finalResponseText, 'male', voiceData, () => { 
               setPlayingMessageId(null);
-              resetToIdle(); 
-              if (result.shouldUpgrade) setTimeout(() => onUpgrade(), 500);
+              setAppStatus('idle'); 
+              if (isSentinelMode) resumeSentinel();
           });
       } else {
-          resetToIdle();
-          if (isMuted && !result.isError) {
-            getShadowVoice(result.text, 'male').then(async (audio) => { if (audio) await shadowDB.updateMessage(modelId, { voiceData: audio }); });
-          }
-          if (result.shouldUpgrade) setTimeout(() => onUpgrade(), 1500);
+          setAppStatus('idle');
+          if (isSentinelMode) resumeSentinel();
       }
 
     } catch (e: any) { 
-        const errorMsg: ExtendedMessage = {
-             userId: currentUser.phone, role: 'model', text: "السيستم عليه ضغط بسيط يا ريس. دقيقة وراجعلك.", timestamp: Date.now(), isError: true
-        };
-        setMessages(prev => [...prev, errorMsg]);
-        resetToIdle();
+        isSubmittingRef.current = false;
+        setAppStatus('idle');
+        if (isSentinelMode) resumeSentinel();
     }
   };
 
@@ -581,7 +601,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           try { await navigator.share({ title: 'رسالة من الظل', text: `${text}\n\n💡 ${url}` }); } catch (e) {}
       } else {
           navigator.clipboard.writeText(`${text}\n\n${url}`);
-          alert("تم النسخ!");
+          alert("تم النسخ مع رابط الدعوة!");
       }
   };
 
@@ -589,24 +609,40 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       stopVoice(); 
       if (userAudioPlayerRef.current) { userAudioPlayerRef.current.pause(); userAudioPlayerRef.current = null; } 
       setPlayingMessageId(null); 
-      if (!stateRef.current.isListening) resetToIdle(); 
+      if (appStatus === 'speaking') {
+          setAppStatus('idle');
+          if (isSentinelMode) resumeSentinel();
+      }
   };
   
   const handlePlayMessage = (msg: DBMessage) => { 
       if (playingMessageId === msg.id) { handleStopPlayback(); return; } 
-      handleStopPlayback(); 
+      if (appStatus === 'speaking') handleStopPlayback();
+      if (appStatus !== 'thinking') setAppStatus('speaking');
+
       setPlayingMessageId(msg.id!); 
-      
+      suspendSentinel();
+      resumeAudioContext();
+
       if (msg.role === 'user' && msg.voiceData) { 
           const audio = new Audio(msg.voiceData); 
           userAudioPlayerRef.current = audio; 
-          audio.onended = () => { setPlayingMessageId(null); userAudioPlayerRef.current = null; }; 
-          audio.play().catch(e => setPlayingMessageId(null)); 
+          audio.onended = () => { 
+              setPlayingMessageId(null); 
+              userAudioPlayerRef.current = null;
+              if (appStatus !== 'thinking') setAppStatus('idle'); 
+              if (isSentinelMode) resumeSentinel();
+          }; 
+          audio.play().catch(e => {
+              setPlayingMessageId(null);
+              if (appStatus !== 'thinking') setAppStatus('idle'); 
+              if (isSentinelMode) resumeSentinel();
+          }); 
       } else { 
-          setAppStatus('speaking'); 
           playShadowVoice(msg.text, 'male', msg.voiceData, () => { 
               setPlayingMessageId(null); 
-              setAppStatus('idle'); 
+              if (appStatus !== 'thinking') setAppStatus('idle'); 
+              if (isSentinelMode) resumeSentinel();
           }); 
       } 
   };
@@ -621,118 +657,69 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   
   const handleAppCardAction = async (card: any) => { 
       if (!card) return; 
-      
-      // Invoice/Quote Print Logic
-      if (card.cardType === 'business_doc') {
-          window.print();
+      if (card.cardType === 'internal_nav') { 
+          if (onNavigateTo) onNavigateTo(card.targetSection);
           return;
       }
-
+      if (card.cardType === 'business_doc') { window.print(); return; }
       if (card.url) { 
           window.open(card.url, '_blank', 'noopener,noreferrer'); 
       } 
   };
 
   const getCardIcon = (type: string, number?: string) => { 
+      if (type === 'task_success') return <CheckCircle className="w-6 h-6 text-emerald-400" />;
+      if (type === 'internal_nav') return <Layout className="w-6 h-6 text-purple-400" />;
       if (type === 'business_doc') return <Printer className="w-6 h-6 text-white" />;
-      if (type === 'government_action') return <Landmark className="w-6 h-6 text-amber-400" />;
       if (type === 'deep_link_fallback') {
-          if (number === 'music') return <Music className="w-6 h-6 text-red-400" />;
+          if (number === 'chat') return <MessageCircle className="w-6 h-6 text-green-400" />;
           if (number === 'video') return <Video className="w-6 h-6 text-red-400" />;
-          if (number === 'phone') return <PhoneCall className="w-6 h-6 text-green-400" />;
-          if (number === 'message') return <MessageCircle className="w-6 h-6 text-green-400" />;
-          if (number === 'hotel') return <Hotel className="w-6 h-6 text-blue-400" />;
-          if (number === 'govt') return <Landmark className="w-6 h-6 text-amber-400" />;
-          if (number === 'pay') return <CreditCard className="w-6 h-6 text-purple-400" />;
+          if (number === 'phone') return <PhoneCall className="w-6 h-6 text-blue-400" />;
+          if (number === 'car') return <Car className="w-6 h-6 text-white" />;
+          if (number === 'search') return <Search className="w-6 h-6 text-cyan-400" />;
+          if (number === 'hotel') return <Hotel className="w-6 h-6 text-amber-400" />;
+          if (number === 'map') return <MapPin className="w-6 h-6 text-emerald-400" />;
+          if (number === 'calculator') return <Calculator className="w-6 h-6 text-orange-400" />;
           return <ExternalLink className="w-6 h-6 text-blue-400" />;
       }
       return <ExternalLink className="w-6 h-6 text-white" />;
   };
 
   const renderCard = (card: any) => {
+      if (card.cardType === 'task_success') {
+          return (
+              <div className="mt-4 bg-[#111] p-4 rounded-[22px] border border-emerald-500/20 flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/10 rounded-full"><CheckCircle className="w-5 h-5 text-emerald-500" /></div>
+                  <div><h3 className="font-bold text-white text-sm">تم جدولة التذكير</h3><p className="text-[10px] text-white/50">{card.title} - {card.description}</p></div>
+              </div>
+          );
+      }
       if (card.cardType === 'business_doc') {
           return (
             <div className="mt-4 bg-white text-black rounded-[22px] p-6 shadow-2xl printable-invoice w-full md:w-[400px]">
                 <div className="flex justify-between items-start mb-6 border-b border-black/10 pb-4">
-                    <div>
-                        <h2 className="text-xl font-black">{card.data.docType === 'quote' ? 'عرض سعر' : (card.data.docType === 'contract' ? 'عقد اتفاق' : 'فاتورة')}</h2>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">#{Math.floor(Math.random() * 10000)}</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="font-bold text-xs">التاريخ</p>
-                        <p className="text-[10px] text-gray-600 font-mono">{new Date().toLocaleDateString('en-EG')}</p>
-                    </div>
+                    <div><h2 className="text-xl font-black">{card.data.docType === 'quote' ? 'عرض سعر' : 'فاتورة'}</h2><p className="text-[10px] text-gray-500 uppercase font-bold">#{Math.floor(Math.random() * 10000)}</p></div>
+                    <div className="text-right"><p className="font-bold text-xs">التاريخ</p><p className="text-[10px] text-gray-600 font-mono">{new Date().toLocaleDateString('en-EG')}</p></div>
                 </div>
-                <div className="mb-4">
-                    <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">إلى السيد/السادة</p>
-                    <h3 className="text-lg font-bold">{card.data.clientName}</h3>
-                </div>
-                
-                {card.data.docType === 'contract' ? (
-                    <div className="mb-6 text-xs leading-relaxed whitespace-pre-wrap font-medium border p-3 rounded-xl bg-gray-50 border-gray-200">
-                        {card.data.contractBody || "..."}
-                        <div className="mt-6 flex justify-between pt-4 border-t border-black/10">
-                            <div className="text-center w-1/3">
-                                <p className="font-bold text-[10px] mb-6">توقيع الطرف الأول</p>
-                                <div className="h-0.5 bg-black/20 w-full"></div>
-                            </div>
-                            <div className="text-center w-1/3">
-                                <p className="font-bold text-[10px] mb-6">توقيع الطرف الثاني</p>
-                                <div className="h-0.5 bg-black/20 w-full"></div>
-                            </div>
-                        </div>
-                    </div>
-                ) : (
-                    <>
-                        <table className="w-full text-right text-xs mb-4">
-                            <thead className="border-b border-black/10 text-gray-500">
-                                <tr>
-                                    <th className="py-2">الوصف</th>
-                                    <th className="py-2 text-left">القيمة</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {card.data.items?.map((item: any, i: number) => (
-                                    <tr key={i} className="border-b border-black/5 last:border-0">
-                                        <td className="py-2 font-bold">{item.desc}</td>
-                                        <td className="py-2 text-left font-mono">{item.price} {card.data.currency}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        <div className={`flex justify-between items-center p-3 rounded-xl mb-4 ${card.data.docType === 'quote' ? 'bg-amber-100 text-amber-900' : 'bg-black text-white'}`}>
-                            <span className="font-bold text-xs">الإجمالي</span>
-                            <span className="font-black text-lg font-mono">
-                                {card.data.items?.reduce((s:number, i:any) => s + i.price, 0)} {card.data.currency}
-                            </span>
-                        </div>
-                    </>
-                )}
-                
-                <button onClick={() => window.print()} className="w-full py-2 border-2 border-black rounded-xl font-black flex items-center justify-center gap-2 hover:bg-black hover:text-white transition-all text-xs print:hidden">
-                    <Printer className="w-3 h-3" /> طباعة / PDF
-                </button>
-            </div>
-          );
-      } else {
-          return (
-            <div className={`mt-4 rounded-[22px] p-4 w-full md:w-[320px] ${card.cardType === 'government_action' ? 'bg-[#0f0f0f] border border-amber-500/20' : 'bg-[#0f0f0f]/90 border border-white/10'}`}>
-                <div className="flex items-center gap-3 mb-3">
-                    <div className={`p-2 rounded-xl ${card.cardType === 'government_action' ? 'bg-amber-500/10' : 'bg-white/10'}`}>
-                        {getCardIcon(card.cardType, card.number)}
-                    </div>
-                    <div>
-                        <h3 className={`font-black text-xs ${card.cardType === 'government_action' ? 'text-amber-500' : 'text-white'}`}>{card.title}</h3>
-                        <p className="text-[10px] text-white/50 truncate max-w-[200px]">{card.description}</p>
-                    </div>
-                </div>
-                <button onClick={() => handleAppCardAction(card)} className={`w-full py-2.5 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-xs border ${card.cardType === 'government_action' ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-600' : 'bg-white/10 hover:bg-white/20 text-white border-white/10'}`}>
-                    {card.cardType === 'deep_link_fallback' || card.cardType === 'government_action' ? <ExternalLink className="w-3 h-3" /> : (card.cardType === 'copy_link' ? <Copy className="w-3 h-3" /> : <ArrowRight className="w-3 h-3" />)}
-                    {card.cardType === 'government_action' ? 'بدء الخدمة' : (card.cardType === 'deep_link_fallback' ? 'فتح الرابط' : (card.cardType === 'copy_link' ? 'نسخ' : 'تنفيذ'))}
-                </button>
+                <div className="mb-4"><p className="text-[10px] text-gray-400 uppercase font-bold mb-1">إلى</p><h3 className="text-lg font-bold">{card.data.clientName}</h3></div>
+                <table className="w-full text-right text-xs mb-4"><thead className="border-b border-black/10 text-gray-500"><tr><th className="py-2">الوصف</th><th className="py-2 text-left">القيمة</th></tr></thead><tbody>{card.data.items?.map((item: any, i: number) => (<tr key={i} className="border-b border-black/5 last:border-0"><td className="py-2 font-bold">{item.desc}</td><td className="py-2 text-left font-mono">{item.price} ج.م</td></tr>))}</tbody></table>
+                <div className="flex justify-between items-center p-3 rounded-xl mb-4 bg-black text-white"><span className="font-bold text-xs">الإجمالي</span><span className="font-black text-lg font-mono">{card.data.items?.reduce((s:number, i:any) => s + i.price, 0)} ج.م</span></div>
+                <button onClick={() => window.print()} className="w-full py-2 border-2 border-black rounded-xl font-black flex items-center justify-center gap-2 hover:bg-black hover:text-white transition-all text-xs print:hidden"><Printer className="w-3 h-3" /> طباعة / PDF</button>
             </div>
           );
       }
+      return (
+        <div className={`mt-4 rounded-[22px] p-4 w-full md:w-[320px] bg-[#0f0f0f]/90 border border-white/10`}>
+            <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-xl bg-white/10`}>{getCardIcon(card.cardType, card.number)}</div>
+                <div><h3 className={`font-black text-xs text-white`}>{card.title}</h3><p className="text-[10px] text-white/50 truncate max-w-[200px]">{card.description}</p></div>
+            </div>
+            <button onClick={() => handleAppCardAction(card)} className={`w-full py-2.5 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-xs border bg-white/10 hover:bg-white/20 text-white border-white/10`}>
+                {card.cardType === 'internal_nav' ? <Layout className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
+                {card.cardType === 'internal_nav' ? 'فتح الصفحة' : 'فتح التطبيق'}
+            </button>
+        </div>
+      );
   };
 
   const displayedMessages = messages.filter(m => {
@@ -766,7 +753,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           ) : (
               <div className="flex items-center gap-3 overflow-hidden">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500 shrink-0 ${appStatus === 'thinking' ? 'bg-purple-600 shadow-purple-500/50' : 'bg-white/10'}`}>{appStatus === 'thinking' ? <Brain className="w-4 h-4 text-white animate-pulse" /> : <Activity className="w-4 h-4 text-cyan-400" />}</div>
-                  <div className="overflow-hidden"><h1 className="text-base font-black tracking-tighter leading-none text-white whitespace-nowrap">غرفة عمليات الظل</h1><div className="flex items-center gap-1"><span className={`text-[10px] font-bold truncate ${isAdmin ? 'text-amber-500' : 'text-purple-500'}`}>{getGreetingSubtitle()}</span><span className="text-[10px] text-white/30">•</span><span className={`text-[9px] font-bold uppercase tracking-widest ${isSentinelMode ? 'text-red-500 animate-pulse' : 'text-white/40'}`}>{isSentinelMode ? 'Sentinel ON' : 'Live'}</span></div></div>
+                  <div className="overflow-hidden"><h1 className="text-base font-black tracking-tighter leading-none text-white whitespace-nowrap">غرفة عمليات الظل</h1><div className="flex items-center gap-1"><span className={`text-[10px] font-bold truncate ${isTito ? 'text-amber-500' : 'text-purple-500'}`}>{getGreetingSubtitle()}</span><span className="text-[10px] text-white/30">•</span><span className={`text-[9px] font-bold uppercase tracking-widest ${isSentinelMode ? 'text-red-500 animate-pulse' : 'text-white/40'}`}>{isSentinelMode ? 'Sentinel ON' : 'Live'}</span></div></div>
               </div>
           )}
         </div>
@@ -795,15 +782,34 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                 {m.image && <img src={m.image} className="w-full h-auto max-h-56 object-cover rounded-xl mb-3 border border-white/5" />}
                 <div className="text-sm leading-6 font-medium whitespace-pre-wrap">{highlightText(m.text)}</div>
                 
-                {/* PERSISTENT ACTION CARD RENDERING */}
-                {m.uiCard && renderCard(m.uiCard)}
+                {/* MULTITASKING UI CARDS: RENDER ALL */}
+                {m.uiCards && m.uiCards.length > 0 ? (
+                    <div className="flex flex-col gap-2 mt-4">
+                        {m.uiCards.map((card, cIdx) => (
+                            <div key={cIdx}>{renderCard(card)}</div>
+                        ))}
+                    </div>
+                ) : (
+                    m.uiCard && renderCard(m.uiCard) // Fallback for legacy messages
+                )}
 
+                {/* GROUNDING SOURCES (REAL-TIME INFO) */}
                 {m.groundingLinks && m.groundingLinks.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-white/5">
-                        <div className="text-[8px] text-white/30 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Globe className="w-3 h-3" /> المصادر الحية (Realtime News)</div>
-                        <div className="flex flex-col gap-1">{m.groundingLinks.slice(0, 3).map((link, i) => (<a key={i} href={link.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/5 transition-all group"><span className="text-[10px] text-cyan-200 truncate flex-1 font-bold group-hover:text-cyan-400">{link.title || link.uri}</span></a>))}</div>
+                    <div className="mt-4 pt-3 border-t border-white/5">
+                        <div className="text-[9px] text-emerald-400 font-black uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <Globe className="w-3 h-3 animate-pulse" /> مصادر حية (موثقة)
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {m.groundingLinks.slice(0, 4).map((link, i) => (
+                                <a key={i} href={link.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-full border border-emerald-500/20 transition-all group">
+                                    <span className="text-[10px] text-white/80 truncate max-w-[150px] font-bold group-hover:text-emerald-300">{link.title || link.uri}</span>
+                                    <ExternalLink className="w-2.5 h-2.5 text-emerald-500" />
+                                </a>
+                            ))}
+                        </div>
                     </div>
                 )}
+
                 <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
                     <span className="text-[9px] text-white/20 font-black tracking-widest">{new Date(m.timestamp).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
                     <div className="flex gap-2 items-center">
@@ -839,7 +845,16 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         <div className="flex items-end gap-2 max-w-4xl mx-auto w-full">
             <div className="flex-1 bg-[#151515] border border-white/10 rounded-[24px] flex items-end p-2 focus-within:border-cyan-500/30 transition-colors shadow-inner">
                 <button disabled={isProcessingImage} onClick={() => { if(fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click(); }} className={`p-3 transition-colors hover:bg-white/5 rounded-full mb-0.5 ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`}>{isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}</button>
-                <textarea value={input} onChange={handleInputChange} onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={isRestrictedMode ? "اكتب رسالتك (فترة تجربة)..." : (isSentinelMode ? "وضع الحارس مفعل... (قول يا ظل)" : (isAdmin ? "أمرك يا ريس..." : "قولي يا ريس..."))} className="flex-1 bg-transparent border-none text-sm text-white placeholder:text-white/20 focus:ring-0 resize-none min-h-[50px] max-h-[150px] py-3 px-2 scrollbar-hide font-medium leading-relaxed" rows={1} style={{ height: 'auto', minHeight: '50px' }} onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = `${Math.min(target.scrollHeight, 150)}px`; }} />
+                <textarea 
+                    value={input} 
+                    onChange={handleInputChange} 
+                    onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} 
+                    placeholder={isRestrictedMode ? "اكتب رسالتك (فترة تجربة)..." : (isSentinelMode ? "وضع الحارس مفعل... (قول يا ظل)" : (isAdmin ? "أمرك يا ريس..." : "قولي يا ريس..."))} 
+                    className="flex-1 bg-transparent border-none text-sm text-white placeholder:text-white/20 focus:ring-0 resize-none min-h-[50px] max-h-[150px] py-3 px-2 scrollbar-hide font-medium leading-relaxed" 
+                    rows={1} 
+                    style={{ height: 'auto', minHeight: '50px' }} 
+                    onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = `${Math.min(target.scrollHeight, 150)}px`; }} 
+                />
                 {(input.trim() || pendingImage) && <button onClick={() => handleSend()} className="p-3 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-all shadow-lg hover:shadow-cyan-600/20 mb-0.5 animate-in zoom-in"><Send className="w-5 h-5 text-white" /></button>}
             </div>
             <button onClick={startListening} className={`p-4 rounded-[24px] border shadow-lg transition-all active:scale-95 mb-0.5 ${isSentinelMode ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}>{isSentinelMode ? <Ear className="w-6 h-6 animate-pulse" /> : <Mic className="w-6 h-6" />}</button>

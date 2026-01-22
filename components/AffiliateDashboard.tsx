@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, shadowDB } from '../services/dbService';
-import { Copy, Wallet, Users, ArrowRight, Share2, DollarSign, TrendingUp, Save, CheckCircle, History } from 'lucide-react';
+import { Copy, Wallet, Users, ArrowRight, Share2, DollarSign, TrendingUp, Save, CheckCircle, History, HandCoins, AlertTriangle } from 'lucide-react';
 
 interface Props {
   user: UserProfile;
@@ -14,6 +14,7 @@ const AffiliateDashboard: React.FC<Props> = ({ user, onBack, onUpdateUser }) => 
   const [payoutNumber, setPayoutNumber] = useState(user.affiliate?.payoutDetails?.number || '');
   const [payoutName, setPayoutName] = useState(user.affiliate?.payoutDetails?.name || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
 
   const activateAffiliate = async () => {
     const code = (user.name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase();
@@ -47,6 +48,36 @@ const AffiliateDashboard: React.FC<Props> = ({ user, onBack, onUpdateUser }) => 
       await shadowDB.saveProfile(updatedUser);
       onUpdateUser(updatedUser);
       setTimeout(() => setIsSaving(false), 1000);
+  };
+
+  const handleRequestPayout = async () => {
+      if (!user.affiliate || user.affiliate.totalEarnings < 100) return;
+      if (!payoutNumber || !payoutName) {
+          alert("يرجى حفظ بيانات السحب أولاً.");
+          return;
+      }
+      
+      setIsRequesting(true);
+      
+      const newPayout = { 
+          date: Date.now(), 
+          amount: user.affiliate.totalEarnings, 
+          status: 'pending' as const 
+      };
+
+      const updatedUser = {
+          ...user,
+          affiliate: {
+              ...user.affiliate,
+              totalEarnings: 0, // Reset balance to 0 (moved to pending)
+              payoutHistory: [newPayout, ...user.affiliate.payoutHistory]
+          }
+      };
+
+      await shadowDB.saveProfile(updatedUser);
+      onUpdateUser(updatedUser);
+      setIsRequesting(false);
+      alert("تم إرسال طلب السحب بنجاح! سيتم المراجعة والتحويل قريباً.");
   };
 
   if (!user.affiliate?.isMarketer) {
@@ -108,6 +139,18 @@ const AffiliateDashboard: React.FC<Props> = ({ user, onBack, onUpdateUser }) => 
                   <div className="relative z-10">
                       <p className="text-emerald-400 font-bold uppercase tracking-widest text-xs mb-2">رصيدك المتاح (Total Earnings)</p>
                       <h3 className="text-5xl font-black text-white tracking-tighter mb-6">{user.affiliate.totalEarnings.toLocaleString()} <span className="text-lg text-emerald-500">ج.م</span></h3>
+                      
+                      {user.affiliate.totalEarnings >= 100 ? (
+                          <button onClick={handleRequestPayout} disabled={isRequesting} className="bg-white text-black px-6 py-3 rounded-xl font-black text-sm hover:scale-105 transition-transform flex items-center gap-2">
+                             {isRequesting ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div> : <HandCoins className="w-5 h-5" />}
+                             طلب سحب الرصيد الآن
+                          </button>
+                      ) : (
+                          <div className="inline-flex items-center gap-2 bg-black/30 px-4 py-2 rounded-xl border border-white/5">
+                              <AlertTriangle className="w-4 h-4 text-white/50" />
+                              <span className="text-xs text-white/50 font-bold">الحد الأدنى للسحب: 100 ج.م</span>
+                          </div>
+                      )}
                   </div>
               </div>
 
@@ -156,9 +199,21 @@ const AffiliateDashboard: React.FC<Props> = ({ user, onBack, onUpdateUser }) => 
                           <button onClick={() => setPayoutMethod('instapay')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${payoutMethod === 'instapay' ? 'bg-purple-600 text-white' : 'text-white/40'}`}>إنستاباي</button>
                       </div>
                       
-                      <input type="text" placeholder="الاسم المسجل (ثلاثي)" value={payoutName} onChange={(e) => setPayoutName(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-emerald-500/50 outline-none" />
+                      <input 
+                        type="text" 
+                        placeholder="الاسم المسجل (ثلاثي)" 
+                        value={payoutName} 
+                        onChange={(e) => setPayoutName(e.target.value)} 
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-emerald-500/50 outline-none" 
+                      />
                       
-                      <input type="text" placeholder={payoutMethod === 'wallet' ? "رقم المحفظة (01xxxxxxxxx)" : "عنوان الإنستاباي (name@instapay)"} value={payoutNumber} onChange={(e) => setPayoutNumber(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-emerald-500/50 outline-none font-mono" />
+                      <input 
+                        type="text" 
+                        placeholder={payoutMethod === 'wallet' ? "رقم المحفظة (01xxxxxxxxx)" : "عنوان الإنستاباي (name@instapay)"} 
+                        value={payoutNumber} 
+                        onChange={(e) => setPayoutNumber(e.target.value)} 
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-emerald-500/50 outline-none font-mono" 
+                      />
                       
                       <button onClick={savePayoutDetails} disabled={isSaving} className="w-full py-3 bg-white text-black rounded-xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
                           {isSaving ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
@@ -179,7 +234,9 @@ const AffiliateDashboard: React.FC<Props> = ({ user, onBack, onUpdateUser }) => 
                                        <p className="text-sm font-black text-white">{h.amount} ج.م</p>
                                        <p className="text-[10px] text-white/40">{new Date(h.date).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                                    </div>
-                                   <span className="px-2 py-1 rounded-lg bg-emerald-900/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">تم التحويل</span>
+                                   <span className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${h.status === 'pending' ? 'bg-amber-900/20 text-amber-400 border-amber-500/20' : 'bg-emerald-900/20 text-emerald-400 border-emerald-500/20'}`}>
+                                       {h.status === 'pending' ? 'قيد المراجعة' : 'تم التحويل'}
+                                   </span>
                                </div>
                            ))}
                        </div>
