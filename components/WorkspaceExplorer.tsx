@@ -5,13 +5,15 @@ import { shadowDB, DBFSItem } from '../services/dbService';
 interface Props {
   userId: string;
   onItemSelect: (item: DBFSItem) => void;
+  onBack?: () => void;
 }
 
-const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect }) => {
+const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) => {
   const [items, setItems] = useState<DBFSItem[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: number | null, name: string }[]>([{ id: null, name: 'الورك سبيس' }]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFile, setSelectedFile] = useState<DBFSItem | null>(null);
 
   useEffect(() => {
     loadItems();
@@ -30,6 +32,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect }) => {
       setCurrentFolderId(folder.id!);
       setBreadcrumbs(prev => [...prev, { id: folder.id!, name: folder.name }]);
     } else {
+      setSelectedFile(folder);
       onItemSelect(folder);
     }
   };
@@ -57,6 +60,11 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect }) => {
       {/* Search & Actions */}
       <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5 backdrop-blur-xl">
         <div className="flex items-center gap-4 flex-1">
+          {onBack && (
+            <button onClick={onBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
             <input 
@@ -106,9 +114,6 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect }) => {
                   {item.type === 'folder' ? 'مجلد' : 'ملف'}
                 </span>
               </div>
-              <button className="absolute top-4 left-4 opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-white/10 text-white/30 transition-all">
-                <MoreVertical className="w-4 h-4" />
-              </button>
             </div>
           ))}
           {filteredItems.length === 0 && (
@@ -119,6 +124,26 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect }) => {
           )}
         </div>
       </div>
+
+      {/* File Viewer Modal */}
+      {selectedFile && (
+        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111] border border-white/10 rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+              <div className="flex items-center gap-3">
+                {getIcon(selectedFile.type)}
+                <h3 className="font-bold text-white">{selectedFile.name}</h3>
+              </div>
+              <button onClick={() => setSelectedFile(null)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                <ChevronLeft className="w-5 h-5 rotate-180" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 text-white/80 whitespace-pre-wrap font-mono text-sm leading-relaxed">
+              {selectedFile.content || 'الملف فاضي.'}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

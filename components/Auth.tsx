@@ -120,7 +120,7 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#020202] font-['Cairo'] relative overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#020202] font-['Cairo'] relative overflow-y-auto overflow-x-hidden">
       
       <div className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <button onClick={onBack} className="mb-8 flex items-center gap-2 text-white/30 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest group">

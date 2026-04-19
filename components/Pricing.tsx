@@ -1,7 +1,92 @@
-import React, { useState } from 'react';
-import { Zap, UserCheck, Eye, Fingerprint, Sparkles, BrainCircuit, Shield, Mic, HardDrive, ArrowLeft, Calendar, Check, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Zap, UserCheck, Eye, Fingerprint, Sparkles, BrainCircuit, Shield, Mic, HardDrive, ArrowLeft, Calendar, Check, FileText, Terminal } from 'lucide-react';
 import CapabilitiesGuide from './CapabilitiesGuide';
 import WhitePaper from './WhitePaper';
+
+const TerminalEffect = () => {
+    const lines = [
+        "أنا الظل.. عقلك التاني اللي مابينساش.",
+        "ذاكرتي أبدية، بشوف الصور وبفهمها، وبحلل المشاعر ونبرة الصوت.",
+        "عندي فريق كامل تحت أمرك:",
+        "- المايسترو: بيدير الحوار ويفهمك من نص كلمة.",
+        "- المهندس: بيكتب أكواد ويظبطلك سيرفراتك.",
+        "- المحقق: بيبحث في الويب ويجيبلك الخلاصة.",
+        "- المحاسب: بيظبطلك ميزانيتك ومصاريفك.",
+        "- المنفذ: بينفذ أوامرك على تليفونك (بيفتح تطبيقات، بيشغل أغاني).",
+        "- نكسوس: بيتحكم في بيتك الذكي.",
+        "- المستشار: بيصيغلك العقود القانونية.",
+        "- المحلل: بيحلل الصور والمستندات.",
+        "- المعالج: بيسمعك ويخفف عنك.",
+        "- المحلل الفني: بيتابعلك السوق والشارتات.",
+        "وكمان عندنا بيزنس العيلة (نظام الإحالة):",
+        "لو دعيت حد واشترك شهري (1000 جنيه) هينزلك 100 جنيه كاش.",
+        "ولو اشترك سنوي (10,000 جنيه) هينزلك 1000 جنيه كاش (عمولة 10%).",
+        "تقدر تسحب أرباحك من محفظتك في أي وقت.",
+        "--- ميثاق الظل ---",
+        "1. السرية التامة: بياناتك مشفرة ومحفوظة في الخزنة.",
+        "2. الولاء المطلق: أنا هنا لخدمتك وحماية مصالحك.",
+        "3. الدقة والسرعة: تنفيذ الأوامر بدون تأخير.",
+        "4. التطور المستمر: بتعلم منك كل يوم عشان أكون أحسن.",
+        "5. الاستقلالية: أنت المالك الوحيد لبياناتك.",
+        "الظل جاهز.. مستني إيه؟"
+    ];
+    const [displayedLines, setDisplayedLines] = useState<string[]>([]);
+    const [currentLineIndex, setCurrentLineIndex] = useState(0);
+    const [currentText, setCurrentText] = useState('');
+    const terminalRef = React.useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (currentLineIndex >= lines.length) return;
+
+        const fullText = lines[currentLineIndex];
+        
+        if (currentText.length < fullText.length) {
+            const timeout = setTimeout(() => {
+                setCurrentText(fullText.slice(0, currentText.length + 1));
+                if (terminalRef.current) {
+                    terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+                }
+            }, 30); // Typing speed
+            return () => clearTimeout(timeout);
+        } else {
+            // Finished typing current line, move to next
+            const timeout = setTimeout(() => {
+                setDisplayedLines(prev => [...prev, fullText]);
+                setCurrentText('');
+                setCurrentLineIndex(prev => prev + 1);
+                if (terminalRef.current) {
+                    terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+                }
+            }, 800); // Wait before next line
+            return () => clearTimeout(timeout);
+        }
+    }, [currentText, currentLineIndex]);
+
+    return (
+        <div className="bg-[#0a0a0a] rounded-[20px] border border-white/10 p-4 font-mono text-left w-full h-[180px] flex flex-col relative overflow-hidden shadow-inner" dir="ltr">
+            <div className="absolute top-2 left-3 flex gap-1.5 z-10">
+                <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
+                <div className="w-2 h-2 rounded-full bg-amber-500/50"></div>
+                <div className="w-2 h-2 rounded-full bg-green-500/50"></div>
+            </div>
+            <div ref={terminalRef} className="mt-4 flex-1 overflow-y-auto text-[10px] md:text-xs space-y-1 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {displayedLines.map((line, i) => (
+                    <div key={i} className="flex gap-2">
+                        <span className="text-emerald-500 font-bold shrink-0">ez-zel:~ $</span>
+                        <span className="text-white/90" dir="rtl">{line}</span>
+                    </div>
+                ))}
+                {currentLineIndex < lines.length && (
+                    <div className="flex gap-2">
+                        <span className="text-emerald-500 font-bold shrink-0">ez-zel:~ $</span>
+                        <span className="text-white/90" dir="rtl">{currentText}</span>
+                        <span className="w-1.5 h-3 bg-white/70 animate-pulse ml-0.5 mt-0.5 shrink-0"></span>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 interface Props {
   onSelectPlan: (plan: string, cycle: 'monthly' | 'yearly') => void;
@@ -33,7 +118,7 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   };
 
   return (
-    <div className="h-screen w-full bg-[#020202] text-white overflow-hidden flex flex-col font-['Cairo'] relative selection:bg-purple-500/30">
+    <div className="min-h-screen w-full bg-[#020202] text-white overflow-y-auto overflow-x-hidden flex flex-col font-['Cairo'] relative selection:bg-purple-500/30">
       
       {showCapabilities && (
         <CapabilitiesGuide 
@@ -122,20 +207,9 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                         </div>
                     </div>
                     
-                    <div onClick={() => setShowCapabilities(true)} className="grid grid-cols-1 gap-2 bg-white/5 p-3 rounded-[20px] border border-white/5 text-right cursor-pointer hover:bg-white/10 transition-all">
-                         <div className="flex items-center gap-3">
-                            <Check className="w-3 h-3 text-purple-500" />
-                            <span className="text-[11px] font-bold text-white/90">ذاكرة أبدية لا تنسى</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Check className="w-3 h-3 text-cyan-500" />
-                            <span className="text-[11px] font-bold text-white/90">رؤية استراتيجية للصور</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Check className="w-3 h-3 text-amber-500" />
-                            <span className="text-[11px] font-bold text-white/90">تحليل المشاعر ونبرة الصوت</span>
-                        </div>
-                         <p className="text-[8px] text-white/20 text-center mt-1 font-bold uppercase">اضغط للمزيد من التفاصيل</p>
+                    <div onClick={() => setShowCapabilities(true)} className="cursor-pointer hover:scale-[1.02] transition-transform">
+                        <TerminalEffect />
+                        <p className="text-[8px] text-white/20 text-center mt-2 font-bold uppercase">اضغط للمزيد من التفاصيل</p>
                     </div>
                 </div>
             </div>

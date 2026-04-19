@@ -17,16 +17,18 @@ const AffiliateDashboard: React.FC<Props> = ({ user, onBack, onUpdateUser }) => 
   const [isRequesting, setIsRequesting] = useState(false);
 
   const activateAffiliate = async () => {
-    const code = (user.name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase();
-    const newAffiliate = {
-        isMarketer: true,
-        referralCode: code,
-        totalEarnings: 0,
-        referralsCount: 0,
-        payoutHistory: []
+    const updatedUser = { 
+        ...user, 
+        affiliate: {
+            ...(user.affiliate || {
+                referralCode: (user.name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(),
+                totalEarnings: 0,
+                referralsCount: 0,
+                payoutHistory: []
+            }),
+            isMarketer: true
+        } 
     };
-    
-    const updatedUser = { ...user, affiliate: newAffiliate };
     await shadowDB.saveProfile(updatedUser);
     onUpdateUser(updatedUser);
   };

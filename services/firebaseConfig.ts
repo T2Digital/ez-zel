@@ -1,39 +1,7 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-
-const getEnvVar = (key: string) => {
-    try {
-        // @ts-ignore
-        if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-            // @ts-ignore
-            return import.meta.env[key];
-        }
-        // @ts-ignore
-        if (typeof process !== 'undefined' && process.env && process.env[key]) {
-            // @ts-ignore
-            return process.env[key];
-        }
-        // Fallback for window injection
-        // @ts-ignore
-        if (typeof window !== 'undefined' && window[key]) {
-            // @ts-ignore
-            return window[key];
-        }
-    } catch (e) {
-        return '';
-    }
-    return '';
-};
-
-const firebaseConfig = {
-  apiKey: getEnvVar("VITE_FIREBASE_API_KEY"),
-  authDomain: getEnvVar("VITE_FIREBASE_AUTH_DOMAIN"),
-  projectId: getEnvVar("VITE_FIREBASE_PROJECT_ID"),
-  storageBucket: getEnvVar("VITE_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: getEnvVar("VITE_FIREBASE_MESSAGING_SENDER_ID"),
-  appId: getEnvVar("VITE_FIREBASE_APP_ID")
-};
+import firebaseConfigData from '../firebase-applet-config.json';
 
 let app = null;
 let db: any = null;
@@ -41,13 +9,11 @@ let auth: any = null;
 
 // Robust Initialization
 try {
-    if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5) {
-        app = initializeApp(firebaseConfig);
+    if (firebaseConfigData.apiKey && firebaseConfigData.apiKey.length > 5) {
+        app = initializeApp(firebaseConfigData);
         
         // Initialize Firestore with settings to avoid "Offline" issues
-        db = initializeFirestore(app, {
-            localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-        });
+        db = getFirestore(app, firebaseConfigData.firestoreDatabaseId);
 
         auth = getAuth(app);
         console.log("[Shadow Core] Firebase Connected Successfully.");

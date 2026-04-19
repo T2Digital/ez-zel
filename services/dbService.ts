@@ -1,5 +1,5 @@
 import { db, auth } from './firebaseConfig';
-import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, addDoc, orderBy, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, addDoc, orderBy, deleteDoc, writeBatch } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, User } from "firebase/auth";
 
 export interface DBMessage {
@@ -35,6 +35,21 @@ export interface AffiliateStats {
     payoutHistory: { id?: number; date: number; amount: number; status: 'paid' | 'pending' }[];
 }
 
+export interface AgentPowers {
+    developer?: boolean;
+    trader?: boolean;
+    social?: boolean;
+}
+
+export interface SystemKeys {
+    githubToken?: string;
+    vercelToken?: string;
+    binanceApiKey?: string;
+    binanceSecretKey?: string;
+    metaToken?: string;
+    metaPageId?: string;
+}
+
 export interface UserProfile {
     email: string; // Primary Key
     phone?: string; // Legacy ID / Identifier
@@ -60,6 +75,7 @@ export interface UserProfile {
     traits?: UserTraits;
     lastPulseReceived?: number; 
     synced?: boolean;
+    agentPowers?: AgentPowers;
 }
 
 export interface DBTask {
@@ -80,6 +96,7 @@ export interface DBFact {
   fact: string;
   timestamp: number;
   synced?: boolean;
+  embedding?: number[];
 }
 
 export interface DBFSItem {
@@ -88,6 +105,7 @@ export interface DBFSItem {
   parentId: number | null;
   name: string;
   type: 'folder' | 'table' | 'calendar' | 'project' | 'file';
+  content?: string;
   createdAt: number;
   synced?: boolean;
 }
@@ -159,6 +177,16 @@ class ShadowDB {
   private unsubscribeListeners: Function[] = [];
   private systemUnsubscribe: Function[] = [];
   private adminUnsubscribe: Function | null = null;
+  
+  private syncQueue: { collectionName: string, data: any, subCollection?: string, userId?: string }[] = [];
+  private syncTimer: any = null;
+  public syncStatus: 'synced' | 'syncing' | 'offline' | 'error' = 'synced';
+  public onSyncStatusChange: ((status: 'synced' | 'syncing' | 'offline' | 'error') => void) | null = null;
+
+  private updateSyncStatus(status: 'synced' | 'syncing' | 'offline' | 'error') {
+      this.syncStatus = status;
+      if (this.onSyncStatusChange) this.onSyncStatusChange(status);
+  }
 
   constructor() {
       if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
@@ -185,6 +213,13 @@ class ShadowDB {
   }
 
   // --- AUTHENTICATION (Firebase) ---
+  onAuthStateChanged(callback: (user: any) => void) {
+      if (auth) {
+          return onAuthStateChanged(auth, callback);
+      }
+      return () => {};
+  }
+
   async registerUser(email: string, password: string, name: string, isAffiliate: boolean, referralCode?: string): Promise<UserProfile> {
       if (!auth) throw new Error("Firebase Auth not initialized");
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -200,11 +235,36 @@ class ShadowDB {
           status: isAffiliate ? 'active' : 'pending',
           joinedAt: Date.now(),
           referredBy: referralCode,
-          affiliate: isAffiliate ? { isMarketer: true, referralCode: (name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(), totalEarnings: 0, referralsCount: 0, payoutHistory: [] } : undefined,
+          affiliate: { isMarketer: isAffiliate, referralCode: (name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(), totalEarnings: 0, referralsCount: 0, payoutHistory: [] },
           subscriptionCycle: isAffiliate ? undefined : 'monthly',
       };
       await this.saveProfile(newUser);
       return newUser;
+  }
+
+    async downloadUserCloudData(email: string) {
+      if (!db || !email) return;
+      try {
+          console.log('[Shadow Core] Downloading cloud data for', email);
+          
+          const collectionsList = ['history', 'tasks', 'memory', 'filesystem'];
+          for (const col of collectionsList) {
+             const q = query(collection(db, 'users/' + email + '/' + col));
+             const snap = await getDocs(q);
+             for (const d of snap.docs) {
+                const item = d.data();
+                if (item) {
+                   if (col === 'history') await this.saveMessage({...item, userId: email} as any, true);
+                   if (col === 'tasks') await this.saveTask({...item, userId: email} as any, true);
+                   if (col === 'memory') await this.saveFact({...item, userId: email} as any, true);
+                   if (col === 'filesystem') await this.createFSItem({...item, userId: email} as any);
+                }
+             }
+          }
+          console.log('[Shadow Core] Cloud data download complete.');
+      } catch (e) {
+          console.error('[Shadow Core] Failed to download cloud data', e);
+      }
   }
 
   async loginUser(email: string, password: string): Promise<UserProfile> {
@@ -224,6 +284,7 @@ class ShadowDB {
                   if (docSnap.exists()) {
                       profile = docSnap.data() as UserProfile;
                       await this.saveProfile(profile, true);
+                      this.downloadUserCloudData(cleanEmail);
                       return profile;
                   }
               } catch(e) {}
@@ -260,6 +321,7 @@ class ShadowDB {
       }
 
       if (!profile) throw new Error("Profile creation failed");
+      this.downloadUserCloudData(cleanEmail);
       return profile;
   }
 
@@ -274,7 +336,7 @@ class ShadowDB {
 
   // --- FIREBASE SYNC (USER SPECIFIC) ---
   subscribeToRealtime(email: string, onUpdate: (table: string, payload: any) => void) {
-      if (!db || email === 'GUEST') return;
+      if (!db || email === 'GUEST' || !auth?.currentUser) return;
       try {
           this.unsubscribeListeners.forEach(unsub => unsub());
           this.unsubscribeListeners = [];
@@ -286,7 +348,7 @@ class ShadowDB {
                   onUpdate('profiles', profile);
                   this.saveProfile(profile, true);
               }
-          });
+          }, (error) => { console.warn("[Firebase] Profile sync error:", error); });
           this.unsubscribeListeners.push(profileUnsub);
 
           const historyQuery = query(collection(db, `users/${email}/history`), where('timestamp', '>', Date.now() - 10000));
@@ -296,14 +358,14 @@ class ShadowDB {
                       onUpdate('history', change.doc.data());
                   }
               });
-          });
+          }, (error) => { console.warn("[Firebase] History sync error:", error); });
           this.unsubscribeListeners.push(historyUnsub);
       } catch (e) { console.warn("[Firebase] Realtime sync init failed.", e); }
   }
 
   // --- GLOBAL SYSTEM SYNC (ALL USERS) ---
   subscribeToSystem(onPulse: (pulse: any) => void, onRules: (rules: string) => void) {
-      if (!db) return;
+      if (!db || !auth?.currentUser) return; // Wait for auth
       this.systemUnsubscribe.forEach(unsub => unsub());
       this.systemUnsubscribe = [];
 
@@ -314,7 +376,7 @@ class ShadowDB {
                   this.setConfig('latest_pulse', data); 
                   onPulse(data);
               }
-          });
+          }, (error) => { console.warn("[Firebase] Pulse sync error:", error); });
           this.systemUnsubscribe.push(pulseUnsub);
 
           const rulesUnsub = onSnapshot(doc(db, "system", "rules"), (doc) => {
@@ -325,7 +387,7 @@ class ShadowDB {
                       onRules(data.text);
                   }
               }
-          });
+          }, (error) => { console.warn("[Firebase] Rules sync error:", error); });
           this.systemUnsubscribe.push(rulesUnsub);
 
           const agentsUnsub = onSnapshot(collection(db, "system_agents"), (snapshot) => {
@@ -333,14 +395,14 @@ class ShadowDB {
                   const agent = change.doc.data() as AgentProfile;
                   this.saveAgentProfile(agent, true);
               });
-          });
+          }, (error) => { console.warn("[Firebase] Agents sync error:", error); });
           this.systemUnsubscribe.push(agentsUnsub);
 
       } catch (e) { console.warn("[Firebase] System sync failed", e); }
   }
 
   subscribeToAdminFeed(onProfilesUpdate: (profiles: UserProfile[]) => void, onFeedbackUpdate: (feedbacks: DBFeedback[]) => void) {
-      if (!db) return;
+      if (!db || !auth?.currentUser) return;
       if (this.adminUnsubscribe) this.adminUnsubscribe();
       
       try {
@@ -349,14 +411,14 @@ class ShadowDB {
               const profiles: UserProfile[] = [];
               snapshot.forEach((doc) => profiles.push({ ...doc.data(), email: doc.id } as UserProfile));
               onProfilesUpdate(profiles);
-          });
+          }, (error) => { console.warn("[Firebase] Admin profiles sync error:", error); });
 
           const qFeed = query(collection(db, "feedback"), orderBy("timestamp", "desc"));
           const unsubFeedback = onSnapshot(qFeed, (snapshot) => {
              const items: DBFeedback[] = [];
              snapshot.forEach(doc => items.push(doc.data() as DBFeedback));
              onFeedbackUpdate(items);
-          });
+          }, (error) => { console.warn("[Firebase] Admin feedback sync error:", error); });
 
           this.adminUnsubscribe = () => { unsubProfiles(); unsubFeedback(); };
       } catch (e) { console.error("[Admin] Sync Error:", e); }
@@ -364,32 +426,102 @@ class ShadowDB {
 
   async pushToCloud(collectionName: string, rawData: any, subCollection?: string, userId?: string) {
       if (!db) return; 
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          this.updateSyncStatus('offline');
+      }
       const data = sanitizeForFirestore(rawData);
+      console.log(`[pushToCloud] collection: ${collectionName}, subCollection: ${subCollection}, userId: ${userId}, data:`, data);
+      this.syncQueue.push({ collectionName, data, subCollection, userId });
+      this.updateSyncStatus('syncing');
+
+      if (!this.syncTimer) {
+          this.syncTimer = setTimeout(() => this.flushSyncQueue(), 5000); // Batch every 5 seconds
+      }
+  }
+
+  async flushSyncQueue() {
+      if (this.syncQueue.length === 0) {
+          this.updateSyncStatus('synced');
+          this.syncTimer = null;
+          return;
+      }
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          this.updateSyncStatus('offline');
+          this.syncTimer = setTimeout(() => this.flushSyncQueue(), 10000); // Retry later
+          return;
+      }
+
+      this.updateSyncStatus('syncing');
+      const batch = this.syncQueue.splice(0, 50); // Process up to 50 items with writeBatch
       try {
-          if (collectionName === 'profiles') {
-              await setDoc(doc(db, "users", data.email), data, { merge: true });
-          } else if (collectionName === 'coupons') {
-              await setDoc(doc(db, "system_coupons", data.code), data, { merge: true });
-          } else if (collectionName === 'system_agents') {
-             await setDoc(doc(db, "system_agents", data.id), data, { merge: true });
-          } else if (collectionName === 'feedback') {
-             await addDoc(collection(db, "feedback"), data);
-          } else if (userId && subCollection) {
-              const docId = data.id ? data.id.toString() : data.timestamp ? data.timestamp.toString() : undefined;
-              if (docId) await setDoc(doc(db, `users/${userId}/${subCollection}`, docId), data, { merge: true });
-              else await addDoc(collection(db, `users/${userId}/${subCollection}`), data);
+          const firestoreBatch = writeBatch(db);
+          let hasWrites = false;
+
+          for (const item of batch) {
+              const { collectionName, data, subCollection, userId } = item;
+              if (collectionName === 'profiles') {
+                  firestoreBatch.set(doc(db, "users", data.email), data, { merge: true });
+                  hasWrites = true;
+              } else if (collectionName === 'coupons') {
+                  firestoreBatch.set(doc(db, "system_coupons", data.code), data, { merge: true });
+                  hasWrites = true;
+              } else if (collectionName === 'system_agents') {
+                 firestoreBatch.set(doc(db, "system_agents", data.id), data, { merge: true });
+                 hasWrites = true;
+              } else if (collectionName === 'feedback') {
+                 const newDocRef = doc(collection(db, "feedback"));
+                 firestoreBatch.set(newDocRef, data);
+                 hasWrites = true;
+              } else if (userId && subCollection) {
+                  const docId = data.id ? data.id.toString() : data.timestamp ? data.timestamp.toString() : undefined;
+                  if (docId) {
+                      firestoreBatch.set(doc(db, `users/${userId}/${subCollection}`, docId), data, { merge: true });
+                      hasWrites = true;
+                  } else {
+                      const newDocRef = doc(collection(db, `users/${userId}/${subCollection}`));
+                      firestoreBatch.set(newDocRef, data);
+                      hasWrites = true;
+                  }
+              }
           }
-      } catch (e: any) { console.warn(`[Cloud Sync Warning] ${collectionName}:`, e.message); }
+
+          if (hasWrites) {
+              await firestoreBatch.commit();
+          }
+
+          if (this.syncQueue.length > 0) {
+              this.syncTimer = setTimeout(() => this.flushSyncQueue(), 2000);
+          } else {
+              this.updateSyncStatus('synced');
+              this.syncTimer = null;
+          }
+      } catch (e: any) { 
+          console.warn(`[Cloud Sync Warning] Batch flush failed:`, e.message);
+          if (e?.code === 'resource-exhausted' || e?.message?.includes('resource-exhausted')) {
+              console.warn("[Sync] Resource exhausted, dropping batch to recover.");
+          } else {
+              this.syncQueue.unshift(...batch); // Put failed items back
+          }
+          this.updateSyncStatus('error');
+          this.syncTimer = setTimeout(() => this.flushSyncQueue(), 10000);
+      }
   }
 
   // --- CRUD OPERATIONS ---
   async saveMessage(msg: DBMessage, skipCloud = false): Promise<number> {
     const db = await this.init();
     const tx = db.transaction('history', 'readwrite');
-    const secureMsg = { ...msg, text: encryptData(msg.text, msg.userId), synced: true };
-    const request = tx.objectStore('history').add(secureMsg);
-    if (!skipCloud && msg.userId !== 'GUEST') this.pushToCloud('history', { ...msg, text: secureMsg.text }, 'history', msg.userId);
-    return new Promise((resolve) => { request.onsuccess = () => resolve(request.result as number); });
+    const id = (msg as any).id || Date.now() + Math.floor(Math.random() * 1000);
+    // If skipCloud is true, it came from the cloud where it is already encrypted!
+    const textToSave = skipCloud ? msg.text : encryptData(msg.text, msg.userId);
+    const secureMsg = { ...msg, id, text: textToSave, synced: true };
+    const request = tx.objectStore('history').put(secureMsg);
+    // Skip cloud sync for system messages to prevent resource-exhausted errors
+    if (!skipCloud && msg.userId !== 'GUEST' && msg.role !== 'system') this.pushToCloud('history', { ...msg, id, text: secureMsg.text }, 'history', msg.userId);
+    return new Promise((resolve, reject) => { 
+        request.onsuccess = () => resolve(request.result as number); 
+        request.onerror = () => reject(request.error);
+    });
   }
 
   async updateMessage(id: number, updates: Partial<DBMessage>) {
@@ -420,28 +552,42 @@ class ShadowDB {
 
   async saveTask(task: DBTask, skipCloud = false) {
     const db = await this.init();
-    const tx = db.transaction('tasks', 'readwrite');
-    if (!skipCloud && task.userId !== 'GUEST') this.pushToCloud('tasks', task, 'tasks', task.userId);
-    return tx.objectStore('tasks').put({ ...task, synced: true }); 
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('tasks', 'readwrite');
+        const taskWithId = { ...task, id: task.id || Date.now() + Math.floor(Math.random() * 1000), synced: true };
+        if (!skipCloud && task.userId !== 'GUEST') this.pushToCloud('tasks', taskWithId, 'tasks', task.userId);
+        const req = tx.objectStore('tasks').put(taskWithId);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
   }
 
   async updateTaskStatus(id: number, updates: Partial<DBTask>) {
       const db = await this.init();
-      const tx = db.transaction('tasks', 'readwrite');
-      const store = tx.objectStore('tasks');
-      const task: DBTask = await new Promise((resolve) => { store.get(id).onsuccess = (e: any) => resolve(e.target.result); });
-      if (task) {
-          const updated = { ...task, ...updates };
-          store.put(updated);
-          if (task.userId !== 'GUEST') this.pushToCloud('tasks', updated, 'tasks', task.userId);
-      }
+      return new Promise<void>((resolve, reject) => {
+          const tx = db.transaction('tasks', 'readwrite');
+          const store = tx.objectStore('tasks');
+          const req = store.get(id);
+          req.onsuccess = () => {
+              const task = req.result;
+              if (task) {
+                  const updated = { ...task, ...updates };
+                  store.put(updated);
+                  if (task.userId !== 'GUEST') this.pushToCloud('tasks', updated, 'tasks', task.userId);
+              }
+          };
+          req.onerror = () => reject(req.error);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+      });
   }
 
   async saveFact(fact: DBFact, skipCloud = false) {
     const db = await this.init();
     const tx = db.transaction('memory', 'readwrite');
-    if (!skipCloud && fact.userId !== 'GUEST') this.pushToCloud('memory', fact, 'memory', fact.userId);
-    return tx.objectStore('memory').add({ ...fact, synced: true });
+    const factWithId = { ...fact, id: fact.id || Date.now() + Math.floor(Math.random() * 1000), synced: true };
+    if (!skipCloud && fact.userId !== 'GUEST') this.pushToCloud('memory', factWithId, 'memory', fact.userId);
+    return tx.objectStore('memory').put(factWithId); // Changed to put to allow updates
   }
 
   async getMemory(userId: string): Promise<DBFact[]> {
@@ -472,6 +618,18 @@ class ShadowDB {
              }
          } catch(e) { console.warn("[DB] Cloud fetch failed/skipped:", e); }
       }
+
+      if (localProfile && !localProfile.affiliate) {
+          localProfile.affiliate = {
+              isMarketer: false,
+              referralCode: (localProfile.name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(),
+              totalEarnings: 0,
+              referralsCount: 0,
+              payoutHistory: []
+          };
+          await this.saveProfile(localProfile, true);
+      }
+
       return localProfile;
   }
 
@@ -494,7 +652,7 @@ class ShadowDB {
               const snap = await getDocs(collection(db, "users"));
               const cloudProfiles: UserProfile[] = [];
               snap.forEach((doc) => cloudProfiles.push({ ...doc.data(), email: doc.id } as UserProfile));
-              if (cloudProfiles.length > localProfiles.length) return cloudProfiles;
+              return cloudProfiles;
           } catch(e) {}
       }
       return localProfiles;
@@ -517,24 +675,51 @@ class ShadowDB {
       }
   }
 
-  async getHistory(userId: string): Promise<DBMessage[]> {
+  async getHistory(userId: string, limit?: number, offset?: number): Promise<DBMessage[]> {
     const db = await this.init();
     const tx = db.transaction('history', 'readonly');
-    const request = tx.objectStore('history').index('userId').getAll(userId);
-    return new Promise((resolve) => { 
-        request.onsuccess = () => {
-            const raw = request.result || [];
-            resolve(raw.map((m: DBMessage) => ({ ...m, text: decryptData(m.text, userId) })));
-        }; 
+    const index = tx.objectStore('history').index('userId');
+    
+    return new Promise((resolve, reject) => {
+        const request = index.openCursor(IDBKeyRange.only(userId), 'prev');
+        const results: DBMessage[] = [];
+        let hasAdvanced = false;
+
+        request.onsuccess = (event: any) => {
+            const cursor = event.target.result;
+            if (cursor) {
+                if (offset && offset > 0 && !hasAdvanced) {
+                    hasAdvanced = true;
+                    cursor.advance(offset);
+                    return;
+                }
+                
+                const msg = cursor.value;
+                results.push({ ...msg, text: decryptData(msg.text, userId) });
+                
+                if (limit && results.length >= limit) {
+                    resolve(results.reverse());
+                    return;
+                }
+                cursor.continue();
+            } else {
+                resolve(results.reverse());
+            }
+        };
+        request.onerror = () => reject(request.error);
     });
   }
 
   async setGlobalPulse(text: string) {
       const dbLocal = await this.init();
-      const tx = dbLocal.transaction('config', 'readwrite');
-      const pulseData = { text, timestamp: Date.now() };
-      if (db) setDoc(doc(db, "system", "pulse"), pulseData).catch(console.error);
-      return tx.objectStore('config').put({ key: 'latest_pulse', value: pulseData, lastUpdated: Date.now() });
+      return new Promise<void>((resolve, reject) => {
+          const tx = dbLocal.transaction('config', 'readwrite');
+          const pulseData = { text, timestamp: Date.now() };
+          if (db) setDoc(doc(db, "system", "pulse"), pulseData).catch(console.error);
+          const req = tx.objectStore('config').put({ key: 'latest_pulse', value: pulseData, lastUpdated: Date.now() });
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+      });
   }
 
   async getGlobalPulse(): Promise<{ text: string, timestamp: number } | null> {
@@ -556,10 +741,33 @@ class ShadowDB {
       const request = db.transaction('fs', 'readonly').objectStore('fs').index('userId').getAll(userId);
       return new Promise((resolve) => { request.onsuccess = () => { const all = request.result as DBFSItem[]; resolve(all.filter(i => i.parentId === parentId)); }; request.onerror = () => resolve([]); });
   }
+  async getFSItemsByUserId(userId: string): Promise<DBFSItem[]> {
+      const db = await this.init();
+      const request = db.transaction('fs', 'readonly').objectStore('fs').index('userId').getAll(userId);
+      return new Promise((resolve) => { request.onsuccess = () => resolve(request.result as DBFSItem[]); request.onerror = () => resolve([]); });
+  }
   async createFSItem(item: DBFSItem): Promise<number> {
       const db = await this.init();
-      const request = db.transaction('fs', 'readwrite').objectStore('fs').add({ ...item, synced: false });
+      const itemWithId = { ...item, id: item.id || Date.now() + Math.floor(Math.random() * 1000), synced: false };
+      const request = db.transaction('fs', 'readwrite').objectStore('fs').add(itemWithId);
       return new Promise((resolve) => { request.onsuccess = () => resolve(request.result as number); });
+  }
+  async updateFSItem(id: number, updates: Partial<DBFSItem>) {
+      const db = await this.init();
+      const tx = db.transaction('fs', 'readwrite');
+      const store = tx.objectStore('fs');
+      return new Promise<void>((resolve) => {
+          const req = store.get(id);
+          req.onsuccess = () => {
+              const data = req.result;
+              if (data) {
+                  const updatedData = { ...data, ...updates, synced: false };
+                  store.put(updatedData);
+              }
+              resolve();
+          };
+          req.onerror = () => resolve();
+      });
   }
 
   async registerReferral(referrerCode: string, commissionAmount: number) {
@@ -582,10 +790,26 @@ class ShadowDB {
       }
   }
 
+  async getSystemKeys(): Promise<SystemKeys | null> {
+      try {
+          if (!db) return null;
+          const snap = await getDoc(doc(db, 'system', 'keys'));
+          return snap.exists() ? snap.data() as SystemKeys : null;
+      } catch (e) { console.error("Error fetching system keys", e); return null; }
+  }
+
+  async saveSystemKeys(keys: SystemKeys) {
+      try {
+          if (!db) return;
+          await setDoc(doc(db, 'system', 'keys'), keys, { merge: true });
+      } catch (e) { console.error("Error saving system keys", e); }
+  }
+
   async saveContact(contact: DBContact) {
       const db = await this.init();
-      if (contact.userId !== 'GUEST') this.pushToCloud('contacts', contact, 'contacts', contact.userId);
-      return db.transaction('contacts', 'readwrite').objectStore('contacts').add({ ...contact, synced: true });
+      const contactWithId = { ...contact, id: contact.id || Date.now() + Math.floor(Math.random() * 1000), synced: true };
+      if (contact.userId !== 'GUEST') this.pushToCloud('contacts', contactWithId, 'contacts', contact.userId);
+      return db.transaction('contacts', 'readwrite').objectStore('contacts').add(contactWithId);
   }
   async getContacts(userId?: string): Promise<DBContact[]> {
       const db = await this.init();
@@ -596,8 +820,9 @@ class ShadowDB {
 
   async saveFeedback(feedback: DBFeedback) {
       const localDB = await this.init();
-      const request = localDB.transaction('feedback', 'readwrite').objectStore('feedback').add(feedback);
-      this.pushToCloud('feedback', feedback);
+      const feedbackWithId = { ...feedback, id: feedback.id || Date.now() + Math.floor(Math.random() * 1000) };
+      const request = localDB.transaction('feedback', 'readwrite').objectStore('feedback').add(feedbackWithId);
+      this.pushToCloud('feedback', feedbackWithId);
       return request;
   }
   async getAllFeedback(): Promise<DBFeedback[]> {
@@ -688,11 +913,22 @@ class ShadowDB {
 
   async getAllCoupons(): Promise<DBCoupon[]> {
       const dbLocal = await this.init();
-      return new Promise(resolve => {
-          const req = dbLocal.transaction('coupons', 'readonly').objectStore('coupons').getAll();
-          req.onsuccess = () => resolve(req.result || []);
-          req.onerror = () => resolve([]);
+      const request = dbLocal.transaction('coupons', 'readonly').objectStore('coupons').getAll();
+      
+      const localCoupons = await new Promise<DBCoupon[]>((resolve) => {
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => resolve([]);
       });
+
+      if (db) {
+          try {
+              const snap = await getDocs(collection(db, "system_coupons"));
+              const cloudCoupons: DBCoupon[] = [];
+              snap.forEach((doc) => cloudCoupons.push(doc.data() as DBCoupon));
+              if (cloudCoupons.length > localCoupons.length) return cloudCoupons;
+          } catch(e) {}
+      }
+      return localCoupons;
   }
 
   async deleteCoupon(code: string) {

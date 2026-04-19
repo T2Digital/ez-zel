@@ -13,9 +13,13 @@
     <meta name="googlebot" content="index, follow">
     
     <!-- Open Graph / Facebook / WhatsApp -->
+    
+    <!-- LameJS (MP3 Encoder) - Loaded synchronously to bypass Vite bundler issues -->
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://Ez-zel.vercel.app/">
-    <meta property="og:title" content="الظل الرقمي | عقلك التاني اللي مبيناش">
+    <meta property="og:title" content="الظل الرقمي | عقلك التاني اللي مبينامش">
     <meta property="og:description" content="مش مجرد تطبيق.. ده كيان كامل بيدير حياتك. جرب الظل الآن مجاناً.">
     <meta property="og:image" content="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
     <meta property="og:locale" content="ar_EG">
@@ -60,6 +64,7 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>
@@ -73,5 +78,6 @@
       }
     </script>
     <script type="module" src="./index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

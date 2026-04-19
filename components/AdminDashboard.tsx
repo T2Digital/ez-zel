@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip } from 'lucide-react';
+import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip, Terminal, Tag, BarChart2, MessageCircle } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { shadowDB, UserProfile, DBFeedback, AgentProfile } from '../services/dbService';
 import ChatInterface from './ChatInterface';
 
@@ -19,13 +21,22 @@ interface AgentInfo {
 }
 
 const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
-  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts'>('requests');
+  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings'>('analytics');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [feedbacks, setFeedbacks] = useState<DBFeedback[]>([]);
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [newCoupon, setNewCoupon] = useState({ code: '', discount: 0, maxUses: 100 });
+  const [isSavingCoupon, setIsSavingCoupon] = useState(false);
   const [selectedProof, setSelectedProof] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isListening, setIsListening] = useState<'rules' | 'broadcast' | null>(null);
   
+  // Exclude system/admin accounts for accurate metrics
+  const realProfiles = profiles.filter(p => {
+      const emailLower = p.email.toLowerCase();
+      return emailLower !== 'tito' && emailLower !== 'guest' && !emailLower.includes('admin');
+  });
+
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [globalRules, setGlobalRules] = useState('');
   const [isSavingRules, setIsSavingRules] = useState(false);
@@ -41,25 +52,104 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   // Payout Modal State
   const [selectedPayoutMarketer, setSelectedPayoutMarketer] = useState<UserProfile | null>(null);
 
+  const getGrowthData = () => {
+    // Generate data for the last 7 days based on real profiles
+    const data = [];
+    const now = new Date();
+    // Normalize to start of today for precise bucketing
+    now.setHours(23, 59, 59, 999);
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dayEnd = d.getTime();
+      
+      const dayName = d.toLocaleDateString('ar-EG', { weekday: 'short' });
+      const usersUpToDay = realProfiles.filter(p => p.joinedAt && p.joinedAt <= dayEnd).length;
+      
+      data.push({ name: dayName, users: usersUpToDay });
+    }
+    return data;
+  };
+
+  const calculateTotalExpectedProfit = () => {
+      // Base calculation on active members and their billing cycle
+      let total = 0;
+      realProfiles.forEach(p => {
+          if (p.status === 'active') {
+              if (p.subscriptionCycle === 'yearly') {
+                  total += 8000; // Assuming 20% discount on 10000 for yearly as mentioned in Payment.tsx
+              } else {
+                  total += 1000; // Monthly assuming Elite
+              }
+          }
+      });
+      return total;
+  };
+
+  const expectedProfit = calculateTotalExpectedProfit();
+  const growthData = getGrowthData();
+
   // Admin Profile
   const [adminProfile, setAdminProfile] = useState<UserProfile>({ 
       email: 'TITO', name: 'تيتو (المالك)', shadowName: 'الماستر', tier: 'sovereign', status: 'active', joinedAt: Date.now(), password: 'admin',
       affiliate: { isMarketer: true, referralCode: 'TITO_BOSS', totalEarnings: 0, referralsCount: 0, payoutHistory: [] }
   });
 
+  const [isSavingSystemKeys, setIsSavingSystemKeys] = useState(false);
+  const [systemKeys, setSystemKeys] = useState<{
+      githubToken: string;
+      vercelToken: string;
+      binanceApiKey: string;
+      binanceSecretKey: string;
+      metaToken: string;
+      metaPageId: string;
+  }>({ githubToken: '', vercelToken: '', binanceApiKey: '', binanceSecretKey: '', metaToken: '', metaPageId: '' });
+
   useEffect(() => { 
       if ('Notification' in window && Notification.permission === 'granted') setNotificationsEnabled(true);
       const initData = async () => {
           const titoProfile = await shadowDB.getProfile('TITO');
           if (titoProfile) setAdminProfile(titoProfile);
-          const [allProfiles, allFeedback, rules] = await Promise.all([shadowDB.getAllProfiles(), shadowDB.getAllFeedback(), shadowDB.getGlobalRules()]);
+          const [allProfiles, allFeedback, rules, keys] = await Promise.all([shadowDB.getAllProfiles(), shadowDB.getAllFeedback(), shadowDB.getGlobalRules(), shadowDB.getSystemKeys()]);
           setProfiles(allProfiles);
           setFeedbacks(allFeedback.reverse());
           setGlobalRules(rules);
+          if (keys) setSystemKeys(keys as any);
+          
+          // Fetch coupons
+          try {
+              const allCoupons = await shadowDB.getAllCoupons?.() || [];
+              setCoupons(allCoupons);
+          } catch(e) {}
+
           shadowDB.subscribeToAdminFeed((updated) => { if(updated.length > 0) setProfiles(updated); }, (updated) => { if(updated.length > 0) setFeedbacks(updated.reverse()); });
       };
       initData();
   }, []); 
+
+  const handleSaveSystemKeys = async () => {
+      setIsSavingSystemKeys(true);
+      await shadowDB.saveSystemKeys(systemKeys as any);
+      setIsSavingSystemKeys(false);
+  };
+
+  const handleCreateCoupon = async () => {
+      if (!newCoupon.code || newCoupon.discount <= 0) return;
+      setIsSavingCoupon(true);
+      const couponData = {
+          code: newCoupon.code.toUpperCase(),
+          discountAmount: newCoupon.discount,
+          type: 'fixed' as 'fixed' | 'percent',
+          maxUses: newCoupon.maxUses,
+          usedCount: 0,
+          createdBy: adminProfile.email,
+          createdAt: Date.now()
+      };
+      await shadowDB.saveCoupon(couponData);
+      setCoupons([...coupons, couponData]);
+      setNewCoupon({ code: '', discount: 0, maxUses: 100 });
+      setIsSavingCoupon(false);
+  };
 
   const startVoiceDictation = (target: 'rules' | 'broadcast') => {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -113,6 +203,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
 
   const councilAgents: AgentInfo[] = [
       { id: 'maestro_core', name: 'The Maestro', role: 'المايسترو', status: 'LEADER', description: 'العقل المدبر وإدارة الحوار.', color: 'purple', icon: <Brain className="w-5 h-5" /> },
+      { id: 'developer_core', name: 'The Architect', role: 'المهندس', status: 'ONLINE', description: 'Senior DevOps. كتابة أكواد، Deploy، وإدارة السيرفرات.', color: 'blue', icon: <Terminal className="w-5 h-5" /> },
       { id: 'detective', name: 'Detective', role: 'المحقق', status: 'ONLINE', description: 'جمع المعلومات والبحث الحي.', color: 'emerald', icon: <Globe className="w-5 h-5" /> },
       { id: 'accountant', name: 'Accountant', role: 'المحاسب', status: 'ACTIVE', description: 'إدارة الفلوس والتقارير.', color: 'emerald', icon: <DollarSign className="w-5 h-5" /> },
       { id: 'executor', name: 'Executor', role: 'المنفذ', status: 'ACTIVE', description: 'الاتصالات والمهمات التشغيلية.', color: 'amber', icon: <Zap className="w-5 h-5" /> },
@@ -120,11 +211,12 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
       { id: 'legal_advisor', name: 'Legal Advisor', role: 'المستشار', status: 'READY', description: 'الصياغة القانونية والعقود.', color: 'blue', icon: <FileText className="w-5 h-5" /> },
       { id: 'analyst', name: 'Analyst', role: 'المحلل', status: 'ONLINE', description: 'التحليل النفسي وقراءة الصور.', color: 'purple', icon: <Eye className="w-5 h-5" /> },
       { id: 'healer', name: 'The Healer', role: 'المعالج', status: 'READY', description: 'الجانب الروحاني والنفسي.', color: 'red', icon: <Feather className="w-5 h-5" /> },
+      { id: 'trader', name: 'The Trader', role: 'المحلل الفني', status: 'ONLINE', description: 'خبير أسواق المال وتداول الشارت.', color: 'green', icon: <TrendingUp className="w-5 h-5" /> },
   ];
 
-  const filteredProfiles = profiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.email.toLowerCase().includes(searchQuery.toLowerCase()));
-  const pendingRequests = profiles.filter(p => p.status === 'pending' && p.paymentProof);
-  const activeMembers = filteredProfiles.filter(p => p.status === 'active' && p.tier === 'sovereign' && p.email !== 'TITO');
+  const filteredProfiles = realProfiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.email.toLowerCase().includes(searchQuery.toLowerCase()));
+  const pendingRequests = realProfiles.filter(p => p.status === 'pending' && p.paymentProof);
+  const activeMembers = filteredProfiles.filter(p => p.status === 'active');
   const marketersList = filteredProfiles.filter(p => p.affiliate?.isMarketer);
   
   if (activeView === 'chat') return <div className="h-screen w-full bg-black"><ChatInterface currentUser={adminProfile} onUpgrade={() => {}} onBack={() => setActiveView('requests')} isAdmin={true} /></div>;
@@ -208,23 +300,58 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
         )}
 
         {/* ACTIVE MEMBERS */}
-        {activeView === 'members' && activeMembers.map(u => (
-            <div key={u.email} className="p-4 bg-[#111] rounded-2xl border border-white/5 flex justify-between items-center mb-2">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center font-bold text-purple-400">{u.name[0]}</div>
-                    <div><h4 className="font-bold text-sm">{u.name}</h4><p className="text-[10px] opacity-40">{u.email}</p></div>
-                </div>
-                <button onClick={() => handleStatusUpdate(u.email, 'blocked')} className="text-red-500 text-[10px] font-bold border border-red-500/30 px-3 py-1 rounded-full hover:bg-red-900/20">تجميد</button>
-            </div>
-        ))}
+        {activeView === 'members' && (
+            <>
+                <h3 className="text-sm font-black text-purple-500 mb-4 flex items-center gap-2"><Users className="w-4 h-4" /> الأعضاء النشطين ({activeMembers.length})</h3>
+                {activeMembers.map(u => (
+                    <div key={u.email} className="p-4 bg-[#111] rounded-2xl border border-white/5 flex justify-between items-center mb-2 hover:border-purple-500/30 transition-all">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center font-bold text-purple-400">{u.name[0]}</div>
+                            <div><h4 className="font-bold text-sm">{u.name}</h4><p className="text-[10px] opacity-40">{u.email}</p></div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex gap-2 border-r border-white/10 pr-4">
+                                <button onClick={async () => {
+                                    const updated = { ...u, agentPowers: { ...u.agentPowers, developer: !u.agentPowers?.developer } };
+                                    await shadowDB.saveProfile(updated, true);
+                                    setProfiles(prev => prev.map(p => p.email === u.email ? updated : p));
+                                }} className={`p-2 rounded-lg transition-all ${u.agentPowers?.developer ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-white/5 text-white/30 hover:bg-white/10'}`} title="عضلات البرمجة (Developer)">
+                                    <Terminal className="w-4 h-4" />
+                                </button>
+                                <button onClick={async () => {
+                                    const updated = { ...u, agentPowers: { ...u.agentPowers, trader: !u.agentPowers?.trader } };
+                                    await shadowDB.saveProfile(updated, true);
+                                    setProfiles(prev => prev.map(p => p.email === u.email ? updated : p));
+                                }} className={`p-2 rounded-lg transition-all ${u.agentPowers?.trader ? 'bg-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-white/5 text-white/30 hover:bg-white/10'}`} title="عضلات التداول (Trader)">
+                                    <TrendingUp className="w-4 h-4" />
+                                </button>
+                                <button onClick={async () => {
+                                    const updated = { ...u, agentPowers: { ...u.agentPowers, social: !u.agentPowers?.social } };
+                                    await shadowDB.saveProfile(updated, true);
+                                    setProfiles(prev => prev.map(p => p.email === u.email ? updated : p));
+                                }} className={`p-2 rounded-lg transition-all ${u.agentPowers?.social ? 'bg-pink-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]' : 'bg-white/5 text-white/30 hover:bg-white/10'}`} title="عضلات السوشيال (Social)">
+                                    <Globe className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <button onClick={() => handleStatusUpdate(u.email, 'blocked')} className="text-red-500 text-[10px] font-bold border border-red-500/30 px-3 py-1 rounded-full hover:bg-red-900/20">تجميد</button>
+                        </div>
+                    </div>
+                ))}
+            </>
+        )}
 
         {/* FEEDBACK */}
-        {activeView === 'feedback' && feedbacks.map((f, i) => (
-            <div key={i} className="p-4 bg-[#111] rounded-2xl border border-purple-500/20 mb-2">
-                <div className="flex justify-between mb-2"><span className="text-xs font-black text-purple-400">{f.userName}</span><span className="text-[9px] opacity-30">{new Date(f.timestamp).toLocaleString()}</span></div>
-                <p className="text-sm opacity-80 leading-relaxed">{f.message}</p>
-            </div>
-        ))}
+        {activeView === 'feedback' && (
+            <>
+                <h3 className="text-sm font-black text-purple-500 mb-4 flex items-center gap-2"><MessageSquare className="w-4 h-4" /> آراء الأعضاء ({feedbacks.length})</h3>
+                {feedbacks.map((f, i) => (
+                    <div key={i} className="p-4 bg-[#111] rounded-2xl border border-purple-500/20 mb-2 hover:border-purple-500/40 transition-all">
+                        <div className="flex justify-between mb-2"><span className="text-xs font-black text-purple-400">{f.userName}</span><span className="text-[9px] opacity-30">{new Date(f.timestamp).toLocaleString()}</span></div>
+                        <p className="text-sm opacity-80 leading-relaxed">{f.message}</p>
+                    </div>
+                ))}
+            </>
+        )}
 
         {/* CORE / RULES */}
         {activeView === 'core' && (
@@ -252,7 +379,51 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
             </div>
         )}
 
-        {/* BROADCAST */}
+        {/* COUPONS */}
+        {activeView === 'coupons' && (
+            <div className="flex-1 flex flex-col gap-4">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl mb-2 flex items-center gap-3">
+                    <Tag className="w-6 h-6 text-emerald-500" />
+                    <div><h3 className="font-bold text-emerald-400">إدارة الكوبونات</h3><p className="text-[10px] text-white/50">إنشاء ومتابعة أكواد الخصم</p></div>
+                </div>
+                
+                <div className="bg-[#111] border border-white/10 rounded-2xl p-6">
+                    <h4 className="text-sm font-black text-white mb-4">إنشاء كوبون جديد</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label className="text-[10px] text-white/40 font-bold mb-1 block">كود الخصم (مثال: VIP2024)</label>
+                            <input type="text" value={newCoupon.code} onChange={(e) => setNewCoupon({...newCoupon, code: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-emerald-500/50 uppercase" placeholder="الكود" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-white/40 font-bold mb-1 block">قيمة الخصم (ج.م)</label>
+                            <input type="number" value={newCoupon.discount || ''} onChange={(e) => setNewCoupon({...newCoupon, discount: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-emerald-500/50" placeholder="المبلغ" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-white/40 font-bold mb-1 block">الحد الأقصى للاستخدام</label>
+                            <input type="number" value={newCoupon.maxUses || ''} onChange={(e) => setNewCoupon({...newCoupon, maxUses: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-emerald-500/50" placeholder="عدد المرات" />
+                        </div>
+                    </div>
+                    <button onClick={handleCreateCoupon} disabled={isSavingCoupon || !newCoupon.code || newCoupon.discount <= 0} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-white/5 disabled:text-white/20 text-white font-black rounded-xl transition-all flex items-center justify-center gap-2">
+                        {isSavingCoupon ? <Activity className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                        إضافة الكوبون
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    {coupons.map((c, i) => (
+                        <div key={i} className="bg-[#111] border border-white/5 rounded-2xl p-4 flex justify-between items-center hover:border-emerald-500/30 transition-all">
+                            <div>
+                                <h4 className="font-black text-lg text-emerald-400 font-mono tracking-widest">{c.code}</h4>
+                                <p className="text-[10px] text-white/40 mt-1">خصم: <span className="text-white font-bold">{c.discountAmount} ج.م</span> | الاستخدام: <span className="text-white font-bold">{c.usedCount}/{c.maxUses}</span></p>
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                <Tag className="w-5 h-5 text-emerald-500" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
         {activeView === 'broadcast' && (
             <div className="flex-1 flex flex-col gap-4">
                 <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl mb-2 flex items-center gap-3">
@@ -266,6 +437,57 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
                 <button onClick={handleSendBroadcast} disabled={isBroadcasting} className="w-full py-4 bg-amber-500 text-black font-black rounded-xl hover:bg-amber-400 transition-all flex items-center justify-center gap-2">
                     {isBroadcasting ? <Activity className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                     إرسال النبض للجميع
+                </button>
+            </div>
+        )}
+
+        {/* SETTINGS / API KEYS */}
+        {activeView === 'settings' && (
+            <div className="flex-1 flex flex-col gap-4">
+                <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl mb-2 flex items-center gap-3">
+                    <Settings className="w-6 h-6 text-blue-500" />
+                    <div><h3 className="font-bold text-blue-400">إعدادات النظام (System Keys)</h3><p className="text-[10px] text-white/50">إدارة مفاتيح الـ API للـ Autonomous Agents</p></div>
+                </div>
+                
+                <div className="bg-[#111] p-6 rounded-2xl border border-white/5 mb-4 space-y-4">
+                    <h4 className="text-white font-bold text-sm mb-4 border-b border-white/10 pb-2">عضلات المبرمج (Deployment)</h4>
+                    <div>
+                        <label className="text-xs text-white/40 block mb-1">GitHub Personal Access Token</label>
+                        <input type="password" value={systemKeys?.githubToken || ''} onChange={(e) => setSystemKeys({...systemKeys, githubToken: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="ghp_..." />
+                    </div>
+                    <div>
+                        <label className="text-xs text-white/40 block mb-1">Vercel API Token</label>
+                        <input type="password" value={systemKeys?.vercelToken || ''} onChange={(e) => setSystemKeys({...systemKeys, vercelToken: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="Bearer..." />
+                    </div>
+                </div>
+
+                <div className="bg-[#111] p-6 rounded-2xl border border-white/5 mb-4 space-y-4">
+                    <h4 className="text-white font-bold text-sm mb-4 border-b border-white/10 pb-2">عضلات المتداول (Binance)</h4>
+                    <div>
+                        <label className="text-xs text-white/40 block mb-1">Binance API Key</label>
+                        <input type="password" value={systemKeys?.binanceApiKey || ''} onChange={(e) => setSystemKeys({...systemKeys, binanceApiKey: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" />
+                    </div>
+                    <div>
+                        <label className="text-xs text-white/40 block mb-1">Binance Secret Key</label>
+                        <input type="password" value={systemKeys?.binanceSecretKey || ''} onChange={(e) => setSystemKeys({...systemKeys, binanceSecretKey: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" />
+                    </div>
+                </div>
+
+                <div className="bg-[#111] p-6 rounded-2xl border border-white/5 mb-4 space-y-4">
+                    <h4 className="text-white font-bold text-sm mb-4 border-b border-white/10 pb-2">عضلات السوشيال (Meta)</h4>
+                    <div>
+                        <label className="text-xs text-white/40 block mb-1">Meta Page Access Token</label>
+                        <input type="password" value={systemKeys?.metaToken || ''} onChange={(e) => setSystemKeys({...systemKeys, metaToken: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="EAAG..." />
+                    </div>
+                    <div>
+                        <label className="text-xs text-white/40 block mb-1">Meta Page ID</label>
+                        <input type="text" value={systemKeys?.metaPageId || ''} onChange={(e) => setSystemKeys({...systemKeys, metaPageId: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" />
+                    </div>
+                </div>
+
+                <button onClick={handleSaveSystemKeys} disabled={isSavingSystemKeys} className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all flex items-center justify-center gap-2">
+                    {isSavingSystemKeys ? <Activity className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                    حفظ المفاتيح
                 </button>
             </div>
         )}
@@ -366,17 +588,82 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
                 </div>
             </div>
         )}
+
+        {/* --- ANALYTICS VIEW --- */}
+        {activeView === 'analytics' && (
+            <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 border border-amber-500/20">
+                        <BarChart2 className="w-5 h-5" />
+                    </div>
+                    <h3 className="text-xl font-black text-white">تحليل البيانات (Analytics)</h3>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-5 bg-[#111] rounded-[24px] border border-white/5 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">إجمالي الأعضاء</h4>
+                        <div className="text-2xl font-black text-white flex items-center gap-2">
+                            {realProfiles.length} <Users className="w-4 h-4 text-white/20" />
+                        </div>
+                    </div>
+                    <div className="p-5 bg-[#111] rounded-[24px] border border-white/5 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">الأعضاء النشطين</h4>
+                        <div className="text-2xl font-black text-emerald-400 flex items-center gap-2">
+                            {realProfiles.filter(p => p.status === 'active').length} <CheckCircle className="w-4 h-4 text-emerald-500/30" />
+                        </div>
+                    </div>
+                    <div className="p-5 bg-[#111] rounded-[24px] border border-white/5 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">المسوقين (Affiliates)</h4>
+                        <div className="text-2xl font-black text-amber-500 flex items-center gap-2">
+                            {realProfiles.filter(p => p.affiliate && p.affiliate.isMarketer).length} <Briefcase className="w-4 h-4 text-amber-500/30" />
+                        </div>
+                    </div>
+                    <div className="p-5 bg-[#111] rounded-[24px] border border-white/5 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">الربح المتوقع (إجمالي)</h4>
+                        <div className="text-2xl font-black text-purple-400 flex items-center gap-2">
+                            {expectedProfit.toLocaleString()}ج <Wallet className="w-4 h-4 text-purple-500/30" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-6 bg-[#080808] rounded-[32px] border border-white/5 w-full h-[350px]">
+                     <h4 className="text-sm font-bold text-white mb-6">نمو الأعضاء (آخر 7 أيام)</h4>
+                     <ResponsiveContainer width="100%" height="80%">
+                        <AreaChart data={growthData}>
+                            <defs>
+                                <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                            <XAxis dataKey="name" stroke="#ffffff50" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                            <YAxis stroke="#ffffff50" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                            <RechartsTooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333', borderRadius: '12px', fontSize: '12px' }} />
+                            <Area type="monotone" dataKey="users" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorUsers)" />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+        )}
       </div>
 
       <nav className="fixed bottom-[32px] left-0 w-full bg-black/95 border-t border-white/10 pb-6 pt-3 z-[100] rounded-t-[40px]">
-        <div className="flex items-center justify-around max-w-lg mx-auto">
-            <button onClick={() => setActiveView('members')} className={`flex flex-col items-center gap-1 ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
-            <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center gap-1 ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
-            <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center gap-1 ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
-            <button onClick={() => setActiveView('chat')} className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black -top-4 relative shadow-lg"><Bot className="w-6 h-6" /></button>
-            <button onClick={() => setActiveView('feedback')} className={`flex flex-col items-center gap-1 ${activeView === 'feedback' ? 'text-white scale-110' : 'text-white/30'}`}><MessageSquare className="w-5 h-5" /><span className="text-[8px] font-bold">الآراء</span></button>
-            <button onClick={() => setActiveView('broadcast')} className={`flex flex-col items-center gap-1 ${activeView === 'broadcast' ? 'text-white scale-110' : 'text-white/30'}`}><Megaphone className="w-5 h-5" /><span className="text-[8px] font-bold">النبض</span></button>
-            <button onClick={() => setActiveView('core')} className={`flex flex-col items-center gap-1 ${activeView === 'core' ? 'text-white scale-110' : 'text-white/30'}`}><Cpu className="w-5 h-5" /><span className="text-[8px] font-bold">النواة</span></button>
+        <div className="flex items-center justify-around max-w-lg mx-auto overflow-x-auto gap-2 px-2 scrollbar-none">
+            <button onClick={() => setActiveView('analytics')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'analytics' ? 'text-white scale-110' : 'text-white/30'}`}><BarChart2 className="w-5 h-5" /><span className="text-[8px] font-bold">تحليل</span></button>
+            <button onClick={() => setActiveView('members')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
+            <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30'}`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
+            <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
+            <button onClick={() => setActiveView('chat')} className="min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black -top-4 relative shadow-lg"><Bot className="w-6 h-6" /></button>
+            <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'settings' ? 'text-white scale-110' : 'text-white/30'}`}><Settings className="w-5 h-5" /><span className="text-[8px] font-bold">المفاتيح</span></button>
+            <button onClick={() => setActiveView('feedback')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'feedback' ? 'text-white scale-110' : 'text-white/30'}`}><MessageCircle className="w-5 h-5" /><span className="text-[8px] font-bold">الآراء</span></button>
+            <button onClick={() => setActiveView('coupons')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'coupons' ? 'text-white scale-110' : 'text-white/30'}`}><Tag className="w-5 h-5" /><span className="text-[8px] font-bold">كوبونات</span></button>
+            <button onClick={() => setActiveView('broadcast')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'broadcast' ? 'text-white scale-110' : 'text-white/30'}`}><Megaphone className="w-5 h-5" /><span className="text-[8px] font-bold">النبض</span></button>
+            <button onClick={() => setActiveView('core')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'core' ? 'text-white scale-110' : 'text-white/30'}`}><Cpu className="w-5 h-5" /><span className="text-[8px] font-bold">النواة</span></button>
         </div>
       </nav>
 

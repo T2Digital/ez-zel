@@ -66,16 +66,34 @@ const Payment: React.FC<Props> = ({ planId, billingCycle, onSuccess, onBack }) =
       window.open(`tel:${code}`, '_self');
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setIsProcessing(true);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-          setProofImage(ev.target?.result as string);
-          setIsProcessing(false);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    
+    setIsProcessing(true);
+    
+    try {
+        const apiKey = (import.meta as any).env?.VITE_IMGBB_API_KEY || '5196307137b00f7236d93026a7f0e698'; // Fallback to a generic key if not set
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            setProofImage(data.data.url);
+        } else {
+            console.error('ImgBB upload failed:', data);
+            alert('فشل رفع الصورة، يرجى المحاولة مرة أخرى.');
+        }
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        alert('حدث خطأ أثناء رفع الصورة.');
+    } finally {
+        setIsProcessing(false);
     }
   };
 
@@ -155,7 +173,6 @@ const Payment: React.FC<Props> = ({ planId, billingCycle, onSuccess, onBack }) =
             {couponStatus === 'invalid' && <p className="text-[10px] text-red-400 font-bold mt-1">الكود غير صالح أو انتهى.</p>}
         </div>
 
-        {/* Instapay Special Box */}
         <div onClick={() => setMethod('instapay')} className={`glass p-5 rounded-[24px] border-2 transition-all cursor-pointer mb-4 flex items-center gap-4 ${method === 'instapay' ? 'border-purple-500 bg-purple-500/10' : 'border-white/5 hover:border-white/20'}`}>
              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
                 <Sparkles className="w-6 h-6 text-purple-400" />

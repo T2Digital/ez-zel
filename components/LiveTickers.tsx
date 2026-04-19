@@ -14,6 +14,7 @@ const maskName = (name: string) => {
 
 const LiveTickers: React.FC = () => {
     const [items, setItems] = useState<any[]>([]);
+    const [pulses, setPulses] = useState<any[]>([]);
 
     useEffect(() => {
         const loadStats = async () => {
@@ -67,10 +68,36 @@ const LiveTickers: React.FC = () => {
 
         loadStats();
         const interval = setInterval(loadStats, 30000); 
-        return () => clearInterval(interval);
+
+        // Listen to pulses
+        const checkPulse = async () => {
+            const pulse = await shadowDB.getGlobalPulse();
+            if (pulse && pulse.timestamp > Date.now() - 86400000) { // Only last 24h
+                setPulses(prev => {
+                    if (!prev.find(p => p.timestamp === pulse.timestamp)) {
+                        return [{
+                            type: 'pulse',
+                            text: pulse.text,
+                            timestamp: pulse.timestamp,
+                            time: new Date(pulse.timestamp).toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'})
+                        }, ...prev].slice(0, 5);
+                    }
+                    return prev;
+                });
+            }
+        };
+        checkPulse();
+        const pulseInterval = setInterval(checkPulse, 10000);
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(pulseInterval);
+        };
     }, []);
 
-    if (items.length === 0) return null;
+    const displayItems = [...pulses, ...items].sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
+
+    if (displayItems.length === 0) return null;
 
     return (
         <>
@@ -101,10 +128,12 @@ const LiveTickers: React.FC = () => {
 
                 {/* Rotating Content */}
                 <div className="flex animate-marquee-custom pause-on-hover whitespace-nowrap gap-8 items-center pr-32 pointer-events-auto">
-                    {items.map((item, i) => (
+                    {displayItems.map((item, i) => (
                         <div key={i} className="flex items-center gap-2 text-[10px] font-bold text-white/90">
                             {/* Icon Based on Type */}
-                            {item.type === 'payout' ? (
+                            {item.type === 'pulse' ? (
+                                <Activity className="w-3 h-3 text-cyan-400" />
+                            ) : item.type === 'payout' ? (
                                 <DollarSign className="w-3 h-3 text-emerald-400" />
                             ) : item.subtype === 'member' ? (
                                 <ShieldCheck className="w-3 h-3 text-purple-400" />
@@ -115,7 +144,9 @@ const LiveTickers: React.FC = () => {
                             )}
 
                             {/* Text Content */}
-                            {item.type === 'payout' ? (
+                            {item.type === 'pulse' ? (
+                                <span className="text-cyan-400">{item.text}</span>
+                            ) : item.type === 'payout' ? (
                                 <>
                                     <span className="text-emerald-400 font-mono">{item.amount} ج.م</span>
                                     <span className="text-white/40">تم تحويلها لـ</span>

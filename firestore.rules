@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(email) {
+      return isAuthenticated() && request.auth.token.email == email;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (request.auth.token.email == "ahmed.atya.daif@gmail.com" || request.auth.token.email == "tito@admin.com" || request.auth.token.email == "tito@shadow.com");
+    }
+
+    match /users/{email} {
+      allow read, write: if isOwner(email) || isAdmin();
+      
+      match /history/{messageId} {
+        allow read, write: if isOwner(email) || isAdmin();
+      }
+      
+      match /tasks/{taskId} {
+        allow read, write: if isOwner(email) || isAdmin();
+      }
+      
+      match /memory/{factId} {
+        allow read, write: if isOwner(email) || isAdmin();
+      }
+      
+      match /filesystem/{fileId} {
+        allow read, write: if isOwner(email) || isAdmin();
+      }
+      
+      match /contacts/{contactId} {
+        allow read, write: if isOwner(email) || isAdmin();
+      }
+    }
+
+    match /system/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    match /system_agents/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    match /system_coupons/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    match /feedback/{document=**} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}
