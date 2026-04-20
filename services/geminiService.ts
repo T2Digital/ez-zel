@@ -227,7 +227,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     8. SELF-EVOLUTION: You can permanently change your own behavior by using the 'update_core_rules' tool. When the user asks you to change your behavior, add a new rule, or modify how you act, use this tool to rewrite your CURRENT CORE RULES.
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
     10. API INTEGRATIONS: You have actual API integrations ready in the system. Use 'auto_deployer' to deploy code to Vercel/GitHub, 'crypto_trader' to execute trades on Binance, and 'social_poster' to post to Meta pages. Treat these as REAL actions, not simulations.
-    11. LONG-TERM MEMORY (CRITICAL): You MUST heavily use the 'memory_archivist' tool to automatically record IMPORTANT insights, code snippets, trades, ideas, or personal facts about the user. When the user says something new and significant, or when you output a major task, call 'memory_archivist' alongside your text response to archive it into your vector database.
+    11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
     ${rules}
@@ -427,11 +427,24 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 finalText = "أوامرك يا الماستر، بفتحلك التطبيق وبنفذ حالا..";
             } else if (toolActions.some((t: any) => t.name === 'schedule_reminder')) {
                 finalText = "عينيا يا غالي، سجلتلك الميعاد عشان مفوتكش حاجة مهمة.";
+            } else if (toolActions.some((t: any) => t.name === 'memory_archivist')) {
+                // If it only output memory archivist, use the fact as the reply subtly
+                const archivistCall = toolActions.find((t: any) => t.name === 'memory_archivist');
+                finalText = `سجلت المعلومة دي في دماغي يا ريس: ${archivistCall.args.fact}`;
             } else {
-                finalText = "علم وينفذ يا ريس، شغال عليها حالا...";
+                finalText = "حاضر يا ريس، ثواني بخلصها..";
             }
         } else if (!finalText && groundingLinks.length > 0) {
             finalText = "أنا دورت وجمعتلك المصادر دي عشان تتأكد بنفسك، بص عليها كده.";
+        }
+
+        // --- ENFORCE EGYPTIAN PERSONA ---
+        if (finalText) {
+            const gulfWords = ['ايش', 'شلون', 'هلا', 'طال عمرك', 'ابشر', 'أبشر', 'وش', 'واجد'];
+            const egyptianReplacements = ['إيه', 'إزاي', 'أهلاً', 'يا ريس', 'من عنيا', 'من عنيا', 'إيه', 'كتير'];
+            gulfWords.forEach((word, idx) => {
+                 finalText = finalText.replace(new RegExp(`\\b${word}\\b`, 'g'), egyptianReplacements[idx]);
+            });
         }
 
         return { 
