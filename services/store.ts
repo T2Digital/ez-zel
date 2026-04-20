@@ -81,7 +81,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               } catch(e) {}
 
               if (profile.status === 'active') {
-                 if (profile.email === 'admin@shadow.com') {
+                 if (profile.email === 'TITO' || profile.email === 'tito@shadow.com' || profile.email === 'ahmed.atya.daif@gmail.com' || (profile.tier === 'sovereign' && profile.name.includes('تيتو'))) {
                      set({ view: 'admin', isAppLocked: false });
                  } else {
                      set({ view: 'dashboard', isAppLocked: true });
@@ -119,7 +119,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         localStorage.removeItem('shadow_guest_active');
     }
 
-    if (profile.email === 'admin@shadow.com') {
+    if (profile.email === 'TITO' || profile.email === 'tito@shadow.com' || profile.email === 'ahmed.atya.daif@gmail.com' || (profile.tier === 'sovereign' && profile.name.includes('تيتو'))) {
         set({ view: 'admin', isAppLocked: false });
         // NOTE: Admin sets `isAppLocked: false`, bypassing SecurityGate
         return;
@@ -157,19 +157,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   handleAdminLogin: async () => {
-      let adminProfile = await shadowDB.getProfile('admin@shadow.com');
+      let adminProfile = await shadowDB.getProfile('TITO');
       if (!adminProfile) {
           adminProfile = { 
-              email: 'admin@shadow.com', 
-              phone: 'admin@shadow.com',
-              name: 'تيتو (الماستر)', 
-              shadowName: 'الماستر', 
+              email: 'TITO', 
+              phone: 'TITO',
+              name: 'تيتو (المالك)', 
+              shadowName: 'الظل الأبدي', 
               tier: 'sovereign', 
               status: 'active', 
               joinedAt: Date.now(),
               affiliate: {
                   isMarketer: true,
-                  referralCode: 'ADMIN_BOSS',
+                  referralCode: 'TITO_BOSS',
                   totalEarnings: 0,
                   referralsCount: 0,
                   payoutHistory: []

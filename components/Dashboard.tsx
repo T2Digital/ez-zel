@@ -38,7 +38,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       if (user.affiliate?.isMarketer && user.tier === 'lite') {
           return { label: 'شريك نجاح', sub: 'Affiliate Partner', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: Briefcase };
       }
-      if (user.email === 'admin@shadow.com') {
+      if (user.phone === 'TITO') {
           return { label: 'الماستر', sub: 'System Admin', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Crown };
       }
       return { label: 'عضو نخبة', sub: 'Sovereign Tier', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: Fingerprint };

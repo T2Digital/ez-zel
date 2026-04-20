@@ -117,7 +117,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const shouldContinueListeningRef = useRef(false); 
   const currentTranscriptRef = useRef('');
 
-  const isTito = currentUser.email === 'admin@shadow.com' || isAdmin;
+  const isTito = currentUser.email === 'TITO' || currentUser.email === 'tito@shadow.com' || isAdmin;
   const isRestrictedMode = !isTito && (currentUser.email === 'GUEST' || (currentUser.tier === 'lite' && currentUser.affiliate?.isMarketer));
   const [isLimitReached, setIsLimitReached] = useState(false);
 

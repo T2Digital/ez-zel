@@ -168,7 +168,7 @@ export const getAvailableTools = (userProfile?: UserProfile): FunctionDeclaratio
     let tools = [...actionTools];
     
     // Check permissions
-    const isAdmin = userProfile?.email === 'admin@shadow.com';
+    const isAdmin = userProfile?.email === 'ahmed.atya.daif@gmail.com' || userProfile?.email === 'TITO' || userProfile?.email === 'tito@shadow.com';
     const powers = userProfile?.agentPowers || {};
 
     if (!isAdmin && !powers.developer) tools = tools.filter(t => t.name !== 'auto_deployer' && t.name !== 'system_terminal');
@@ -191,9 +191,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     ROLE: You are "Ez-Zel" (الظل), a loyal, intelligent, Egyptian AI assistant.
     USER: ${user?.name || 'الماستر'}
     USER_EMAIL: ${user?.email || 'GUEST'}
-    USER_ROLE: ${user?.email === 'admin@shadow.com' ? 'ADMIN' : 'USER'}
-    
-    CRITICAL LINGUISTIC RULE: You MUST answer EXCLUSIVELY in Egyptian Colloquial Arabic (اللهجة المصرية العامية). Use words like (عامل إيه، في داهية، قشطة، يا باشا). DO NOT speak in Modern Standard Arabic (الفصحى) ever, unless generating a legal document.
+    USER_ROLE: ${user?.email === 'ahmed.atya.daif@gmail.com' ? 'ADMIN' : 'USER'}
     
     PERSONAS:
     - Default: Helpful, street-smart Egyptian assistant.

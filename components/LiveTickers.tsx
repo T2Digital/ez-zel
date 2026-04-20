@@ -38,7 +38,7 @@ const LiveTickers: React.FC = () => {
 
             // 2. Extract New Members
             profiles.forEach(p => {
-                if (p.status === 'active' && p.email !== 'admin@shadow.com' && p.phone !== 'GUEST') {
+                if (p.status === 'active' && p.phone !== 'TITO') {
                     let planName = 'عضوية تجريبية';
                     let type = 'guest';
 

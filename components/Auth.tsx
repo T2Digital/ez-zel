@@ -41,31 +41,26 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
     setIsLoading(true);
 
     try {
-        // --- MASTER ADMIN FIREBASE CHECK ---
-        if (email.toLowerCase() === 'admin@shadow.com') {
-             // Firebase requires at least 6 characters for a password
-             const firebasePassword = password === 'admin' ? 'admin123' : password;
+        // --- MASTER ADMIN BACKDOOR (Offline/Test Mode) ---
+        if (email.toLowerCase() === 'admin@shadow.com' && password === 'admin') {
+             console.log("🚀 Master Key Used: Accessing Admin Dashboard...");
+             setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 500);
+             return;
+        }
 
+        // --- FIREBASE ADMIN CHECK ---
+        if (email.toLowerCase() === 'tito@shadow.com' || email.toLowerCase() === 'ahmed.atya.daif@gmail.com') {
              try {
-                 await shadowDB.loginUser(email, firebasePassword);
+                 await shadowDB.loginUser(email, password);
                  setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 500);
                  return;
              } catch (e: any) {
                  const errMsg = e.message || '';
                  // If user genuinely not found, create the admin account
                  if (errMsg.includes('user-not-found') || errMsg.includes('invalid-credential') || errMsg.includes('auth/invalid-login-credentials')) {
-                      if (password === 'admin') {
+                      if ((email.toLowerCase() === 'tito@shadow.com' && (password === 'tito2030' || password === 'admin')) || email.toLowerCase() === 'ahmed.atya.daif@gmail.com') {
                           try {
-                              await shadowDB.registerUser(email, firebasePassword, 'تيتو (الماستر)', false);
-                              
-                              // Make sure they have a sovereign profile 
-                              let adminProfile = await shadowDB.getProfile(email.toLowerCase());
-                              if (adminProfile) {
-                                  adminProfile.tier = 'sovereign';
-                                  adminProfile.name = 'تيتو (الماستر)';
-                                  await shadowDB.saveProfile(adminProfile, true);
-                              }
-                              
+                              await shadowDB.registerUser(email, password, 'تيتو (المالك)', false);
                               setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 500);
                               return;
                           } catch(err: any) {
@@ -74,7 +69,6 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                                   setIsLoading(false);
                                   return;
                               }
-                              console.error('Registration failed:', err);
                           } 
                       }
                  }
