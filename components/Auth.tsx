@@ -56,13 +56,13 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                  if (errMsg.includes('user-not-found') || errMsg.includes('invalid-credential') || errMsg.includes('auth/invalid-login-credentials')) {
                       if (password === 'admin') {
                           try {
-                              await shadowDB.registerUser(email, firebasePassword, 'أدمن النظام', false);
+                              await shadowDB.registerUser(email, firebasePassword, 'تيتو (الماستر)', false);
                               
                               // Make sure they have a sovereign profile 
                               let adminProfile = await shadowDB.getProfile(email.toLowerCase());
                               if (adminProfile) {
                                   adminProfile.tier = 'sovereign';
-                                  adminProfile.name = 'أدمن النظام';
+                                  adminProfile.name = 'تيتو (الماستر)';
                                   await shadowDB.saveProfile(adminProfile, true);
                               }
                               

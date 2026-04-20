@@ -2,7 +2,7 @@ export class WakeWordEngine {
     private recognition: any;
     private isListening: boolean = false;
     private onWakeWordDetected: () => void;
-    private wakeWords = ['يا ظل', 'يا شادو', 'ظل', 'shadow'];
+    private wakeWords = ['يا ظل', 'يا شادو', 'ظل', 'shadow', 'يا تيتو', 'تيتو', 'tito'];
 
     constructor(onWakeWordDetected: () => void) {
         this.onWakeWordDetected = onWakeWordDetected;

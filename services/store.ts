@@ -162,8 +162,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           adminProfile = { 
               email: 'admin@shadow.com', 
               phone: 'admin@shadow.com',
-              name: 'أدمن النظام', 
-              shadowName: 'الظل الأبدي', 
+              name: 'تيتو (الماستر)', 
+              shadowName: 'الماستر', 
               tier: 'sovereign', 
               status: 'active', 
               joinedAt: Date.now(),
