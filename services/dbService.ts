@@ -72,7 +72,6 @@ export interface UserProfile {
         biometricsEnabled: boolean;
         logsEnabled: boolean;
     };
-    pin?: string;
     traits?: UserTraits;
     lastPulseReceived?: number; 
     synced?: boolean;
@@ -436,7 +435,7 @@ class ShadowDB {
       this.updateSyncStatus('syncing');
 
       if (!this.syncTimer) {
-          this.syncTimer = setTimeout(() => this.flushSyncQueue(), 500); // Batched quickly
+          this.syncTimer = setTimeout(() => this.flushSyncQueue(), 5000); // Batch every 5 seconds
       }
   }
 
