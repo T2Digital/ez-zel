@@ -225,22 +225,52 @@ class ShadowDB {
       if (!auth) throw new Error("Firebase Auth not initialized");
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
+      
+      const cleanEmail = email.toLowerCase();
+      const isAdmin = cleanEmail === 'admin@shadow.com';
+      
       const newUser: UserProfile = {
-          email: email.toLowerCase(),
-          phone: email.toLowerCase(),
+          email: cleanEmail,
+          phone: cleanEmail,
           uid,
-          name, 
-          shadowName: isAffiliate ? 'Marketer' : 'الظل',
+          name: isAdmin ? 'أدمن النظام' : name, 
+          shadowName: isAdmin ? 'الظل الأبدي' : (isAffiliate ? 'Marketer' : 'الظل'),
           voicePreference: 'male',
-          tier: isAffiliate ? 'lite' : 'sovereign',
-          status: isAffiliate ? 'active' : 'pending',
+          tier: isAdmin ? 'sovereign' : (isAffiliate ? 'lite' : 'sovereign'),
+          status: isAdmin ? 'active' : (isAffiliate ? 'active' : 'pending'),
           joinedAt: Date.now(),
           referredBy: referralCode,
-          affiliate: { isMarketer: isAffiliate, referralCode: (name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(), totalEarnings: 0, referralsCount: 0, payoutHistory: [] },
-          subscriptionCycle: isAffiliate ? undefined : 'monthly',
+          affiliate: isAdmin ? { 
+              isMarketer: true, 
+              referralCode: 'ADMIN_BOSS', 
+              totalEarnings: 0, 
+              referralsCount: 0, 
+              payoutHistory: [] 
+          } : { 
+              isMarketer: isAffiliate, 
+              referralCode: (name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(), 
+              totalEarnings: 0, 
+              referralsCount: 0, 
+              payoutHistory: [] 
+          },
+          subscriptionCycle: isAdmin ? 'yearly' : (isAffiliate ? undefined : 'monthly'),
       };
-      await this.saveProfile(newUser);
+      await this.saveProfile(newUser, true);
       return newUser;
+  }
+
+  async nukeLocalDatabase() {
+      try {
+          localStorage.clear();
+          sessionStorage.clear();
+          const req = indexedDB.deleteDatabase(this.dbName);
+          req.onsuccess = () => console.log("IndexedDB wiped");
+          if (auth) await auth.signOut();
+          return true;
+      } catch (e) {
+          console.error("Nuke failed", e);
+          return false;
+      }
   }
 
     async downloadUserCloudData(email: string) {
@@ -293,20 +323,20 @@ class ShadowDB {
 
           console.warn("[Shadow Core] Profile missing locally. Creating default/healing...");
           const namePart = email.split('@')[0];
-          const isAdmin = cleanEmail.includes('tito') || cleanEmail.includes('admin');
+          const isAdmin = cleanEmail === 'admin@shadow.com';
           
           profile = {
               email: cleanEmail,
               phone: cleanEmail,
               uid: uid,
-              name: isAdmin ? 'تيتو (الماستر)' : namePart,
-              shadowName: isAdmin ? 'الماستر' : 'الظل',
+              name: isAdmin ? 'أدمن النظام' : namePart,
+              shadowName: isAdmin ? 'الظل الأبدي' : 'الظل',
               tier: isAdmin ? 'sovereign' : 'lite',
               status: 'active',
               joinedAt: Date.now(),
               affiliate: isAdmin ? {
                   isMarketer: true,
-                  referralCode: 'TITO_BOSS',
+                  referralCode: 'ADMIN_BOSS',
                   totalEarnings: 0,
                   referralsCount: 0,
                   payoutHistory: []

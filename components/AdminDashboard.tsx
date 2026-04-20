@@ -91,8 +91,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
 
   // Admin Profile
   const [adminProfile, setAdminProfile] = useState<UserProfile>({ 
-      email: 'TITO', name: 'تيتو (المالك)', shadowName: 'الماستر', tier: 'sovereign', status: 'active', joinedAt: Date.now(), password: 'admin',
-      affiliate: { isMarketer: true, referralCode: 'TITO_BOSS', totalEarnings: 0, referralsCount: 0, payoutHistory: [] }
+      email: 'admin@shadow.com', name: 'أدمن النظام', shadowName: 'الظل الأبدي', tier: 'sovereign', status: 'active', joinedAt: Date.now(), password: 'admin',
+      affiliate: { isMarketer: true, referralCode: 'ADMIN_BOSS', totalEarnings: 0, referralsCount: 0, payoutHistory: [] }
   });
 
   const [isSavingSystemKeys, setIsSavingSystemKeys] = useState(false);
@@ -108,8 +108,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   useEffect(() => { 
       if ('Notification' in window && Notification.permission === 'granted') setNotificationsEnabled(true);
       const initData = async () => {
-          const titoProfile = await shadowDB.getProfile('TITO');
-          if (titoProfile) setAdminProfile(titoProfile);
+          const adminProf = await shadowDB.getProfile('admin@shadow.com');
+          if (adminProf) setAdminProfile(adminProf);
           const [allProfiles, allFeedback, rules, keys] = await Promise.all([shadowDB.getAllProfiles(), shadowDB.getAllFeedback(), shadowDB.getGlobalRules(), shadowDB.getSystemKeys()]);
           setProfiles(allProfiles);
           setFeedbacks(allFeedback.reverse());
@@ -219,13 +219,24 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   const activeMembers = filteredProfiles.filter(p => p.status === 'active');
   const marketersList = filteredProfiles.filter(p => p.affiliate?.isMarketer);
   
+  const handleNukeDevice = async () => {
+      if (confirm("تحذير خطير: هل أنت متأكد من مسح الذاكرة المحلية لهذا الجهاز بالكامل؟ (سيؤدي ذلك إلى تسجيل الخروج وتصفير ذاكرة الكاش تماماً)")) {
+          await shadowDB.nukeLocalDatabase();
+          window.location.reload();
+      }
+  };
+
   if (activeView === 'chat') return <div className="h-screen w-full bg-black"><ChatInterface currentUser={adminProfile} onUpgrade={() => {}} onBack={() => setActiveView('requests')} isAdmin={true} /></div>;
 
   return (
     <div className="min-h-screen bg-[#020202] text-white flex flex-col font-['Cairo'] pb-48">
       <div className="p-6 md:p-8 flex justify-between items-center bg-black/50 border-b border-white/5 sticky top-0 z-50 backdrop-blur-md">
-          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">T</div><h2 className="text-xl font-black">TITO <span className="text-amber-500">HQ</span></h2></div>
-          <div className="flex items-center gap-2"><button onClick={onSwitchToUserMode} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">وضع المستخدم</button><button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-900/20 rounded-full transition-all"><LogOut className="w-5 h-5" /></button></div>
+          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">A</div><h2 className="text-xl font-black">Shadow <span className="text-amber-500">HQ</span></h2></div>
+          <div className="flex items-center gap-2">
+              <button onClick={handleNukeDevice} className="px-4 py-2 bg-red-900/40 text-red-400 border border-red-500/30 rounded-full text-xs font-bold hover:bg-red-500 hover:text-white transition-all">تهيئة الجهاز (مسح الكاش)</button>
+              <button onClick={onSwitchToUserMode} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">وضع المستخدم</button>
+              <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-900/20 rounded-full transition-all"><LogOut className="w-5 h-5" /></button>
+          </div>
       </div>
 
       <div className="flex-1 p-6 space-y-8">

@@ -208,7 +208,7 @@ const App: React.FC = () => {
 
   // --- ADMIN NOTIFIER ---
   useEffect(() => {
-      if (user && (user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو')))) {
+      if (user && user.email === 'admin@shadow.com') {
           const interval = setInterval(async () => {
             const lastCheck = await shadowDB.getConfig('last_admin_check') || 0; 
             const allProfiles = await shadowDB.getAllProfiles();
@@ -221,7 +221,7 @@ const App: React.FC = () => {
                 if (newPending.length > 0) msgText += `\n📌 **طلبات اشتراك جديدة (${newPending.length})**`;
                 if (newFeedback.length > 0) msgText += `\n💬 **رسائل رأي جديدة (${newFeedback.length})**`;
                 
-                const adminMsg: DBMessage = { userId: 'TITO', role: 'system', text: msgText, timestamp: Date.now() };
+                const adminMsg: DBMessage = { userId: 'admin@shadow.com', role: 'system', text: msgText, timestamp: Date.now() };
                 await shadowDB.saveMessage(adminMsg, true);
                 setLatestSystemMessage(adminMsg);
                 await shadowDB.setConfig('last_admin_check', Date.now());

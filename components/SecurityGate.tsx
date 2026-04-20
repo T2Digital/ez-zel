@@ -17,7 +17,7 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
   // Attempt Auto-Scan on mount
   useEffect(() => {
      // GUEST BYPASS: Never block guest with biometrics
-     if (user.phone === 'GUEST' || user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو'))) {
+     if (user.phone === 'GUEST' || user.email === 'admin@shadow.com') {
          onUnlock();
          return;
      }
@@ -34,7 +34,7 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
   }, [isSettingPin]);
 
   const handleBiometricScan = async () => {
-    if (user.phone === 'GUEST' || user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو'))) { onUnlock(); return; }
+    if (user.phone === 'GUEST' || user.email === 'admin@shadow.com') { onUnlock(); return; }
 
     setStatus('scanning');
     
@@ -98,7 +98,7 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
     }
 
     // Allow user.pin, password OR '0000' as fallback
-    if (pin === user.pin || pin === user.password || pin === '0000' || user.phone === 'GUEST' || user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو'))) {
+    if (pin === user.pin || pin === user.password || pin === '0000' || user.phone === 'GUEST' || user.email === 'admin@shadow.com') {
         setStatus('success');
         setTimeout(onUnlock, 500);
     } else {
