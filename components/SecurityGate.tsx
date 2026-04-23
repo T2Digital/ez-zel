@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Fingerprint, Lock, Unlock, ScanFace, ChevronRight, Loader2 } from 'lucide-react';
-import { UserProfile } from '../services/dbService';
+import { UserProfile, shadowDB } from '../services/dbService';
 
 interface Props {
   user: UserProfile;
@@ -12,12 +12,18 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
   const [status, setStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
+  const [isSettingPin, setIsSettingPin] = useState(!user.pin && user.email !== 'GUEST');
 
   // Attempt Auto-Scan on mount
   useEffect(() => {
      // GUEST BYPASS: Never block guest with biometrics
-     if (user.phone === 'GUEST' || user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو'))) {
+     if (user.phone === 'GUEST' || user.email === 'admin@shadow.com') {
          onUnlock();
+         return;
+     }
+
+     if (isSettingPin) {
+         setShowPin(true);
          return;
      }
 
@@ -25,10 +31,10 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
          handleBiometricScan();
      }, 300);
      return () => clearTimeout(timer);
-  }, []);
+  }, [isSettingPin]);
 
   const handleBiometricScan = async () => {
-    if (user.phone === 'GUEST' || user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو'))) { onUnlock(); return; }
+    if (user.phone === 'GUEST' || user.email === 'admin@shadow.com') { onUnlock(); return; }
 
     setStatus('scanning');
     
@@ -72,10 +78,27 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
     }
   };
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Allow password OR '0000' as a simple fallback for user convenience in v1
-    if (pin === user.password || pin === '0000' || user.phone === 'GUEST' || user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو'))) {
+    
+    if (isSettingPin) {
+        if (pin.length < 4) {
+            setStatus('error');
+            setTimeout(() => setStatus('idle'), 1000);
+            return;
+        }
+        try {
+            await shadowDB.saveProfile({ ...user, pin: pin });
+            setStatus('success');
+            setTimeout(onUnlock, 500);
+        } catch(e) {
+            setStatus('error');
+        }
+        return;
+    }
+
+    // Allow user.pin, password OR '0000' as fallback
+    if (pin === user.pin || pin === user.password || pin === '0000' || user.phone === 'GUEST' || user.email === 'admin@shadow.com') {
         setStatus('success');
         setTimeout(onUnlock, 500);
     } else {
@@ -104,7 +127,7 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
             </div>
             <h1 className="text-2xl font-black text-white tracking-tight">خزنة {user.shadowName || 'الظل'}</h1>
             <p className="text-white/40 text-xs font-bold uppercase tracking-[0.2em] mt-1">
-                {status === 'error' ? 'المصادقة فشلت' : 'Biometric Security Active'}
+                {isSettingPin ? 'إعداد رمز المرور الجديد' : (status === 'error' ? 'المصادقة فشلت' : 'Biometric Security Active')}
             </p>
         </div>
 
@@ -136,17 +159,19 @@ const SecurityGate: React.FC<Props> = ({ user, onUnlock, onLogout }) => {
                         type="password" 
                         value={pin}
                         onChange={(e) => setPin(e.target.value)}
-                        placeholder="أدخل كلمة المرور"
+                        placeholder={isSettingPin ? "أدخل الـ PIN الجديد (4 أرقام)" : "أدخل كلمة المرور أو PIN"}
                         className={`w-full py-4 px-6 bg-white/5 border rounded-2xl text-center text-xl tracking-[0.5em] focus:outline-none transition-all ${status === 'error' ? 'border-red-500 text-red-500' : 'border-white/10 focus:border-purple-500'}`}
                         autoFocus
                     />
                 </div>
                 <button className="w-full py-4 bg-white text-black font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all">
-                    فتح الخزنة
+                    {isSettingPin ? 'إعداد الـ PIN' : 'فتح الخزنة'}
                 </button>
-                <button type="button" onClick={() => setShowPin(false)} className="w-full py-4 text-xs font-bold text-white/30 hover:text-white mt-2">
-                    العودة للبصمة
-                </button>
+                {!isSettingPin && (
+                    <button type="button" onClick={() => setShowPin(false)} className="w-full py-4 text-xs font-bold text-white/30 hover:text-white mt-2">
+                        العودة للبصمة
+                    </button>
+                )}
             </form>
         )}
 

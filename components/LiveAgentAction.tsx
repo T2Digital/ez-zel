@@ -113,20 +113,61 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
         addLog(`Order Success! Status: ${data.status}, Order ID: ${data.orderId}`);
     };
 
-    // --- GITHUB / VERCEL LOGIC ---
     const deployToGitHubAndVercel = async (args: any, keys: SystemKeys) => {
         if (!keys.githubToken) throw new Error("Missing GitHub Personal Access Token.");
-        const { repository_name, files } = args;
-        const targetFiles = files || []; // Array of {path, content}
         
-        addLog(`Connecting to GitHub API...`);
+        // This tool handles multiple modes: 'create_repo', 'read_file', 'update_file', 'push_files'
+        const { mode, repository_name, files, file_path, file_content, force_update } = args;
+        const targetFiles = files || []; 
+        
+        addLog(`Connecting to GitHub API [Mode: ${mode || 'push_files'}]...`);
         const userRes = await fetch('https://api.github.com/user', { headers: { Authorization: `Bearer ${keys.githubToken}` }});
         const userData = await userRes.json();
         if (!userRes.ok) throw new Error(`GitHub Auth Failed: ${userData.message}`);
         const owner = userData.login;
         addLog(`Authenticated as GitHub user: ${owner}`);
 
-        addLog(`Creating Repository: ${repository_name}...`);
+        if (mode === 'read_file' && file_path) {
+             addLog(`Reading file: ${file_path} from repo: ${repository_name}...`);
+             const res = await fetch(`https://api.github.com/repos/${owner}/${repository_name}/contents/${file_path}`, {
+                 headers: { Authorization: `Bearer ${keys.githubToken}` }
+             });
+             const data = await res.json();
+             if (!res.ok) throw new Error(data.message);
+             addLog(`\n[FILE CONTENT EXTRACTED]\nPath: ${file_path}\nSha: ${data.sha}\nSize: ${data.size} bytes`);
+             addLog(`Memory Updated. The assistant can now see this file. (Note: Decode base64 to read).`);
+             return; // Done
+        }
+
+        if (mode === 'update_file' && file_path && file_content) {
+             addLog(`Updating file: ${file_path} in repo: ${repository_name}...`);
+             // 1. Get SHA of existing file
+             const getRes = await fetch(`https://api.github.com/repos/${owner}/${repository_name}/contents/${file_path}`, {
+                 headers: { Authorization: `Bearer ${keys.githubToken}` }
+             });
+             const existingData = await getRes.json();
+             const sha = getRes.ok ? existingData.sha : undefined;
+
+             // 2. Put new content
+             const contentBase64 = btoa(new TextEncoder().encode(file_content).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+             const putRes = await fetch(`https://api.github.com/repos/${owner}/${repository_name}/contents/${file_path}`, {
+                 method: 'PUT',
+                 headers: { Authorization: `Bearer ${keys.githubToken}`, 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ 
+                    message: force_update ? `Force update ${file_path} via Shadow Agent` : `Update ${file_path} via Shadow Agent`, 
+                    content: contentBase64,
+                    sha: sha 
+                 })
+             });
+             if (!putRes.ok) throw new Error(`Failed to update file: ${(await putRes.json()).message}`);
+             addLog(`Successfully updated: ${file_path}`);
+             
+             if (keys.vercelToken) await triggerVercel(keys.vercelToken);
+             return;
+        }
+
+        // --- LEGACY/BATCH REPO CREATION FLOW ---
+        addLog(`Checking/Creating Repository: ${repository_name}...`);
         const createRepoRes = await fetch('https://api.github.com/user/repos', {
             method: 'POST',
             headers: { Authorization: `Bearer ${keys.githubToken}`, 'Content-Type': 'application/json' },
@@ -136,44 +177,48 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
         if(!createRepoRes.ok && repoData.message !== 'Repository creation failed.') {
             addLog(`Repository status: ${repoData.message || 'Already exists'}`);
         } else {
-            addLog(`Repository created successfully.`);
+            addLog(`Repository initialized successfully.`);
         }
 
-        // Small delay for GitHub propagation
         await new Promise(r => setTimeout(r, 2000));
 
         if (targetFiles.length > 0) {
             addLog(`Pushing ${targetFiles.length} files to repository...`);
             for (const file of targetFiles) {
-                // Better base64 encode supporting arabic/unicode characters
+                // Get SHA if exists (to allow overwrite)
+                const checkRes = await fetch(`https://api.github.com/repos/${owner}/${repository_name}/contents/${file.path}`, {
+                    headers: { Authorization: `Bearer ${keys.githubToken}` }
+                });
+                const checkData = await checkRes.json();
+                
                 const contentBase64 = btoa(new TextEncoder().encode(file.content).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-                const res = await fetch(`https://api.github.com/repos/${owner}/${repository_name}/contents/${file.path}`, {
+                const putRes = await fetch(`https://api.github.com/repos/${owner}/${repository_name}/contents/${file.path}`, {
                     method: 'PUT',
                     headers: { Authorization: `Bearer ${keys.githubToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: `Add ${file.path} via Shadow Agent`, content: contentBase64 })
+                    body: JSON.stringify({ 
+                        message: `Add ${file.path} via Shadow Agent`, 
+                        content: contentBase64,
+                        sha: checkRes.ok ? checkData.sha : undefined 
+                    })
                 });
-                const data = await res.json();
-                if(!res.ok && data.message !== "Invalid request.\n\n\"sha\" wasn't supplied.") {
-                    addLog(`File path [${file.path}] response: ${data.message}`);
-                } else {
-                    addLog(`Successfully pushed: ${file.path}`);
-                }
-            }
-        } else {
-            addLog(`No files explicitly provided for push, relying on agent workspace memory...`);
-        }
-
-        if (keys.vercelToken) {
-            addLog(`Triggering Vercel Hook/Deployment...`);
-            if (keys.vercelToken.includes('http')) {
-                const hookRes = await fetch(keys.vercelToken, { method: 'POST' });
-                addLog(`Vercel Hook signal sent: HTTP ${hookRes.status}`);
-            } else {
-                addLog(`Note: Add Vercel Deploy Hook URL to system keys, or link GH repo directly in Vercel.`);
+                const data = await putRes.json();
+                if(!putRes.ok) addLog(`File path [${file.path}] response: ${data.message}`);
+                else addLog(`Successfully pushed: ${file.path}`);
             }
         }
 
+        if (keys.vercelToken) await triggerVercel(keys.vercelToken);
         addLog(`Check your GitHub account for the '${repository_name}' repository!`);
+    };
+
+    const triggerVercel = async (token: string) => {
+        addLog(`Triggering Vercel Hook/Deployment...`);
+        if (token.includes('http')) {
+            const hookRes = await fetch(token, { method: 'POST' });
+            addLog(`Vercel Hook signal sent: HTTP ${hookRes.status}`);
+        } else {
+            addLog(`Note: Add Vercel Deploy Hook URL to system keys, or link GH repo directly in Vercel.`);
+        }
     };
 
     return (

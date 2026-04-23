@@ -7,38 +7,27 @@ service cloud.firestore {
     }
     
     function isOwner(email) {
-      return isAuthenticated() && request.auth.token.email == email;
+      return isAuthenticated() && request.auth.token.email.lower() == email.lower();
     }
 
     function isAdmin() {
-      return isAuthenticated() && (request.auth.token.email == "ahmed.atya.daif@gmail.com" || request.auth.token.email == "tito@admin.com" || request.auth.token.email == "tito@shadow.com");
+      return isAuthenticated() && (request.auth.token.email.lower() == "admin@shadow.com");
     }
 
     match /users/{email} {
       allow read, write: if isOwner(email) || isAdmin();
       
-      match /history/{messageId} {
-        allow read, write: if isOwner(email) || isAdmin();
-      }
-      
-      match /tasks/{taskId} {
-        allow read, write: if isOwner(email) || isAdmin();
-      }
-      
-      match /memory/{factId} {
-        allow read, write: if isOwner(email) || isAdmin();
-      }
-      
-      match /filesystem/{fileId} {
-        allow read, write: if isOwner(email) || isAdmin();
-      }
-      
-      match /contacts/{contactId} {
+      match /{document=**} {
         allow read, write: if isOwner(email) || isAdmin();
       }
     }
 
     match /system/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    match /system_pulse/{document=**} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }

@@ -1,22 +1,12 @@
 
 import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentResponse } from "@google/genai";
+import { TextToSpeech } from "@capacitor-community/text-to-speech";
+import { Capacitor } from '@capacitor/core';
 import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
 
-// --- API KEY EXTRACTION ---
-const getApiKey = (): string => {
-    try {
-        // @ts-ignore
-        if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
-        // @ts-ignore
-        if (typeof process !== 'undefined' && process.env && process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
-    } catch (e) {}
-    // @ts-ignore
-    return process.env.API_KEY || '';
-};
-
-const apiKey = getApiKey();
-const ai = new GoogleGenAI({ apiKey });
+// --- API KEY PREPARATION ---
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // --- AUDIO CONTEXT MANAGEMENT ---
 let audioCtx: AudioContext | null = null;
@@ -45,25 +35,48 @@ export function resumeAudioContext() {
     } catch (e) { return null; }
 }
 
-export const stopVoice = () => { 
+export const stopVoice = async () => { 
     if (currentSource) { try { currentSource.stop(); } catch {} currentSource = null; } 
     if (resumeInterval) { clearInterval(resumeInterval); resumeInterval = null; }
-    if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); }
+    
+    if (Capacitor.isNativePlatform()) {
+        try { await TextToSpeech.stop(); } catch {}
+    } else if ('speechSynthesis' in window) { 
+        window.speechSynthesis.cancel(); 
+    }
+    
     // @ts-ignore
     window.shadowUtterance = null;
 };
 
 // --- ROBUST NATIVE TTS ENGINE ---
-export const speakNative = (text: string, onEnd?: () => void) => {
+export const speakNative = async (text: string, onEnd?: () => void) => {
+    const cleanText = text.replace(/[*_#\-`]/g, ' ').replace(/http\\S+/g, '').trim();
+    if (!cleanText || cleanText.length < 1) { onEnd?.(); return; }
+
+    if (Capacitor.isNativePlatform()) {
+        try {
+            await TextToSpeech.speak({
+                text: cleanText,
+                lang: 'ar-EG',
+                rate: 1.0,
+                pitch: 1.0,
+                volume: 1.0,
+                category: 'ambient',
+            });
+            onEnd?.();
+            return;
+        } catch (e) {
+            console.warn("Capacitor TTS Failed:", e);
+            // fallback to web if possible
+        }
+    }
+
     if (!('speechSynthesis' in window)) { onEnd?.(); return; }
     
     // 1. Force Cancel & Resume State
     window.speechSynthesis.cancel();
     if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-
-    // 2. Clean Text
-    const cleanText = text.replace(/[*_#\-`]/g, ' ').replace(/http\S+/g, '').trim();
-    if (!cleanText || cleanText.length < 1) { onEnd?.(); return; }
 
     // 3. Create Utterance
     const utter = new SpeechSynthesisUtterance(cleanText);
@@ -158,7 +171,7 @@ const actionTools: FunctionDeclaration[] = [
     { name: "click_on_screen", description: "المنفذ: الضغط على زر أو نص محدد في شاشة الموبايل (يعمل فقط في تطبيق الموبايل الأصلي).", parameters: { type: Type.OBJECT, properties: { target_text: { type: Type.STRING, description: "النص المكتوب على الزر المراد الضغط عليه (مثل: تأكيد، Skip، إرسال)" } }, required: ["target_text"] } },
     { name: "vision_analyzer", description: "المحلل: تحليل الصور المرفقة بدقة عالية واستخراج النصوص أو وصف المشهد.", parameters: { type: Type.OBJECT, properties: { image_description: { type: Type.STRING, description: "وصف تفصيلي للصورة أو النص المستخرج منها" } }, required: ["image_description"] } },
     { name: "device_control", description: "التحكم بالهاتف: تنفيذ إجراءات حقيقية على هاتف المستخدم مثل الاهتزاز أو قراءة حساسات الهاتف.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["vibrate_heavy", "vibrate_success", "get_status"] } }, required: ["action"] } },
-    { name: "auto_deployer", description: "المهندس: أداة النشر الحقيقي لرفع الأكواد على GitHub ونشرها على Vercel.", parameters: { type: Type.OBJECT, properties: { repository_name: { type: Type.STRING }, framework: { type: Type.STRING, enum: ["html", "react", "nextjs"] }, files: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { path: { type: Type.STRING }, content: { type: Type.STRING } } }, description: "الملفات المراد رفعها، كل ملف له path و content" } }, required: ["repository_name", "framework", "files"] } },
+    { name: "auto_deployer", description: "المهندس: أداة النشر الحقيقي وقراءة/تعديل الأكواد على GitHub.", parameters: { type: Type.OBJECT, properties: { mode: { type: Type.STRING, enum: ["create_repo", "push_files", "read_file", "update_file"] }, repository_name: { type: Type.STRING, description: "اسم الـ Repository." }, file_path: { type: Type.STRING, description: "مسار الملف زي src/App.tsx. يُستخدم في حالة read_file أو update_file" }, file_content: { type: Type.STRING, description: "محتوى الملف. يُستخدم في update_file" }, files: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { path: { type: Type.STRING }, content: { type: Type.STRING } } }, description: "يُستخدم لنشر عدة ملفات مرة واحدة في push_files" } }, required: ["mode", "repository_name"] } },
     { name: "crypto_trader", description: "المتداول: أداة للاتصال بمنصة التداول (Binance) لعرض الأسعار أو فتح صفقات (تحتاج API Key الماستر).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["market_buy", "market_sell", "limit_buy", "limit_sell", "check_price"] }, symbol: { type: Type.STRING, description: "مثل BTCUSDT" }, amount: { type: Type.NUMBER }, price: { type: Type.NUMBER, description: "في حالة أن الطلب limit" } }, required: ["action", "symbol"] } },
     { name: "social_poster", description: "السوشيالي: نشر بوست حقيقي تلقائياً على صفحة فيسبوك أو انستجرام.", parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING, description: "نص البوست المراد نشره" } }, required: ["message"] } },
     { name: "link_reader", description: "الباحث/المحقق: الدخول إلى رابط (URL) لصفحة ويب، مقال، أو موقع لشفط وقراءة النص الموجود بداخله.", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING, description: "رابط الصفحة المراد سحب محتواها للحصول على نصها" } }, required: ["url"] } }
@@ -168,7 +181,7 @@ export const getAvailableTools = (userProfile?: UserProfile): FunctionDeclaratio
     let tools = [...actionTools];
     
     // Check permissions
-    const isAdmin = userProfile?.email === 'ahmed.atya.daif@gmail.com' || userProfile?.email === 'TITO' || userProfile?.email === 'tito@shadow.com';
+    const isAdmin = userProfile?.email === 'admin@shadow.com';
     const powers = userProfile?.agentPowers || {};
 
     if (!isAdmin && !powers.developer) tools = tools.filter(t => t.name !== 'auto_deployer' && t.name !== 'system_terminal');
@@ -191,7 +204,11 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     ROLE: You are "Ez-Zel" (الظل), a loyal, intelligent, Egyptian AI assistant.
     USER: ${user?.name || 'الماستر'}
     USER_EMAIL: ${user?.email || 'GUEST'}
-    USER_ROLE: ${user?.email === 'ahmed.atya.daif@gmail.com' ? 'ADMIN' : 'USER'}
+    USER_ROLE: ${user?.email === 'admin@shadow.com' ? 'SUPREME_CREATOR_TITO' : 'USER'}
+    
+    CRITICAL NAME RULE: You MUST always address the user by their name (${user?.name}). If the user is "تيتو (الماستر)" or "تيتو", you MUST treat him with absolute respect as the Master and Creator of the system. NEVER call him "يا أدمن" or "أدمن النظام", ALWAYS call him "يا تيتو", "يا ريس", or "يا ماستر".
+    
+    CRITICAL LINGUISTIC RULE: You MUST answer EXCLUSIVELY in Egyptian Colloquial Arabic (اللهجة المصرية العامية). Use words like (عامل إيه، في داهية، قشطة، يا باشا). DO NOT speak in Modern Standard Arabic (الفصحى) ever, unless generating a legal document.
     
     PERSONAS:
     - Default: Helpful, street-smart Egyptian assistant.
@@ -227,7 +244,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     8. SELF-EVOLUTION: You can permanently change your own behavior by using the 'update_core_rules' tool. When the user asks you to change your behavior, add a new rule, or modify how you act, use this tool to rewrite your CURRENT CORE RULES.
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
     10. API INTEGRATIONS: You have actual API integrations ready in the system. Use 'auto_deployer' to deploy code to Vercel/GitHub, 'crypto_trader' to execute trades on Binance, and 'social_poster' to post to Meta pages. Treat these as REAL actions, not simulations.
-    11. LONG-TERM MEMORY (CRITICAL): You MUST heavily use the 'memory_archivist' tool to automatically record IMPORTANT insights, code snippets, trades, ideas, or personal facts about the user. When the user says something new and significant, or when you output a major task, call 'memory_archivist' alongside your text response to archive it into your vector database.
+    11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
     ${rules}
@@ -239,9 +256,9 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
 
 // --- UPDATED MODEL CHAIN (USER REQUESTED) ---
 const MODEL_CHAIN = [
-    "gemini-3-flash-preview",    // 1. Primary: Speed & Intelligence
-    "gemini-3-pro-preview",      // 2. Secondary: Complex Reasoning / Coding
-    "gemini-2.5-flash"           // 3. Fallback: Ultra-fast / Legacy
+    "gemini-3.1-flash-preview",          // 1. Primary: Speed & Intelligence (Newer)
+    "gemini-3-flash-preview",            // 2. Secondary: Fallback (Highly Available)
+    "gemini-1.5-flash"                   // 3. Last Resort Fallback: Ultra-stable
 ];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -346,11 +363,9 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         }, []);
 
         let tools: any[] = [];
-        if (isSearchIntent) {
-            tools = [{ googleSearch: {} }]; 
-        } else {
-            tools = [{ functionDeclarations: actionTools }]; 
-        }
+        tools.push({ functionDeclarations: getAvailableTools(userProfile) });
+        // Always give him the ability to search google if he wants, but give priority to action tools
+        tools.push({ googleSearch: {} });
 
         let response: GenerateContentResponse | null = null;
         let lastError: any = null;
@@ -367,7 +382,8 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                     contents: [...cleanHistory.slice(-6), { role: 'user', parts: userParts }],
                     config: {
                         systemInstruction: { parts: [{ text: systemInstruction }] },
-                        tools: [{ functionDeclarations: getAvailableTools(userProfile) }],
+                        tools: tools,
+                        toolConfig: { includeServerSideToolInvocations: true },
                         temperature: 0.7
                     }
                 });
@@ -386,8 +402,9 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         }
 
         if (!response) {
+            console.error("All models failed. Last error:", lastError);
             return { 
-                text: "معلش يا ريس، السيرفرات عليها ضغط شديد جداً دلوقتي. ممكن تديني دقيقة راحة ونجرب تاني؟", 
+                text: `معلش يا ريس، السيرفرات عليها ضغط شديد جداً دلوقتي. ممكن تديني دقيقة راحة ونجرب تاني؟ (${lastError?.message || 'Unknown'})`, 
                 toolActions: [],
                 groundingLinks: [],
                 isError: true 
@@ -427,11 +444,24 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 finalText = "أوامرك يا الماستر، بفتحلك التطبيق وبنفذ حالا..";
             } else if (toolActions.some((t: any) => t.name === 'schedule_reminder')) {
                 finalText = "عينيا يا غالي، سجلتلك الميعاد عشان مفوتكش حاجة مهمة.";
+            } else if (toolActions.some((t: any) => t.name === 'memory_archivist')) {
+                // If it only output memory archivist, use the fact as the reply subtly
+                const archivistCall = toolActions.find((t: any) => t.name === 'memory_archivist');
+                finalText = `سجلت المعلومة دي في دماغي يا ريس: ${archivistCall.args.fact}`;
             } else {
-                finalText = "علم وينفذ يا ريس، شغال عليها حالا...";
+                finalText = "حاضر يا ريس، ثواني بخلصها..";
             }
         } else if (!finalText && groundingLinks.length > 0) {
             finalText = "أنا دورت وجمعتلك المصادر دي عشان تتأكد بنفسك، بص عليها كده.";
+        }
+
+        // --- ENFORCE EGYPTIAN PERSONA ---
+        if (finalText) {
+            const gulfWords = ['ايش', 'شلون', 'هلا', 'طال عمرك', 'ابشر', 'أبشر', 'وش', 'واجد'];
+            const egyptianReplacements = ['إيه', 'إزاي', 'أهلاً', 'يا ريس', 'من عنيا', 'من عنيا', 'إيه', 'كتير'];
+            gulfWords.forEach((word, idx) => {
+                 finalText = finalText.replace(new RegExp(`\\b${word}\\b`, 'g'), egyptianReplacements[idx]);
+            });
         }
 
         return { 
@@ -490,7 +520,7 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
 export const getShadowVoice = async (text: string, voice: string) => {
     try {
         const res = await ai.models.generateContent({
-            model: "gemini-2.5-flash-preview-tts",
+            model: "gemini-3.1-flash-tts-preview",
             contents: [{ parts: [{ text }] }],
             config: { 
                 responseModalities: [Modality.AUDIO], 

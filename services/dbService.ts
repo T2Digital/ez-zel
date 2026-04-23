@@ -1,5 +1,5 @@
 import { db, auth } from './firebaseConfig';
-import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, addDoc, orderBy, deleteDoc, writeBatch } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, addDoc, orderBy, deleteDoc, writeBatch, limit } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, User } from "firebase/auth";
 
 export interface DBMessage {
@@ -72,6 +72,7 @@ export interface UserProfile {
         biometricsEnabled: boolean;
         logsEnabled: boolean;
     };
+    pin?: string;
     traits?: UserTraits;
     lastPulseReceived?: number; 
     synced?: boolean;
@@ -224,25 +225,71 @@ class ShadowDB {
       if (!auth) throw new Error("Firebase Auth not initialized");
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
+      
+      const cleanEmail = email.toLowerCase();
+      const isAdmin = cleanEmail === 'admin@shadow.com';
+      
       const newUser: UserProfile = {
-          email: email.toLowerCase(),
-          phone: email.toLowerCase(),
+          email: cleanEmail,
+          phone: cleanEmail,
           uid,
-          name, 
-          shadowName: isAffiliate ? 'Marketer' : 'الظل',
+          name: isAdmin ? 'تيتو (الماستر)' : name, 
+          shadowName: isAdmin ? 'الماستر' : (isAffiliate ? 'Marketer' : 'الظل'),
           voicePreference: 'male',
-          tier: isAffiliate ? 'lite' : 'sovereign',
-          status: isAffiliate ? 'active' : 'pending',
+          tier: isAdmin ? 'sovereign' : (isAffiliate ? 'lite' : 'sovereign'),
+          status: isAdmin ? 'active' : (isAffiliate ? 'active' : 'pending'),
           joinedAt: Date.now(),
           referredBy: referralCode,
-          affiliate: { isMarketer: isAffiliate, referralCode: (name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(), totalEarnings: 0, referralsCount: 0, payoutHistory: [] },
-          subscriptionCycle: isAffiliate ? undefined : 'monthly',
+          affiliate: isAdmin ? { 
+              isMarketer: true, 
+              referralCode: 'ADMIN_BOSS', 
+              totalEarnings: 0, 
+              referralsCount: 0, 
+              payoutHistory: [] 
+          } : { 
+              isMarketer: isAffiliate, 
+              referralCode: (name.substring(0,3) + Math.floor(1000 + Math.random() * 9000)).toUpperCase(), 
+              totalEarnings: 0, 
+              referralsCount: 0, 
+              payoutHistory: [] 
+          },
+          subscriptionCycle: isAdmin ? 'yearly' : (isAffiliate ? undefined : 'monthly'),
       };
-      await this.saveProfile(newUser);
+      await this.saveProfile(newUser, true);
       return newUser;
   }
 
-    async downloadUserCloudData(email: string) {
+  async nukeLocalDatabase() {
+      try {
+          localStorage.clear();
+          sessionStorage.clear();
+          const req = indexedDB.deleteDatabase(this.dbName);
+          req.onsuccess = () => console.log("IndexedDB wiped");
+          if (auth) await auth.signOut();
+          return true;
+      } catch (e) {
+          console.error("Nuke failed", e);
+          return false;
+      }
+  }
+
+  async syncHistoryFast(email: string) {
+      if (!db || !email || email === 'GUEST') return;
+      try {
+          const q = query(collection(db, `users/${email}/history`), orderBy('timestamp', 'desc'), limit(100));
+          const snap = await getDocs(q);
+          for (const d of snap.docs) {
+              const item = d.data();
+              if (item) {
+                  await this.saveMessage({...item, userId: email} as any, true);
+              }
+          }
+      } catch (e) {
+          console.error("Fast sync failed:", e);
+      }
+  }
+
+  async downloadUserCloudData(email: string) {
       if (!db || !email) return;
       try {
           console.log('[Shadow Core] Downloading cloud data for', email);
@@ -292,7 +339,7 @@ class ShadowDB {
 
           console.warn("[Shadow Core] Profile missing locally. Creating default/healing...");
           const namePart = email.split('@')[0];
-          const isAdmin = cleanEmail.includes('tito') || cleanEmail.includes('admin');
+          const isAdmin = cleanEmail === 'admin@shadow.com';
           
           profile = {
               email: cleanEmail,
@@ -305,7 +352,7 @@ class ShadowDB {
               joinedAt: Date.now(),
               affiliate: isAdmin ? {
                   isMarketer: true,
-                  referralCode: 'TITO_BOSS',
+                  referralCode: 'ADMIN_BOSS',
                   totalEarnings: 0,
                   referralsCount: 0,
                   payoutHistory: []
@@ -355,7 +402,11 @@ class ShadowDB {
           const historyUnsub = onSnapshot(historyQuery, (snapshot) => {
               snapshot.docChanges().forEach((change) => {
                   if (change.type === "added") {
-                      onUpdate('history', change.doc.data());
+                      const data = change.doc.data();
+                      this.saveMessage(data as any, true).then((id) => {
+                          data.text = decryptData(data.text, email);
+                          onUpdate('history', { ...data, id });
+                      });
                   }
               });
           }, (error) => { console.warn("[Firebase] History sync error:", error); });
@@ -435,7 +486,7 @@ class ShadowDB {
       this.updateSyncStatus('syncing');
 
       if (!this.syncTimer) {
-          this.syncTimer = setTimeout(() => this.flushSyncQueue(), 5000); // Batch every 5 seconds
+          this.syncTimer = setTimeout(() => this.flushSyncQueue(), 500); // Batched quickly
       }
   }
 

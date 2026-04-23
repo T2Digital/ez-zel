@@ -81,7 +81,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               } catch(e) {}
 
               if (profile.status === 'active') {
-                 if (profile.email === 'TITO' || profile.email === 'tito@shadow.com' || profile.email === 'ahmed.atya.daif@gmail.com' || (profile.tier === 'sovereign' && profile.name.includes('تيتو'))) {
+                 if (profile.email === 'admin@shadow.com') {
                      set({ view: 'admin', isAppLocked: false });
                  } else {
                      set({ view: 'dashboard', isAppLocked: true });
@@ -119,7 +119,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         localStorage.removeItem('shadow_guest_active');
     }
 
-    if (profile.email === 'TITO' || profile.email === 'tito@shadow.com' || profile.email === 'ahmed.atya.daif@gmail.com' || (profile.tier === 'sovereign' && profile.name.includes('تيتو'))) {
+    if (profile.email === 'admin@shadow.com') {
         set({ view: 'admin', isAppLocked: false });
         // NOTE: Admin sets `isAppLocked: false`, bypassing SecurityGate
         return;
@@ -157,19 +157,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   handleAdminLogin: async () => {
-      let adminProfile = await shadowDB.getProfile('TITO');
+      let adminProfile = await shadowDB.getProfile('admin@shadow.com');
       if (!adminProfile) {
           adminProfile = { 
-              email: 'TITO', 
-              phone: 'TITO',
-              name: 'تيتو (المالك)', 
-              shadowName: 'الظل الأبدي', 
+              email: 'admin@shadow.com', 
+              phone: 'admin',
+              name: 'تيتو', 
+              shadowName: 'تيتو', 
               tier: 'sovereign', 
               status: 'active', 
               joinedAt: Date.now(),
               affiliate: {
                   isMarketer: true,
-                  referralCode: 'TITO_BOSS',
+                  referralCode: 'tito123',
                   totalEarnings: 0,
                   referralsCount: 0,
                   payoutHistory: []

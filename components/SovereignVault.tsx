@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, ShieldCheck, Users, MessageSquare, History, Lock, Unlock, Zap, ArrowRight, Shield, Loader2, Fingerprint, PhoneCall, X, Search, Activity, AlertTriangle, Download, Upload, Key } from 'lucide-react';
 import { shadowDB, UserProfile, DBContact } from '../services/dbService';
+import { VaultCrypto } from '../services/vaultCryptoService';
 import CryptoJS from 'crypto-js';
 
 interface Props {
@@ -25,14 +26,28 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
   const [showPinInput, setShowPinInput] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-      shadowDB.getContacts(user.phone).then(c => {
-          setContactsList(c);
-          setContactsCount(c.length);
-          if (c.length > 0 && !permissions.contacts) {
-              updateVaultState('contacts', true);
+  const loadContactsFromDB = async () => {
+      const rawContacts = await shadowDB.getContacts(user.phone);
+      const decrypted = rawContacts.map(c => {
+          if (c.encryptedData === 'REAL_DEVICE_DATA_E2E' || c.encryptedData === 'DEMO_DATA_E2E') {
+              return {
+                  ...c,
+                  name: VaultCrypto.decryptE2E(c.name),
+                  phones: c.phones.map((p: string) => VaultCrypto.decryptE2E(p)),
+                  emails: c.emails?.map((e: string) => VaultCrypto.decryptE2E(e)) || []
+              };
           }
+          return c; // Legacy unencrypted contacts fallback
       });
+      setContactsList(decrypted);
+      setContactsCount(decrypted.length);
+      if (decrypted.length > 0 && !permissions.contacts) {
+          updateVaultState('contacts', true);
+      }
+  };
+
+  useEffect(() => {
+      loadContactsFromDB();
   }, []);
 
   const updateVaultState = async (key: 'contacts' | 'biometrics' | 'logs', value: boolean) => {
@@ -70,20 +85,17 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
                         
                         await shadowDB.saveContact({
                             userId: user.phone,
-                            name: name, 
-                            phones: [phone], 
+                            name: VaultCrypto.encryptE2E(name), 
+                            phones: [VaultCrypto.encryptE2E(phone)], 
                             emails: [], 
                             lastInteraction: Date.now(), 
-                            encryptedData: "REAL_DEVICE_DATA"
+                            encryptedData: "REAL_DEVICE_DATA_E2E"
                         });
                         count++;
                     } catch(e) { console.warn("Skipped contact", e); }
                 }));
 
-                setContactsCount(prev => prev + count);
-                const updatedList = await shadowDB.getContacts(user.phone);
-                setContactsList(updatedList);
-                await updateVaultState('contacts', true);
+                await loadContactsFromDB();
                 contactsReceived = true;
             }
         } catch (nativeError) {
@@ -94,13 +106,10 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
       if (!contactsReceived) {
         // Auto-fallback to demo contacts in iframe/unsupported environments
         await new Promise(resolve => setTimeout(resolve, 1000));
-        await shadowDB.saveContact({ userId: user.phone, name: "تيتو (الماستر)", phones: ["01000000000"], emails: [], lastInteraction: Date.now(), encryptedData: "DEMO_DATA" });
-        await shadowDB.saveContact({ userId: user.phone, name: "محمد (بيزنس)", phones: ["010xxxxxxx"], emails: [], lastInteraction: Date.now(), encryptedData: "DEMO_DATA" });
+        await shadowDB.saveContact({ userId: user.phone, name: VaultCrypto.encryptE2E("تيتو (الماستر)"), phones: [VaultCrypto.encryptE2E("01000000000")], emails: [], lastInteraction: Date.now(), encryptedData: "DEMO_DATA_E2E" });
+        await shadowDB.saveContact({ userId: user.phone, name: VaultCrypto.encryptE2E("محمد (بيزنس)"), phones: [VaultCrypto.encryptE2E("010xxxxxxx")], emails: [], lastInteraction: Date.now(), encryptedData: "DEMO_DATA_E2E" });
         
-        const updatedList = await shadowDB.getContacts(user.phone);
-        setContactsList(updatedList);
-        setContactsCount(updatedList.length); 
-        await updateVaultState('contacts', true);
+        await loadContactsFromDB();
       }
     } catch (e) {
        console.error(e);
@@ -310,7 +319,7 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
                                         <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center font-black text-purple-400">{c.name[0]}</div>
                                         <div><h4 className="font-bold text-sm text-white">{c.name}</h4><p className="text-[10px] text-white/30 font-mono">{c.phones[0]}</p></div>
                                     </div>
-                                    {c.encryptedData === 'REAL_DEVICE_DATA' ? <ShieldCheck className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+                                    {(c.encryptedData === 'REAL_DEVICE_DATA' || c.encryptedData === 'REAL_DEVICE_DATA_E2E') ? <ShieldCheck className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
                                 </div>
                             )) : <div className="col-span-full py-10 text-center opacity-30"><Users className="w-12 h-12 mx-auto mb-2" /><p>لم يتم العثور على نتائج.</p></div>}
                         </div>
@@ -318,7 +327,9 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
                     {permissions.logs && (<div><h3 className="text-sm font-black text-white/50 uppercase tracking-widest mb-4 flex items-center gap-2 mt-8"><Activity className="w-4 h-4" /> سجل نشاط الظل (Session Logs)</h3><div className="p-4 bg-emerald-900/10 border border-emerald-500/20 rounded-2xl flex items-center gap-4"><div className="p-3 bg-emerald-500/20 rounded-full animate-pulse"><Activity className="w-6 h-6 text-emerald-500" /></div><div><h4 className="font-bold text-white text-sm">التسجيل النشط يعمل</h4><p className="text-[10px] text-white/50">يتم تسجيل وتحليل تفاعلاتك مع الظل.</p></div></div></div>)}
                 </div>
             </div>
-            <div className="p-4 bg-black/80 backdrop-blur border-t border-white/10 text-center text-[10px] text-white/30 font-mono">SECURE VAULT SESSION ACTIVE • AES-256 ENCRYPTION</div>
+            <div className="p-4 bg-black/80 backdrop-blur border-t border-white/10 text-center text-[10px] text-emerald-400 font-mono flex items-center justify-center gap-2">
+                <Key className="w-3 h-3" /> SECURE VAULT SESSION ACTIVE • End-to-End ENCRYPTION
+            </div>
         </div>
       );
   }

@@ -117,7 +117,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const shouldContinueListeningRef = useRef(false); 
   const currentTranscriptRef = useRef('');
 
-  const isTito = currentUser.email === 'TITO' || currentUser.email === 'tito@shadow.com' || isAdmin;
+  const isTito = currentUser.email === 'admin@shadow.com' || isAdmin;
   const isRestrictedMode = !isTito && (currentUser.email === 'GUEST' || (currentUser.tier === 'lite' && currentUser.affiliate?.isMarketer));
   const [isLimitReached, setIsLimitReached] = useState(false);
 
@@ -206,6 +206,9 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       const loadHistory = async () => {
           try {
               const uid = currentUser.email || 'GUEST';
+              if (uid !== 'GUEST' && page === 1) {
+                  await shadowDB.syncHistoryFast(uid);
+              }
               const limit = messagesPerPage;
               const offset = (page - 1) * messagesPerPage;
               const paginatedHist = await shadowDB.getHistory(uid, limit, offset);
@@ -469,7 +472,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                       isError: true
                   };
                   setMessages(prev => [...prev, fakeMsg]);
-                  playShadowVoice('عذراً، البصمة الصوتية غير متطابقة. لا يمكنني تنفيذ الأمر.', 'male');
+                  playShadowVoice('عذراً، البصمة الصوتية غير متطابقة. لا يمكنني تنفيذ الأمر.', currentUser.voicePreference === 'female' ? 'female' : 'male');
               } else {
                   console.log("Voice verified. Similarity:", similarity);
               }
@@ -935,7 +938,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           // Force resume audio context before speaking to satisfy browser autoplay policies
           resumeAudioContext();
 
-          playShadowVoice(finalResponseText, 'male', voiceDataToSave, () => { 
+          playShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male', voiceDataToSave, () => { 
               setPlayingMessageId(null);
               setAppStatus('idle'); 
               if (isSentinelMode) resumeSentinel();
@@ -1124,7 +1127,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
               if (isSentinelMode) resumeSentinel();
           }); 
       } else { 
-          playShadowVoice(msg.text, 'male', msg.voiceData, () => { 
+          playShadowVoice(msg.text, currentUser.voicePreference === 'female' ? 'female' : 'male', msg.voiceData, () => { 
               setPlayingMessageId(null); 
               if (appStatus !== 'thinking') setAppStatus('idle'); 
               if (isSentinelMode) resumeSentinel();
