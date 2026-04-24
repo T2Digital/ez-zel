@@ -6,7 +6,21 @@ import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
 
 // --- API KEY PREPARATION ---
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let _ai: GoogleGenAI | null = null;
+const getAI = () => {
+    if (!_ai) {
+        const key = process.env.GEMINI_API_KEY;
+        if (!key) {
+            console.error("GEMINI_API_KEY is not defined! Application AI features will fail. Please add it to your environment variables.");
+             // We still try to init, but it will throw an error inside the SDK.
+             // We can let it throw or handle it.
+             _ai = new GoogleGenAI({ apiKey: "MISSING_KEY_ERROR_WILL_BE_THROWN_ON_USE" });
+             return _ai;
+        }
+        _ai = new GoogleGenAI({ apiKey: key });
+    }
+    return _ai;
+};
 
 // --- AUDIO CONTEXT MANAGEMENT ---
 let audioCtx: AudioContext | null = null;
@@ -266,7 +280,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // --- VECTOR MEMORY (SEMANTIC SEARCH) ---
 export const generateEmbedding = async (text: string): Promise<number[]> => {
     try {
-        const result = await ai.models.embedContent({
+        const result = await getAI().models.embedContent({
             model: 'text-embedding-004',
             contents: text
         });
@@ -377,7 +391,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                     await sleep(isQuota ? 2000 : 500); 
                 }
                 
-                const generatePromise = ai.models.generateContent({
+                const generatePromise = getAI().models.generateContent({
                     model: model,
                     contents: [...cleanHistory.slice(-6), { role: 'user', parts: userParts }],
                     config: {
@@ -519,7 +533,7 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
 
 export const getShadowVoice = async (text: string, voice: string) => {
     try {
-        const res = await ai.models.generateContent({
+        const res = await getAI().models.generateContent({
             model: "gemini-3.1-flash-tts-preview",
             contents: [{ parts: [{ text }] }],
             config: { 
