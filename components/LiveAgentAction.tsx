@@ -5,9 +5,10 @@ import { shadowDB, SystemKeys } from '../services/dbService';
 interface Props {
     actionType: string;
     args: any;
+    onComplete?: (resultText: string) => void;
 }
 
-const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
+const LiveAgentAction: React.FC<Props> = ({ actionType, args, onComplete }) => {
     const [logs, setLogs] = useState<string[]>([]);
     const [status, setStatus] = useState<'pending' | 'running' | 'success' | 'error'>('pending');
     const hasRun = useRef(false);
@@ -30,22 +31,33 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
             const keys = await shadowDB.getSystemKeys();
             if (!keys) throw new Error("مفاتيح النظام مفقودة (System Keys Missing). قم بإضافتها في صفحة إعدادات الأدمن.");
 
+            let resultData = "";
+
             if (actionType === 'auto_deployer') {
-                await deployToGitHubAndVercel(args, keys);
+                resultData = await deployToGitHubAndVercel(args, keys);
             } else if (actionType === 'crypto_trader') {
-                await executeBinanceTrade(args, keys);
+                resultData = await executeBinanceTrade(args, keys);
             } else if (actionType === 'social_poster') {
-                await postToMeta(args, keys);
+                resultData = await postToMeta(args, keys);
             } else {
                 throw new Error(`Unknown action type: ${actionType}`);
             }
 
             setStatus('success');
             addLog(`\n>> [ACTION TERMINATED] Task Completed Successfully.`);
+            
+            if (onComplete) {
+                setTimeout(() => onComplete(`[${actionType.toUpperCase()}_RESULT]\n${resultData || "تمت العملية بنجاح."}\n\n[INSTRUCTION]: بناءً على هذه النتيجة، أجب المستخدم أو تابع المهمة.`), 500);
+            }
         } catch (error: any) {
             setStatus('error');
-            addLog(`\n>> [FATAL ERROR] ${error.message || 'Unknown network error'}`);
+            const errMsg = error.message || 'Unknown network error';
+            addLog(`\n>> [FATAL ERROR] ${errMsg}`);
             addLog(`>> Operation aborted. Check API keys and network CORS constraints.`);
+            
+            if (onComplete) {
+                setTimeout(() => onComplete(`[${actionType.toUpperCase()}_RESULT]\nفشلت العملية. السبب: ${errMsg}\n\n[INSTRUCTION]: أخبر المستخدم بالفشل وسببه.`), 500);
+            }
         }
     };
 
@@ -69,6 +81,7 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
         const data = await res.json();
         if(data.error) throw new Error(data.error.message);
         addLog(`Successfully posted! Post ID: ${data.id}`);
+        return `Successfully posted! Post ID: ${data.id}`;
     };
 
     // --- BINANCE LOGIC ---
@@ -111,6 +124,7 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
         const data = await res.json();
         if(data.code && data.msg) throw new Error(`Binance Error: ${data.msg}`);
         addLog(`Order Success! Status: ${data.status}, Order ID: ${data.orderId}`);
+        return `Order Success! Status: ${data.status}, Order ID: ${data.orderId}`;
     };
 
     const deployToGitHubAndVercel = async (args: any, keys: SystemKeys) => {
@@ -135,8 +149,15 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
              const data = await res.json();
              if (!res.ok) throw new Error(data.message);
              addLog(`\n[FILE CONTENT EXTRACTED]\nPath: ${file_path}\nSha: ${data.sha}\nSize: ${data.size} bytes`);
-             addLog(`Memory Updated. The assistant can now see this file. (Note: Decode base64 to read).`);
-             return; // Done
+             addLog(`Memory Updated. The assistant can now see this file.`);
+             
+             let decodedContent = '';
+             try {
+                decodedContent = decodeURIComponent(escape(atob(data.content)));
+             } catch(e) {
+                decodedContent = atob(data.content);
+             }
+             return decodedContent;
         }
 
         if (mode === 'update_file' && file_path && file_content) {
@@ -163,7 +184,7 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
              addLog(`Successfully updated: ${file_path}`);
              
              if (keys.vercelToken) await triggerVercel(keys.vercelToken);
-             return;
+             return `Successfully updated: ${file_path}`;
         }
 
         // --- LEGACY/BATCH REPO CREATION FLOW ---
@@ -209,6 +230,7 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args }) => {
 
         if (keys.vercelToken) await triggerVercel(keys.vercelToken);
         addLog(`Check your GitHub account for the '${repository_name}' repository!`);
+        return `Deployment finished! Check your GitHub account for '${repository_name}'.`;
     };
 
     const triggerVercel = async (token: string) => {

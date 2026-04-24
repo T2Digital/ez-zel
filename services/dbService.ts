@@ -12,6 +12,7 @@ export interface DBMessage {
   groundingLinks?: { title?: string; uri?: string }[];
   image?: string; 
   uiCards?: any[]; // CHANGED: Array to support multitasking cards
+  isHidden?: boolean;
   synced?: boolean; 
 }
 
@@ -48,6 +49,9 @@ export interface SystemKeys {
     binanceSecretKey?: string;
     metaToken?: string;
     metaPageId?: string;
+    openAIBaseUrl?: string;
+    openAIApiKey?: string;
+    openAIModelName?: string;
 }
 
 export interface UserProfile {
@@ -107,6 +111,9 @@ export interface DBFSItem {
   name: string;
   type: 'folder' | 'table' | 'calendar' | 'project' | 'file';
   content?: string;
+  l0_summary?: string;
+  l1_metadata?: string;
+  l2_content?: string;
   createdAt: number;
   synced?: boolean;
 }
@@ -129,6 +136,17 @@ export interface DBFeedback {
     message: string;
     timestamp: number;
     isRead: boolean;
+}
+
+export interface DBPlugin {
+    id?: number;
+    userId: string;
+    name: string;
+    description: string;
+    parametersSchema: string; // JSON string representations of the parameters
+    jsCode: string;
+    createdAt: number;
+    synced?: boolean;
 }
 
 export interface DBCoupon {
@@ -201,10 +219,10 @@ class ShadowDB {
       request.onerror = (event) => reject((event.target as any).error);
       request.onupgradeneeded = (e: any) => {
         const db = e.target.result;
-        const stores = ['history', 'tasks', 'memory', 'profiles', 'fs', 'contacts', 'feedback', 'config', 'agents', 'coupons'];
+        const stores = ['history', 'tasks', 'memory', 'profiles', 'fs', 'contacts', 'feedback', 'config', 'agents', 'coupons', 'plugins'];
         stores.forEach(s => {
           if (!db.objectStoreNames.contains(s)) {
-            const store = db.createObjectStore(s, { keyPath: s === 'profiles' ? 'email' : (s === 'config' ? 'key' : (s === 'agents' || s === 'coupons' ? 'code' : 'id')), autoIncrement: s === 'feedback' || s === 'history' || s === 'tasks' || s === 'memory' });
+            const store = db.createObjectStore(s, { keyPath: s === 'profiles' ? 'email' : (s === 'config' ? 'key' : (s === 'agents' || s === 'coupons' ? 'code' : 'id')), autoIncrement: s === 'feedback' || s === 'history' || s === 'tasks' || s === 'memory' || s === 'plugins' });
             if (s !== 'profiles' && s !== 'config' && s !== 'agents' && s !== 'coupons' && !store.indexNames.contains('userId')) store.createIndex('userId', 'userId', { unique: false });
           }
         });
@@ -598,6 +616,20 @@ class ShadowDB {
     const db = await this.init();
     const tx = db.transaction('tasks', 'readonly');
     const request = tx.objectStore('tasks').index('userId').getAll(userId);
+    return new Promise((resolve) => { request.onsuccess = () => resolve(request.result || []); });
+  }
+
+  async savePlugin(plugin: DBPlugin) {
+    const db = await this.init();
+    const tx = db.transaction('plugins', 'readwrite');
+    const pluginWithId = { ...plugin, id: plugin.id || Date.now() + Math.floor(Math.random() * 1000) };
+    return tx.objectStore('plugins').put(pluginWithId);
+  }
+
+  async getPluginsByUserId(userId: string): Promise<DBPlugin[]> {
+    const db = await this.init();
+    const tx = db.transaction('plugins', 'readonly');
+    const request = tx.objectStore('plugins').index('userId').getAll(userId);
     return new Promise((resolve) => { request.onsuccess = () => resolve(request.result || []); });
   }
 

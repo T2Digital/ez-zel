@@ -591,13 +591,12 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
         userId: currentUser.email || 'GUEST', 
         role: 'user', text: displayText, 
         timestamp: Date.now(), image: pendingImage?.data, voiceData: userVoiceDataURI || undefined,
-        isError: false
+        isError: false,
+        isHidden: isHiddenAction
     };
     
-    if (!isHiddenAction) {
-        let id = await shadowDB.saveMessage(userMsg);
-        setMessages(prev => [...prev, { ...userMsg, id }]);
-    }
+    let id = await shadowDB.saveMessage(userMsg);
+    setMessages(prev => [...prev, { ...userMsg, id }]);
     
     const currentImg = pendingImage;
     if (!isHiddenAction) { setInput(''); setPendingImage(null); setLiveTranscript(''); }
@@ -682,25 +681,54 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                           parentId: null,
                           name: name,
                           type: itemType,
-                          content: args.content || '',
+                          content: args.l2_content || args.content || '',
+                          l0_summary: args.l0_summary || '',
+                          l1_metadata: args.l1_metadata || '',
+                          l2_content: args.l2_content || args.content || '',
                           createdAt: Date.now()
                       });
-                      uiCards.push({ cardType: 'workspace_item', title: name, description: `مسار: ${args.path}`, itemType, content: args.content || '' });
+                      uiCards.push({ cardType: 'workspace_item', title: name, description: `مسار: ${args.path}`, itemType, content: args.l0_summary || args.content || '' });
                   } else if (args.action === 'update_file') {
                       const items = await shadowDB.getFSItemsByUserId(userId);
                       const parts = (args.path || '').split('/').filter(Boolean);
                       const name = parts.pop();
                       const file = items.find(i => i.name === name && i.type === 'file');
                       if (file && file.id) {
-                          await shadowDB.updateFSItem(file.id, { content: args.content });
-                          uiCards.push({ cardType: 'workspace_item', title: file.name, description: 'تم تحديث الملف', itemType: 'file', content: args.content || '' });
+                          await shadowDB.updateFSItem(file.id, { 
+                              content: args.l2_content || args.content || file.content,
+                              l0_summary: args.l0_summary || file.l0_summary,
+                              l1_metadata: args.l1_metadata || file.l1_metadata,
+                              l2_content: args.l2_content || args.content || file.l2_content 
+                          });
+                          uiCards.push({ cardType: 'workspace_item', title: file.name, description: 'تم تحديث الملف', itemType: 'file', content: args.l0_summary || args.content || '' });
                       }
+                  } else if (args.action === 'read_file' || args.action === 'read_l0_index' || args.action === 'read_l2_content') {
+                      uiCards.push({ cardType: 'system_log', title: 'Workspace', description: `جاري القراءة: ${args.action} - مسار: ${args.path}` });
+                      
+                      setTimeout(async () => {
+                          const items = await shadowDB.getFSItemsByUserId(userId);
+                          const parts = (args.path || '').split('/').filter(Boolean);
+                          const name = parts.pop();
+                          const file = items.find(i => i.name === name && i.type === 'file');
+                          
+                          let readResult = "";
+                          if (!file) {
+                              readResult = "الملف غير موجود.";
+                          } else {
+                              if (args.action === 'read_l0_index') readResult = file.l0_summary || file.content || '';
+                              else if (args.action === 'read_l2_content' || args.action === 'read_file') readResult = file.l2_content || file.content || '';
+                          }
+                          
+                          const hiddenText = `[WORKSPACE_READ_RESULT / ${args.action} / ${args.path}]\n${readResult}\n\n[INSTRUCTION]: بناءً على هذه النتيجة، أجب المستخدم.`;
+                          handleSend(hiddenText, undefined, undefined, true);
+                      }, 100);
                   }
               }
               else if (t.name === 'update_core_rules') {
                   const args = t.args;
                   await shadowDB.updateGlobalRules(args.new_rules);
                   uiCards.push({ cardType: 'task_success', title: 'تم تحديث القوانين الأساسية', description: 'تم تعديل سلوك النظام بنجاح.' });
+                  handleSend(`[SYSTEM_RULES_UPDATED]\nالقوانين الأساسية اتعدلت بنجاح.\n\n[INSTRUCTION]: أكد للمستخدم إنك استوعبت القوانين الجديدة وتقدر تنفذها من دلوقتي.`, undefined, undefined, true);
               }
               else if (t.name === 'activate_user_account') {
                   const args = t.args;
@@ -724,8 +752,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                       }
                       await shadowDB.saveProfile(targetUser);
                       uiCards.push({ cardType: 'task_success', title: 'تم تفعيل الحساب', description: `تم تفعيل حساب ${targetUser.name} بنجاح. ${commissionMsg}` });
+                      handleSend(`[ACCOUNT_ACTIVATION_SUCCESS]\nتم تفعيل الحساب (${targetUser.name}) بنجاح. ${commissionMsg}\n\n[INSTRUCTION]: بصفتك المدير، بارك للمستخدم بشكل لطيف وقوله الإجراء اللي تم.`, undefined, undefined, true);
                   } else {
                       uiCards.push({ cardType: 'task_success', title: 'خطأ في التفعيل', description: `لم يتم العثور على حساب بالبريد: ${targetEmail}` });
+                      handleSend(`[ACCOUNT_ACTIVATION_FAILED]\nلم يتم العثور على ايميل (${targetEmail}).\n\n[INSTRUCTION]: بلغ المستخدم إن الحساب ده مش موجود وخليه يراجع الإيميل.`, undefined, undefined, true);
                   }
               }
               else if (t.name === 'memory_archivist') {
@@ -736,6 +766,20 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                       timestamp: Date.now()
                   });
                   uiCards.push({ cardType: 'task_success', title: '🧠 أرشفة الذاكرة المعرفية (RAG)', description: args.fact });
+                  handleSend(`[MEMORY_SAVED]\nتم أرشفة المعلومة بنجاح.\n\n[INSTRUCTION]: أكد للمستخدم إنك سجلت المعلومة في دماغك وتقدر تفتكرها في أي وقت.`, undefined, undefined, true);
+              }
+              else if (t.name === 'create_dynamic_plugin') {
+                  const args = t.args;
+                  await shadowDB.savePlugin({
+                      userId: currentUser.email || 'GUEST',
+                      name: args.name,
+                      description: args.description,
+                      parametersSchema: args.parametersSchema,
+                      jsCode: args.jsCode,
+                      createdAt: Date.now()
+                  });
+                  uiCards.push({ cardType: 'task_success', title: 'تم اختراع أداة جديدة ⚡️', description: `تم بناء الأداة (${args.name}) وتخزينها في قاعدة البيانات.` });
+                  handleSend(`[PLUGIN_CREATED]\nتم بناء الأداة ${args.name} بنجاح وحفظها في قاعدة البيانات.\n\n[INSTRUCTION]: عرفني إن الأداة اتعملت وأنك مبسوط بيها وجاهز تستخدمها المهام الجاية.`, undefined, undefined, true);
               }
               else if (t.name === 'device_control') {
                   const args = t.args;
@@ -901,6 +945,25 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                          });
                      }
                  }
+              }
+              else {
+                  const dynamicPlugins = await shadowDB.getPluginsByUserId(currentUser.email || 'GUEST');
+                  const activePlugin = dynamicPlugins.find(p => p.name === t.name || `dyn_plugin_${p.id}` === t.name);
+                  
+                  if (activePlugin) {
+                      try {
+                          const fn = new Function('args', activePlugin.jsCode);
+                          const pluginResult = await fn(t.args);
+                          uiCards.push({ cardType: 'task_success', title: `تم تنفيذ الأداة: ${activePlugin.name}`, description: `تم بنجاح.` });
+                          
+                          const hiddenText = `[DYNAMIC_PLUGIN_RESULT / ${activePlugin.name}]\n${JSON.stringify(pluginResult, null, 2)}\n\n[INSTRUCTION]: بناءً على هذه النتيجة، أجب المستخدم.`;
+                          setTimeout(() => handleSend(hiddenText, undefined, undefined, true), 100);
+                      } catch (e: any) {
+                          uiCards.push({ cardType: 'task_success', title: `خطأ في أداة ${activePlugin.name}`, description: e.toString() });
+                          const errText = `[DYNAMIC_PLUGIN_ERROR / ${activePlugin.name}]\n${e.toString()}\n\n[INSTRUCTION]: لقد حدث خطأ أثناء تنفيذ هذا البلوجن. أخبر المستخدم بالخطأ.`;
+                          setTimeout(() => handleSend(errText, undefined, undefined, true), 100);
+                      }
+                  }
               }
           }
       }
@@ -1135,12 +1198,68 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       } 
   };
   
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => { 
-      const file = e.target.files?.[0]; 
-      if (file) { 
-          setIsProcessingImage(true); 
-          try { const compressed = await compressImage(file); setPendingImage(compressed); } catch(err) { console.error(err); } finally { setIsProcessingImage(false); if (fileInputRef.current) fileInputRef.current.value = ''; if (cameraInputRef.current) cameraInputRef.current.value = ''; } 
-      } 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          setIsProcessingImage(true);
+          try {
+              if (file.type.startsWith('image/')) {
+                  const compressed = await compressImage(file);
+                  setPendingImage(compressed);
+              } else {
+                  // Handle text / code / document chunking (L0, L1, L2)
+                  const textContent = await file.text();
+                  if (textContent) {
+                      setAppStatus('thinking');
+                      // Minimal SLM chunking strategy using Gemini
+                      const prompt = `أنت محرك تقسيم البيانات الآلي. اعطني رداً بصيغة JSON فقط كالتالي:
+{
+  "l0_summary": "ملخص في سطرين فقط لمحتوى الملف",
+  "l1_metadata": "أهم العناوين والمواضيع الموجودة، بصيغة أسماء أو نقاط قصيرة"
+}
+النص:
+${textContent.substring(0, 10000)}`;
+
+                      let l0 = 'لم يتم تحديد ملخص (تجاوز)';
+                      let l1 = 'لم يتم تحديد بيانات';
+                      
+                      try {
+                          const chunkResult = await getShadowResponse([{ role: 'user', parts: [{ text: prompt }] }], prompt);
+                          const jsonMatch = chunkResult.text.match(/\{[\s\S]*\}/);
+                          if (jsonMatch) {
+                              const parsed = JSON.parse(jsonMatch[0]);
+                              if (parsed.l0_summary) l0 = parsed.l0_summary;
+                              if (parsed.l1_metadata) l1 = parsed.l1_metadata;
+                          }
+                      } catch (e) {
+                          console.error("Chunking failed", e);
+                      }
+
+                      const fileObj = {
+                           userId: currentUser.email || 'GUEST',
+                           parentId: null,
+                           name: file.name,
+                           type: 'file' as any,
+                           content: textContent,
+                           l0_summary: l0,
+                           l1_metadata: l1,
+                           l2_content: textContent,
+                           createdAt: Date.now()
+                      };
+                      await shadowDB.createFSItem(fileObj);
+                      
+                      // Instruct Gemini
+                      handleSend(`[FILE_PROCESSING_ENGINE]\nقام المستخدم برفع ملف (${file.name}).\nL0_SUMMARY (ملخص): ${l0}\nL1_METADATA (بيانات): ${l1}\n\n[INSTRUCTION]: أخبر المستخدم أنه تم رفع الملف وتقسيمه لأجزاء وأنت جاهز للرد على استفساراته القائمة على الملف.`, undefined, undefined, true);
+                  }
+              }
+          } catch(err) {
+              console.error(err);
+          } finally {
+              setIsProcessingImage(false);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+              if (cameraInputRef.current) cameraInputRef.current.value = '';
+          }
+      }
   };
   
   const handleAppCardAction = async (card: any) => { 
@@ -1181,7 +1300,9 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
 
   const renderCard = (card: any, i: number) => {
       if (card.cardType === 'live_action') {
-          return <LiveAgentAction key={i} actionType={card.actionType} args={card.args} />;
+          return <LiveAgentAction key={i} actionType={card.actionType} args={card.args} onComplete={(resultText) => {
+              handleSend(resultText, undefined, undefined, true);
+          }} />;
       }
       if (card.cardType === 'system_terminal') {
           return (
@@ -1277,6 +1398,8 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   };
 
   const displayedMessages = messages.filter(m => {
+    if ((m as any).isHidden) return false;
+    if (!m.text && (!m.uiCards || m.uiCards.length === 0)) return false;
     if (!isSearchActive || !searchQuery.trim()) return true;
     return m.text.toLowerCase().includes(searchQuery.toLowerCase());
   });
@@ -1284,7 +1407,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   return (
     <div className="flex flex-col h-full w-full bg-[#000] text-white font-['Cairo'] overflow-hidden relative">
       {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={onOpenAffiliate} />}
-      <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
+      <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="*/*" />
       <input type="file" ref={cameraInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" capture="environment" />
 
       {appStatus === 'listening' && (

@@ -486,9 +486,33 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
                         <label className="text-xs text-white/40 block mb-1">Meta Page ID</label>
                         <input type="text" value={systemKeys?.metaPageId || ''} onChange={(e) => setSystemKeys({...systemKeys, metaPageId: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" />
                     </div>
+
+                    <div className="md:col-span-2 pt-4 border-t border-white/10 mt-2">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Cpu className="w-5 h-5 text-purple-400" />
+                            <h3 className="font-bold text-white text-lg">OpenClaw AI Router (Nvidia NIM / Local Models)</h3>
+                        </div>
+                        <p className="text-xs text-white/40 mb-4">
+                            قم بتحديد هذه الإعدادات لتحويل عقل الظل إلى النماذج المدعومة من Nvidia (مثل Llama 3) أو أي نموذج يدعم OpenAI Protocol. اتركها فارغة لاستخدام Gemini الأساسي.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs text-white/40 block mb-1">AI Base URL (ex: https://integrate.api.nvidia.com/v1)</label>
+                                <input type="text" value={systemKeys?.openAIBaseUrl || ''} onChange={(e) => setSystemKeys({...systemKeys, openAIBaseUrl: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="https://integrate.api.nvidia.com/v1" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-white/40 block mb-1">AI API Key (Nvidia / OpenAI Key)</label>
+                                <input type="password" value={systemKeys?.openAIApiKey || ''} onChange={(e) => setSystemKeys({...systemKeys, openAIApiKey: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="nvapi-..." />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="text-xs text-white/40 block mb-1">Model Name (ex: meta/llama3-70b-instruct)</label>
+                                <input type="text" value={systemKeys?.openAIModelName || ''} onChange={(e) => setSystemKeys({...systemKeys, openAIModelName: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="meta/llama3-70b-instruct" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <button onClick={handleSaveSystemKeys} disabled={isSavingSystemKeys} className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all flex items-center justify-center gap-2">
+                <button onClick={handleSaveSystemKeys} disabled={isSavingSystemKeys} className="w-full py-4 mt-6 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all flex items-center justify-center gap-2">
                     {isSavingSystemKeys ? <Activity className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                     حفظ المفاتيح
                 </button>

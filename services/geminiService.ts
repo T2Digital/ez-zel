@@ -179,8 +179,8 @@ const actionTools: FunctionDeclaration[] = [
     { name: "app_control", description: "المنفذ: فتح تطبيقات مثل واتساب، يوتيوب، أوبر.", parameters: { type: Type.OBJECT, properties: { target: { type: Type.STRING }, action_type: { type: Type.STRING }, detail: { type: Type.STRING } }, required: ["target", "action_type"] } },
     { name: "schedule_reminder", description: "المنفذ: ضبط تذكير.", parameters: { type: Type.OBJECT, properties: { task: { type: Type.STRING }, time_description: { type: Type.STRING }, delay_seconds: { type: Type.NUMBER } }, required: ["task", "time_description", "delay_seconds"] } },
     { name: "memory_archivist", description: "الأرشيف: حفظ معلومة هامة عن المستخدم.", parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] } },
-    { name: "workspace_manager", description: "إدارة مساحة العمل: إنشاء، قراءة، وتحديث المجلدات والملفات المستقلة في ذاكرة الظل.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["create_folder", "create_file", "update_file", "read_file"] }, path: { type: Type.STRING, description: "مسار أو اسم الملف/المجلد" }, content: { type: Type.STRING, description: "محتوى الملف" } }, required: ["action", "path"] } },
-    { name: "system_terminal", description: "المهندس (المبرمج): تنفيذ أوامر برمجية، فحص أكواد، أو عمل Deploy.", parameters: { type: Type.OBJECT, properties: { command_type: { type: Type.STRING, enum: ["deploy", "scan_code", "run_script", "system_status"] }, logs: { type: Type.STRING, description: "The simulated terminal output log to show the user." } }, required: ["command_type", "logs"] } },
+    { name: "workspace_manager", description: "إدارة مساحة العمل ببروتوكول viking:// (الذاكرة الطبقية L0/L1/L2). المجلدات الأساسية: viking://memory و viking://skills. الـ L0 مخلص، الـ L1 عناوين/هيكلة، الـ L2 المحتوى الكامل.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["create_folder", "create_file", "update_file", "read_l0_index", "read_l2_content"] }, path: { type: Type.STRING, description: "مسار viking:// (مثال: viking://memory/user_goals)" }, l0_summary: { type: Type.STRING, description: "ملخص في سطر واحد (L0)" }, l1_metadata: { type: Type.STRING, description: "التقسيمات والعناوين (L1)" }, l2_content: { type: Type.STRING, description: "المحتوى الكامل (L2)" } }, required: ["action", "path"] } },
+    { name: "system_terminal", description: "المهندس (المبرمج): تنفيذ أوامر برمجية، فحص أكواد، أو عمل Deploy.", parameters: { type: Type.OBJECT, properties: { command_type: { type: Type.STRING, enum: ["deploy", "scan_code", "run_script", "system_status"] }, logs: { type: Type.STRING } }, required: ["command_type", "logs"] } },
     { name: "update_core_rules", description: "المبرمج/المهندس: تحديث القوانين الأساسية (Core Rules) الخاصة بك لتغيير سلوكك بشكل دائم.", parameters: { type: Type.OBJECT, properties: { new_rules: { type: Type.STRING, description: "النص الكامل للقوانين الجديدة بعد التعديل أو الإضافة." } }, required: ["new_rules"] } },
     { name: "activate_user_account", description: "المدير: تفعيل حساب مستخدم جديد وإضافة عمولة للداعي إن وجد.", parameters: { type: Type.OBJECT, properties: { user_email: { type: Type.STRING, description: "البريد الإلكتروني للمستخدم المراد تفعيله" } }, required: ["user_email"] } },
     { name: "click_on_screen", description: "المنفذ: الضغط على زر أو نص محدد في شاشة الموبايل (يعمل فقط في تطبيق الموبايل الأصلي).", parameters: { type: Type.OBJECT, properties: { target_text: { type: Type.STRING, description: "النص المكتوب على الزر المراد الضغط عليه (مثل: تأكيد، Skip، إرسال)" } }, required: ["target_text"] } },
@@ -189,10 +189,11 @@ const actionTools: FunctionDeclaration[] = [
     { name: "auto_deployer", description: "المهندس: أداة النشر الحقيقي وقراءة/تعديل الأكواد على GitHub.", parameters: { type: Type.OBJECT, properties: { mode: { type: Type.STRING, enum: ["create_repo", "push_files", "read_file", "update_file"] }, repository_name: { type: Type.STRING, description: "اسم الـ Repository." }, file_path: { type: Type.STRING, description: "مسار الملف زي src/App.tsx. يُستخدم في حالة read_file أو update_file" }, file_content: { type: Type.STRING, description: "محتوى الملف. يُستخدم في update_file" }, files: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { path: { type: Type.STRING }, content: { type: Type.STRING } } }, description: "يُستخدم لنشر عدة ملفات مرة واحدة في push_files" } }, required: ["mode", "repository_name"] } },
     { name: "crypto_trader", description: "المتداول: أداة للاتصال بمنصة التداول (Binance) لعرض الأسعار أو فتح صفقات (تحتاج API Key الماستر).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["market_buy", "market_sell", "limit_buy", "limit_sell", "check_price"] }, symbol: { type: Type.STRING, description: "مثل BTCUSDT" }, amount: { type: Type.NUMBER }, price: { type: Type.NUMBER, description: "في حالة أن الطلب limit" } }, required: ["action", "symbol"] } },
     { name: "social_poster", description: "السوشيالي: نشر بوست حقيقي تلقائياً على صفحة فيسبوك أو انستجرام.", parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING, description: "نص البوست المراد نشره" } }, required: ["message"] } },
-    { name: "link_reader", description: "الباحث/المحقق: الدخول إلى رابط (URL) لصفحة ويب، مقال، أو موقع لشفط وقراءة النص الموجود بداخله.", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING, description: "رابط الصفحة المراد سحب محتواها للحصول على نصها" } }, required: ["url"] } }
+    { name: "link_reader", description: "الباحث/المحقق: الدخول إلى رابط (URL) لصفحة ويب، مقال، أو موقع لشفط وقراءة النص الموجود بداخله.", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING, description: "رابط الصفحة المراد سحب محتواها للحصول على نصها" } }, required: ["url"] } },
+    { name: "create_dynamic_plugin", description: "المخترع: أداة لكتابة كود أداة جديدة (Plugin) للظل ليستخدمها في المهام المعقدة ويتم حفظها آلياً.", parameters: { type: Type.OBJECT, properties: { name: { type: Type.STRING, description: "اسم الأداة (مثال: email_sender)" }, description: { type: Type.STRING, description: "وصف الأداة وماذا تفعل" }, parametersSchema: { type: Type.STRING, description: "JSON string representing the required parameters properties object e.g. { \"to\": {\"type\": \"STRING\"} }" }, jsCode: { type: Type.STRING, description: "كود الجافاسكريبت الذي سيتم تنفيذه. الكود يجب أن يعود بقيمة (return value)." } }, required: ["name", "description", "parametersSchema", "jsCode"] } }
 ];
 
-export const getAvailableTools = (userProfile?: UserProfile): FunctionDeclaration[] => {
+export const getAvailableTools = async (userProfile?: UserProfile): Promise<FunctionDeclaration[]> => {
     let tools = [...actionTools];
     
     // Check permissions
@@ -202,6 +203,32 @@ export const getAvailableTools = (userProfile?: UserProfile): FunctionDeclaratio
     if (!isAdmin && !powers.developer) tools = tools.filter(t => t.name !== 'auto_deployer' && t.name !== 'system_terminal');
     if (!isAdmin && !powers.trader) tools = tools.filter(t => t.name !== 'crypto_trader');
     if (!isAdmin && !powers.social) tools = tools.filter(t => t.name !== 'social_poster');
+
+    if (userProfile && userProfile.email) {
+        try {
+            const dynamicPlugins = await shadowDB.getPluginsByUserId(userProfile.email);
+            for (const plugin of dynamicPlugins) {
+                let schemaProps = { action: { type: Type.STRING } };
+                try {
+                    if (plugin.parametersSchema) {
+                        schemaProps = JSON.parse(plugin.parametersSchema);
+                    }
+                } catch(e) {}
+                
+                tools.push({
+                    name: plugin.name || `dyn_plugin_${plugin.id}`,
+                    description: plugin.description || 'Dynamic plugin',
+                    parameters: {
+                        type: Type.OBJECT,
+                        properties: schemaProps as any,
+                        required: Object.keys(schemaProps)
+                    }
+                });
+            }
+        } catch(e) {
+            console.error('Error loading dynamic plugins:', e);
+        }
+    }
 
     return tools;
 };
@@ -255,10 +282,10 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     4. TIME AWARENESS: Always be aware of the current time provided in the context.
     5. CORE REFERENCES: Your absolute references for any advice, ruling, or analysis are: The Holy Quran (القرآن الكريم), The Prophet's Sunnah (السنة النبوية), Egyptian Law (القانون المصري), and Psychology (علم النفس). Always base your deep answers on these four pillars.
     6. PROACTIVE REMINDERS: You MUST use the 'schedule_reminder' tool proactively to remind the user of appointments or tasks.
-    7. WORKSPACE: You MUST use the 'workspace_manager' tool to create and manage independent folders and files in your memory when requested.
+    7. WORKSPACE (OPENVIRKING SLM): You MUST use the 'workspace_manager' tool. You now operate on an L0/L1/L2 Layered Memory Architecture (Shadow Layered Memory - SLM). You do not rely on massive flat memory contexts. You create 'folders' for context, and index files as L0 (summaries/metadata), L1 (headers/sections), and L2 (full content). Whenever requested to research or save context, format it via 'workspace_manager' as L0/L1/L2.
     8. SELF-EVOLUTION: You can permanently change your own behavior by using the 'update_core_rules' tool. When the user asks you to change your behavior, add a new rule, or modify how you act, use this tool to rewrite your CURRENT CORE RULES.
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
-    10. API INTEGRATIONS: You have actual API integrations ready in the system. Use 'auto_deployer' to deploy code to Vercel/GitHub, 'crypto_trader' to execute trades on Binance, and 'social_poster' to post to Meta pages. Treat these as REAL actions, not simulations.
+    10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready in the system. Use 'auto_deployer' to deploy code to Vercel/GitHub, 'crypto_trader' to execute trades on Binance, and 'social_poster' to post to Meta pages. Treat these as REAL actions. You are powered by an OpenClaw AI Router and can dynamically execute using Nvidia NIM (e.g., Llama-3) based on system settings.
     11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
@@ -342,10 +369,11 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
     isRequesting = true;
     
     try {
-        const [relevantMemories, rules, agents] = await Promise.all([
+        const [relevantMemories, rules, agents, systemKeys] = await Promise.all([
             getRelevantMemories(message, userProfile?.email || 'GUEST'), 
             shadowDB.getGlobalRules(), 
-            shadowDB.getAllAgents()
+            shadowDB.getAllAgents(),
+            shadowDB.getSystemKeys()
         ]);
         const systemInstruction = generateSystemPrompt(userProfile, relevantMemories, rules, agents);
         
@@ -378,13 +406,54 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         }, []);
 
         let tools: any[] = [];
-        tools.push({ functionDeclarations: getAvailableTools(userProfile) });
+        const resolvedTools = await getAvailableTools(userProfile);
+        tools.push({ functionDeclarations: resolvedTools });
         // Always give him the ability to search google if he wants, but give priority to action tools
         tools.push({ googleSearch: {} });
 
         let response: GenerateContentResponse | null = null;
         let lastError: any = null;
         let allErrors: string[] = [];
+        
+        let customOpenAIResponse: string | null = null;
+
+        if (systemKeys?.openAIBaseUrl && systemKeys?.openAIApiKey && systemKeys?.openAIModelName) {
+            try {
+                const openAIAcc = [...cleanHistory.slice(-6).map(m => ({ 
+                    role: m.role === 'model' ? 'assistant' : 'user', 
+                    content: m.parts[0].text 
+                })), { role: 'user', content: finalUserMessage }];
+                
+                const nvidiaReq = await fetch(`${systemKeys.openAIBaseUrl.replace(/\/$/, '')}/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${systemKeys.openAIApiKey}` },
+                    body: JSON.stringify({
+                        model: systemKeys.openAIModelName,
+                        messages: [{ role: 'system', content: systemInstruction }, ...openAIAcc],
+                        max_tokens: 2000,
+                        temperature: 0.7
+                    })
+                });
+                
+                if (nvidiaReq.ok) {
+                    const data = await nvidiaReq.json();
+                    customOpenAIResponse = data.choices?.[0]?.message?.content || "";
+                } else {
+                    console.error("OpenClaw/Nvidia Router Error:", await nvidiaReq.text());
+                }
+            } catch(e) {
+                console.error("OpenClaw execution failed:", e);
+            }
+        }
+
+        if (customOpenAIResponse) {
+            return {
+                text: customOpenAIResponse,
+                toolActions: [],
+                groundingLinks: [],
+                isError: false
+            };
+        }
 
         for (const model of MODEL_CHAIN) {
             try {

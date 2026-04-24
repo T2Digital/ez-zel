@@ -139,7 +139,22 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
               </button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 text-white/80 whitespace-pre-wrap font-mono text-sm leading-relaxed">
-              {selectedFile.content || 'الملف فاضي.'}
+              {selectedFile.l0_summary && (
+                  <div className="mb-4 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                      <strong className="text-purple-400 block mb-1">L0 Summary (Memory Index):</strong>
+                      {selectedFile.l0_summary}
+                  </div>
+              )}
+              {selectedFile.l1_metadata && (
+                  <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <strong className="text-blue-400 block mb-1">L1 Metadata:</strong>
+                      {selectedFile.l1_metadata}
+                  </div>
+              )}
+              <div className="p-3 bg-black/30 rounded-lg border border-white/5">
+                <strong className="text-white/40 block mb-2">L2 Content (Full):</strong>
+                {selectedFile.l2_content || selectedFile.content || 'الملف فاضي.'}
+              </div>
             </div>
           </div>
         </div>
