@@ -9,11 +9,12 @@ import { getDeviceContext, triggerDeviceAction } from "./deviceService";
 let _ai: GoogleGenAI | null = null;
 const getAI = () => {
     if (!_ai) {
-        const key = process.env.GEMINI_API_KEY;
+        // Try multiple ways to get the key and trim it to remove accidental quotes/spaces
+        let rawKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY;
+        const key = rawKey ? rawKey.replace(/^["']|["']$/g, '').trim() : undefined;
+        
         if (!key) {
             console.error("GEMINI_API_KEY is not defined! Application AI features will fail. Please add it to your environment variables.");
-             // We still try to init, but it will throw an error inside the SDK.
-             // We can let it throw or handle it.
              _ai = new GoogleGenAI({ apiKey: "MISSING_KEY_ERROR_WILL_BE_THROWN_ON_USE" });
              return _ai;
         }
@@ -270,9 +271,9 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
 
 // --- UPDATED MODEL CHAIN (USER REQUESTED) ---
 const MODEL_CHAIN = [
-    "gemini-3.1-flash-preview",          // 1. Primary: Speed & Intelligence (Newer)
-    "gemini-3-flash-preview",            // 2. Secondary: Fallback (Highly Available)
-    "gemini-1.5-flash"                   // 3. Last Resort Fallback: Ultra-stable
+    "gemini-flash-latest",               // 1. Primary
+    "gemini-3.1-flash-lite-preview",     // 2. Secondary
+    "gemini-3-flash-preview"             // 3. Last Resort
 ];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -281,7 +282,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export const generateEmbedding = async (text: string): Promise<number[]> => {
     try {
         const result = await getAI().models.embedContent({
-            model: 'text-embedding-004',
+            model: 'gemini-embedding-2-preview',
             contents: text
         });
         return result.embeddings?.[0]?.values || [];
@@ -383,6 +384,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
 
         let response: GenerateContentResponse | null = null;
         let lastError: any = null;
+        let allErrors: string[] = [];
 
         for (const model of MODEL_CHAIN) {
             try {
@@ -412,13 +414,14 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 if (response) break; 
             } catch (e: any) {
                 lastError = e;
+                allErrors.push(`${model}: ${e.message || 'Error'}`);
             }
         }
 
         if (!response) {
             console.error("All models failed. Last error:", lastError);
             return { 
-                text: `معلش يا ريس، السيرفرات عليها ضغط شديد جداً دلوقتي. ممكن تديني دقيقة راحة ونجرب تاني؟ (${lastError?.message || 'Unknown'})`, 
+                text: `معلش يا ريس، السيرفرات عليها ضغط شديد جداً دلوقتي. ممكن تديني دقيقة راحة ونجرب تاني؟ (${allErrors.join(' | ')})`, 
                 toolActions: [],
                 groundingLinks: [],
                 isError: true 

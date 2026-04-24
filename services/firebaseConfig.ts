@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, memoryLocalCache } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import firebaseConfigData from '../firebase-applet-config.json';
 
@@ -12,8 +12,10 @@ try {
     if (firebaseConfigData.apiKey && firebaseConfigData.apiKey.length > 5) {
         app = initializeApp(firebaseConfigData);
         
-        // Initialize Firestore with settings to avoid "Offline" issues
-        db = getFirestore(app, firebaseConfigData.firestoreDatabaseId);
+        // Initialize Firestore with memory cache to avoid IndexedDB corruption/assertion issues
+        db = initializeFirestore(app, { 
+            localCache: memoryLocalCache() 
+        }, firebaseConfigData.firestoreDatabaseId);
 
         auth = getAuth(app);
         console.log("[Shadow Core] Firebase Connected Successfully.");
