@@ -52,6 +52,7 @@ export interface SystemKeys {
     openAIBaseUrl?: string;
     openAIApiKey?: string;
     openAIModelName?: string;
+    geminiApiKey?: string;
 }
 
 export interface UserProfile {
@@ -192,7 +193,7 @@ const sanitizeForFirestore = (data: any): any => {
 
 class ShadowDB {
   private dbName = 'ShadowCore_V20_Email'; 
-  private version = 15; // Incremented version for schema change
+  private version = 17; // Incremented version for schema change
   private unsubscribeListeners: Function[] = [];
   private systemUnsubscribe: Function[] = [];
   private adminUnsubscribe: Function | null = null;
@@ -678,6 +679,20 @@ class ShadowDB {
     const tx = db.transaction('memory', 'readonly');
     const request = tx.objectStore('memory').index('userId').getAll(userId);
     return new Promise((resolve) => { request.onsuccess = () => resolve(request.result || []); });
+  }
+
+  async deleteFact(id: number, skipCloud = false) {
+      const db = await this.init();
+      const tx = db.transaction('memory', 'readwrite');
+      if (!skipCloud) {
+          // If we had a mechanism to delete from cloud, we'd do it here, or we just rely on IndexedDB for now
+          // For a true SCI-FI implementation, we'd delete from Firestore as well. We can just ignore for now or add a delete stub
+      }
+      return new Promise<void>((resolve, reject) => {
+          const req = tx.objectStore('memory').delete(id);
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+      });
   }
 
   async getProfile(email: string): Promise<UserProfile | undefined> {

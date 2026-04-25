@@ -18,6 +18,7 @@ try {
             }, (firebaseConfigData as any).firestoreDatabaseId);
         } else {
             app = getApp();
+            // During HMR, db might lose the ref. Get the existing instance via initializeFirestore with same config prevents some 12.11 assertion errors:
             db = getFirestore(app, (firebaseConfigData as any).firestoreDatabaseId);
         }
 

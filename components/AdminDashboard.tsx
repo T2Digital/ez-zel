@@ -103,7 +103,11 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
       binanceSecretKey: string;
       metaToken: string;
       metaPageId: string;
-  }>({ githubToken: '', vercelToken: '', binanceApiKey: '', binanceSecretKey: '', metaToken: '', metaPageId: '' });
+      openAIBaseUrl: string;
+      openAIApiKey: string;
+      openAIModelName: string;
+      geminiApiKey: string;
+  }>({ githubToken: '', vercelToken: '', binanceApiKey: '', binanceSecretKey: '', metaToken: '', metaPageId: '', openAIBaseUrl: '', openAIApiKey: '', openAIModelName: '', geminiApiKey: '' });
 
   useEffect(() => { 
       if ('Notification' in window && Notification.permission === 'granted') setNotificationsEnabled(true);
@@ -485,6 +489,22 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
                     <div>
                         <label className="text-xs text-white/40 block mb-1">Meta Page ID</label>
                         <input type="text" value={systemKeys?.metaPageId || ''} onChange={(e) => setSystemKeys({...systemKeys, metaPageId: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" />
+                    </div>
+
+                    <div className="md:col-span-2 pt-4 border-t border-white/10 mt-2">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Cpu className="w-5 h-5 text-blue-400" />
+                            <h3 className="font-bold text-white text-lg">Gemini API Key (Custom Override)</h3>
+                        </div>
+                        <p className="text-xs text-white/40 mb-4">
+                            إذا كنت تواجه مشكلة في حصة استوديو المطورين، يمكنك إدخال مفتاح Gemini الخاص بك هنا لتجاوزه (يعمل بشكل آمن على الخادم مباشرة).
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2">
+                                <label className="text-xs text-white/40 block mb-1">Gemini Override Key</label>
+                                <input type="password" value={systemKeys?.geminiApiKey || ''} onChange={(e) => setSystemKeys({...systemKeys, geminiApiKey: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="AIza..." />
+                            </div>
+                        </div>
                     </div>
 
                     <div className="md:col-span-2 pt-4 border-t border-white/10 mt-2">
