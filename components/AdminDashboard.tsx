@@ -510,6 +510,26 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
                             </div>
                         </div>
                     </div>
+
+                    <div className="md:col-span-2 pt-4 border-t border-white/10 mt-2">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Database className="w-5 h-5 text-emerald-400" />
+                            <h3 className="font-bold text-white text-lg">الذاكرة العميقة (Pinecone Vector DB)</h3>
+                        </div>
+                        <p className="text-xs text-white/40 mb-4">
+                            اربط حساب Pinecone لتحويل ذاكرة الظل إلى Semantic Vector Database تمكنه من استرجاع مئات الحقائق فائق السرعة عبر Pinecone API.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs text-white/40 block mb-1">Pinecone API Key</label>
+                                <input type="password" value={systemKeys?.pineconeApiKey || ''} onChange={(e) => setSystemKeys({...systemKeys, pineconeApiKey: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="pcsk_..." />
+                            </div>
+                            <div>
+                                <label className="text-xs text-white/40 block mb-1">Pinecone Index Host</label>
+                                <input type="text" value={systemKeys?.pineconeHost || ''} onChange={(e) => setSystemKeys({...systemKeys, pineconeHost: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-sm" placeholder="https://shadow-index-xxxx.svc.pinecone.io" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <button onClick={handleSaveSystemKeys} disabled={isSavingSystemKeys} className="w-full py-4 mt-6 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all flex items-center justify-center gap-2">

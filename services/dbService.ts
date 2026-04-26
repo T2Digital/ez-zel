@@ -52,6 +52,8 @@ export interface SystemKeys {
     openAIBaseUrl?: string;
     openAIApiKey?: string;
     openAIModelName?: string;
+    pineconeApiKey?: string;
+    pineconeHost?: string;
 }
 
 export interface UserProfile {
@@ -192,7 +194,7 @@ const sanitizeForFirestore = (data: any): any => {
 
 class ShadowDB {
   private dbName = 'ShadowCore_V20_Email'; 
-  private version = 20; // Incremented version for schema change
+  private version = 21; // Incremented version for schema change
   private unsubscribeListeners: Function[] = [];
   private systemUnsubscribe: Function[] = [];
   private adminUnsubscribe: Function | null = null;

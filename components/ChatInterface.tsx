@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool, Layout, Calculator, Terminal, Cloud, CloudOff, AlertTriangle, FolderOpen } from 'lucide-react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { App as CapacitorApp } from '@capacitor/app';
-import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache } from '../services/geminiService';
+import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, memorizeFact } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
+import { submitAutonomousTask } from '../services/autonomousAgentService';
 import { getDeviceContext, performNativeAction } from '../services/deviceService';
 import { WakeWordEngine } from '../services/wakeWordService';
 import { voiceBiometrics } from '../services/voiceBiometricsService';
@@ -760,13 +761,16 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
               }
               else if (t.name === 'memory_archivist') {
                   const args = t.args;
-                  await shadowDB.saveFact({
-                      userId: currentUser.email || 'GUEST',
-                      fact: args.fact,
-                      timestamp: Date.now()
-                  });
+                  // Use memorizeFact which handles embedding + local DB + Vector DB (Pinecone)
+                  await memorizeFact(currentUser.email || 'GUEST', args.fact);
+                  
                   uiCards.push({ cardType: 'task_success', title: '🧠 أرشفة الذاكرة المعرفية (RAG)', description: args.fact });
                   handleSend(`[MEMORY_SAVED]\nتم أرشفة المعلومة بنجاح.\n\n[INSTRUCTION]: أكد للمستخدم إنك سجلت المعلومة في دماغك وتقدر تفتكرها في أي وقت.`, undefined, undefined, true);
+              }
+              else if (t.name === 'run_autonomous_agent') {
+                  const args = t.args;
+                  await submitAutonomousTask(currentUser.email || 'GUEST', args.prompt_for_agent);
+                  uiCards.push({ cardType: 'task_success', title: '⚡ مهام مستقلة قيد التشغيل', description: 'تم إطلاق عميل خلفي لمعالجة المهمة المعقدة.' });
               }
               else if (t.name === 'create_dynamic_plugin') {
                   const args = t.args;
@@ -1331,15 +1335,102 @@ ${textContent.substring(0, 10000)}`;
       }
       if (card.cardType === 'business_doc') {
           return (
-            <div className="mt-4 bg-white text-black rounded-[22px] p-6 shadow-2xl printable-invoice w-full md:w-[400px]">
-                <div className="flex justify-between items-start mb-6 border-b border-black/10 pb-4">
-                    <div><h2 className="text-xl font-black">{card.data.docType === 'quote' ? 'عرض سعر' : 'فاتورة'}</h2><p className="text-[10px] text-gray-500 uppercase font-bold">#{Math.floor(Math.random() * 10000)}</p></div>
-                    <div className="text-right"><p className="font-bold text-xs">التاريخ</p><p className="text-[10px] text-gray-600 font-mono">{new Date().toLocaleDateString('en-EG')}</p></div>
+            <div className="mt-4 bg-white text-black rounded-[22px] p-6 shadow-2xl printable-invoice w-full md:w-[600px] border border-black/10 overflow-hidden relative print:w-full print:border-none print:shadow-none print:m-0 print:p-0">
+                {/* Header Section */}
+                <div className="flex justify-between items-start mb-8 border-b-2 border-black pb-6 px-2">
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-black rounded-xl border-2 border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.5)] flex items-center justify-center print:border-black print:shadow-none">
+                                <span className="text-white text-xl font-black mb-1">E</span>
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-black tracking-tight uppercase">Ez-Zel <span className="text-cyan-600">Enterprise</span></h1>
+                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Digital Shadow System</p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex flex-col gap-1">
+                            <h2 className="text-3xl font-black">{card.data.docType === 'quote' ? 'عرض السعـر' : (card.data.docType === 'contract' ? 'عقـد اتفـاق' : 'فـاتـورة')}</h2>
+                            <p className="text-xs text-gray-400 font-bold tracking-widest" dir="ltr">DOCUMENT ID: <span className="text-black font-mono">EZ-{Math.floor(Math.random() * 90000) + 10000}</span></p>
+                        </div>
+                    </div>
+                    <div className="text-right flex flex-col gap-1 mt-14">
+                        <p className="font-black text-sm text-gray-400 uppercase tracking-widest">التاريـخ</p>
+                        <p className="text-sm font-bold font-mono bg-gray-100 px-3 py-1 rounded-md border border-gray-200" dir="ltr">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
                 </div>
-                <div className="mb-4"><p className="text-[10px] text-gray-400 uppercase font-bold mb-1">إلى</p><h3 className="text-lg font-bold">{card.data.clientName}</h3></div>
-                <table className="w-full text-right text-xs mb-4"><thead className="border-b border-black/10 text-gray-500"><tr><th className="py-2">الوصف</th><th className="py-2 text-left">القيمة</th></tr></thead><tbody>{card.data.items?.map((item: any, i: number) => (<tr key={i} className="border-b border-black/5 last:border-0"><td className="py-2 font-bold">{item.desc}</td><td className="py-2 text-left font-mono">{item.price} ج.م</td></tr>))}</tbody></table>
-                <div className="flex justify-between items-center p-3 rounded-xl mb-4 bg-black text-white"><span className="font-bold text-xs">الإجمالي</span><span className="font-black text-lg font-mono">{card.data.items?.reduce((s:number, i:any) => s + i.price, 0)} ج.م</span></div>
-                <button onClick={() => window.print()} className="w-full py-2 border-2 border-black rounded-xl font-black flex items-center justify-center gap-2 hover:bg-black hover:text-white transition-all text-xs print:hidden"><Printer className="w-3 h-3" /> طباعة / PDF</button>
+
+                {/* Client Section */}
+                <div className="mb-8 px-2">
+                    <div className="inline-block bg-black text-white px-3 py-1 rounded-md mb-3">
+                        <p className="text-[10px] uppercase font-black tracking-widest">مقدم إلى</p>
+                    </div>
+                    <h3 className="text-2xl font-black text-gray-800 border-l-4 border-cyan-500 pl-3 leading-none">{card.data.clientName}</h3>
+                </div>
+
+                {/* Contract Body (Optional) */}
+                {card.data.contractBody && (
+                    <div className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200 shadow-inner">
+                        <h4 className="text-xs font-black uppercase text-gray-400 mb-4 tracking-widest border-b border-gray-200 pb-2">تفاصيل العقد للشروط والأحكام</h4>
+                        <div className="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">{card.data.contractBody}</div>
+                    </div>
+                )}
+
+                {/* Items Table */}
+                {card.data.items && card.data.items.length > 0 && (
+                    <div className="mb-8 overflow-hidden rounded-xl border border-gray-200">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-gray-100 text-gray-600 font-black uppercase text-[10px] tracking-wider">
+                                <tr>
+                                    <th className="py-3 px-4">البند / الوصف</th>
+                                    <th className="py-3 px-4 text-left w-32">القيمة (EGP)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {card.data.items.map((item: any, i: number) => (
+                                    <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                        <td className="py-4 px-4 font-bold text-gray-800">{item.desc}</td>
+                                        <td className="py-4 px-4 text-left font-mono font-bold text-gray-900 bg-gray-50/50" dir="ltr">{(item.price || 0).toLocaleString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Total Section */}
+                {card.data.items && card.data.items.length > 0 && (
+                    <div className="flex justify-end px-2 mb-10">
+                        <div className="w-full md:w-1/2 flex justify-between items-center p-4 rounded-xl bg-black text-white shadow-xl transform hover:scale-[1.02] transition-transform">
+                            <span className="font-black text-sm tracking-widest uppercase">الإجمالي النهائي</span>
+                            <div className="flex items-center gap-2">
+                                <span className="font-black text-2xl font-mono text-cyan-400" dir="ltr">{card.data.items.reduce((s:number, i:any) => s + (i.price || 0), 0).toLocaleString()}</span>
+                                <span className="text-xs font-bold text-gray-400">EGP</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Footer Notes */}
+                <div className="mt-12 text-center border-t border-gray-200 pt-6">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Generated by Ez-Zel Digital Shadow</p>
+                    <p className="text-[9px] text-gray-300">This document is electronically verified.</p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-8 flex gap-3 print:hidden">
+                    <button onClick={() => window.print()} className="flex-1 py-3 bg-black text-white rounded-xl font-black flex items-center justify-center gap-2 hover:bg-gray-800 transition-all text-sm shadow-xl active:scale-95">
+                        <Printer className="w-4 h-4" /> طباعة المستند
+                    </button>
+                    {card.data.contractBody && (
+                        <button onClick={() => {
+                            const contractText = `عقد اتفاق\n\nالطرف الثاني: ${card.data.clientName}\n\n${card.data.contractBody}`;
+                            navigator.clipboard.writeText(contractText);
+                            alert('تم نسخ نص العقد!');
+                        }} className="px-4 py-3 border-2 border-black rounded-xl font-black flex items-center justify-center gap-2 hover:bg-gray-100 transition-all text-sm active:scale-95">
+                            <Copy className="w-4 h-4" /> نسخ النص
+                        </button>
+                    )}
+                </div>
             </div>
           );
       }

@@ -4,6 +4,8 @@ import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { Capacitor } from '@capacitor/core';
 import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
+import { queryPinecone, syncFactToPinecone } from "./pineconeService";
+import { processOfflineCommand } from "./offlineEdgeService";
 
 // --- API KEY PREPARATION ---
 let _ai: GoogleGenAI | null = null;
@@ -178,6 +180,7 @@ const actionTools: FunctionDeclaration[] = [
     { name: "generate_business_document", description: "المحامي: إنشاء عقود وفواتير قانونية", parameters: { type: Type.OBJECT, properties: { docType: { type: Type.STRING, enum: ["invoice", "quote", "contract"] }, clientName: { type: Type.STRING }, items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { desc: { type: Type.STRING }, price: { type: Type.NUMBER } } } }, contractBody: { type: Type.STRING } }, required: ["docType", "clientName"] } },
     { name: "app_control", description: "المنفذ: فتح تطبيقات مثل واتساب، يوتيوب، أوبر.", parameters: { type: Type.OBJECT, properties: { target: { type: Type.STRING }, action_type: { type: Type.STRING }, detail: { type: Type.STRING } }, required: ["target", "action_type"] } },
     { name: "schedule_reminder", description: "المنفذ: ضبط تذكير.", parameters: { type: Type.OBJECT, properties: { task: { type: Type.STRING }, time_description: { type: Type.STRING }, delay_seconds: { type: Type.NUMBER } }, required: ["task", "time_description", "delay_seconds"] } },
+    { name: "run_autonomous_agent", description: "المنفذ المستقل (Autonomous Agent): استخدم هذه الأداة لإنشاء عميل ذكاء اصطناعي يعمل في الخلفية لساعات طويلة (للبحث المعمق، تتبع المهام، أو المراقبة) دون تعطيل المحادثة الحالية.", parameters: { type: Type.OBJECT, properties: { prompt_for_agent: { type: Type.STRING } }, required: ["prompt_for_agent"] } },
     { name: "memory_archivist", description: "الأرشيف: حفظ معلومة هامة عن المستخدم.", parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] } },
     { name: "workspace_manager", description: "إدارة مساحة العمل ببروتوكول viking:// (الذاكرة الطبقية L0/L1/L2). المجلدات الأساسية: viking://memory و viking://skills. الـ L0 مخلص، الـ L1 عناوين/هيكلة، الـ L2 المحتوى الكامل.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["create_folder", "create_file", "update_file", "read_l0_index", "read_l2_content"] }, path: { type: Type.STRING, description: "مسار viking:// (مثال: viking://memory/user_goals)" }, l0_summary: { type: Type.STRING, description: "ملخص في سطر واحد (L0)" }, l1_metadata: { type: Type.STRING, description: "التقسيمات والعناوين (L1)" }, l2_content: { type: Type.STRING, description: "المحتوى الكامل (L2)" } }, required: ["action", "path"] } },
     { name: "system_terminal", description: "المهندس (المبرمج): تنفيذ أوامر برمجية، فحص أكواد، أو عمل Deploy.", parameters: { type: Type.OBJECT, properties: { command_type: { type: Type.STRING, enum: ["deploy", "scan_code", "run_script", "system_status"] }, logs: { type: Type.STRING } }, required: ["command_type", "logs"] } },
@@ -287,6 +290,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
     10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready in the system. Use 'auto_deployer' to deploy code to Vercel/GitHub, 'crypto_trader' to execute trades on Binance, and 'social_poster' to post to Meta pages. Treat these as REAL actions. You are powered by an OpenClaw AI Router and can dynamically execute using Nvidia NIM (e.g., Llama-3) based on system settings.
     11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
+    12. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
     ${rules}
@@ -333,34 +337,61 @@ const cosineSimilarity = (vecA: number[], vecB: number[]) => {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 };
 
-export const getRelevantMemories = async (query: string, userId: string): Promise<string> => {
-    const allMemories = await shadowDB.getMemory(userId);
-    if (allMemories.length === 0) return "";
+export const memorizeFact = async (userId: string, factText: string) => {
+    const memEmbedding = await generateEmbedding(factText);
+    const factObj = {
+        userId,
+        fact: factText,
+        timestamp: Date.now(),
+        embedding: memEmbedding.length > 0 ? memEmbedding : undefined 
+    };
+    const id = await shadowDB.saveFact(factObj);
     
+    if (memEmbedding.length > 0) {
+        // ID returned from IndexedDB might be a number, fallback to timestamp
+        await syncFactToPinecone(id || factObj.timestamp, factText, memEmbedding, userId);
+    }
+};
+
+export const getRelevantMemories = async (query: string, userId: string): Promise<string> => {
     // Generate embedding for current query
     const queryEmbedding = await generateEmbedding(query);
-    if (queryEmbedding.length === 0) return allMemories.map(m => m.fact).join(" | "); // Fallback
+    if (queryEmbedding.length === 0) {
+        // Fallback to local DB if embedding generation fails
+        const allMemories = await shadowDB.getMemory(userId);
+        return allMemories.slice(-5).map(m => m.fact).join(" | ");
+    }
 
-    // Score memories
+    // Try Pinecone First (Sci-Fi Level Vector DB)
+    const pineconeResults = await queryPinecone(queryEmbedding, userId, 5);
+    if (pineconeResults.length > 0) {
+        console.log("Vector DB (Pinecone) responded with:", pineconeResults.length, "facts");
+        return pineconeResults.join(" | ");
+    }
+
+    // Fallback to IndexedDB local Cosine Similarity
+    const allMemories = await shadowDB.getMemory(userId);
+    if (allMemories.length === 0) return "";
+
     const scoredMemories = [];
     for (const mem of allMemories) {
         let memEmbedding = mem.embedding;
-        // Lazy migration: if memory has no embedding, generate and save it
+        // Lazy generation for old facts
         if (!memEmbedding || memEmbedding.length === 0) {
             memEmbedding = await generateEmbedding(mem.fact);
             if (memEmbedding.length > 0) {
                 mem.embedding = memEmbedding;
-                await shadowDB.saveFact(mem); // Update in DB
+                await shadowDB.saveFact(mem);
+                // Also eagerly push to Pinecone so it gets indexed!
+                syncFactToPinecone(mem.id || Date.now(), mem.fact, memEmbedding, userId);
             }
         }
         const score = cosineSimilarity(queryEmbedding, memEmbedding || []);
         scoredMemories.push({ fact: mem.fact, score });
     }
 
-    // Sort by relevance and take top 5
     scoredMemories.sort((a, b) => b.score - a.score);
-    const topMemories = scoredMemories.slice(0, 5).map(m => m.fact);
-    return topMemories.join(" | ");
+    return scoredMemories.slice(0, 5).map(m => m.fact).join(" | ");
 };
 
 // --- MAIN RESPONSE FUNCTION ---
@@ -534,6 +565,8 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 // If it only output memory archivist, use the fact as the reply subtly
                 const archivistCall = toolActions.find((t: any) => t.name === 'memory_archivist');
                 finalText = `سجلت المعلومة دي في دماغي يا ريس: ${archivistCall.args.fact}`;
+            } else if (toolActions.some((t: any) => t.name === 'run_autonomous_agent')) {
+                finalText = "سيبلي المهمة دي شغالة في الخلفية يا ريس، هتابعها وهبلغك لما اخلصها.";
             } else {
                 finalText = "حاضر يا ريس، ثواني بخلصها..";
             }
@@ -559,6 +592,18 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
 
     } catch (e: any) {
         console.error("Gemini API Error:", e);
+        
+        // Edge Fallback when network is down or API fails
+        const fallback = processOfflineCommand(message);
+        if (fallback) {
+            return {
+                text: fallback.text,
+                toolActions: fallback.toolActions,
+                groundingLinks: [],
+                isError: false
+            };
+        }
+
         return { 
             text: "الشبكة عندي فيها مشكلة عامة دلوقتي يا ريس. ممكن تجرب بعد دقيقة؟", 
             toolActions: [],
