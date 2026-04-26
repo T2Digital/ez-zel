@@ -2,14 +2,13 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool, Layout, Calculator, Terminal, Cloud, CloudOff, AlertTriangle, FolderOpen } from 'lucide-react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { App as CapacitorApp } from '@capacitor/app';
-import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, autoExtractMemories } from '../services/geminiService';
+import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import { getDeviceContext, performNativeAction } from '../services/deviceService';
 import { WakeWordEngine } from '../services/wakeWordService';
 import { voiceBiometrics } from '../services/voiceBiometricsService';
 import CapabilitiesGuide from './CapabilitiesGuide';
 import LiveAgentAction from './LiveAgentAction';
-import { ChatCard } from './ChatCards';
 
 interface Props {
     currentUser: UserProfile;
@@ -251,8 +250,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   }, [incomingSystemMessage]);
 
-  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
-
   const toggleSentinelMode = async () => {
       if (!isSentinelMode) {
           try {
@@ -264,23 +261,14 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           
           setIsSentinelMode(true);
           startPassiveListening();
-          
-          // Background audio hack to keep process alive on mobile
-          if (!silentAudioRef.current) {
-              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-              audio.loop = true;
-              audio.volume = 0.05; // very low volume to keep process alive but unnoticeable
-              silentAudioRef.current = audio;
-          }
-          silentAudioRef.current.play().catch(() => {});
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+          audio.volume = 0.3;
+          audio.play().catch(() => {});
 
       } else {
           if (wakeLockRef.current) {
               try { await wakeLockRef.current.release(); } catch(e){}
               wakeLockRef.current = null;
-          }
-          if (silentAudioRef.current) {
-              silentAudioRef.current.pause();
           }
           setIsSentinelMode(false);
           stopPassiveListening();
@@ -626,11 +614,6 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       const history = await shadowDB.getHistory(currentUser.email || 'GUEST');
       const deviceCtx = await getDeviceContext();
       
-      // Background auto extraction (Long-term semantic memory)
-      if (currentUser.email && currentUser.email !== 'GUEST') {
-          autoExtractMemories(displayText, history, currentUser.email);
-      }
-
       const result = await getShadowResponse(
           history.map(m => ({ role: m.role, parts: [{ text: m.text }] })), 
           displayText + "\n\n" + deviceCtx, 
@@ -683,31 +666,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                       category: 'general',
                       status: 'pending'
                   };
-                  const savedTask = await shadowDB.saveTask(task);
-                  
-                  // Fix Phantom Reminders: Schedule Native Notification immediately
-                  try {
-                      if ('capacitor' in window) {
-                          const { LocalNotifications } = await import('@capacitor/local-notifications');
-                          await LocalNotifications.schedule({
-                              notifications: [
-                                  {
-                                      title: 'تنبيه من الظل',
-                                      body: args.task,
-                                      id: savedTask as number || Date.now(),
-                                      schedule: { at: new Date(executionTime) },
-                                      sound: null,
-                                      attachments: null,
-                                      actionTypeId: '',
-                                      extra: null
-                                  }
-                              ]
-                          });
-                      }
-                  } catch (e) {
-                      console.warn("Could not schedule native reminder", e);
-                  }
-
+                  await shadowDB.saveTask(task);
                   uiCards.push({ cardType: 'task_success', title: args.task, description: args.time_description });
               }
               else if (t.name === 'workspace_manager') {
@@ -1320,7 +1279,123 @@ ${textContent.substring(0, 10000)}`;
       } 
   };
 
+  const getCardIcon = (type: string, number?: string) => { 
+      if (type === 'task_success') return <CheckCircle className="w-6 h-6 text-emerald-400" />;
+      if (type === 'internal_nav') return <Layout className="w-6 h-6 text-purple-400" />;
+      if (type === 'business_doc') return <Printer className="w-6 h-6 text-white" />;
+      if (type === 'system_terminal') return <Terminal className="w-6 h-6 text-white" />;
+      if (type === 'deep_link_fallback') {
+          if (number === 'chat') return <MessageCircle className="w-6 h-6 text-green-400" />;
+          if (number === 'video') return <Video className="w-6 h-6 text-red-400" />;
+          if (number === 'phone') return <PhoneCall className="w-6 h-6 text-blue-400" />;
+          if (number === 'car') return <Car className="w-6 h-6 text-white" />;
+          if (number === 'search') return <Search className="w-6 h-6 text-cyan-400" />;
+          if (number === 'hotel') return <Hotel className="w-6 h-6 text-amber-400" />;
+          if (number === 'map') return <MapPin className="w-6 h-6 text-emerald-400" />;
+          if (number === 'calculator') return <Calculator className="w-6 h-6 text-orange-400" />;
+          return <ExternalLink className="w-6 h-6 text-blue-400" />;
+      }
+      return <ExternalLink className="w-6 h-6 text-white" />;
+  };
 
+  const renderCard = (card: any, i: number) => {
+      if (card.cardType === 'live_action') {
+          return <LiveAgentAction key={i} actionType={card.actionType} args={card.args} onComplete={(resultText) => {
+              handleSend(resultText, undefined, undefined, true);
+          }} />;
+      }
+      if (card.cardType === 'system_terminal') {
+          return (
+              <div className="mt-4 bg-[#0a0a0a] rounded-[16px] border border-white/20 overflow-hidden w-full md:w-[450px] shadow-2xl font-mono text-left" dir="ltr">
+                  <div className="bg-[#1a1a1a] px-4 py-2 flex items-center gap-2 border-b border-white/10">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <span className="ml-2 text-[10px] text-white/40 font-bold">ez-zel@shadow-core:~</span>
+                  </div>
+                  <div className="p-4 text-xs font-mono">
+                      <div className="text-emerald-400 mb-2">$ {card.data.command_type || 'executing...'}</div>
+                      <pre className="text-white/80 whitespace-pre-wrap">{card.data.logs}</pre>
+                      <div className="mt-2 text-white/50 animate-pulse">_</div>
+                  </div>
+              </div>
+          );
+      }
+      if (card.cardType === 'task_success') {
+          return (
+              <div className="mt-4 bg-[#111] p-4 rounded-[22px] border border-emerald-500/20 flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/10 rounded-full"><CheckCircle className="w-5 h-5 text-emerald-500" /></div>
+                  <div><h3 className="font-bold text-white text-sm">{card.title}</h3><p className="text-[10px] text-white/50">{card.description}</p></div>
+              </div>
+          );
+      }
+      if (card.cardType === 'business_doc') {
+          return (
+            <div className="mt-4 bg-white text-black rounded-[22px] p-6 shadow-2xl printable-invoice w-full md:w-[400px]">
+                <div className="flex justify-between items-start mb-6 border-b border-black/10 pb-4">
+                    <div><h2 className="text-xl font-black">{card.data.docType === 'quote' ? 'عرض سعر' : 'فاتورة'}</h2><p className="text-[10px] text-gray-500 uppercase font-bold">#{Math.floor(Math.random() * 10000)}</p></div>
+                    <div className="text-right"><p className="font-bold text-xs">التاريخ</p><p className="text-[10px] text-gray-600 font-mono">{new Date().toLocaleDateString('en-EG')}</p></div>
+                </div>
+                <div className="mb-4"><p className="text-[10px] text-gray-400 uppercase font-bold mb-1">إلى</p><h3 className="text-lg font-bold">{card.data.clientName}</h3></div>
+                <table className="w-full text-right text-xs mb-4"><thead className="border-b border-black/10 text-gray-500"><tr><th className="py-2">الوصف</th><th className="py-2 text-left">القيمة</th></tr></thead><tbody>{card.data.items?.map((item: any, i: number) => (<tr key={i} className="border-b border-black/5 last:border-0"><td className="py-2 font-bold">{item.desc}</td><td className="py-2 text-left font-mono">{item.price} ج.م</td></tr>))}</tbody></table>
+                <div className="flex justify-between items-center p-3 rounded-xl mb-4 bg-black text-white"><span className="font-bold text-xs">الإجمالي</span><span className="font-black text-lg font-mono">{card.data.items?.reduce((s:number, i:any) => s + i.price, 0)} ج.م</span></div>
+                <button onClick={() => window.print()} className="w-full py-2 border-2 border-black rounded-xl font-black flex items-center justify-center gap-2 hover:bg-black hover:text-white transition-all text-xs print:hidden"><Printer className="w-3 h-3" /> طباعة / PDF</button>
+            </div>
+          );
+      }
+      if (card.cardType === 'mobile_agent_action') {
+          return (
+              <div className="mt-3 bg-indigo-900/20 border border-indigo-500/30 rounded-[22px] p-4 overflow-hidden relative w-full md:w-[320px]">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 animate-pulse"></div>
+                  <div className="flex items-start gap-3">
+                      <div className="p-2 bg-indigo-500/20 rounded-xl shrink-0">
+                          <Smartphone className="w-5 h-5 text-indigo-400" />
+                      </div>
+                      <div className="flex-1">
+                          <h4 className="text-xs font-bold text-indigo-300 mb-1">{card.title}</h4>
+                          <p className="text-[11px] text-white/70 leading-relaxed">{card.description}</p>
+                          <div className="mt-2 text-[10px] text-indigo-400/50 font-mono">
+                              [NATIVE_CALL: ShadowAgent.clickOnText("{card.target_text}")]
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          );
+      }
+      if (card.cardType === 'workspace_item') {
+          return (
+              <div className="mt-4 rounded-[22px] p-4 w-full md:w-[320px] bg-[#1a1a1a]/95 border border-white/20 shadow-xl overflow-hidden relative">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+                  <div className="flex items-center gap-3 mb-4">
+                      <div className="p-3 bg-white/5 rounded-xl text-emerald-400">
+                          {card.itemType === 'folder' ? <FolderOpen className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                          <h3 className="font-bold text-sm text-white truncate" dir="ltr">{card.title}</h3>
+                          <p className="text-[10px] text-emerald-500/80 mt-0.5 truncate">{card.description}</p>
+                      </div>
+                  </div>
+                  {card.itemType === 'file' && (
+                      <button onClick={() => setSelectedWorkspaceFile(card)} className="w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-xs">
+                          <ExternalLink className="w-3 h-3" /> فتح الملف
+                      </button>
+                  )}
+              </div>
+          );
+      }
+      return (
+        <div className={`mt-4 rounded-[22px] p-4 w-full md:w-[320px] bg-[#0f0f0f]/90 border border-white/10`}>
+            <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-xl bg-white/10`}>{getCardIcon(card.cardType, card.number)}</div>
+                <div><h3 className={`font-black text-xs text-white`}>{card.title}</h3><p className="text-[10px] text-white/50 truncate max-w-[200px]">{card.description}</p></div>
+            </div>
+            <button onClick={() => handleAppCardAction(card)} className={`w-full py-2.5 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-xs border bg-white/10 hover:bg-white/20 text-white border-white/10`}>
+                {card.cardType === 'internal_nav' ? <Layout className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
+                {card.cardType === 'internal_nav' ? 'فتح الصفحة' : 'فتح التطبيق'}
+            </button>
+        </div>
+      );
+  };
 
   const displayedMessages = messages.filter(m => {
     if ((m as any).isHidden) return false;
@@ -1429,13 +1504,11 @@ ${textContent.substring(0, 10000)}`;
                 {m.uiCards && m.uiCards.length > 0 ? (
                     <div className="flex flex-col gap-2 mt-4">
                         {m.uiCards.map((card, cIdx) => (
-                            <div key={cIdx}>
-                                <ChatCard card={card} onSend={(t) => handleSend(t, undefined, undefined, true)} onAppCardAction={handleAppCardAction} onSelectWorkspaceFile={setSelectedWorkspaceFile} />
-                            </div>
+                            <div key={cIdx}>{renderCard(card, cIdx)}</div>
                         ))}
                     </div>
                 ) : (
-                    m.uiCard && <ChatCard card={m.uiCard} onSend={(t) => handleSend(t, undefined, undefined, true)} onAppCardAction={handleAppCardAction} onSelectWorkspaceFile={setSelectedWorkspaceFile} /> // Fallback for legacy messages
+                    m.uiCard && renderCard(m.uiCard, 0) // Fallback for legacy messages
                 )}
 
                 {/* GROUNDING SOURCES (REAL-TIME INFO) */}

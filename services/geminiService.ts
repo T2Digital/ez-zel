@@ -6,8 +6,22 @@ import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
 
 // --- API KEY PREPARATION ---
-// Removed direct client use of API Key to fix critical security flaw.
-// All requests are now routed through the full-stack server endpoints.
+let _ai: GoogleGenAI | null = null;
+const getAI = () => {
+    if (!_ai) {
+        // Try multiple ways to get the key and trim it to remove accidental quotes/spaces
+        let rawKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY;
+        const key = rawKey ? rawKey.replace(/^["']|["']$/g, '').trim() : undefined;
+        
+        if (!key) {
+            console.error("GEMINI_API_KEY is not defined! Application AI features will fail. Please add it to your environment variables.");
+             _ai = new GoogleGenAI({ apiKey: "MISSING_KEY_ERROR_WILL_BE_THROWN_ON_USE" });
+             return _ai;
+        }
+        _ai = new GoogleGenAI({ apiKey: key });
+    }
+    return _ai;
+};
 
 // --- AUDIO CONTEXT MANAGEMENT ---
 let audioCtx: AudioContext | null = null;
@@ -294,18 +308,11 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // --- VECTOR MEMORY (SEMANTIC SEARCH) ---
 export const generateEmbedding = async (text: string): Promise<number[]> => {
     try {
-        const systemKeys = await shadowDB.getSystemKeys();
-        const result = await fetch('/api/gemini/embedContent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'text-embedding-004',
-                contents: text,
-                overrideApiKey: systemKeys?.geminiApiKey
-            })
+        const result = await getAI().models.embedContent({
+            model: 'gemini-embedding-2-preview',
+            contents: text
         });
-        const data = await result.json();
-        return data.embeddings?.[0]?.values || [];
+        return result.embeddings?.[0]?.values || [];
     } catch (e) {
         console.error("Embedding error:", e);
         return [];
@@ -448,18 +455,6 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
             };
         }
 
-        // Edge Fallback: Check network connectivity
-        if (typeof window !== 'undefined' && !window.navigator.onLine) {
-            isRequesting = false;
-            return {
-                text: "الظاهر إن النت عندك فصل أو ضعيف جداً يا صاحبي. أنا شغال دلوقتي على وضع (Edge Fallback) عشان أطمنك إن رسايلك بتتحفظ، ولما النت يسترجل ويرجع هرد عليك فوراً.",
-                toolActions: [],
-                groundingLinks: [],
-                isError: true,
-                edgeFallback: true
-            };
-        }
-
         for (const model of MODEL_CHAIN) {
             try {
                 if (lastError) {
@@ -467,28 +462,23 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                     await sleep(isQuota ? 2000 : 500); 
                 }
                 
-                const responseRes = await fetch('/api/gemini/generateContent', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: model,
-                        contents: [...cleanHistory.slice(-6), { role: 'user', parts: userParts }],
-                        overrideApiKey: systemKeys?.geminiApiKey,
-                        config: {
-                            systemInstruction: { parts: [{ text: systemInstruction }] },
-                            tools: tools,
-                            toolConfig: { includeServerSideToolInvocations: true },
-                            temperature: 0.7
-                        }
-                    })
+                const generatePromise = getAI().models.generateContent({
+                    model: model,
+                    contents: [...cleanHistory.slice(-6), { role: 'user', parts: userParts }],
+                    config: {
+                        systemInstruction: { parts: [{ text: systemInstruction }] },
+                        tools: tools,
+                        toolConfig: { includeServerSideToolInvocations: true },
+                        temperature: 0.7
+                    }
                 });
 
-                if (!responseRes.ok) {
-                    const errorData = await responseRes.json();
-                    throw new Error(errorData.error || responseRes.statusText);
-                }
-                
-                response = await responseRes.json();
+                // 60 seconds timeout
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                    setTimeout(() => reject(new Error('Request Timeout')), 60000);
+                });
+
+                response = await Promise.race([generatePromise, timeoutPromise]) as GenerateContentResponse;
 
                 if (response) break; 
             } catch (e: any) {
@@ -499,15 +489,6 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
 
         if (!response) {
             console.error("All models failed. Last error:", lastError);
-            if (lastError?.message?.includes('Failed to fetch') || lastError?.name === 'TypeError') {
-                return { 
-                    text: "الظاهر إن النت عندك فصل أو ضعيف جداً يا صاحبي. أنا شغال دلوقتي على وضع (Edge Fallback) عشان أطمنك إن رسايلك بتتحفظ، ولما النت يسترجل ويرجع هرد عليك فوراً.",
-                    toolActions: [],
-                    groundingLinks: [],
-                    isError: true,
-                    edgeFallback: true
-                };
-            }
             return { 
                 text: `معلش يا ريس، السيرفرات عليها ضغط شديد جداً دلوقتي. ممكن تديني دقيقة راحة ونجرب تاني؟ (${allErrors.join(' | ')})`, 
                 toolActions: [],
@@ -622,96 +603,17 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
     }
 };
 
-export const autoExtractMemories = async (message: string, history: any[], userId: string) => {
-    try {
-        const existingMemories = await shadowDB.getMemory(userId);
-        const existingStr = existingMemories.map(m => `[ID: ${m.id}] ${m.fact}`).join("\n");
-
-        const extractionPrompt = `
-        You are an advanced Vector DB Memory Agent. 
-        Analyze the new user message in the context of recent history and existing memories.
-        Identify ANY concrete, permanent facts about the user (e.g., name, business, preferences, routines).
-        
-        EXISTING MEMORIES:
-        ${existingStr || "None"}
-        
-        NEW MESSAGE:
-        "${message}"
-        
-        TASK:
-        1. If the message contains a NEW fact, add it to the "add" array.
-        2. If the message INVALIDATES or UPDATES an existing memory, add the NEW fact to the "add" array, and put the ID of the invalidated memory into the "remove" array.
-        3. Do NOT extract short-term intents or chit-chat.
-        
-        Return a valid JSON object matching this schema:
-        { "add": ["fact string 1", ...], "remove": [id1, id2, ...] }
-        If no changes are needed, return { "add": [], "remove": [] }.
-        `;
-
-        const systemKeys = await shadowDB.getSystemKeys();
-        const res = await fetch('/api/gemini/generateContent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'gemini-flash-latest', 
-                contents: [{ role: 'user', parts: [{ text: extractionPrompt }] }],
-                overrideApiKey: systemKeys?.geminiApiKey,
-                config: {
-                    temperature: 0.1,
-                    responseMimeType: "application/json"
-                }
-            })
-        });
-
-        if (!res.ok) return;
-        const data = await res.json();
-        const text = data.text;
-        if (text) {
-            const result = JSON.parse(text);
-            
-            // Remove old/invalidated facts
-            if (result.remove && Array.isArray(result.remove)) {
-                for (const idToRemove of result.remove) {
-                    await shadowDB.deleteFact(Number(idToRemove));
-                }
-            }
-
-            // Add new facts
-            if (result.add && Array.isArray(result.add)) {
-                for (const fact of result.add) {
-                    const embedding = await generateEmbedding(fact);
-                    await shadowDB.saveFact({
-                        userId,
-                        fact: fact,
-                        timestamp: Date.now(),
-                        embedding
-                    });
-                }
-            }
-        }
-    } catch(e) {
-        console.error("Vector DB Auto-extraction error:", e);
-    }
-};
-
 export const getShadowVoice = async (text: string, voice: string) => {
     try {
-        const systemKeys = await shadowDB.getSystemKeys();
-        const res = await fetch('/api/gemini/generateContent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: "gemini-3.1-flash-tts-preview",
-                contents: [{ parts: [{ text }] }],
-                overrideApiKey: systemKeys?.geminiApiKey,
-                config: { 
-                    responseModalities: ["AUDIO"], 
-                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Kore' : 'Fenrir' } } } 
-                }
-            })
+        const res = await getAI().models.generateContent({
+            model: "gemini-3.1-flash-tts-preview",
+            contents: [{ parts: [{ text }] }],
+            config: { 
+                responseModalities: [Modality.AUDIO], 
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Kore' : 'Fenrir' } } } 
+            }
         });
-        const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+        return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
     } catch (e) { 
         console.error("Gemini TTS Error:", e);
         return null; 
