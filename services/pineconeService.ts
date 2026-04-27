@@ -1,5 +1,4 @@
 import { shadowDB } from "./dbService";
-import { generateEmbedding } from "./geminiService";
 
 export const queryPinecone = async (queryEmbedding: number[], userId: string, topK: number = 5): Promise<string[]> => {
     try {

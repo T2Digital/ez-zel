@@ -348,8 +348,8 @@ export const memorizeFact = async (userId: string, factText: string) => {
     const id = await shadowDB.saveFact(factObj);
     
     if (memEmbedding.length > 0) {
-        // ID returned from IndexedDB might be a number, fallback to timestamp
-        await syncFactToPinecone(id || factObj.timestamp, factText, memEmbedding, userId);
+        const idNum = typeof id === 'number' ? id : factObj.timestamp;
+        await syncFactToPinecone(idNum, factText, memEmbedding, userId);
     }
 };
 
