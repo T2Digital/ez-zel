@@ -34,11 +34,12 @@ export const decryptData = (cipherText: string, userId: string): string => {
     } catch (e) {}
 
     // Fallback: try the old base64 custom decoding
-    const GLOBAL_SALT = "SHADOW_CORE_V1";
     try {
-        const oldDecrypted = decodeURIComponent(escape(atob(cipherText))).replace(GLOBAL_SALT + userId, '');
-        if (oldDecrypted && oldDecrypted !== cipherText && !oldDecrypted.includes("SHADOW_CORE_V1")) {
-            return oldDecrypted;
+        const oldDecrypted = decodeURIComponent(escape(atob(cipherText)));
+        if (oldDecrypted && oldDecrypted !== cipherText && oldDecrypted.includes("SHADOW_CORE_V1")) {
+            // Cut off the salt and anything after it (which is the userId)
+            const splitPoint = oldDecrypted.lastIndexOf("SHADOW_CORE_V1");
+            return oldDecrypted.substring(0, splitPoint);
         }
     } catch (e) {}
 

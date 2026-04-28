@@ -607,7 +607,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         }
 
         return { 
-            text: "الشبكة عندي فيها مشكلة عامة دلوقتي يا ريس. ممكن تجرب بعد دقيقة؟", 
+            text: `الشبكة عندي فيها مشكلة عامة دلوقتي يا ريس. ممكن تجرب بعد دقيقة؟ (${e.message || "Unknown error"})`, 
             toolActions: [],
             groundingLinks: [],
             isError: true 
