@@ -211,7 +211,11 @@ const App: React.FC = () => {
       };
 
       runBackgroundChecks();
-      return () => { clearTimeout(timeoutId); stopVoice(); };
+      return () => { 
+          clearTimeout(timeoutId); 
+          stopVoice(); 
+          shadowDB.unsubscribeSystem();
+      };
   }, [user?.email, user?.phone, isAuthReady]);
 
   // --- ADMIN NOTIFIER ---
@@ -282,10 +286,12 @@ const App: React.FC = () => {
       );
   }
 
+  const isAdminUser = user ? (user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'admin@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو'))) : false;
+
   const renderView = () => {
       if ((view === 'chat' || view === 'dashboard') && user) {
           if (isAppLocked) {
-              return <SecurityGate user={user} onUnlock={() => setIsAppLocked(false)} onLogout={handleLogout} />;
+              return <SecurityGate user={user} onUnlock={() => setIsAppLocked(false)} onLogout={isAdminUser ? () => setView('admin') : handleLogout} />;
           }
           
           if (view === 'dashboard') {
@@ -296,7 +302,7 @@ const App: React.FC = () => {
                       onClearAction={() => setDashboardAction(null)} 
                       onOpenChat={() => setView('chat')}
                       onOpenAffiliate={() => setView('affiliate')}
-                      onLogout={(user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو'))) ? () => setView('admin') : handleLogout} 
+                      onLogout={isAdminUser ? () => setView('admin') : handleLogout} 
                       onUpgrade={handleUpgradeRequest}
                       onStartAffiliate={handleStartAffiliate}
                   />
@@ -310,7 +316,7 @@ const App: React.FC = () => {
                     onUpgrade={handleUpgradeRequest} 
                     onBack={() => setView('dashboard')} 
                     onOpenAffiliate={() => setView('affiliate')}
-                    isAdmin={(user.email === 'TITO' || user.email === 'tito@shadow.com' || user.email === 'ahmed.atya.daif@gmail.com' || (user.tier === 'sovereign' && user.name.includes('تيتو')))}
+                    isAdmin={isAdminUser!}
                     onNavigateTo={handleChatNavigation}
                     incomingSystemMessage={latestSystemMessage} 
                 />

@@ -1,6 +1,7 @@
 import { db, auth } from './firebaseConfig';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, addDoc, orderBy, deleteDoc, writeBatch, limit } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, User } from "firebase/auth";
+import { encryptData, decryptData } from './cryptoService';
 
 export interface DBMessage {
   id?: number;
@@ -73,6 +74,16 @@ export interface UserProfile {
     subscriptionCycle?: 'monthly' | 'yearly';
     commissionPaid?: boolean;
     iotActions?: { [key: string]: string; };
+    personalKeys?: {
+        githubToken?: string;
+        vercelToken?: string;
+        binanceApiKey?: string;
+        binanceSecretKey?: string;
+        metaAccessToken?: string;
+        openaiApiKey?: string;
+        anthropicApiKey?: string;
+        geminiApiKey?: string;
+    };
     vaultState?: {
         contactsImported: boolean;
         biometricsEnabled: boolean;
@@ -171,12 +182,7 @@ export interface AgentProfile {
     lastUpdated: number;
 }
 
-// --- Dynamic Encryption ---
-const GLOBAL_SALT = "SHADOW_CORE_V1";
-const encryptData = (text: string, userId: string): string => btoa(unescape(encodeURIComponent(text + GLOBAL_SALT + userId)));
-const decryptData = (cipher: string, userId: string): string => {
-    try { return decodeURIComponent(escape(atob(cipher))).replace(GLOBAL_SALT + userId, ''); } catch (e) { return cipher; }
-};
+
 
 const sanitizeForFirestore = (data: any): any => {
     if (data === null || data === undefined) return null;
@@ -195,9 +201,9 @@ const sanitizeForFirestore = (data: any): any => {
 class ShadowDB {
   private dbName = 'ShadowCore_V20_Email'; 
   private version = 21; // Incremented version for schema change
-  private unsubscribeListeners: Function[] = [];
-  private systemUnsubscribe: Function[] = [];
-  private adminUnsubscribe: Function | null = null;
+  public unsubscribeListeners: Function[] = [];
+  public systemUnsubscribe: Function[] = [];
+  public adminUnsubscribe: Function | null = null;
   
   private syncQueue: { collectionName: string, data: any, subCollection?: string, userId?: string }[] = [];
   private syncTimer: any = null;
@@ -350,6 +356,18 @@ class ShadowDB {
                   const docSnap = await getDoc(doc(db, "users", cleanEmail));
                   if (docSnap.exists()) {
                       profile = docSnap.data() as UserProfile;
+                      if (profile.personalKeys) {
+                          profile.personalKeys = {
+                              githubToken: decryptData(profile.personalKeys.githubToken || '', cleanEmail),
+                              vercelToken: decryptData(profile.personalKeys.vercelToken || '', cleanEmail),
+                              binanceApiKey: decryptData(profile.personalKeys.binanceApiKey || '', cleanEmail),
+                              binanceSecretKey: decryptData(profile.personalKeys.binanceSecretKey || '', cleanEmail),
+                              metaAccessToken: decryptData(profile.personalKeys.metaAccessToken || '', cleanEmail),
+                              openaiApiKey: decryptData(profile.personalKeys.openaiApiKey || '', cleanEmail),
+                              anthropicApiKey: decryptData(profile.personalKeys.anthropicApiKey || '', cleanEmail),
+                              geminiApiKey: decryptData(profile.personalKeys.geminiApiKey || '', cleanEmail),
+                          };
+                      }
                       await this.saveProfile(profile, true);
                       this.downloadUserCloudData(cleanEmail);
                       return profile;
@@ -402,6 +420,11 @@ class ShadowDB {
   }
 
   // --- FIREBASE SYNC (USER SPECIFIC) ---
+  unsubscribeRealtime() {
+      this.unsubscribeListeners.forEach(unsub => unsub());
+      this.unsubscribeListeners = [];
+  }
+
   subscribeToRealtime(email: string, onUpdate: (table: string, payload: any) => void) {
       if (!db || email === 'GUEST' || !auth?.currentUser) return;
       try {
@@ -412,6 +435,20 @@ class ShadowDB {
               if (doc.exists()) {
                   const data = doc.data();
                   const profile: UserProfile = { ...data, email } as any; 
+                  
+                  if (profile.personalKeys) {
+                      profile.personalKeys = {
+                          githubToken: decryptData(profile.personalKeys.githubToken || '', email),
+                          vercelToken: decryptData(profile.personalKeys.vercelToken || '', email),
+                          binanceApiKey: decryptData(profile.personalKeys.binanceApiKey || '', email),
+                          binanceSecretKey: decryptData(profile.personalKeys.binanceSecretKey || '', email),
+                          metaAccessToken: decryptData(profile.personalKeys.metaAccessToken || '', email),
+                          openaiApiKey: decryptData(profile.personalKeys.openaiApiKey || '', email),
+                          anthropicApiKey: decryptData(profile.personalKeys.anthropicApiKey || '', email),
+                          geminiApiKey: decryptData(profile.personalKeys.geminiApiKey || '', email),
+                      };
+                  }
+                  
                   onUpdate('profiles', profile);
                   this.saveProfile(profile, true);
               }
@@ -435,6 +472,11 @@ class ShadowDB {
   }
 
   // --- GLOBAL SYSTEM SYNC (ALL USERS) ---
+  unsubscribeSystem() {
+      this.systemUnsubscribe.forEach(unsub => unsub());
+      this.systemUnsubscribe = [];
+  }
+
   subscribeToSystem(onPulse: (pulse: any) => void, onRules: (rules: string) => void) {
       if (!db || !auth?.currentUser) return; // Wait for auth
       this.systemUnsubscribe.forEach(unsub => unsub());
@@ -588,7 +630,11 @@ class ShadowDB {
     const secureMsg = { ...msg, id, text: textToSave, synced: true };
     const request = tx.objectStore('history').put(secureMsg);
     // Skip cloud sync for system messages to prevent resource-exhausted errors
-    if (!skipCloud && msg.userId !== 'GUEST' && msg.role !== 'system') this.pushToCloud('history', { ...msg, id, text: secureMsg.text }, 'history', msg.userId);
+    if (!skipCloud && msg.userId !== 'GUEST' && msg.role !== 'system') {
+        const cloudMsg = { ...msg, id, text: secureMsg.text };
+        delete cloudMsg.voiceData;
+        this.pushToCloud('history', cloudMsg, 'history', msg.userId);
+    }
     return new Promise((resolve, reject) => { 
         request.onsuccess = () => resolve(request.result as number); 
         request.onerror = () => reject(request.error);
@@ -606,7 +652,11 @@ class ShadowDB {
               if (data) {
                   const updatedData = { ...data, ...updates, synced: true };
                   store.put(updatedData);
-                  if (data.userId !== 'GUEST') this.pushToCloud('history', updatedData, 'history', data.userId);
+                  if (data.userId !== 'GUEST') {
+                      const cloudMsg = { ...updatedData };
+                      delete cloudMsg.voiceData;
+                      this.pushToCloud('history', cloudMsg, 'history', data.userId);
+                  }
               }
               resolve();
           };
@@ -715,14 +765,42 @@ class ShadowDB {
           await this.saveProfile(localProfile, true);
       }
 
+      if (localProfile && localProfile.personalKeys) {
+          localProfile.personalKeys = {
+              githubToken: decryptData(localProfile.personalKeys.githubToken || '', localProfile.email),
+              vercelToken: decryptData(localProfile.personalKeys.vercelToken || '', localProfile.email),
+              binanceApiKey: decryptData(localProfile.personalKeys.binanceApiKey || '', localProfile.email),
+              binanceSecretKey: decryptData(localProfile.personalKeys.binanceSecretKey || '', localProfile.email),
+              metaAccessToken: decryptData(localProfile.personalKeys.metaAccessToken || '', localProfile.email),
+              openaiApiKey: decryptData(localProfile.personalKeys.openaiApiKey || '', localProfile.email),
+              anthropicApiKey: decryptData(localProfile.personalKeys.anthropicApiKey || '', localProfile.email),
+              geminiApiKey: decryptData(localProfile.personalKeys.geminiApiKey || '', localProfile.email),
+          };
+      }
+
       return localProfile;
   }
 
   async saveProfile(profile: UserProfile, skipCloud = false) {
+      const secureProfile = { ...profile, email: profile.email.toLowerCase(), synced: true };
+      
+      if (secureProfile.personalKeys) {
+          secureProfile.personalKeys = {
+              githubToken: encryptData(secureProfile.personalKeys.githubToken || '', profile.email.toLowerCase()),
+              vercelToken: encryptData(secureProfile.personalKeys.vercelToken || '', profile.email.toLowerCase()),
+              binanceApiKey: encryptData(secureProfile.personalKeys.binanceApiKey || '', profile.email.toLowerCase()),
+              binanceSecretKey: encryptData(secureProfile.personalKeys.binanceSecretKey || '', profile.email.toLowerCase()),
+              metaAccessToken: encryptData(secureProfile.personalKeys.metaAccessToken || '', profile.email.toLowerCase()),
+              openaiApiKey: encryptData(secureProfile.personalKeys.openaiApiKey || '', profile.email.toLowerCase()),
+              anthropicApiKey: encryptData(secureProfile.personalKeys.anthropicApiKey || '', profile.email.toLowerCase()),
+              geminiApiKey: encryptData(secureProfile.personalKeys.geminiApiKey || '', profile.email.toLowerCase()),
+          };
+      }
+
       const dbLocal = await this.init();
       const tx = dbLocal.transaction('profiles', 'readwrite');
-      const request = tx.objectStore('profiles').put({ ...profile, email: profile.email.toLowerCase(), synced: true });
-      if (!skipCloud && profile.email !== 'GUEST') this.pushToCloud('profiles', profile);
+      const request = tx.objectStore('profiles').put(secureProfile);
+      if (!skipCloud && profile.email !== 'GUEST') this.pushToCloud('profiles', secureProfile);
       return new Promise((resolve, reject) => { request.onsuccess = () => resolve(true); request.onerror = () => reject(request.error); });
   }
 
@@ -884,10 +962,8 @@ class ShadowDB {
   }
 
   async saveSystemKeys(keys: SystemKeys) {
-      try {
-          if (!db) return;
-          await setDoc(doc(db, 'system', 'keys'), keys, { merge: true });
-      } catch (e) { console.error("Error saving system keys", e); }
+      if (!db) return;
+      await setDoc(doc(db, 'system', 'keys'), keys, { merge: true });
   }
 
   async saveContact(contact: DBContact) {

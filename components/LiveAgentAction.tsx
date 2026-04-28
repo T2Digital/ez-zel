@@ -1,16 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Terminal, CheckCircle, XCircle, Loader2, Play } from 'lucide-react';
-import { shadowDB, SystemKeys } from '../services/dbService';
+import { shadowDB, SystemKeys, UserProfile } from '../services/dbService';
 
 interface Props {
     actionType: string;
     args: any;
+    userProfile?: UserProfile;
     onComplete?: (resultText: string) => void;
 }
 
-const LiveAgentAction: React.FC<Props> = ({ actionType, args, onComplete }) => {
+const LiveAgentAction: React.FC<Props> = ({ actionType, args, userProfile, onComplete }) => {
     const [logs, setLogs] = useState<string[]>([]);
-    const [status, setStatus] = useState<'pending' | 'running' | 'success' | 'error'>('pending');
+    const [status, setStatus] = useState<'pending' | 'running' | 'success' | 'error' | 'awaiting_confirmation'>('pending');
     const hasRun = useRef(false);
 
     const addLog = (msg: string) => {
@@ -20,16 +21,47 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args, onComplete }) => {
     useEffect(() => {
         if (hasRun.current) return;
         hasRun.current = true;
+        
+        if (['auto_deployer', 'crypto_trader', 'social_poster'].includes(actionType)) {
+            setStatus('awaiting_confirmation');
+            // Do not execute automatically. Wait for user.
+        } else {
+            executeAction();
+        }
+    }, [actionType]);
+
+    const handleApprove = () => {
+        setStatus('pending');
         executeAction();
-    }, []);
+    };
+
+    const handleReject = () => {
+        setStatus('error');
+        addLog("تم إلغاء التنفيذ من قبل المستخدم (Rejected by User).");
+        if (onComplete) onComplete("استجابة المنفذ: تم إلغاء التنفيذ بناءً على رغبتك.");
+    };
 
     const executeAction = async () => {
         setStatus('running');
         addLog(`Initializing True Autonomous Mode: [${actionType}]...`);
 
         try {
-            const keys = await shadowDB.getSystemKeys();
-            if (!keys) throw new Error("مفاتيح النظام مفقودة (System Keys Missing). قم بإضافتها في صفحة إعدادات الأدمن.");
+            const systemKeys = await shadowDB.getSystemKeys();
+            
+            // Combine System Keys with User's Personal Keys
+            // Personal keys take precedence over System keys
+            const keys: any = { ...systemKeys };
+            if (userProfile?.personalKeys) {
+                if (userProfile.personalKeys.githubToken) keys.githubToken = userProfile.personalKeys.githubToken;
+                if (userProfile.personalKeys.vercelToken) keys.vercelToken = userProfile.personalKeys.vercelToken;
+                if (userProfile.personalKeys.binanceApiKey) keys.binanceApiKey = userProfile.personalKeys.binanceApiKey;
+                if (userProfile.personalKeys.binanceSecretKey) keys.binanceSecretKey = userProfile.personalKeys.binanceSecretKey;
+                if (userProfile.personalKeys.metaAccessToken) keys.metaToken = userProfile.personalKeys.metaAccessToken;
+            }
+
+            if (!keys.githubToken && !keys.vercelToken && !keys.binanceApiKey && !keys.metaToken) {
+                throw new Error("مفاتيح النظام مفقودة. يرجى إضافتها من قائمة مفاتيحي الخاصة (الترس أعلى الشاشة) أو من صفحة الإعدادات.");
+            }
 
             let resultData = "";
 
@@ -254,7 +286,30 @@ const LiveAgentAction: React.FC<Props> = ({ actionType, args, onComplete }) => {
                 {status === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
             </div>
             
-            <div className="max-h-60 overflow-y-auto space-y-1 text-[11px] leading-relaxed custom-scrollbar">
+            {status === 'awaiting_confirmation' && (
+                <div className="bg-[#0f0f0f] border border-purple-500/30 rounded-xl p-4 mb-4 shadow-[0_0_20px_rgba(168,85,247,0.15)] font-['Cairo'] text-right" dir="rtl">
+                    <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        مطلوب تأكيد المهندس/المدير
+                    </h3>
+                    <p className="text-xs text-white/70 mb-4 whitespace-normal font-sans">
+                        أنا جاهز لتنفيذ هذه العملية الحساسة ({actionType}). هل تريدني أن أنفذ الآن فوراً؟
+                    </p>
+                    <div className="flex bg-[#1a1a1a] rounded-lg p-3 text-[10px] text-white/50 mb-4 truncate text-left" dir="ltr">
+                        {JSON.stringify(args).substring(0, 50)}...
+                    </div>
+                    <div className="flex justify-end gap-3 font-sans">
+                        <button onClick={handleReject} className="px-4 py-2 rounded-lg bg-white/5 text-white/50 hover:bg-red-500/20 hover:text-red-400 transition-all text-xs font-bold">
+                            تجاهل
+                        </button>
+                        <button onClick={handleApprove} className="px-5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-all font-bold text-xs shadow-lg shadow-emerald-900/30">
+                            صادق على التنفيذ
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="max-h-60 overflow-y-auto space-y-1 text-[11px] leading-relaxed custom-scrollbar text-left" dir="ltr">
                 {logs.map((log, i) => (
                     <div key={i} className={`${log.includes('ERROR') ? 'text-red-400' : log.includes('SUCCESS') ? 'text-emerald-400' : 'text-emerald-500/80'}`}>
                         {log}

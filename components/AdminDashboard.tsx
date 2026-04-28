@@ -125,12 +125,27 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
           shadowDB.subscribeToAdminFeed((updated) => { if(updated.length > 0) setProfiles(updated); }, (updated) => { if(updated.length > 0) setFeedbacks(updated.reverse()); });
       };
       initData();
+
+      return () => {
+          if (shadowDB.adminUnsubscribe) {
+              shadowDB.adminUnsubscribe();
+              shadowDB.adminUnsubscribe = undefined;
+          }
+      };
   }, []); 
 
   const handleSaveSystemKeys = async () => {
       setIsSavingSystemKeys(true);
-      await shadowDB.saveSystemKeys(systemKeys as any);
-      setIsSavingSystemKeys(false);
+      try {
+          const cleanKeys = Object.fromEntries(Object.entries(systemKeys).filter(([_, v]) => v !== undefined));
+          await shadowDB.saveSystemKeys(cleanKeys as any);
+          alert("تم حفظ مفاتيح النظام بنجاح");
+      } catch (err: any) {
+          console.error(err);
+          alert("حدث خطأ أثناء الحفظ. تأكد من صلاحياتك: " + err.message);
+      } finally {
+          setIsSavingSystemKeys(false);
+      }
   };
 
   const handleCreateCoupon = async () => {
@@ -217,7 +232,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   const filteredProfiles = realProfiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.email.toLowerCase().includes(searchQuery.toLowerCase()));
   const pendingRequests = realProfiles.filter(p => p.status === 'pending' && p.paymentProof);
   const activeMembers = filteredProfiles.filter(p => p.status === 'active');
-  const marketersList = filteredProfiles.filter(p => p.affiliate?.isMarketer);
+  const marketersList = filteredProfiles.filter(p => p.affiliate && (p.affiliate.isMarketer || (p.affiliate.payoutHistory && p.affiliate.payoutHistory.length > 0) || p.affiliate.referralCode));
   
   if (activeView === 'chat') return <div className="h-screen w-full bg-black"><ChatInterface currentUser={adminProfile} onUpgrade={() => {}} onBack={() => setActiveView('requests')} isAdmin={true} /></div>;
 

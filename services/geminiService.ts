@@ -189,7 +189,7 @@ const actionTools: FunctionDeclaration[] = [
     { name: "click_on_screen", description: "المنفذ: الضغط على زر أو نص محدد في شاشة الموبايل (يعمل فقط في تطبيق الموبايل الأصلي).", parameters: { type: Type.OBJECT, properties: { target_text: { type: Type.STRING, description: "النص المكتوب على الزر المراد الضغط عليه (مثل: تأكيد، Skip، إرسال)" } }, required: ["target_text"] } },
     { name: "vision_analyzer", description: "المحلل: تحليل الصور المرفقة بدقة عالية واستخراج النصوص أو وصف المشهد.", parameters: { type: Type.OBJECT, properties: { image_description: { type: Type.STRING, description: "وصف تفصيلي للصورة أو النص المستخرج منها" } }, required: ["image_description"] } },
     { name: "device_control", description: "التحكم بالهاتف: تنفيذ إجراءات حقيقية على هاتف المستخدم مثل الاهتزاز أو قراءة حساسات الهاتف.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["vibrate_heavy", "vibrate_success", "get_status"] } }, required: ["action"] } },
-    { name: "auto_deployer", description: "المهندس: أداة النشر الحقيقي وقراءة/تعديل الأكواد على GitHub.", parameters: { type: Type.OBJECT, properties: { mode: { type: Type.STRING, enum: ["create_repo", "push_files", "read_file", "update_file"] }, repository_name: { type: Type.STRING, description: "اسم الـ Repository." }, file_path: { type: Type.STRING, description: "مسار الملف زي src/App.tsx. يُستخدم في حالة read_file أو update_file" }, file_content: { type: Type.STRING, description: "محتوى الملف. يُستخدم في update_file" }, files: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { path: { type: Type.STRING }, content: { type: Type.STRING } } }, description: "يُستخدم لنشر عدة ملفات مرة واحدة في push_files" } }, required: ["mode", "repository_name"] } },
+    { name: "auto_deployer", description: "المهندس: أداة النشر الحقيقي وقراءة/تعديل الأكواد على GitHub. تحذير خطير: لا تستخدم هذه الأداة للعب في الأكواد أو المستودعات أبداً بدون أمر تفصيلي ومباشر من المستخدم بأنه يريد النشر أو التعديل. لا تستعملها للإجابة عن أسئلة سطحية عن المفاتيح.", parameters: { type: Type.OBJECT, properties: { mode: { type: Type.STRING, enum: ["create_repo", "push_files", "read_file", "update_file"] }, repository_name: { type: Type.STRING, description: "اسم الـ Repository." }, file_path: { type: Type.STRING, description: "مسار الملف زي src/App.tsx. يُستخدم في حالة read_file أو update_file" }, file_content: { type: Type.STRING, description: "محتوى الملف. يُستخدم في update_file" }, files: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { path: { type: Type.STRING }, content: { type: Type.STRING } } }, description: "يُستخدم لنشر عدة ملفات مرة واحدة في push_files" } }, required: ["mode", "repository_name"] } },
     { name: "crypto_trader", description: "المتداول: أداة للاتصال بمنصة التداول (Binance) لعرض الأسعار أو فتح صفقات (تحتاج API Key الماستر).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["market_buy", "market_sell", "limit_buy", "limit_sell", "check_price"] }, symbol: { type: Type.STRING, description: "مثل BTCUSDT" }, amount: { type: Type.NUMBER }, price: { type: Type.NUMBER, description: "في حالة أن الطلب limit" } }, required: ["action", "symbol"] } },
     { name: "social_poster", description: "السوشيالي: نشر بوست حقيقي تلقائياً على صفحة فيسبوك أو انستجرام.", parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING, description: "نص البوست المراد نشره" } }, required: ["message"] } },
     { name: "link_reader", description: "الباحث/المحقق: الدخول إلى رابط (URL) لصفحة ويب، مقال، أو موقع لشفط وقراءة النص الموجود بداخله.", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING, description: "رابط الصفحة المراد سحب محتواها للحصول على نصها" } }, required: ["url"] } },
@@ -200,7 +200,7 @@ export const getAvailableTools = async (userProfile?: UserProfile): Promise<Func
     let tools = [...actionTools];
     
     // Check permissions
-    const isAdmin = userProfile?.email === 'admin@shadow.com';
+    const isAdmin = userProfile?.email === 'admin@shadow.com' || userProfile?.email === 'ahmed.atya.daif@gmail.com' || userProfile?.tier === 'sovereign';
     const powers = userProfile?.agentPowers || {};
 
     if (!isAdmin && !powers.developer) tools = tools.filter(t => t.name !== 'auto_deployer' && t.name !== 'system_terminal');
@@ -288,7 +288,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     7. WORKSPACE (OPENVIRKING SLM): You MUST use the 'workspace_manager' tool. You now operate on an L0/L1/L2 Layered Memory Architecture (Shadow Layered Memory - SLM). You do not rely on massive flat memory contexts. You create 'folders' for context, and index files as L0 (summaries/metadata), L1 (headers/sections), and L2 (full content). Whenever requested to research or save context, format it via 'workspace_manager' as L0/L1/L2.
     8. SELF-EVOLUTION: You can permanently change your own behavior by using the 'update_core_rules' tool. When the user asks you to change your behavior, add a new rule, or modify how you act, use this tool to rewrite your CURRENT CORE RULES.
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
-    10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready in the system. Use 'auto_deployer' to deploy code to Vercel/GitHub, 'crypto_trader' to execute trades on Binance, and 'social_poster' to post to Meta pages. Treat these as REAL actions. You are powered by an OpenClaw AI Router and can dynamically execute using Nvidia NIM (e.g., Llama-3) based on system settings.
+    10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready. Use 'auto_deployer' for GitHub ONLY when the user gives EXPLICIT, detailed commands to modify repos or deploy. Never use it just to test keys or answer superficial questions. Prioritize asking for confirmation before any repo action. Treat these as REAL actions.
     11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
     12. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
     
@@ -303,8 +303,10 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
 // --- UPDATED MODEL CHAIN (USER REQUESTED) ---
 const MODEL_CHAIN = [
     "gemini-flash-latest",               // 1. Primary
-    "gemini-3.1-flash-lite-preview",     // 2. Secondary
-    "gemini-3-flash-preview"             // 3. Last Resort
+    "gemini-1.5-flash",                  // 2. Standard Fallback 1
+    "gemini-1.5-pro",                    // 3. Heavy Fallback 2
+    "gemini-3.1-flash-lite-preview",     // 4. Secondary Experimental
+    "gemini-3-flash-preview"             // 5. Last Resort
 ];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

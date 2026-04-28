@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool, Layout, Calculator, Terminal, Cloud, CloudOff, AlertTriangle, FolderOpen } from 'lucide-react';
+import { Send, Mic, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool, Layout, Calculator, Terminal, Cloud, CloudOff, AlertTriangle, FolderOpen, Key } from 'lucide-react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { App as CapacitorApp } from '@capacitor/app';
 import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, memorizeFact } from '../services/geminiService';
@@ -111,6 +111,16 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastSystemMessageIdRef = useRef<number | undefined>(undefined);
+
+  const [showPersonalKeys, setShowPersonalKeys] = useState(false);
+  const [personalKeys, setPersonalKeys] = useState(currentUser.personalKeys || {});
+
+  const handleSavePersonalKeys = async () => {
+      const updatedUser = { ...currentUser, personalKeys };
+      await shadowDB.saveProfile(updatedUser);
+      setShowPersonalKeys(false);
+      alert('تم حفظ مفاتيحك الخاصة بنجاح!');
+  };
   const isSubmittingRef = useRef(false);
   
   const lastSpeechTimeRef = useRef<number>(0);
@@ -241,7 +251,10 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
               }
           });
       }
-      return () => { isMounted = false; };
+      return () => { 
+          isMounted = false; 
+          shadowDB.unsubscribeRealtime();
+      };
   }, [currentUser.email, page]);
 
   useEffect(() => {
@@ -1120,7 +1133,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
           }
 
           const refCode = currentUser.affiliate?.referralCode || '';
-          const referralLink = refCode ? `\n\nاشترك في الظل الرقمي واعمل نسختك من الرابط ده:\n${window.location.origin}?ref=${refCode}` : '';
+          const referralLink = refCode ? `\n\nاشترك في الظل الرقمي واعمل نسختك من الرابط ده:\nhttps://Ez-zel.vercel.app?ref=${refCode}` : '';
           const shareText = `اسمع رد الظل 🤖🔥${referralLink}`;
 
           const shareObj = { title: 'صوت الظل', text: shareText, files: [parsedFile] };
@@ -1304,7 +1317,7 @@ ${textContent.substring(0, 10000)}`;
 
   const renderCard = (card: any, i: number) => {
       if (card.cardType === 'live_action') {
-          return <LiveAgentAction key={i} actionType={card.actionType} args={card.args} onComplete={(resultText) => {
+          return <LiveAgentAction key={i} actionType={card.actionType} args={card.args} userProfile={currentUser} onComplete={(resultText) => {
               handleSend(resultText, undefined, undefined, true);
           }} />;
       }
@@ -1568,6 +1581,9 @@ ${textContent.substring(0, 10000)}`;
                     <button onClick={hasVoiceSignature ? handleClearVoice : handleEnrollVoice} className={`p-2 rounded-full border transition-all ${hasVoiceSignature ? 'bg-purple-500/10 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`} title={hasVoiceSignature ? "مسح البصمة الصوتية" : "إعداد البصمة الصوتية"}>
                         <Shield className="w-4 h-4" />
                     </button>
+                    <button onClick={() => setShowPersonalKeys(true)} className="p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all select-none" title="مفاتيحي الخاصة">
+                        <Key className="w-4 h-4" />
+                    </button>
                     <button onClick={() => setIsMuted(!isMuted)} className={`p-2 rounded-full border transition-all ${isMuted ? 'bg-white/5 border-white/10 text-white/30' : 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'}`}>{isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}</button>
                 </>
             )}
@@ -1757,6 +1773,54 @@ ${textContent.substring(0, 10000)}`;
                       <pre className="text-white/80 font-mono text-sm whitespace-pre-wrap leading-relaxed">
                           {selectedWorkspaceFile.content || '// لا يوجد محتوى'}
                       </pre>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Modals */}
+      {showPersonalKeys && (
+          <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in zoom-in">
+              <div className="w-full max-w-2xl bg-[#080808] border border-purple-500/20 rounded-[40px] p-8 relative shadow-[0_0_50px_rgba(168,85,247,0.1)] overflow-y-auto max-h-[90vh] scrollbar-hide font-['Cairo']" dir="rtl">
+                  <button onClick={() => setShowPersonalKeys(false)} className="absolute top-6 left-6 p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors"><X className="w-5 h-5 text-white/50" /></button>
+                  <div className="flex items-center gap-4 mb-6">
+                      <div className="p-3 bg-purple-900/20 rounded-xl border border-purple-500/30">
+                          <Key className="w-8 h-8 text-purple-400" />
+                      </div>
+                      <div>
+                          <h2 className="text-2xl font-black text-white">مفاتيحي الخاصة</h2>
+                          <p className="text-purple-200/50 text-xs font-bold uppercase tracking-widest">Personal API Keys</p>
+                      </div>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/10 mb-6 text-sm text-white/70">
+                      ضيف مفاتيحك الخاصة هنا عشان الظل يقدر يستخدم حساباتك في النشر، التداول، والبرمجة بدلاً من استخدام مفاتيح النظام العامة.
+                  </div>
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">GitHub Token (للنشر على جت هاب)</label>
+                          <input type="password" value={personalKeys.githubToken || ''} onChange={(e) => setPersonalKeys(prev => ({...prev, githubToken: e.target.value}))} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-purple-500 outline-none" placeholder="ghp_..." />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">Vercel Token (لرفع المشاريع)</label>
+                          <input type="password" value={personalKeys.vercelToken || ''} onChange={(e) => setPersonalKeys(prev => ({...prev, vercelToken: e.target.value}))} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-purple-500 outline-none" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                              <label className="block text-xs font-bold text-white/50 mb-1">Binance API Key</label>
+                              <input type="password" value={personalKeys.binanceApiKey || ''} onChange={(e) => setPersonalKeys(prev => ({...prev, binanceApiKey: e.target.value}))} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-purple-500 outline-none" />
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold text-white/50 mb-1">Binance Secret</label>
+                              <input type="password" value={personalKeys.binanceSecretKey || ''} onChange={(e) => setPersonalKeys(prev => ({...prev, binanceSecretKey: e.target.value}))} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-purple-500 outline-none" />
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">Meta Access Token (لنشر البوستات)</label>
+                          <input type="password" value={personalKeys.metaAccessToken || ''} onChange={(e) => setPersonalKeys(prev => ({...prev, metaAccessToken: e.target.value}))} className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-purple-500 outline-none" />
+                      </div>
+                      <button onClick={handleSavePersonalKeys} className="w-full mt-4 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20">
+                          حفظ المفاتيح الخاصة
+                      </button>
                   </div>
               </div>
           </div>

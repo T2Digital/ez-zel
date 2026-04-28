@@ -11,7 +11,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && (request.auth.token.email.lower() == "admin@shadow.com");
+      return isAuthenticated() && (request.auth.token.email.lower() == "admin@shadow.com" || request.auth.token.email.lower() == "ahmed.atya.daif@gmail.com" || (exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.tier == 'sovereign'));
     }
 
     match /users/{email} {
