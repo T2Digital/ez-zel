@@ -1,28 +1,53 @@
+export interface VoiceProfile {
+    id: string;
+    name: string;
+    data: number[];
+}
+
 export class VoiceBiometrics {
     private audioContext: AudioContext | null = null;
     private analyser: AnalyserNode | null = null;
-    private signature: number[] | null = null;
+    private signatures: VoiceProfile[] = [];
 
     constructor() {
-        this.loadSignature();
+        this.loadSignatures();
     }
 
-    private loadSignature() {
-        const saved = localStorage.getItem('voice_signature');
+    private loadSignatures() {
+        const saved = localStorage.getItem('voice_signatures');
         if (saved) {
             try {
-                this.signature = JSON.parse(saved);
+                this.signatures = JSON.parse(saved);
             } catch (e) {
-                console.error("Failed to parse voice signature", e);
+                console.error("Failed to parse voice signatures", e);
+            }
+        } else {
+            // Migration from old single signature format
+            const oldSaved = localStorage.getItem('voice_signature');
+            if (oldSaved) {
+                try {
+                    const data = JSON.parse(oldSaved);
+                    this.signatures = [{ id: 'default', name: 'البصمة الأساسية', data }];
+                    this.saveSignatures();
+                    localStorage.removeItem('voice_signature');
+                } catch(e){}
             }
         }
     }
 
-    public hasSignature(): boolean {
-        return this.signature !== null;
+    private saveSignatures() {
+        localStorage.setItem('voice_signatures', JSON.stringify(this.signatures));
     }
 
-    public async enroll(stream: MediaStream, durationMs: number = 3000): Promise<boolean> {
+    public getSignatures(): VoiceProfile[] {
+        return this.signatures;
+    }
+
+    public hasSignature(): boolean {
+        return this.signatures.length > 0;
+    }
+
+    public async enroll(stream: MediaStream, name: string = 'بصمة جديدة', durationMs: number = 3000): Promise<boolean> {
         return new Promise((resolve) => {
             this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
             this.analyser = this.audioContext.createAnalyser();
@@ -46,9 +71,14 @@ export class VoiceBiometrics {
             setTimeout(() => {
                 clearInterval(interval);
                 // Average the data to create a frequency profile
-                const signature = Array.from(accumulatedData).map(val => val / frames);
-                this.signature = signature;
-                localStorage.setItem('voice_signature', JSON.stringify(signature));
+                const signatureData = Array.from(accumulatedData).map(val => val / frames);
+                
+                this.signatures.push({
+                    id: Date.now().toString(),
+                    name,
+                    data: signatureData
+                });
+                this.saveSignatures();
                 
                 source.disconnect();
                 if (this.audioContext?.state !== 'closed') {
@@ -59,8 +89,8 @@ export class VoiceBiometrics {
         });
     }
 
-    public async verify(stream: MediaStream, durationMs: number = 2000): Promise<number> {
-        if (!this.signature) return 1; // If no signature is set, allow by default
+    public async verify(stream: MediaStream, durationMs: number = 2000): Promise<{ verified: boolean, bestMatch: VoiceProfile | null, maxSimilarity: number }> {
+        if (this.signatures.length === 0) return { verified: true, bestMatch: null, maxSimilarity: 1 }; // Allow by default if no signatures
 
         return new Promise((resolve) => {
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -86,14 +116,22 @@ export class VoiceBiometrics {
                 clearInterval(interval);
                 const currentSignature = Array.from(accumulatedData).map(val => val / frames);
                 
-                // Calculate Cosine Similarity between enrolled signature and current signature
-                const similarity = this.cosineSimilarity(this.signature!, currentSignature);
+                let maxSimilarity = 0;
+                let bestMatch: VoiceProfile | null = null;
+
+                for (const sig of this.signatures) {
+                    const similarity = this.cosineSimilarity(sig.data, currentSignature);
+                    if (similarity > maxSimilarity) {
+                        maxSimilarity = similarity;
+                        bestMatch = sig;
+                    }
+                }
                 
                 source.disconnect();
                 if (ctx.state !== 'closed') {
                     ctx.close();
                 }
-                resolve(similarity);
+                resolve({ verified: maxSimilarity >= 0.85, bestMatch, maxSimilarity });
             }, durationMs);
         });
     }
@@ -111,9 +149,22 @@ export class VoiceBiometrics {
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
     
-    public clearSignature() {
-        this.signature = null;
-        localStorage.removeItem('voice_signature');
+    public clearSignatures() {
+        this.signatures = [];
+        this.saveSignatures();
+    }
+    
+    public deleteSignature(id: string) {
+        this.signatures = this.signatures.filter(s => s.id !== id);
+        this.saveSignatures();
+    }
+    
+    public updateSignatureName(id: string, name: string) {
+        const sig = this.signatures.find(s => s.id === id);
+        if (sig) {
+            sig.name = name;
+            this.saveSignatures();
+        }
     }
 }
 

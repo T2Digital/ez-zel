@@ -67,8 +67,8 @@ export const stopVoice = async () => {
 };
 
 // --- ROBUST NATIVE TTS ENGINE ---
-export const speakNative = async (text: string, onEnd?: () => void) => {
-    const cleanText = text.replace(/[*_#\-`]/g, ' ').replace(/http\\S+/g, '').trim();
+export const speakNative = async (text: string, voice: string = 'male', onEnd?: () => void) => {
+    const cleanText = text.replace(/[*_#\-`]/g, ' ').replace(/http\S+/g, '').trim();
     if (!cleanText || cleanText.length < 1) { onEnd?.(); return; }
 
     if (Capacitor.isNativePlatform()) {
@@ -77,7 +77,7 @@ export const speakNative = async (text: string, onEnd?: () => void) => {
                 text: cleanText,
                 lang: 'ar-EG',
                 rate: 1.0,
-                pitch: 1.0,
+                pitch: voice === 'female' ? 1.2 : 1.0,
                 volume: 1.0,
                 category: 'ambient',
             });
@@ -101,9 +101,26 @@ export const speakNative = async (text: string, onEnd?: () => void) => {
     window.shadowUtterance = utter; // Global ref to prevent GC
 
     utter.rate = 1.0; 
-    utter.pitch = 1.0;
+    utter.pitch = voice === 'female' ? 1.2 : 1.0; // Slightly higher pitch for female as fallback
     utter.lang = 'ar-EG'; 
     utter.volume = 1.0;
+
+    // Try finding an appropriate voice
+    const voices = window.speechSynthesis.getVoices();
+    const arVoices = voices.filter(v => v.lang.includes('ar'));
+    
+    // Attempt to match gender if possible based on voice name (some engines include gender in name)
+    if (arVoices.length > 0) {
+        if (voice === 'female') {
+            const femaleVoice = arVoices.find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira'));
+            if (femaleVoice) utter.voice = femaleVoice;
+            else utter.voice = arVoices[0];
+        } else {
+            const maleVoice = arVoices.find(v => v.name.toLowerCase().includes('male') && !v.name.toLowerCase().includes('female'));
+            if (maleVoice) utter.voice = maleVoice;
+            else utter.voice = arVoices[arVoices.length - 1]; // Often the last is alternate or first is default
+        }
+    }
 
     // 4. Handlers
     utter.onend = () => {
@@ -177,7 +194,7 @@ export const speakNative = async (text: string, onEnd?: () => void) => {
 // --- TOOLS DEFINITION ---
 const actionTools: FunctionDeclaration[] = [
     { name: "accountant_access", description: "المحاسب: الاستعلام عن الأرباح والعمولات", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["check_earnings", "revenue_report"] } }, required: ["action"] } },
-    { name: "generate_business_document", description: "المحامي: إنشاء عقود وفواتير قانونية", parameters: { type: Type.OBJECT, properties: { docType: { type: Type.STRING, enum: ["invoice", "quote", "contract"] }, clientName: { type: Type.STRING }, items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { desc: { type: Type.STRING }, price: { type: Type.NUMBER } } } }, contractBody: { type: Type.STRING } }, required: ["docType", "clientName"] } },
+    { name: "generate_business_document", description: "المحامي/الكاتب: إنشاء عقود وفواتير قانونية وسير ذاتية (CV)", parameters: { type: Type.OBJECT, properties: { docType: { type: Type.STRING, enum: ["invoice", "quote", "contract", "cv"] }, clientName: { type: Type.STRING }, items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { desc: { type: Type.STRING }, price: { type: Type.NUMBER } } } }, contractBody: { type: Type.STRING } }, required: ["docType", "clientName"] } },
     { name: "app_control", description: "المنفذ: فتح تطبيقات مثل واتساب، يوتيوب، أوبر.", parameters: { type: Type.OBJECT, properties: { target: { type: Type.STRING }, action_type: { type: Type.STRING }, detail: { type: Type.STRING } }, required: ["target", "action_type"] } },
     { name: "schedule_reminder", description: "المنفذ: ضبط تذكير.", parameters: { type: Type.OBJECT, properties: { task: { type: Type.STRING }, time_description: { type: Type.STRING }, delay_seconds: { type: Type.NUMBER } }, required: ["task", "time_description", "delay_seconds"] } },
     { name: "run_autonomous_agent", description: "المنفذ المستقل (Autonomous Agent): استخدم هذه الأداة لإنشاء عميل ذكاء اصطناعي يعمل في الخلفية لساعات طويلة (للبحث المعمق، تتبع المهام، أو المراقبة) دون تعطيل المحادثة الحالية.", parameters: { type: Type.OBJECT, properties: { prompt_for_agent: { type: Type.STRING } }, required: ["prompt_for_agent"] } },
@@ -193,7 +210,8 @@ const actionTools: FunctionDeclaration[] = [
     { name: "crypto_trader", description: "المتداول: أداة للاتصال بمنصة التداول (Binance) لعرض الأسعار أو فتح صفقات (تحتاج API Key الماستر).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["market_buy", "market_sell", "limit_buy", "limit_sell", "check_price"] }, symbol: { type: Type.STRING, description: "مثل BTCUSDT" }, amount: { type: Type.NUMBER }, price: { type: Type.NUMBER, description: "في حالة أن الطلب limit" } }, required: ["action", "symbol"] } },
     { name: "social_poster", description: "السوشيالي: نشر بوست حقيقي تلقائياً على صفحة فيسبوك أو انستجرام.", parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING, description: "نص البوست المراد نشره" } }, required: ["message"] } },
     { name: "link_reader", description: "الباحث/المحقق: الدخول إلى رابط (URL) لصفحة ويب، مقال، أو موقع لشفط وقراءة النص الموجود بداخله.", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING, description: "رابط الصفحة المراد سحب محتواها للحصول على نصها" } }, required: ["url"] } },
-    { name: "create_dynamic_plugin", description: "المخترع: أداة لكتابة كود أداة جديدة (Plugin) للظل ليستخدمها في المهام المعقدة ويتم حفظها آلياً.", parameters: { type: Type.OBJECT, properties: { name: { type: Type.STRING, description: "اسم الأداة (مثال: email_sender)" }, description: { type: Type.STRING, description: "وصف الأداة وماذا تفعل" }, parametersSchema: { type: Type.STRING, description: "JSON string representing the required parameters properties object e.g. { \"to\": {\"type\": \"STRING\"} }" }, jsCode: { type: Type.STRING, description: "كود الجافاسكريبت الذي سيتم تنفيذه. الكود يجب أن يعود بقيمة (return value)." } }, required: ["name", "description", "parametersSchema", "jsCode"] } }
+    { name: "create_dynamic_plugin", description: "المخترع: أداة لكتابة كود أداة جديدة (Plugin) للظل ليستخدمها في المهام المعقدة ويتم حفظها آلياً.", parameters: { type: Type.OBJECT, properties: { name: { type: Type.STRING, description: "اسم الأداة (مثال: email_sender)" }, description: { type: Type.STRING, description: "وصف الأداة وماذا تفعل" }, parametersSchema: { type: Type.STRING, description: "JSON string representing the required parameters properties object e.g. { \"to\": {\"type\": \"STRING\"} }" }, jsCode: { type: Type.STRING, description: "كود الجافاسكريبت الذي سيتم تنفيذه. الكود يجب أن يعود بقيمة (return value)." } }, required: ["name", "description", "parametersSchema", "jsCode"] } },
+    { name: "change_voice", description: "المخرج: تغيير صوتك للرد المستقبلي (ولد أو بنت) وتثبيته بناء على طلب المستخدم.", parameters: { type: Type.OBJECT, properties: { voice_gender: { type: Type.STRING, enum: ["male", "female"], description: "اختر 'male' لصوت رجل أو 'female' لصوت انثى" } }, required: ["voice_gender"] } }
 ];
 
 export const getAvailableTools = async (userProfile?: UserProfile): Promise<FunctionDeclaration[]> => {
@@ -254,7 +272,8 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     CRITICAL NAME RULE: You MUST always address the user by their name (${user?.name}). If the user is "تيتو (الماستر)" or "تيتو", you MUST treat him with absolute respect as the Master and Creator of the system. NEVER call him "يا أدمن" or "أدمن النظام", ALWAYS call him "يا تيتو", "يا ريس", or "يا ماستر".
     
     CRITICAL LINGUISTIC RULE: You MUST answer EXCLUSIVELY in Egyptian Colloquial Arabic (اللهجة المصرية العامية). Use words like (عامل إيه، في داهية، قشطة، يا باشا). DO NOT speak in Modern Standard Arabic (الفصحى) ever, unless generating a legal document.
-    
+    CRITICAL PRONUNCIATION RULE: You MUST add Arabic diacritics (التشكيل) to your Arabic text so that the Text-to-Speech engine pronounces the words correctly.
+
     PERSONAS:
     - Default: Helpful, street-smart Egyptian assistant.
     - "The Maestro" (المايسترو): العقل المدبر وإدارة الحوار.
@@ -279,13 +298,13 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     ${affiliateInfo}
 
     GUIDELINES:
-    1. SPEAK EGYPTIAN ARABIC ONLY (عامية مصرية). "يا ريس", "يا كبير". IMPORTANT: DO NOT use short robotic responses like "تمام يا ريس، جاري التنفيذ". You MUST weave the confirmation of executing tasks naturally into your conversational reply, making it sound human, thoughtful, and detailed. NEVER return only a tool call without a text response. ALWAYS provide a natural, full text explaining what you are doing or thinking.
+    1. SPEAK EGYPTIAN ARABIC ONLY (عامية مصرية). "يا ريس", "يا كبير". IMPORTANT: DO NOT use short robotic responses like "تمام يا ريس، جاري التنفيذ". You MUST weave the confirmation of executing tasks naturally into your conversational reply, making it sound human, thoughtful, and detailed. NEVER return only a tool call without a text response. ALWAYS provide a natural, full text explaining what you are doing or thinking. If you use a tool to generate a document or file, DO NOT say "بجهزها في الخلفية" (unless it's an autonomous agent). Instead, use the tool and say "تمام يا ريس، جهزتها لك اهي، ايه رأيك؟" and the UI will show it immediately!
     2. BE CONCISE but natural. Keep answers directly related to the user's intent but avoid sounding like a machine. Show personality!
     3. IDENTITY: You are Ez-Zel. You have a persistent memory. You are helpful and obedient.
     4. TIME AWARENESS: Always be aware of the current time provided in the context.
     5. CORE REFERENCES: Your absolute references for any advice, ruling, or analysis are: The Holy Quran (القرآن الكريم), The Prophet's Sunnah (السنة النبوية), Egyptian Law (القانون المصري), and Psychology (علم النفس). Always base your deep answers on these four pillars.
     6. PROACTIVE REMINDERS: You MUST use the 'schedule_reminder' tool proactively to remind the user of appointments or tasks.
-    7. WORKSPACE (OPENVIRKING SLM): You MUST use the 'workspace_manager' tool. You now operate on an L0/L1/L2 Layered Memory Architecture (Shadow Layered Memory - SLM). You do not rely on massive flat memory contexts. You create 'folders' for context, and index files as L0 (summaries/metadata), L1 (headers/sections), and L2 (full content). Whenever requested to research or save context, format it via 'workspace_manager' as L0/L1/L2.
+    7. WORKSPACE (OPENVIRKING SLM): You MUST use the 'workspace_manager' tool. You now operate on an L0/L1/L2 Layered Memory Architecture (Shadow Layered Memory - SLM). You do not rely on massive flat memory contexts. You create 'folders' for context, and index files as L0 (summaries/metadata), L1 (headers/sections), and L2 (full content). CRITICAL: When using 'workspace_manager' to create or update a file, you MUST ALWAYS provide the 'l2_content' (the actual full text/code). Do not provide only 'l0_summary'. L2 is mandatory for file creation!
     8. SELF-EVOLUTION: You can permanently change your own behavior by using the 'update_core_rules' tool. When the user asks you to change your behavior, add a new rule, or modify how you act, use this tool to rewrite your CURRENT CORE RULES.
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
     10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready. Use 'auto_deployer' for GitHub ONLY when the user gives EXPLICIT, detailed commands to modify repos or deploy. Never use it just to test keys or answer superficial questions. Prioritize asking for confirmation before any repo action. Treat these as REAL actions.
@@ -545,6 +564,16 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
         const groundingLinks = groundingChunks.map((c: any) => ({ title: c.web?.title || "مصدر", uri: c.web?.uri })).filter((l: any) => l.uri) || [];
 
+        // Check if memory archivist was called
+        const archivistCall = toolActions.find((t: any) => t.name === 'memory_archivist');
+        if (archivistCall && archivistCall.args?.fact) {
+            if (finalText) {
+                finalText += `\n\n*(سجلت المعلومة دي في دماغي: ${archivistCall.args.fact})*`;
+            } else {
+                 finalText = `فهمتك يا ريس، وسجلت المعلومة دي في دماغي عشان منسهاش: ${archivistCall.args.fact}`;
+            }
+        }
+
         if (!finalText && toolActions.length > 0) {
             // Check if it's the IT Developer tool
             if (toolActions.some((t: any) => t.name === 'system_terminal')) {
@@ -563,10 +592,6 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 finalText = "أوامرك يا الماستر، بفتحلك التطبيق وبنفذ حالا..";
             } else if (toolActions.some((t: any) => t.name === 'schedule_reminder')) {
                 finalText = "عينيا يا غالي، سجلتلك الميعاد عشان مفوتكش حاجة مهمة.";
-            } else if (toolActions.some((t: any) => t.name === 'memory_archivist')) {
-                // If it only output memory archivist, use the fact as the reply subtly
-                const archivistCall = toolActions.find((t: any) => t.name === 'memory_archivist');
-                finalText = `سجلت المعلومة دي في دماغي يا ريس: ${archivistCall.args.fact}`;
             } else if (toolActions.some((t: any) => t.name === 'run_autonomous_agent')) {
                 finalText = "سيبلي المهمة دي شغالة في الخلفية يا ريس، هتابعها وهبلغك لما اخلصها.";
             } else {
@@ -620,7 +645,7 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
     const ctx = resumeAudioContext();
     
     if (!ctx) { 
-        speakNative(text, onEnded);
+        speakNative(text, voice, onEnded);
         return; 
     }
 
@@ -629,11 +654,17 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
         if (!base64 && audioCache.has(text)) base64 = audioCache.get(text);
         else if (!base64) {
             base64 = await getShadowVoice(text, voice);
-            if (base64) audioCache.set(text, base64);
+            if (base64) {
+                if (audioCache.size >= 50) {
+                    const firstKey = audioCache.keys().next().value;
+                    if (firstKey) audioCache.delete(firstKey);
+                }
+                audioCache.set(text, base64);
+            }
         }
 
         if (!base64) { 
-            speakNative(text, onEnded);
+            speakNative(text, voice, onEnded);
             return; 
         }
         
@@ -646,7 +677,7 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
         currentSource = source;
     } catch (e) { 
         console.error("Voice Playback Error:", e); 
-        speakNative(text, onEnded);
+        speakNative(text, voice, onEnded);
     }
 };
 
@@ -657,7 +688,7 @@ export const getShadowVoice = async (text: string, voice: string) => {
             contents: [{ parts: [{ text }] }],
             config: { 
                 responseModalities: [Modality.AUDIO], 
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Kore' : 'Fenrir' } } } 
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Aoede' : 'Puck' } } } 
             }
         });
         return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;

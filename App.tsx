@@ -11,6 +11,7 @@ import Dashboard from './components/Dashboard';
 import LiveTickers from './components/LiveTickers'; 
 import InstallPrompt from './components/InstallPrompt';
 import WorkspaceExplorer from './components/WorkspaceExplorer';
+import { AssistantWidget } from './components/AssistantWidget';
 import { shadowDB, DBMessage } from './services/dbService';
 import { speakNative, stopVoice, resumeAudioContext, playShadowVoice } from './services/geminiService';
 import { Loader2, Fingerprint, ShieldCheck, Clock, LogOut, RefreshCw } from 'lucide-react';
@@ -28,12 +29,22 @@ const App: React.FC = () => {
   useEffect(() => {
       const unsub = shadowDB.onAuthStateChanged((firebaseUser) => {
           setIsAuthReady(true);
-          // Sync check: If Firebase says nobody is logged in, but local cache thinks a real user is logged in
           const lastEmail = localStorage.getItem('shadow_last_user');
+
+          // Sync check: If Firebase says nobody is logged in, but local cache thinks a real user is logged in
           if (!firebaseUser && lastEmail && lastEmail !== 'GUEST') {
               console.warn("[Auth Sync] Cloud identity missing. Auto-nuking stale local cache...");
               shadowDB.nukeLocalDatabase().then(() => {
                   window.location.reload();
+              });
+          }
+          
+          // Sync check: If Firebase says someone IS logged in, but local cache is missing (e.g. after clearing storage)
+          if (firebaseUser && firebaseUser.email && (!lastEmail || lastEmail !== firebaseUser.email)) {
+              console.log("[Auth Sync] Cloud identity found but local is missing. Restoring from cloud...");
+              localStorage.setItem('shadow_last_user', firebaseUser.email);
+              shadowDB.downloadUserCloudData(firebaseUser.email).then(() => {
+                 checkSession();
               });
           }
       });
@@ -88,6 +99,15 @@ const App: React.FC = () => {
   }, [view]);
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('mode') === 'widget') {
+        const guestUserStr = localStorage.getItem('shadow_guest_active');
+        const lastUser = localStorage.getItem('shadow_last_user');
+        if (guestUserStr || (lastUser && lastUser !== 'GUEST')) {
+             setView('widget');
+             return;
+        }
+    }
     checkSession();
   }, []);
 
@@ -118,7 +138,7 @@ const App: React.FC = () => {
                           setUser({ ...user, lastPulseReceived: pulse.timestamp });
                           const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                           if (audio) { audio.volume = 1.0; audio.play().catch(e => {}); }
-                          speakNative("رسالة هامة من الإدارة");
+                          speakNative("رسالة هامة من الإدارة", user?.voicePreference || 'male');
                       });
                   }
               }
@@ -239,7 +259,7 @@ const App: React.FC = () => {
                 await shadowDB.setConfig('last_admin_check', Date.now());
                 const audio = document.getElementById('notification-sound') as HTMLAudioElement;
                 if (audio) { audio.play().catch(e => {}); }
-                speakNative("تنبيه إداري جديد");
+                speakNative("تنبيه إداري جديد", user?.voicePreference || 'male');
             }
           }, 60000);
           return () => clearInterval(interval);
@@ -312,13 +332,8 @@ const App: React.FC = () => {
           return (
             <div className="fixed inset-0 bg-black text-white font-['Cairo'] overflow-hidden">
                 <ChatInterface 
-                    currentUser={user} 
-                    onUpgrade={handleUpgradeRequest} 
                     onBack={() => setView('dashboard')} 
-                    onOpenAffiliate={() => setView('affiliate')}
-                    isAdmin={isAdminUser!}
                     onNavigateTo={handleChatNavigation}
-                    incomingSystemMessage={latestSystemMessage} 
                 />
             </div>
           );
@@ -330,6 +345,7 @@ const App: React.FC = () => {
       if (view === 'admin') return <AdminDashboard onLogout={handleLogout} onSwitchToUserMode={() => setView('dashboard')} />;
       if (view === 'workspace' && user) return <WorkspaceExplorer userId={user.email} onItemSelect={(item) => console.log('Selected item:', item)} onBack={() => setView('dashboard')} />;
       if (view === 'affiliate' && user) return <AffiliateDashboard user={user} onBack={() => setView('dashboard')} onUpdateUser={setUser} />;
+      if (view === 'widget' && user) return <AssistantWidget user={user} onOpenApp={() => window.location.search = ''} />;
       if (view === 'pending_review') return (<div className="fixed inset-0 bg-[#020202] flex items-center justify-center p-6 font-['Cairo'] text-white"><div className="max-w-md w-full glass p-10 rounded-[40px] border border-amber-500/20 text-center relative overflow-hidden"><div className="absolute inset-0 bg-amber-500/5 animate-pulse"></div><div className="relative z-10"><div className="w-20 h-20 mx-auto bg-amber-500/10 rounded-full flex items-center justify-center mb-6 border border-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.2)]"><Clock className="w-10 h-10 text-amber-500 animate-pulse" /></div><h2 className="text-2xl font-black mb-3 text-white">جاري المراجعة</h2><p className="text-white/50 text-sm mb-8 leading-relaxed">طلبك وصل للعمليات. <br/>يتم الآن مراجعة إيصال الدفع وتفعيل حسابك.<span className="block mt-2 text-amber-400 font-bold text-xs">متوسط وقت الانتظار: 10 دقائق</span></p><div className="flex flex-col gap-3"><button onClick={checkStatusManual} disabled={isCheckingStatus} className="w-full py-4 bg-white text-black rounded-2xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">{isCheckingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}تحديث الحالة الآن</button><button onClick={handleLogout} className="w-full py-4 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2"><LogOut className="w-4 h-4" /> خروج مؤقت</button></div></div></div></div>);
       if (view === 'blocked') return (<div className="fixed inset-0 bg-black flex items-center justify-center text-center p-8 text-white font-['Cairo']"><div><ShieldCheck className="w-16 h-16 text-red-500 mx-auto mb-6" /><h1 className="text-3xl font-black mb-2">الحساب معلق</h1><button onClick={() => setView('pricing')} className="mt-8 px-6 py-3 bg-white/10 rounded-xl">عودة</button></div></div>);
       return null;

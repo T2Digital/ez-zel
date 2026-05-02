@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { UserProfile, DBMessage, shadowDB } from './dbService';
 
-export type ViewState = 'loading' | 'pricing' | 'auth' | 'payment' | 'dashboard' | 'chat' | 'admin' | 'blocked' | 'pending_review' | 'affiliate' | 'workspace';
+export type ViewState = 'loading' | 'pricing' | 'auth' | 'payment' | 'dashboard' | 'chat' | 'admin' | 'blocked' | 'pending_review' | 'affiliate' | 'workspace' | 'widget';
 
 interface AppState {
   view: ViewState;

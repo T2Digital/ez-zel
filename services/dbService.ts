@@ -219,6 +219,18 @@ class ShadowDB {
       if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
           navigator.storage.persist().then(granted => { if (granted) console.log("[Storage] Persistent storage granted"); });
       }
+      
+      if (typeof window !== 'undefined') {
+          window.addEventListener('online', () => {
+              console.log("[Sync] Network online, flushing queue...");
+              this.updateSyncStatus('syncing');
+              if (this.syncQueue.length > 0) this.flushSyncQueue();
+          });
+          window.addEventListener('offline', () => {
+              console.log("[Sync] Network offline.");
+              this.updateSyncStatus('offline');
+          });
+      }
   }
 
   async init(): Promise<IDBDatabase> {

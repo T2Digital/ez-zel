@@ -9,16 +9,15 @@ import { getDeviceContext, performNativeAction } from '../services/deviceService
 import { WakeWordEngine } from '../services/wakeWordService';
 import { voiceBiometrics } from '../services/voiceBiometricsService';
 import CapabilitiesGuide from './CapabilitiesGuide';
+import { VoiceBiometricsManager } from './VoiceBiometricsManager';
 import LiveAgentAction from './LiveAgentAction';
+import { ChatInputArea } from './chat/ChatInputArea';
+import { ToolCardRenderer, handleAppCardAction, getCardIcon } from './chat/ToolCardRenderer';
+import { useAppStore } from '../services/store';
 
 interface Props {
-    currentUser: UserProfile;
-    onUpgrade: () => void;
     onBack: () => void; 
-    onOpenAffiliate?: () => void; 
-    isAdmin?: boolean; 
     onNavigateTo?: (section: string) => void; 
-    incomingSystemMessage?: DBMessage | null; 
 }
 
 interface ExtendedMessage extends DBMessage {
@@ -60,7 +59,11 @@ const highlightText = (text: string) => {
     });
 };
 
-const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpenAffiliate, isAdmin = false, onNavigateTo, incomingSystemMessage }) => {
+const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
+  const { user, handleUpgradeRequest: onUpgrade, handleStartAffiliate: onOpenAffiliate, latestSystemMessage: incomingSystemMessage } = useAppStore();
+  const currentUser = user!;
+  const isAdmin = currentUser ? (currentUser.email === 'TITO' || currentUser.email === 'tito@shadow.com' || currentUser.email === 'admin@shadow.com' || currentUser.email === 'ahmed.atya.daif@gmail.com' || (currentUser.tier === 'sovereign' && currentUser.name.includes('تيتو'))) : false;
+
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [page, setPage] = useState(1);
   const messagesPerPage = 50;
@@ -104,7 +107,7 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
   const [searchQuery, setSearchQuery] = useState('');
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'error'>('synced');
   
-  const [isEnrollingVoice, setIsEnrollingVoice] = useState(false);
+  const [showVoiceBiometricsManager, setShowVoiceBiometricsManager] = useState(false);
   const [hasVoiceSignature, setHasVoiceSignature] = useState(voiceBiometrics.hasSignature());
   const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<any>(null);
 
@@ -138,34 +141,18 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       }
   };
 
-  const handleEnrollVoice = async () => {
-      setIsEnrollingVoice(true);
-      try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          await voiceBiometrics.enroll(stream, 4000);
-          setHasVoiceSignature(true);
-          stream.getTracks().forEach(track => track.stop());
-          alert("تم تسجيل البصمة الصوتية بنجاح!");
-      } catch (e) {
-          console.error("Voice enrollment failed", e);
-          alert("فشل تسجيل البصمة الصوتية. تأكد من صلاحيات المايكروفون.");
-      } finally {
-          setIsEnrollingVoice(false);
-      }
-  };
-
-  const handleClearVoice = () => {
-      if (window.confirm("هل أنت متأكد من مسح البصمة الصوتية؟")) {
-          voiceBiometrics.clearSignature();
-          setHasVoiceSignature(false);
-      }
-  };
-
   const resumeSentinel = () => {
-      if (isSentinelMode && !shouldContinueListeningRef.current && appStatus === 'idle') {
-          startPassiveListening();
-      }
+      // Logic handled by useEffect below to avoid stale state closures
   };
+
+  useEffect(() => {
+      if (appStatus === 'idle' && isSentinelMode && !shouldContinueListeningRef.current) {
+          const timer = setTimeout(() => {
+              startPassiveListening();
+          }, 500);
+          return () => clearTimeout(timer);
+      }
+  }, [appStatus, isSentinelMode]);
 
   useEffect(() => {
       shadowDB.onSyncStatusChange = (status) => {
@@ -556,8 +543,8 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
       resetToIdle();
   };
 
-  const handleSend = async (forcedText?: string, audioBlob?: Blob, existingAudioBase64?: string, isHiddenAction?: boolean) => {
-    if (isSubmittingRef.current || isLimitReached) return;
+  const handleSend = async (forcedText?: string, audioBlob?: Blob, existingAudioBase64?: string, isHiddenAction?: boolean, ignoreLimit?: boolean) => {
+    if (isSubmittingRef.current || (isLimitReached && !ignoreLimit)) return;
     
     // Audio Keep-Alive
     const ctx = resumeAudioContext();
@@ -963,15 +950,67 @@ const ChatInterface: React.FC<Props> = ({ currentUser, onUpgrade, onBack, onOpen
                      }
                  }
               }
+              else if (t.name === 'change_voice') {
+                  const args = t.args;
+                  const newVoice = args.voice_gender;
+                  if (currentUser.email && currentUser.email !== 'GUEST') {
+                      currentUser.voicePreference = newVoice; // Mutate for immediate use in playShadowVoice
+                      shadowDB.saveProfile({ ...currentUser, voicePreference: newVoice }).catch(e => console.error(e));
+                  } else {
+                      currentUser.voicePreference = newVoice;
+                  }
+                  uiCards.push({ cardType: 'task_success', title: 'تم تغيير الصوت', description: `تم حفظ تفضيل الصوت ليكون: ${newVoice === 'female' ? 'أنثى' : 'ذكر'}` });
+              }
               else {
                   const dynamicPlugins = await shadowDB.getPluginsByUserId(currentUser.email || 'GUEST');
                   const activePlugin = dynamicPlugins.find(p => p.name === t.name || `dyn_plugin_${p.id}` === t.name);
                   
                   if (activePlugin) {
                       try {
-                          const fn = new Function('args', activePlugin.jsCode);
-                          const pluginResult = await fn(t.args);
-                          uiCards.push({ cardType: 'task_success', title: `تم تنفيذ الأداة: ${activePlugin.name}`, description: `تم بنجاح.` });
+                          const executeInWorker = (jsCode: string, pluginArgs: any): Promise<any> => {
+                              return new Promise((resolve, reject) => {
+                                  const workerCode = `
+                                      self.onmessage = async (e) => {
+                                          try {
+                                              const args = e.data.args;
+                                              const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+                                              const fn = new AsyncFunction('args', e.data.code);
+                                              const result = await fn(args);
+                                              self.postMessage({ success: true, result });
+                                          } catch (err) {
+                                              self.postMessage({ success: false, error: err.message });
+                                          }
+                                      };
+                                  `;
+                                  const blob = new Blob([workerCode], { type: 'application/javascript' });
+                                  const workerUrl = URL.createObjectURL(blob);
+                                  const worker = new Worker(workerUrl);
+                                  const timeoutId = setTimeout(() => {
+                                      worker.terminate();
+                                      URL.revokeObjectURL(workerUrl);
+                                      reject(new Error('العملية أخذت وقتاً طويلاً (Timeout).'));
+                                  }, 10000);
+                          
+                                  worker.onmessage = (e) => {
+                                      clearTimeout(timeoutId);
+                                      if (e.data.success) resolve(e.data.result);
+                                      else reject(new Error(e.data.error));
+                                      worker.terminate();
+                                      URL.revokeObjectURL(workerUrl);
+                                  };
+                                  
+                                  worker.onerror = (e) => {
+                                      clearTimeout(timeoutId);
+                                      reject(new Error(e.message));
+                                      worker.terminate();
+                                      URL.revokeObjectURL(workerUrl);
+                                  };
+                                  worker.postMessage({ code: jsCode, args: pluginArgs });
+                              });
+                          };
+
+                          const pluginResult = await executeInWorker(activePlugin.jsCode, t.args);
+                          uiCards.push({ cardType: 'task_success', title: `تم تنفيذ الأداة: ${activePlugin.name}`, description: `تشغيل آمن في Sandbox بنجاح.` });
                           
                           const hiddenText = `[DYNAMIC_PLUGIN_RESULT / ${activePlugin.name}]\n${JSON.stringify(pluginResult, null, 2)}\n\n[INSTRUCTION]: بناءً على هذه النتيجة، أجب المستخدم.`;
                           setTimeout(() => handleSend(hiddenText, undefined, undefined, true), 100);
@@ -1362,7 +1401,7 @@ ${textContent.substring(0, 10000)}`;
                             </div>
                         </div>
                         <div className="mt-6 flex flex-col gap-1">
-                            <h2 className="text-3xl font-black">{card.data.docType === 'quote' ? 'عرض السعـر' : (card.data.docType === 'contract' ? 'عقـد اتفـاق' : 'فـاتـورة')}</h2>
+                            <h2 className="text-3xl font-black">{card.data.docType === 'quote' ? 'عرض السعـر' : (card.data.docType === 'contract' ? 'عقـد اتفـاق' : (card.data.docType === 'cv' ? 'سيـرة ذاتيـة' : 'فـاتـورة'))}</h2>
                             <p className="text-xs text-gray-400 font-bold tracking-widest" dir="ltr">DOCUMENT ID: <span className="text-black font-mono">EZ-{Math.floor(Math.random() * 90000) + 10000}</span></p>
                         </div>
                     </div>
@@ -1375,7 +1414,7 @@ ${textContent.substring(0, 10000)}`;
                 {/* Client Section */}
                 <div className="mb-8 px-2">
                     <div className="inline-block bg-black text-white px-3 py-1 rounded-md mb-3">
-                        <p className="text-[10px] uppercase font-black tracking-widest">مقدم إلى</p>
+                        <p className="text-[10px] uppercase font-black tracking-widest">{card.data.docType === 'cv' ? 'الاسم' : 'مقدم إلى'}</p>
                     </div>
                     <h3 className="text-2xl font-black text-gray-800 border-l-4 border-cyan-500 pl-3 leading-none">{card.data.clientName}</h3>
                 </div>
@@ -1383,7 +1422,7 @@ ${textContent.substring(0, 10000)}`;
                 {/* Contract Body (Optional) */}
                 {card.data.contractBody && (
                     <div className="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200 shadow-inner">
-                        <h4 className="text-xs font-black uppercase text-gray-400 mb-4 tracking-widest border-b border-gray-200 pb-2">تفاصيل العقد للشروط والأحكام</h4>
+                        <h4 className="text-xs font-black uppercase text-gray-400 mb-4 tracking-widest border-b border-gray-200 pb-2">{card.data.docType === 'cv' ? 'الملخص والتفاصيل' : 'تفاصيل العقد للشروط والأحكام'}</h4>
                         <div className="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">{card.data.contractBody}</div>
                     </div>
                 )}
@@ -1523,23 +1562,11 @@ ${textContent.substring(0, 10000)}`;
           </div>
       )}
 
-      {isEnrollingVoice && (
-          <div className="fixed inset-0 z-[110] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in duration-300">
-              <div className="text-center mb-10 max-w-md px-6">
-                  <Shield className="w-16 h-16 text-purple-500 mx-auto mb-6 animate-pulse" />
-                  <h2 className="text-3xl font-black text-white mb-4">تسجيل البصمة الصوتية</h2>
-                  <p className="text-white/70 text-lg font-medium leading-relaxed">
-                      يرجى التحدث بصوت واضح لمدة 4 ثوانٍ. قل مثلاً:
-                      <br/>
-                      <span className="text-purple-400 font-bold mt-2 block">"أنا الماستر، يا ظل اسمعني ونفذ أوامري"</span>
-                  </p>
-              </div>
-              <div className="flex items-end gap-1.5 h-32 mb-12">
-                  {visualLevels.map((level, i) => (
-                      <div key={i} className="w-3 bg-gradient-to-t from-purple-600 to-pink-500 rounded-full transition-all duration-75 animate-pulse" style={{ height: `${Math.max(20, Math.random() * 100)}%`, opacity: 0.8 }}></div>
-                  ))}
-              </div>
-          </div>
+      {showVoiceBiometricsManager && (
+          <VoiceBiometricsManager 
+              onClose={() => setShowVoiceBiometricsManager(false)} 
+              onSignaturesUpdated={() => setHasVoiceSignature(voiceBiometrics.hasSignature())} 
+          />
       )}
 
       {/* HEADER */}
@@ -1578,7 +1605,7 @@ ${textContent.substring(0, 10000)}`;
                     </button>
                     {onOpenAffiliate && !isRestrictedMode && <button onClick={onOpenAffiliate} className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-full text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all"><DollarSign className="w-4 h-4" /></button>}
                     <button onClick={() => setIsSearchActive(true)} className="p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all"><Search className="w-4 h-4" /></button>
-                    <button onClick={hasVoiceSignature ? handleClearVoice : handleEnrollVoice} className={`p-2 rounded-full border transition-all ${hasVoiceSignature ? 'bg-purple-500/10 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`} title={hasVoiceSignature ? "مسح البصمة الصوتية" : "إعداد البصمة الصوتية"}>
+                    <button onClick={() => setShowVoiceBiometricsManager(true)} className={`p-2 rounded-full border transition-all ${hasVoiceSignature ? 'bg-purple-500/10 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`} title="البصمة الصوتية">
                         <Shield className="w-4 h-4" />
                     </button>
                     <button onClick={() => setShowPersonalKeys(true)} className="p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all select-none" title="مفاتيحي الخاصة">
@@ -1590,7 +1617,7 @@ ${textContent.substring(0, 10000)}`;
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-44 space-y-4 scrollbar-hide bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative">
         {hasMoreMessages && !isSearchActive && (
             <div className="w-full flex justify-center py-4">
                 <button onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-xs font-bold text-white/50 hover:text-white transition-all">
@@ -1666,38 +1693,24 @@ ${textContent.substring(0, 10000)}`;
         )}
       </div>
 
-      <div className={`fixed bottom-[32px] left-0 w-full p-3 md:p-4 bg-[#0a0a0a] border-t border-white/5 z-50 transition-all duration-500 ${isLimitReached ? 'opacity-0 pointer-events-none translate-y-full' : 'opacity-100'}`}>
-        {pendingImage && (<div className="mb-2 flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg w-fit border border-white/10"><span className="text-[10px] text-white/70 font-bold">صورة مرفقة</span><button onClick={() => setPendingImage(null)}><X className="w-3 h-3 text-white/50 hover:text-red-400" /></button></div>)}
-        <div className="flex items-end gap-2 max-w-4xl mx-auto w-full">
-            <div className="flex-1 bg-[#151515] border border-white/10 rounded-[24px] flex items-end p-2 focus-within:border-cyan-500/30 transition-colors shadow-inner">
-                <div className="flex items-center gap-1 mb-0.5">
-                    <button disabled={isProcessingImage} onClick={() => { if(fileInputRef.current) fileInputRef.current.value = ''; fileInputRef.current?.click(); }} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`} title="إرفاق صورة">{isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}</button>
-                    <button disabled={isProcessingImage} onClick={() => { if(cameraInputRef.current) cameraInputRef.current.value = ''; cameraInputRef.current?.click(); }} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`} title="التقاط صورة"><Camera className="w-5 h-5" /></button>
-                </div>
-                <textarea 
-                    value={input} 
-                    onChange={handleInputChange} 
-                    onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} 
-                    placeholder={isRestrictedMode ? "اكتب رسالتك (فترة تجربة)..." : (isSentinelMode ? "وضع الحارس مفعل... (قول يا ظل)" : (isAdmin ? "أمرك يا ريس..." : "قولي يا ريس..."))} 
-                    className="flex-1 bg-transparent border-none text-sm text-white placeholder:text-white/20 focus:ring-0 resize-none min-h-[50px] max-h-[150px] py-3 px-2 scrollbar-hide font-medium leading-relaxed" 
-                    rows={1} 
-                    style={{ height: 'auto', minHeight: '50px' }} 
-                    onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = `${Math.min(target.scrollHeight, 150)}px`; }} 
-                />
-                {(input.trim() || pendingImage) && <button onClick={() => handleSend()} className="p-3 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-all shadow-lg hover:shadow-cyan-600/20 mb-0.5 animate-in zoom-in"><Send className="w-5 h-5 text-white" /></button>}
-            </div>
-            <button onClick={startListening} className={`p-4 rounded-[24px] border shadow-lg transition-all active:scale-95 mb-0.5 ${isSentinelMode ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}>{isSentinelMode ? <Ear className="w-6 h-6 animate-pulse" /> : <Mic className="w-6 h-6" />}</button>
-        </div>
-      </div>
-
-      {isLimitReached && (
-          <div className="fixed bottom-[32px] left-0 w-full p-4 bg-[#111] border-t border-red-500/30 z-50 text-center animate-in slide-in-from-bottom-full">
-              <p className="text-red-400 font-bold mb-3">انتهت فترة التجربة (3 أيام)</p>
-              <button onClick={onUpgrade} className="px-6 py-2 bg-amber-500 text-black rounded-full font-black text-sm hover:scale-105 transition-transform shadow-[0_0_20px_rgba(245,158,11,0.3)]">
-                  اشترك الآن لفتح كل المميزات
-              </button>
-          </div>
-      )}
+      <ChatInputArea 
+        input={input} 
+        setInput={setInput} 
+        pendingImage={pendingImage} 
+        setPendingImage={setPendingImage} 
+        isProcessingImage={isProcessingImage} 
+        isSentinelMode={isSentinelMode} 
+        isRestrictedMode={isRestrictedMode} 
+        isAdmin={isAdmin} 
+        isLimitReached={isLimitReached} 
+        onUpgrade={onUpgrade} 
+        onOpenAffiliate={onOpenAffiliate} 
+        startListening={startListening} 
+        handleSend={handleSend} 
+        fileInputRef={fileInputRef} 
+        cameraInputRef={cameraInputRef} 
+        currentUser={currentUser} 
+      />
 
       {preparedShareData && (
           <div className="fixed inset-0 z-[500] bg-black/95 flex items-center justify-center p-6 backdrop-blur-xl animate-in fade-in">
@@ -1739,15 +1752,15 @@ ${textContent.substring(0, 10000)}`;
       {selectedWorkspaceFile && (
           <div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
               <div className="bg-[#151515] border border-white/10 rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-white/5 bg-[#0a0a0a]">
-                      <div className="flex items-center gap-3">
-                          <FileText className="w-5 h-5 text-emerald-400" />
-                          <div>
-                              <h3 className="font-bold text-white tracking-widest">{selectedWorkspaceFile.title}</h3>
-                              <p className="text-[10px] text-white/40">{selectedWorkspaceFile.description}</p>
+                  <div className="flex items-center justify-between p-4 border-b border-white/5 bg-[#0a0a0a] gap-4">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                              <h3 className="font-bold text-white tracking-widest truncate" dir="ltr">{selectedWorkspaceFile.title}</h3>
+                              <p className="text-[10px] text-white/40 truncate">{selectedWorkspaceFile.description}</p>
                           </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                           {selectedWorkspaceFile.itemType === 'file' && (
                               <button onClick={() => {
                                   const printWindow = window.open('', '_blank');
