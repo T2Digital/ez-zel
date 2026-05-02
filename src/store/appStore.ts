@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { UserProfile } from '../services/dbService';
+import { UserProfile } from '../../services/dbService';
 
 interface UserState {
   currentUser: UserProfile | null;

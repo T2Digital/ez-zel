@@ -12,7 +12,7 @@ export interface AutonomousTask {
 
 // In-memory poll array (Simulates background queue)
 let activeTasks: AutonomousTask[] = [];
-let isWorkerRunning = false;
+let backgroundWorker: Worker | null = null;
 
 export const submitAutonomousTask = async (userId: string, prompt: string): Promise<string> => {
     const task: AutonomousTask = {
@@ -26,49 +26,42 @@ export const submitAutonomousTask = async (userId: string, prompt: string): Prom
     
     activeTasks.push(task);
     
-    // Fire and forget
-    if (!isWorkerRunning) {
-        startWorker();
+    if (!backgroundWorker) {
+        initWorker();
     }
+    
+    backgroundWorker?.postMessage({
+        type: 'START_TASK',
+        taskId: task.id,
+        prompt: task.prompt,
+        userId: task.userId
+    });
     
     return task.id;
 };
 
-export const startWorker = async () => {
-    if (isWorkerRunning) return;
-    isWorkerRunning = true;
+export const initWorker = () => {
+    if (backgroundWorker) return;
     
-    while (activeTasks.length > 0) {
-        const task = activeTasks.find(t => t.status === 'pending');
-        if (!task) {
-            await new Promise(r => setTimeout(r, 5000));
-            continue;
-        }
+    backgroundWorker = new Worker('/autonomous-worker.js');
+    
+    backgroundWorker.onmessage = (e) => {
+        const { type, taskId, status, result, progress, log, error } = e.data;
+        const task = activeTasks.find(t => t.id === taskId);
+        if (!task) return;
 
-        task.status = 'running';
-        
-        try {
-            // Give the AI a specific prompt for background processing
-            const bgPrompt = `[AUTONOMOUS_BACKGROUND_TASK]\nUser requested: ${task.prompt}\nPerform deep research or required actions. Provide a final comprehensive summary.`;
-            
-            // Call Gemini as the user
-            const response = await getShadowResponse([], bgPrompt);
-            
+        if (type === 'STATUS') {
+            task.status = status;
+        } else if (type === 'PROGRESS') {
+            console.log(`[Worker ${taskId}]: ${progress}% - ${log}`);
+        } else if (type === 'COMPLETE') {
             task.status = 'completed';
-            task.result = response.text;
-            
-            // You can implement custom push notifications or broadcast channel here
-            // to notify the UI about the completion
-
-        } catch (e) {
-            console.error("Autonomous task failed:", e);
+            task.result = result;
+            console.log("Autonomous task completed via Worker:", result);
+            // Optionally, handle triggering notification or saving to DB here.
+        } else if (type === 'ERROR') {
             task.status = 'failed';
+            console.error("Autonomous worker error:", error);
         }
-        
-        // Remove from active queue after processing
-        activeTasks = activeTasks.filter(t => t.id !== task.id);
-        await new Promise(r => setTimeout(r, 2000)); // Rate limit
-    }
-    
-    isWorkerRunning = false;
+    };
 };

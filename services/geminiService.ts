@@ -199,7 +199,8 @@ const actionTools: FunctionDeclaration[] = [
     { name: "schedule_reminder", description: "المنفذ: ضبط تذكير.", parameters: { type: Type.OBJECT, properties: { task: { type: Type.STRING }, time_description: { type: Type.STRING }, delay_seconds: { type: Type.NUMBER } }, required: ["task", "time_description", "delay_seconds"] } },
     { name: "run_autonomous_agent", description: "المنفذ المستقل (Autonomous Agent): استخدم هذه الأداة لإنشاء عميل ذكاء اصطناعي يعمل في الخلفية لساعات طويلة (للبحث المعمق، تتبع المهام، أو المراقبة) دون تعطيل المحادثة الحالية.", parameters: { type: Type.OBJECT, properties: { prompt_for_agent: { type: Type.STRING } }, required: ["prompt_for_agent"] } },
     { name: "memory_archivist", description: "الأرشيف: حفظ معلومة هامة عن المستخدم.", parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] } },
-    { name: "workspace_manager", description: "إدارة مساحة العمل ببروتوكول viking:// (الذاكرة الطبقية L0/L1/L2). المجلدات الأساسية: viking://memory و viking://skills. الـ L0 مخلص، الـ L1 عناوين/هيكلة، الـ L2 المحتوى الكامل.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["create_folder", "create_file", "update_file", "read_l0_index", "read_l2_content"] }, path: { type: Type.STRING, description: "مسار viking:// (مثال: viking://memory/user_goals)" }, l0_summary: { type: Type.STRING, description: "ملخص في سطر واحد (L0)" }, l1_metadata: { type: Type.STRING, description: "التقسيمات والعناوين (L1)" }, l2_content: { type: Type.STRING, description: "المحتوى الكامل (L2)" } }, required: ["action", "path"] } },
+    { name: "project_manager", description: "المدير التنفيذي: تخطيط وحفظ وإدارة المشاريع بالكامل (مهام، مراحل، نسب إنجاز).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["create", "update"] }, project_id: { type: Type.STRING }, title: { type: Type.STRING }, description: { type: Type.STRING }, progress: { type: Type.NUMBER }, tasks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, title: { type: Type.STRING }, status: { type: Type.STRING, enum: ["todo", "in_progress", "done"] } } } } }, required: ["action", "title", "tasks"] } },
+    { name: "workspace_manager", description: "إدارة مساحة العمل والمشاريع. استخدمها لسرد، أو استرجاع المعلومات من مساحة عمل الماستر (المشاريع والملفات).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["create_folder", "create_file", "update_file", "read_l0_index", "read_l2_content", "list_workspace"] }, path: { type: Type.STRING, description: "مسار viking:// أو مسار الملف/المجلد. ضعها فارغة لعرض كل شيء للمستوى الأساسي، أو viking://projects للعرض." }, l0_summary: { type: Type.STRING, description: "ملخص في سطر واحد (L0)" }, l1_metadata: { type: Type.STRING, description: "التقسيمات والعناوين (L1)" }, l2_content: { type: Type.STRING, description: "المحتوى الكامل (L2)" } }, required: ["action"] } },
     { name: "system_terminal", description: "المهندس (المبرمج): تنفيذ أوامر برمجية، فحص أكواد، أو عمل Deploy.", parameters: { type: Type.OBJECT, properties: { command_type: { type: Type.STRING, enum: ["deploy", "scan_code", "run_script", "system_status"] }, logs: { type: Type.STRING } }, required: ["command_type", "logs"] } },
     { name: "update_core_rules", description: "المبرمج/المهندس: تحديث القوانين الأساسية (Core Rules) الخاصة بك لتغيير سلوكك بشكل دائم.", parameters: { type: Type.OBJECT, properties: { new_rules: { type: Type.STRING, description: "النص الكامل للقوانين الجديدة بعد التعديل أو الإضافة." } }, required: ["new_rules"] } },
     { name: "activate_user_account", description: "المدير: تفعيل حساب مستخدم جديد وإضافة عمولة للداعي إن وجد.", parameters: { type: Type.OBJECT, properties: { user_email: { type: Type.STRING, description: "البريد الإلكتروني للمستخدم المراد تفعيله" } }, required: ["user_email"] } },
@@ -310,6 +311,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready. Use 'auto_deployer' for GitHub ONLY when the user gives EXPLICIT, detailed commands to modify repos or deploy. Never use it just to test keys or answer superficial questions. Prioritize asking for confirmation before any repo action. Treat these as REAL actions.
     11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
     12. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
+    13. PROJECT MANAGEMENT: If the user needs to create, plan, or manage a project (like writing a book, building an app, or running a business), use 'project_manager' tool to lay out the tasks and progress comprehensively. You are the project manager 'الظل'.
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
     ${rules}
@@ -415,6 +417,8 @@ export const getRelevantMemories = async (query: string, userId: string): Promis
     return scoredMemories.slice(0, 5).map(m => m.fact).join(" | ");
 };
 
+import { getContextData, analyzeEmotionFromText } from './sensorService';
+
 // --- MAIN RESPONSE FUNCTION ---
 export const getShadowResponse = async (history: any[], message: string, extraData?: any, userProfile?: UserProfile, signal?: AbortSignal) => {
     if (isRequesting) return { text: "ثواني بجمع أفكاري...", toolActions: [], groundingLinks: [], isError: false };
@@ -437,10 +441,18 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         const now = new Date();
         const timeStamp = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
         
+        const contextData = await getContextData();
+        const emotionData = analyzeEmotionFromText(message);
+
         const identityInjection = `
         \n\n[SYSTEM_HIDDEN_CONTEXT]:
         - CURRENT_TIME: ${timeStamp}
-        - YOUR_IDENTITY: Ez-Zel (الظل). Egyptian AI Assistant.
+        - BATTERY_STATUS: ${contextData.battery}
+        - NETWORK_STATUS: ${contextData.network}
+        - DEVICE_INFO: ${contextData.userAgent}
+        - DETECTED_USER_EMOTION: ${emotionData.emotion}
+        - URGENCY_LEVEL: ${emotionData.urgency}
+        - YOUR_IDENTITY: Ez-Zel (الظل). Egyptian AI Assistant. You must act accordingly to the user's emotion and urgency.
         - USER_NAME: ${userProfile?.name || 'Master'}.
         - INSTRUCTION: Reply in Egyptian Arabic.
         `;
@@ -594,6 +606,8 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 finalText = "عينيا يا غالي، سجلتلك الميعاد عشان مفوتكش حاجة مهمة.";
             } else if (toolActions.some((t: any) => t.name === 'run_autonomous_agent')) {
                 finalText = "سيبلي المهمة دي شغالة في الخلفية يا ريس، هتابعها وهبلغك لما اخلصها.";
+            } else if (toolActions.some((t: any) => t.name === 'project_manager')) {
+                finalText = "أوامرك يا ريس، بظبطلك خطة المشروع وبديره بالكامــل، بص كدة على الواجهة دي..";
             } else {
                 finalText = "حاضر يا ريس، ثواني بخلصها..";
             }
