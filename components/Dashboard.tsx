@@ -63,20 +63,28 @@ const OrbitalStyles = () => (
     </style>
 );
 
-const OrbitalRing: React.FC<{ radius: number, speed: number, children: React.ReactNode }> = ({ radius, speed, children }) => {
-    const items = React.Children.toArray(children);
+const OrbitalRing: React.FC<{ radius: number, speed: number, reverse?: boolean, children: React.ReactNode }> = ({ radius, speed, reverse = false, children }) => {
+    const items = React.Children.toArray(children).filter(child => React.isValidElement(child));
+    const activeSpinClass = reverse ? 'anti-spinner' : 'spinner';
+    const activeCounterSpinClass = reverse ? 'spinner' : 'anti-spinner';
+
     return (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: radius*2, height: radius*2, transformStyle: 'preserve-3d' }}>
-            <div className="absolute inset-0 rounded-full border border-white/10 border-dashed opacity-50"></div>
+            <div className="absolute inset-0 rounded-full border border-white/30 border-dashed shadow-[0_0_15px_rgba(255,255,255,0.1)] opacity-70"></div>
             <div className="absolute top-1/2 left-1/2 w-0 h-0 flex items-center justify-center">
                 {items.map((child, i) => {
                     const angle = (360 / items.length) * i;
-                    // Rotate child to position it on the circle, but keep the content upright
+                    // Make each item have a slightly different speed so they eventually intersect
+                    const itemSpeed = speed + (i * 8); 
                     return (
-                        <div key={i} className="absolute pointer-events-auto" style={{ transform: `rotate(${angle}deg)` }}>
-                            <div className="absolute" style={{ transform: `translateY(-${radius}px)` }}>
-                                <div className="flex items-center justify-center floater" style={{ animationDelay: `-${i}s`, transform: `rotate(-${angle}deg)` }}>
-                                    {child}
+                        <div key={i} className={`absolute w-0 h-0 flex items-center justify-center ${activeSpinClass}`} style={{ animationDuration: `${itemSpeed}s` }}>
+                            <div className="absolute pointer-events-auto" style={{ transform: `rotate(${angle}deg)` }}>
+                                <div className="absolute" style={{ transform: `translateY(-${radius}px)` }}>
+                                    <div className={`${activeCounterSpinClass} flex items-center justify-center`} style={{ animationDuration: `${itemSpeed}s` }}>
+                                        <div className="floater" style={{ animationDelay: `-${i * 1.5}s`, transform: `rotate(-${angle}deg)` }}>
+                                            {child}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -98,12 +106,12 @@ interface SatelliteProps {
     size?: string;
 }
 
-const SatelliteCard: React.FC<SatelliteProps> = ({ icon: Icon, label, value, colorClass, bgClass, borderClass, onClick, size = 'w-24 h-24 md:w-32 md:h-32' }) => (
+const SatelliteCard: React.FC<SatelliteProps> = ({ icon: Icon, label, value, colorClass, bgClass, borderClass, onClick, size = 'w-32 h-32 lg:w-40 lg:h-40' }) => (
     <div onClick={onClick} className={`group relative ${size} rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform hover:scale-125 shadow-lg ${bgClass} ${borderClass} border backdrop-blur-md`}>
-        {Icon && <Icon className={`${value !== undefined ? 'w-8 h-8 md:w-10 md:h-10' : 'w-1/2 h-1/2'} ${colorClass} relative z-10`} />}
-        {value !== undefined && <div className={`mt-1 font-black text-base md:text-xl leading-none ${colorClass}`}>{value}</div>}
-        <div className="absolute -bottom-14 opacity-0 group-hover:opacity-100 transition-all pointer-events-none flex flex-col items-center z-50">
-             <span className={`text-xs md:text-base font-bold ${colorClass} bg-black/90 px-4 py-2 rounded-xl border ${borderClass} whitespace-nowrap shadow-[0_10px_30px_rgba(0,0,0,0.8)] uppercase tracking-widest`}>
+        {Icon && <Icon className={`${value !== undefined ? 'w-10 h-10 lg:w-14 lg:h-14' : 'w-1/2 h-1/2'} ${colorClass} relative z-10`} style={{ animation: 'spin-slow 10s linear infinite' }} />}
+        {value !== undefined && <div className={`mt-1 font-black text-xl lg:text-3xl leading-none ${colorClass}`}>{value}</div>}
+        <div className="absolute -bottom-16 opacity-0 group-hover:opacity-100 transition-all pointer-events-none flex flex-col items-center z-50">
+             <span className={`text-sm lg:text-lg font-bold ${colorClass} bg-black/90 px-4 py-2 rounded-xl border ${borderClass} whitespace-nowrap shadow-[0_10px_30px_rgba(0,0,0,0.8)] uppercase tracking-widest`}>
                  {label}
              </span>
         </div>
@@ -239,19 +247,19 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
         <OrbitalStyles />
         
         {/* Responsive scaling container to always fit strictly in the center without scrollbars */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none flex items-center justify-center scale-[0.35] sm:scale-[0.5] md:scale-[0.7] lg:scale-90 xl:scale-100" style={{ transformOrigin: 'center center' }}>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none flex items-center justify-center scale-[0.4] sm:scale-[0.55] md:scale-[0.75] lg:scale-[0.9] xl:scale-100" style={{ transformOrigin: 'center center' }}>
             
             {/* --- THE CORE (SUN) --- */}
             <div 
                 onClick={onOpenChat}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 md:w-56 md:h-56 rounded-full bg-gradient-to-br from-purple-600/40 to-black border border-purple-500/50 flex flex-col items-center justify-center cursor-pointer group pointer-events-auto z-50 hover:bg-purple-900/60 transition-all font-cairo"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 lg:w-64 lg:h-64 rounded-full bg-gradient-to-br from-purple-600/40 to-black border border-purple-500/50 flex flex-col items-center justify-center cursor-pointer group pointer-events-auto z-50 hover:bg-purple-900/60 transition-all font-cairo"
                 style={{ animation: 'core-pulse 4s ease-in-out infinite' }}
             >
                 <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping opacity-20"></div>
                 
-                <Brain className="w-14 h-14 md:w-20 md:h-20 text-white fill-purple-300/30 relative z-10 mb-2 group-hover:scale-110 transition-transform duration-500" />
-                <span className="text-white text-sm md:text-2xl font-black tracking-widest uppercase relative z-10 drop-shadow-[0_2px_10px_rgba(255,255,255,0.5)]">الظل الرقمي</span>
-                <span className="text-[10px] md:text-sm text-purple-200 font-bold uppercase relative z-10 tracking-[0.3em] mt-1 shadow-black drop-shadow-md">
+                <Brain className="w-16 h-16 lg:w-24 lg:h-24 text-white fill-purple-300/30 relative z-10 mb-2 group-hover:scale-110 transition-transform duration-500" />
+                <span className="text-white text-lg lg:text-3xl font-black tracking-widest uppercase relative z-10 drop-shadow-[0_2px_10px_rgba(255,255,255,0.5)]">الظل الرقمي</span>
+                <span className="text-xs lg:text-base text-purple-200 font-bold uppercase relative z-10 tracking-[0.3em] mt-1 shadow-black drop-shadow-md">
                     {user.phone === 'GUEST' ? 'تجربة محدودة' : 'الدخول للاجتماع'}
                 </span>
             </div>
@@ -279,7 +287,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
             )}
 
             {/* --- ORBIT 2: MIDDLE (Speed: 45s) --- */}
-            <OrbitalRing radius={360} speed={45}>
+            <OrbitalRing radius={360} speed={45} reverse={true}>
                 <SatelliteCard 
                     icon={identity.icon} label={identity.label} 
                     colorClass={identity.color} bgClass={identity.bg} borderClass={identity.border} onClick={() => setShowVault(true)}

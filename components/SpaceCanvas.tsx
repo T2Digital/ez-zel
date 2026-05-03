@@ -32,8 +32,8 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
         let animationFrameId: number;
         let mouseX = 0;
         let mouseY = 0;
-        let targetSpeed = 1.2;
-        let currentSpeed = 1.2;
+        let targetSpeed = 1.8;
+        let currentSpeed = 1.8;
 
         const handleMouseMove = (e: MouseEvent) => {
             if (!interactive) return;
@@ -52,7 +52,7 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
             
             // Decelerate back to normal speed after a short time
             setTimeout(() => {
-                targetSpeed = 1.2;
+                targetSpeed = 1.8;
             }, 300);
         };
 

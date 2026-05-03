@@ -17,8 +17,8 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const [selectedFile, setSelectedFile] = useState<DBFSItem | null>(null);
 
   // 3D Navigation State
-  const cameraRef = useRef({ x: 0, y: 0, z: 1000 });
-  const targetCameraRef = useRef({ x: 0, y: 0, z: 1000 });
+  const cameraRef = useRef({ x: 0, y: 0, z: -500 });
+  const targetCameraRef = useRef({ x: 0, y: 0, z: -500 });
   const isDragging = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,13 +28,13 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const itemPositions = useMemo(() => {
      const posMap = new Map<number, {x: number, y: number, z: number}>();
      items.forEach((item, i) => {
-         // Create a tighter spiral layout
-         const angle = i * 2.4;
-         const radius = 120 + (i * 15);
+         // Create a smooth winding tunnel layout
+         const angle = i * 0.5; // Smooth curve
+         const radius = 150 + (i * 5); // Tighter tunnel
          posMap.set(item.id!, {
              x: Math.cos(angle) * radius,
              y: Math.sin(angle) * radius,
-             z: - (i * 50) // spread out in depth less
+             z: - (i * 150) // Space depth
          });
      });
      return posMap;
@@ -43,17 +43,37 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   useEffect(() => {
     loadItems();
     // Reset camera on navigation
-    targetCameraRef.current = { x: 0, y: 0, z: 1000 };
+    targetCameraRef.current = { x: 0, y: 0, z: -500 };
   }, [currentFolderId, userId]);
 
   useEffect(() => {
     const loop = () => {
+       // Automatic infinite swim inward
+       targetCameraRef.current.z += 1.5;
+
        const cam = cameraRef.current;
        const target = targetCameraRef.current;
        
-       cam.x += (target.x - cam.x) * 0.1;
-       cam.y += (target.y - cam.y) * 0.1;
-       cam.z += (target.z - cam.z) * 0.1;
+       const isTouchActive = activePointers.current.size > 0 || isDragging.current;
+       const easeX = isTouchActive ? 1 : 0.08;
+       const easeY = isTouchActive ? 1 : 0.08;
+       const easeZ = isTouchActive ? 1 : 0.05; // Slightly slower Z inertia for cool double tap/scroll effect
+
+       if (!isTouchActive) {
+         // Apply momentum
+         targetCameraRef.current.x += velocity.current.x;
+         targetCameraRef.current.y += velocity.current.y;
+         targetCameraRef.current.z += velocity.current.z;
+         
+         // Decay
+         velocity.current.x *= 0.95;
+         velocity.current.y *= 0.95;
+         velocity.current.z *= 0.95;
+       }
+
+       cam.x += (target.x - cam.x) * easeX;
+       cam.y += (target.y - cam.y) * easeY;
+       cam.z += (target.z - cam.z) * easeZ;
 
        if (sceneRef.current) {
          sceneRef.current.style.transform = `translate3d(${-cam.x}px, ${-cam.y}px, ${cam.z}px)`;
@@ -104,31 +124,125 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
     }
   };
 
+  const velocity = useRef({ x: 0, y: 0, z: 0 });
+  const lastMoveTime = useRef<number>(0);
+
+  const activePointers = useRef<Map<number, {x: number, y: number}>>(new Map());
+  const initialPinchDist = useRef<number | null>(null);
+  const dragThresholdExceeded = useRef(false);
+
+  const lastTapTime = useRef<number>(0);
+  const initialPointerPos = useRef({ x: 0, y: 0 });
+
   const handlePointerDown = (e: React.PointerEvent) => {
-    isDragging.current = true;
-    lastMousePos.current = { x: e.clientX, y: e.clientY };
+    const now = Date.now();
+    if (activePointers.current.size === 0 && now - lastTapTime.current < 300) {
+        // Double tap
+        targetCameraRef.current.z += 800;
+        lastTapTime.current = 0; // reset
+        dragThresholdExceeded.current = true; // prevent click
+    } else {
+        lastTapTime.current = now;
+    }
+
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activePointers.current.size === 1) {
+        isDragging.current = true;
+        
+        velocity.current = { x: 0, y: 0, z: 0 };
+        lastMoveTime.current = Date.now();
+        
+        if (now - lastTapTime.current !== 0) { // meaning we didn't just double tap
+             dragThresholdExceeded.current = false;
+        }
+        lastMousePos.current = { x: e.clientX, y: e.clientY };
+        initialPointerPos.current = { x: e.clientX, y: e.clientY };
+    } else if (activePointers.current.size === 2) {
+        isDragging.current = false;
+        const pts = Array.from(activePointers.current.values());
+        initialPinchDist.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    }
     if (containerRef.current) containerRef.current.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging.current) return;
-    const dx = e.clientX - lastMousePos.current.x;
-    const dy = e.clientY - lastMousePos.current.y;
-    // Panning moves camera in opposite direction
-    targetCameraRef.current.x -= dx * 2;
-    targetCameraRef.current.y -= dy * 2;
-    lastMousePos.current = { x: e.clientX, y: e.clientY };
+    const now = Date.now();
+    const dt = Math.max(1, now - lastMoveTime.current);
+
+    if (activePointers.current.has(e.pointerId)) {
+        activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (activePointers.current.size === 1 && isDragging.current) {
+        const dx = e.clientX - lastMousePos.current.x;
+        const dy = e.clientY - lastMousePos.current.y;
+        
+        const totalDx = e.clientX - initialPointerPos.current.x;
+        const totalDy = e.clientY - initialPointerPos.current.y;
+        if (Math.hypot(totalDx, totalDy) > 8) {
+            dragThresholdExceeded.current = true;
+        }
+        
+        const moveX = dx * 1.5;
+        const moveY = dy * 1.5;
+        targetCameraRef.current.x -= moveX;
+        targetCameraRef.current.y -= moveY;
+        
+        // Calculate velocity (pixels per frame basically, scaled by dt)
+        velocity.current = {
+            x: -moveX / (dt / 16),
+            y: -moveY / (dt / 16),
+            z: 0
+        };
+        
+        lastMousePos.current = { x: e.clientX, y: e.clientY };
+    } else if (activePointers.current.size === 2 && initialPinchDist.current !== null) {
+        dragThresholdExceeded.current = true;
+        const pts = Array.from(activePointers.current.values());
+        const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const diff = currentDist - initialPinchDist.current;
+        
+        const moveZ = diff * 10;
+        targetCameraRef.current.z += moveZ;
+        
+        velocity.current = {
+            x: 0,
+            y: 0,
+            z: moveZ / (dt / 16)
+        };
+        
+        initialPinchDist.current = currentDist;
+    }
+    
+    lastMoveTime.current = now;
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    isDragging.current = false;
-    if (containerRef.current) containerRef.current.releasePointerCapture(e.pointerId);
+    activePointers.current.delete(e.pointerId);
+    if (activePointers.current.size < 2) {
+        initialPinchDist.current = null;
+    }
+    if (activePointers.current.size === 1) {
+        const pt = Array.from(activePointers.current.values())[0];
+        lastMousePos.current = { x: pt.x, y: pt.y };
+        isDragging.current = true;
+    } else if (activePointers.current.size === 0) {
+        isDragging.current = false;
+    }
+    if (containerRef.current && containerRef.current.hasPointerCapture(e.pointerId)) {
+        containerRef.current.releasePointerCapture(e.pointerId);
+    }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     // Zoom in/out moves camera Z
     targetCameraRef.current.z = Math.max(-5000, Math.min(5000, targetCameraRef.current.z + e.deltaY * 3));
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    // Zoom in on double click
+    targetCameraRef.current.z += 800;
   };
 
   return (
@@ -190,6 +304,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
         style={{ perspective: '800px', touchAction: 'none' }}
       >
         <div 
@@ -210,7 +325,12 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
             return (
               <div 
                 key={item.id} 
-                onClick={(e) => { e.stopPropagation(); navigateTo(item); }}
+                onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (!dragThresholdExceeded.current) {
+                        navigateTo(item); 
+                    }
+                }}
                 className="absolute group flex flex-col items-center text-center hover:scale-110 transition-transform cursor-pointer"
                 style={{
                     transform: `translate3d(${pos.x}px, ${pos.y}px, ${pos.z}px) translate(-50%, -50%)`,
@@ -218,18 +338,18 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
                 }}
               >
                   {/* Floating Orb or Image Preview */}
-                  <div className={`relative flex items-center justify-center p-6 ${isImage ? 'bg-transparent' : 'bg-black/40'} border border-white/10 rounded-full backdrop-blur-md group-hover:border-purple-500/50 group-hover:bg-purple-900/20 transition-all shadow-[0_0_30px_rgba(0,0,0,0.8)]`}>
+                  <div className={`relative flex items-center justify-center p-4 ${isImage ? 'bg-transparent' : 'bg-black/40'} border border-white/10 rounded-full backdrop-blur-md group-hover:border-purple-500/50 group-hover:bg-purple-900/20 transition-all shadow-[0_0_30px_rgba(0,0,0,0.8)]`}>
                       <div className="absolute inset-0 rounded-full bg-white/5 opacity-0 group-hover:opacity-100 group-hover:animate-ping z-0 pointer-events-none"></div>
                       <div className="relative z-10 pointer-events-none">
                          {isImage && item.l2_content ? (
-                             <img src={item.l2_content} className="w-10 h-10 md:w-16 md:h-16 object-cover rounded-2xl border border-white/20 shadow-lg shadow-pink-500/20" />
+                             <img src={item.l2_content} className="w-8 h-8 md:w-12 md:h-12 object-cover rounded-xl border border-white/20 shadow-lg shadow-pink-500/20" />
                          ) : getIcon(item.type)}
                       </div>
                   </div>
                   
-                  <div className="mt-4 bg-black/60 px-4 py-2 rounded-xl border border-white/10 backdrop-blur-md">
-                    <span className="text-sm font-black text-white block whitespace-nowrap">{item.name}</span>
-                    <span className="text-[10px] text-purple-300 uppercase font-bold tracking-widest mt-1 block drop-shadow-md">
+                  <div className="mt-3 bg-black/60 px-3 py-1.5 rounded-lg border border-white/10 backdrop-blur-md">
+                    <span className="text-xs font-black text-white block whitespace-nowrap">{item.name}</span>
+                    <span className="text-[8px] text-purple-300 uppercase font-bold tracking-widest mt-0.5 block drop-shadow-md">
                       {item.type === 'folder' ? 'مجلد' : 'ملف'}
                     </span>
                   </div>
