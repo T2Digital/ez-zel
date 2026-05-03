@@ -21,7 +21,7 @@ interface MessageBubbleProps {
     handlePlayMessage: (m: ExtendedMessage) => void;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({
+export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
     m, idx, highlightText, renderCard, handleSend, setInput,
     handleShareMessage, handleShareVoiceMessage, isSharingVoice,
     playingMessageId, handleStopPlayback, handlePlayMessage
@@ -90,7 +90,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
         </div>
     );
-};
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.m.id === nextProps.m.id &&
+        prevProps.m.text === nextProps.m.text &&
+        prevProps.m.uiCards?.length === nextProps.m.uiCards?.length &&
+        prevProps.isSharingVoice === nextProps.isSharingVoice &&
+        prevProps.playingMessageId === nextProps.playingMessageId
+    );
+});
 
 const GlobeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-globe animate-pulse"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>

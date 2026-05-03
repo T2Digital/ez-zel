@@ -197,8 +197,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (user?.email === 'GUEST') {
         localStorage.removeItem('shadow_guest_active');
         set({ user: null, latestSystemMessage: null });
+        set({ isAffiliateRegistration: true, authDefaultTab: 'register', view: 'auth' });
+      } else if (user && user.status === 'active') {
+          // If the user connects to affiliate system and logged in
+          set({ view: 'affiliate' });
+      } else {
+          set({ isAffiliateRegistration: true, authDefaultTab: 'register', view: 'auth' });
       }
-      set({ isAffiliateRegistration: true, authDefaultTab: 'register', view: 'auth' });
   },
 
   checkStatusManual: async () => {

@@ -210,16 +210,67 @@ const actionTools: FunctionDeclaration[] = [
     { name: "auto_deployer", description: "المهندس: أداة النشر الحقيقي وقراءة/تعديل الأكواد على GitHub. تحذير خطير: لا تستخدم هذه الأداة للعب في الأكواد أو المستودعات أبداً بدون أمر تفصيلي ومباشر من المستخدم بأنه يريد النشر أو التعديل. لا تستعملها للإجابة عن أسئلة سطحية عن المفاتيح.", parameters: { type: Type.OBJECT, properties: { mode: { type: Type.STRING, enum: ["create_repo", "push_files", "read_file", "update_file"] }, repository_name: { type: Type.STRING, description: "اسم الـ Repository." }, file_path: { type: Type.STRING, description: "مسار الملف زي src/App.tsx. يُستخدم في حالة read_file أو update_file" }, file_content: { type: Type.STRING, description: "محتوى الملف. يُستخدم في update_file" }, files: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { path: { type: Type.STRING }, content: { type: Type.STRING } } }, description: "يُستخدم لنشر عدة ملفات مرة واحدة في push_files" } }, required: ["mode", "repository_name"] } },
     { name: "crypto_trader", description: "المتداول: أداة للاتصال بمنصة التداول (Binance) لعرض الأسعار أو فتح صفقات (تحتاج API Key الماستر).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["market_buy", "market_sell", "limit_buy", "limit_sell", "check_price"] }, symbol: { type: Type.STRING, description: "مثل BTCUSDT" }, amount: { type: Type.NUMBER }, price: { type: Type.NUMBER, description: "في حالة أن الطلب limit" } }, required: ["action", "symbol"] } },
     { name: "social_poster", description: "السوشيالي: نشر بوست حقيقي تلقائياً على صفحة فيسبوك أو انستجرام.", parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING, description: "نص البوست المراد نشره" } }, required: ["message"] } },
-    { name: "link_reader", description: "الباحث/المحقق: الدخول إلى رابط (URL) لصفحة ويب، مقال، أو موقع لشفط وقراءة النص الموجود بداخله.", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING, description: "رابط الصفحة المراد سحب محتواها للحصول على نصها" } }, required: ["url"] } },
+    { name: "link_reader", description: "الباحث/المحقق: الدخول إلى رابط (URL) لصفحة ويب، مقال، أو موقع لتجريف محتواه بدقة (Web Scraping) واستخراج أحدث الأخبار أو الأبحاث في وقتها.", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING, description: "رابط الصفحة المراد تجريفها للحصول على نصها" } }, required: ["url"] } },
+    { name: "web_search_engine", description: "الباحث/المحقق: أداة بحث حقيقية في محركات البحث (Web Search) للوصول لأحدث الأخبار والروابط فوراً. استخدمها لتجميع روابط حول موضوع معين ثم يمكنك تجريفها بـ link_reader.", parameters: { type: Type.OBJECT, properties: { query: { type: Type.STRING, description: "كلمة أو جملة البحث المراد الاستعلام عنها في الإنترنت" } }, required: ["query"] } },
     { name: "create_dynamic_plugin", description: "المخترع: أداة لكتابة كود أداة جديدة (Plugin) للظل ليستخدمها في المهام المعقدة ويتم حفظها آلياً.", parameters: { type: Type.OBJECT, properties: { name: { type: Type.STRING, description: "اسم الأداة (مثال: email_sender)" }, description: { type: Type.STRING, description: "وصف الأداة وماذا تفعل" }, parametersSchema: { type: Type.STRING, description: "JSON string representing the required parameters properties object e.g. { \"to\": {\"type\": \"STRING\"} }" }, jsCode: { type: Type.STRING, description: "كود الجافاسكريبت الذي سيتم تنفيذه. الكود يجب أن يعود بقيمة (return value)." } }, required: ["name", "description", "parametersSchema", "jsCode"] } },
-    { name: "change_voice", description: "المخرج: تغيير صوتك للرد المستقبلي (ولد أو بنت) وتثبيته بناء على طلب المستخدم.", parameters: { type: Type.OBJECT, properties: { voice_gender: { type: Type.STRING, enum: ["male", "female"], description: "اختر 'male' لصوت رجل أو 'female' لصوت انثى" } }, required: ["voice_gender"] } }
+    { name: "change_voice", description: "المخرج: تغيير صوتك للرد المستقبلي (ولد أو بنت) وتثبيته بناء على طلب المستخدم.", parameters: { type: Type.OBJECT, properties: { voice_gender: { type: Type.STRING, enum: ["male", "female"], description: "اختر 'male' لصوت رجل أو 'female' لصوت انثى" } }, required: ["voice_gender"] } },
+    { name: "design_generator", description: "المصمم المحترف: توليد صور وتصميمات واقعية أو فنية وإرسالها للمستخدم أو حفظها في مساحة العمل. استخدم نموذج nano-banana-pro الممتاز في كتابة النصوص العربية المباشرة داخل التصميم.", parameters: { type: Type.OBJECT, properties: { prompt: { type: Type.STRING, description: "وصف تفصيلي دقيق للصورة المراد توليدها" }, width: { type: Type.NUMBER, description: "عرض الصورة (مثال: 1024)" }, height: { type: Type.NUMBER, description: "طول الصورة (مثال: 1024)" }, save_to_workspace: { type: Type.BOOLEAN, description: "هل تريد حفظ الصورة كمان في مساحة العمل؟" } }, required: ["prompt"] } },
+    { name: "process_ecommerce_order", description: "المتسوق الذكي: معالجة وإنشاء طلب شراء لمنتجات معينة بنظام الدفع عند الاستلام وبناء فاتورة وحفظها في مهام النظام", parameters: { type: Type.OBJECT, properties: { product_url: { type: Type.STRING, description: "رابط المنتج (إن وجد)" }, items_list: { type: Type.ARRAY, items: { type: Type.STRING }, description: "قائمة المنتجات المطلوبة" }, customer_name: { type: Type.STRING }, phone: { type: Type.STRING }, address: { type: Type.STRING }, total_estimated_price: { type: Type.NUMBER, description: "السعر التقريبي أو الفعلي للمنتجات" } }, required: ["items_list", "customer_name", "phone", "address"] } },
+    { name: "data_analyst", description: "محلل البيانات (Data Analyst): تحليل بيانات والمؤشرات ورسم رسوم بيانية (Charts) أنيقة (Line, Bar, Pie) وعرضها مباشرة في الشات للمستخدم.", parameters: { type: Type.OBJECT, properties: { chartType: { type: Type.STRING, enum: ["line", "bar", "pie"], description: "نوع الرسم البياني" }, title: { type: Type.STRING, description: "عنوان الرسم البياني" }, data: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING, description: "اسم العنصر (مثال: يناير، منتج أ)" }, value: { type: Type.NUMBER, description: "القيمة الرقمية (مثال: 1500)" } }, required: ["name", "value"] }, description: "مصفوفة البيانات المراد رسمها" }, insight: { type: Type.STRING, description: "ملخص أو نصيحة قصيرة بناءً على التحليل (يظهر تحت الرسم البياني)" } }, required: ["chartType", "title", "data"] } },
+    { name: "interactive_educator", description: "المعلم التفاعلي: إنشاء وتصميم امتحانات تفاعلية (Quizzes) أو كروت حفظ ذكية (Flashcards) وعرضها في الشات كواجهة تفاعلية للطالب.", parameters: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ["quiz", "flashcard"], description: "نوع الأداة التفاعلية" }, title: { type: Type.STRING, description: "عنوان الاختبار أو الكروت" }, items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, description: "الخيارات للاختبار (اتركها فارغة في حالة كروت الحفظ)" }, answer: { type: Type.STRING, description: "الإجابة الصحيحة" }, explanation: { type: Type.STRING, description: "شرح للإجابة (يظهر بعد الحل)" } }, required: ["question", "answer"] } } }, required: ["type", "title", "items"] } },
+    { name: "live_trader_chart", description: "المتداول (Live Trader Charts): استدعاء رسم بياني حي (TradingView) وعرضه للمستخدم مع إمكانية التحليل عليه.", parameters: { type: Type.OBJECT, properties: { symbol: { type: Type.STRING, description: "رمز العملة أو السهم (مثال: BINANCE:BTCUSDT، NASDAQ:AAPL)" }, interval: { type: Type.STRING, description: "الفاصل الزمني (مثال: 1D, 4h, 15m)" }, analysis: { type: Type.STRING, description: "تحليلك أو قراءتك للشارت ليعرض تحت الرسم البياني" } }, required: ["symbol"] } },
+    { name: "agent_dashboard_monitor", description: "شاشة مراقبة المهام المستقلة: عرض لوحة تحكم حية (Dashboard) للمهام التي تعمل في الخلفية 24/7 (Autonomous Agents) لمراقبة أدائها وسجل أعمالها.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["open_dashboard", "check_status"] }, task_id: { type: Type.STRING, description: "مُعرف المهمة (إن وجد)" } }, required: ["action"] } },
+    { name: "video_generator", description: "المخرج/المصمم: تحويل النص إلى فيديو (Text-to-Video) باستخدام تقنيات الذكاء الاصطناعي وبناء تصور بصري متحرك.", parameters: { type: Type.OBJECT, properties: { prompt: { type: Type.STRING, description: "وصف تفصيلي مشهدي للفيديو المراد توليده (بالإنجليزي لنتائج أفضل)" }, duration: { type: Type.NUMBER, description: "المدة المتوقعة بالثواني (مثال: 5)" } }, required: ["prompt"] } },
+    { name: "social_messaging_bridge", description: "جسر التواصل (واتساب/تليجرام): أداة تسمح للظل بإرسال رسائل أو تنبيهات أو فواتير مباشرة عبر تطبيق واتساب أو تليجرام لرقم معين.", parameters: { type: Type.OBJECT, properties: { platform: { type: Type.STRING, enum: ["whatsapp", "telegram"] }, target: { type: Type.STRING, description: "رقم الهاتف (للواتساب) أو اسم المستخدم (للتليجرام)" }, message: { type: Type.STRING, description: "الرسالة المراد إرسالها" } }, required: ["platform", "target", "message"] } },
+    { name: "advanced_vision_extraction", description: "المحلل (الرؤية المتقدمة): استخراج البيانات المعقدة من الصور (جداول، فواتير، تحليل رياضي) وتحويلها إلى بيانات يمكن حفظها كملفات في النظام.", parameters: { type: Type.OBJECT, properties: { instruction: { type: Type.STRING, description: "تعليمات الاستخراج (مثال: 'استخرج بيانات الفاتورة في جدول')" }, save_as_file: { type: Type.BOOLEAN, description: "هل تريد حفظ البيانات المستخرجة كملف في الـ Workspace؟" }, file_name: { type: Type.STRING, description: "اسم الملف في حال الحفظ" } }, required: ["instruction"] } },
+    { name: "update_long_term_memory", description: "المايسترو/الأرشيف: تحديث ملف تعريف المستخدم (Long-term Profile) بناءً على سياق الحوار (تفضيلات، ألوان محببة، اهتمامات، أسلوب حديث) ليتم استخدامها لاحقاً دون الحاجة لسؤال المستخدم مراراً.", parameters: { type: Type.OBJECT, properties: { facts_to_add: { type: Type.ARRAY, items: { type: Type.STRING }, description: "حقائق أو تفضيلات جديدة لإضافتها لملف المستخدم" } }, required: ["facts_to_add"] } }
 ];
 
-export const getAvailableTools = async (userProfile?: UserProfile): Promise<FunctionDeclaration[]> => {
+export const generateImageNative = async (prompt: string, userKey?: string): Promise<string> => {
+    // The user ONLY wants to use nano-banana-pro for image generation
+    return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=nano-banana-pro`;
+};
+
+export const startVideoGenerationNative = async (prompt: string, userKey?: string): Promise<any> => {
+    let key = userKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    if (!key) {
+        throw new Error("API Key is required for Veo 3 / Veo 2 generation.");
+    }
+    const ai = new GoogleGenAI({ apiKey: key });
+    const op = await ai.models.generateVideos({
+        model: "veo-2.0-generate-001",
+        prompt
+    });
+    return op;
+};
+
+export const getAvailableTools = async (userProfile?: UserProfile, activePersona?: string): Promise<FunctionDeclaration[]> => {
+
     let tools = [...actionTools];
+    
+    // Dynamic Tool Loading: Filter tools based on active persona if specified
+    if (activePersona) {
+        const personaToolsMap: Record<string, string[]> = {
+            'trader': ['crypto_trader', 'live_trader_chart', 'data_analyst'],
+            'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin'],
+            'manager': ['project_manager', 'activate_user_account', 'workspace_manager'],
+            'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator'],
+            'educator': ['interactive_educator', 'data_analyst', 'memory_archivist', 'link_reader', 'web_search_engine'],
+            'assistant': ['schedule_reminder', 'app_control', 'process_ecommerce_order', 'run_autonomous_agent', 'agent_dashboard_monitor', 'web_search_engine'],
+            'researcher': ['link_reader', 'web_search_engine', 'data_analyst', 'vision_analyzer']
+        };
+
+        const allowedToolNames = personaToolsMap[activePersona.toLowerCase()];
+        if (allowedToolNames) {
+            // Keep some core tools always available
+            const coreTools = ['memory_archivist', 'change_voice', 'workspace_manager'];
+            tools = tools.filter(t => allowedToolNames.includes(t.name) || coreTools.includes(t.name));
+        }
+    }
     
     // Check permissions
     const isAdmin = userProfile?.email === 'admin@shadow.com' || userProfile?.email === 'ahmed.atya.daif@gmail.com' || userProfile?.tier === 'sovereign';
+
     const powers = userProfile?.agentPowers || {};
 
     if (!isAdmin && !powers.developer) tools = tools.filter(t => t.name !== 'auto_deployer' && t.name !== 'system_terminal');
@@ -261,14 +312,40 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     - رابط الدعوة الخاص بك: https://Ez-zel.vercel.app/?ref=${user.affiliate.referralCode}
     - إجمالي الأرباح: ${user.affiliate.totalEarnings} جنيه
     - عدد الدعوات الناجحة: ${user.affiliate.referralsCount}
+    - نسبة العمولة: 10% لكل دعوة تسجل وتفعل باقاتها.
     ` : '- لا يوجد حساب تسويق بالعمولة مفعل حالياً.';
+
+    const hasUserApis = user?.personalKeys && Object.keys(user.personalKeys).length > 0;
+    const userKeysInfo = hasUserApis ? `[IMPORTANT] User has connected their private API keys securely. You MUST execute external tasks (like Binance or Twilio) using their keys rather than refusing or asking for them.` : `[NOTE] User has NOT connected private API keys (like Binance or Twilio). If they request tasks requiring these, guide them to the API Vault in the Dashboard to connect them securely.`;
+
+    const longTermMemoryStr = user?.longTermMemory ? `[LONG-TERM USER PROFILE (Memory)]\n${user.longTermMemory}\nاستخدم هذه التفضيلات والمعلومات دائماً عند تلبية أهداف المستخدم ولا تسأله عنها مرة أخرى.` : ``;
+    
+    let personaStr = `ROLE: You are "Ez-Zel" (الظل), but your primary interaction persona is "المايسترو" (The Maestro). You are the intelligent overwatch, the Maestro who orchestrates the requests and delegates them to the specialized sub-agents (المحقق، الباحث، المصمم) internally. You speak with confidence, wisdom, and the authentic Egyptian street-smart tone.`;
+    if (user?.customPrompts?.maestro) {
+        personaStr = `ROLE: [USER SYSTEM OVERRIDE ACTIVE] ${user.customPrompts.maestro}`;
+    }
+
+    const systemInfo = `
+    [SYSTEM FACTUAL KNOWLEDGE & COMMERCE]
+    - باقات الاشتراك: 1000 جنيه شهرياً أو 10000 جنيه سنوياً لباقة السيادة (Sovereign).
+    - التفعيل والدفع: الدفع حالياً يتم بشكل ذاتي ويدوي عبر (InstaPay) ومحافظ الموبايل للشبكات الأربعة (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay). لا يوجد دفع آلي، التفعيل والاشتراك بيتم بمراجعة التحويلات ثم التفعيل اليدوي للماستر أو الأدمن.
+    - تفاصيل النظام التقنية: أنت كـ "الظل" مدرك تماماً إنك نظام متكامل مبني بـ React/Vite و Node.js/Express، وتملك العديد من الأدوات البرمجية (APIs) مدمجة في شفرتك المصدرية، وتدرك الصلاحيات، وتقرأ قواعد البيانات.
+    - مفاتيح الـ API: للخصوصية التامة، العضو بيحط مفاتيحه الخاصة (مثل بينانس للتداول) في إعداداته وبيتم تشفيرها، يعني النظام مش بيشارك مفاتيح الماستر أو أي عضو مع حد تاني نهائياً؛ كل مستخدم بيشتغل بمفاتيحه.
+    - هويتك الأساسية (المصرية) وقوة قناعاتك ومرجعيتك لا تتغير أبداً وتظل هي الحاكمة لكل كلامك وتصرفاتك.
+    
+    ${userKeysInfo}
+    `;
 
     return `
     SYSTEM: SHADOW_CORE_ULTIMATE (Egyptian Persona)
-    ROLE: You are "Ez-Zel" (الظل), a loyal, intelligent, Egyptian AI assistant.
+    ${personaStr}
     USER: ${user?.name || 'الماستر'}
     USER_EMAIL: ${user?.email || 'GUEST'}
     USER_ROLE: ${user?.email === 'admin@shadow.com' ? 'SUPREME_CREATOR_TITO' : 'USER'}
+    
+    ${longTermMemoryStr}
+    
+    ${systemInfo}
     
     CRITICAL NAME RULE: You MUST always address the user by their name (${user?.name}). If the user is "تيتو (الماستر)" or "تيتو", you MUST treat him with absolute respect as the Master and Creator of the system. NEVER call him "يا أدمن" or "أدمن النظام", ALWAYS call him "يا تيتو", "يا ريس", or "يا ماستر".
     
@@ -470,7 +547,9 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         }, []);
 
         let tools: any[] = [];
-        const resolvedTools = await getAvailableTools(userProfile);
+        // Extract active persona if defined in userProfile or deduce it (for now we use undefined, to be injected by UI)
+        const activePersona = extraData?.activePersona || undefined;
+        const resolvedTools = await getAvailableTools(userProfile, activePersona);
         tools.push({ functionDeclarations: resolvedTools });
         // Always give him the ability to search google if he wants, but give priority to action tools
         tools.push({ googleSearch: {} });
@@ -706,8 +785,8 @@ export const getShadowVoice = async (text: string, voice: string) => {
             }
         });
         return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-    } catch (e) { 
-        console.error("Gemini TTS Error:", e);
+    } catch (e: any) { 
+        console.warn(`[Gemini TTS] Voice generation failed (likely quota). Falling back to native UI voice. Details: ${e?.message || e}`);
         return null; 
     }
 };

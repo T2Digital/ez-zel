@@ -1,5 +1,5 @@
 import { db, auth } from './firebaseConfig';
-import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, addDoc, orderBy, deleteDoc, writeBatch, limit } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, getDocsFromServer, updateDoc, addDoc, orderBy, deleteDoc, writeBatch, limit } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, User } from "firebase/auth";
 import { encryptData, decryptData } from './cryptoService';
 
@@ -14,7 +14,8 @@ export interface DBMessage {
   image?: string; 
   uiCards?: any[]; // CHANGED: Array to support multitasking cards
   isHidden?: boolean;
-  synced?: boolean; 
+  synced?: boolean;
+  isAutonomousResult?: boolean;
 }
 
 export interface UserTraits {
@@ -83,6 +84,9 @@ export interface UserProfile {
         openaiApiKey?: string;
         anthropicApiKey?: string;
         geminiApiKey?: string;
+        twilioSid?: string;
+        twilioAuthToken?: string;
+        twilioWhatsAppNumber?: string;
     };
     vaultState?: {
         contactsImported: boolean;
@@ -91,6 +95,12 @@ export interface UserProfile {
     };
     pin?: string;
     traits?: UserTraits;
+    longTermMemory?: string;
+    customPrompts?: {
+        maestro?: string;
+        designer?: string;
+        researcher?: string;
+    };
     lastPulseReceived?: number; 
     synced?: boolean;
     agentPowers?: AgentPowers;
@@ -199,6 +209,34 @@ const sanitizeForFirestore = (data: any): any => {
 };
 
 class ShadowDB {
+  async deleteFSItem(id: number) {
+      if (!db) throw new Error('DB not initialized');
+      return new Promise<void>((resolve) => {
+          const tx = db.transaction('filesystem', 'readwrite');
+          tx.objectStore('filesystem').delete(id);
+          tx.oncomplete = () => resolve();
+      });
+  }
+
+  async saveFSItem(item: DBFSItem): Promise<number> {
+      if (!db) throw new Error('DB not initialized');
+      return new Promise((resolve) => {
+          const tx = db.transaction('filesystem', 'readwrite');
+          const itemWithId = { ...item, id: item.id || Date.now() + Math.floor(Math.random() * 1000) };
+          const req = tx.objectStore('filesystem').put(itemWithId);
+          req.onsuccess = () => resolve(itemWithId.id as number);
+      });
+  }
+
+  async deleteTask(id: number) {
+      if (!db) throw new Error('DB not initialized');
+      return new Promise<void>((resolve) => {
+          const tx = db.transaction('tasks', 'readwrite');
+          tx.objectStore('tasks').delete(id);
+          tx.oncomplete = () => resolve();
+      });
+  }
+
   private dbName = 'ShadowCore_V20_Email'; 
   private version = 21; // Incremented version for schema change
   public unsubscribeListeners: Function[] = [];
@@ -313,9 +351,16 @@ class ShadowDB {
 
   async syncHistoryFast(email: string) {
       if (!db || !email || email === 'GUEST') return;
+      const cleanEmail = email.toLowerCase();
       try {
-          const q = query(collection(db, `users/${email}/history`), orderBy('timestamp', 'desc'), limit(100));
-          const snap = await getDocs(q);
+          const q = query(collection(db, `users/${cleanEmail}/history`), orderBy('timestamp', 'desc'), limit(100));
+          let snap;
+          try {
+              snap = await getDocs(q);
+          } catch (e: any) {
+              console.warn("getDocs failed with assertion error, falling back to getDocsFromServer...", e);
+              snap = await getDocsFromServer(q);
+          }
           for (const d of snap.docs) {
               const item = d.data();
               if (item) {
@@ -327,28 +372,43 @@ class ShadowDB {
       }
   }
 
+  private _isDownloadingCloudData = false;
+
   async downloadUserCloudData(email: string) {
       if (!db || !email) return;
+      if (this._isDownloadingCloudData) return;
+      
+      const cleanEmail = email.toLowerCase();
+      
       try {
-          console.log('[Shadow Core] Downloading cloud data for', email);
+          this._isDownloadingCloudData = true;
+          console.log('[Shadow Core] Downloading cloud data for', cleanEmail);
           
           const collectionsList = ['history', 'tasks', 'memory', 'filesystem'];
           for (const col of collectionsList) {
-             const q = query(collection(db, 'users/' + email + '/' + col));
-             const snap = await getDocs(q);
+             const q = query(collection(db, 'users/' + cleanEmail + '/' + col));
+             let snap;
+             try {
+                 snap = await getDocs(q);
+             } catch (e: any) {
+                 console.warn("[Shadow Core] getDocs failed in downloadUserCloudData, fallback to server...", e);
+                 snap = await getDocsFromServer(q);
+             }
              for (const d of snap.docs) {
                 const item = d.data();
                 if (item) {
-                   if (col === 'history') await this.saveMessage({...item, userId: email} as any, true);
-                   if (col === 'tasks') await this.saveTask({...item, userId: email} as any, true);
-                   if (col === 'memory') await this.saveFact({...item, userId: email} as any, true);
-                   if (col === 'filesystem') await this.createFSItem({...item, userId: email} as any);
+                   if (col === 'history') await this.saveMessage({...item, userId: cleanEmail} as any, true);
+                   if (col === 'tasks') await this.saveTask({...item, userId: cleanEmail} as any, true);
+                   if (col === 'memory') await this.saveFact({...item, userId: cleanEmail} as any, true);
+                   if (col === 'filesystem') await this.createFSItem({...item, userId: cleanEmail} as any);
                 }
              }
           }
           console.log('[Shadow Core] Cloud data download complete.');
       } catch (e) {
           console.error('[Shadow Core] Failed to download cloud data', e);
+      } finally {
+          this._isDownloadingCloudData = false;
       }
   }
 
@@ -439,25 +499,26 @@ class ShadowDB {
 
   subscribeToRealtime(email: string, onUpdate: (table: string, payload: any) => void) {
       if (!db || email === 'GUEST' || !auth?.currentUser) return;
+      const cleanEmail = email.toLowerCase();
       try {
           this.unsubscribeListeners.forEach(unsub => unsub());
           this.unsubscribeListeners = [];
           
-          const profileUnsub = onSnapshot(doc(db, "users", email), (doc) => {
+          const profileUnsub = onSnapshot(doc(db, "users", cleanEmail), (doc) => {
               if (doc.exists()) {
                   const data = doc.data();
-                  const profile: UserProfile = { ...data, email } as any; 
+                  const profile: UserProfile = { ...data, email: cleanEmail } as any; 
                   
                   if (profile.personalKeys) {
                       profile.personalKeys = {
-                          githubToken: decryptData(profile.personalKeys.githubToken || '', email),
-                          vercelToken: decryptData(profile.personalKeys.vercelToken || '', email),
-                          binanceApiKey: decryptData(profile.personalKeys.binanceApiKey || '', email),
-                          binanceSecretKey: decryptData(profile.personalKeys.binanceSecretKey || '', email),
-                          metaAccessToken: decryptData(profile.personalKeys.metaAccessToken || '', email),
-                          openaiApiKey: decryptData(profile.personalKeys.openaiApiKey || '', email),
-                          anthropicApiKey: decryptData(profile.personalKeys.anthropicApiKey || '', email),
-                          geminiApiKey: decryptData(profile.personalKeys.geminiApiKey || '', email),
+                          githubToken: decryptData(profile.personalKeys.githubToken || '', cleanEmail),
+                          vercelToken: decryptData(profile.personalKeys.vercelToken || '', cleanEmail),
+                          binanceApiKey: decryptData(profile.personalKeys.binanceApiKey || '', cleanEmail),
+                          binanceSecretKey: decryptData(profile.personalKeys.binanceSecretKey || '', cleanEmail),
+                          metaAccessToken: decryptData(profile.personalKeys.metaAccessToken || '', cleanEmail),
+                          openaiApiKey: decryptData(profile.personalKeys.openaiApiKey || '', cleanEmail),
+                          anthropicApiKey: decryptData(profile.personalKeys.anthropicApiKey || '', cleanEmail),
+                          geminiApiKey: decryptData(profile.personalKeys.geminiApiKey || '', cleanEmail),
                       };
                   }
                   
@@ -467,13 +528,13 @@ class ShadowDB {
           }, (error) => { console.warn("[Firebase] Profile sync error:", error); });
           this.unsubscribeListeners.push(profileUnsub);
 
-          const historyQuery = query(collection(db, `users/${email}/history`), where('timestamp', '>', Date.now() - 10000));
+          const historyQuery = query(collection(db, `users/${cleanEmail}/history`), where('timestamp', '>', Date.now() - 10000));
           const historyUnsub = onSnapshot(historyQuery, (snapshot) => {
               snapshot.docChanges().forEach((change) => {
                   if (change.type === "added") {
                       const data = change.doc.data();
                       this.saveMessage(data as any, true).then((id) => {
-                          data.text = decryptData(data.text, email);
+                          data.text = decryptData(data.text, cleanEmail);
                           onUpdate('history', { ...data, id });
                       });
                   }
@@ -550,7 +611,7 @@ class ShadowDB {
   }
 
   async pushToCloud(collectionName: string, rawData: any, subCollection?: string, userId?: string) {
-      if (!db) return; 
+      if (!db) throw new Error('DB not initialized'); 
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
           this.updateSyncStatus('offline');
       }
@@ -635,6 +696,7 @@ class ShadowDB {
   // --- CRUD OPERATIONS ---
   async saveMessage(msg: DBMessage, skipCloud = false): Promise<number> {
     const db = await this.init();
+    if (msg.userId) msg.userId = msg.userId.toLowerCase();
     const tx = db.transaction('history', 'readwrite');
     const id = (msg as any).id || Date.now() + Math.floor(Math.random() * 1000);
     // If skipCloud is true, it came from the cloud where it is already encrypted!
@@ -729,6 +791,7 @@ class ShadowDB {
   }
 
   async saveTask(task: DBTask, skipCloud = false) {
+    if (task.userId) task.userId = task.userId.toLowerCase();
     const db = await this.init();
     return new Promise((resolve, reject) => {
         const tx = db.transaction('tasks', 'readwrite');
@@ -761,6 +824,7 @@ class ShadowDB {
   }
 
   async saveFact(fact: DBFact, skipCloud = false) {
+    if (fact.userId) fact.userId = fact.userId.toLowerCase();
     const db = await this.init();
     const tx = db.transaction('memory', 'readwrite');
     const factWithId = { ...fact, id: fact.id || Date.now() + Math.floor(Math.random() * 1000), synced: true };
@@ -963,6 +1027,7 @@ class ShadowDB {
       return new Promise((resolve) => { request.onsuccess = () => resolve(request.result as DBFSItem[]); request.onerror = () => resolve([]); });
   }
   async createFSItem(item: DBFSItem): Promise<number> {
+      if (item.userId) item.userId = item.userId.toLowerCase();
       const db = await this.init();
       const itemWithId = { ...item, id: item.id || Date.now() + Math.floor(Math.random() * 1000), synced: false };
       const request = db.transaction('fs', 'readwrite').objectStore('fs').add(itemWithId);
@@ -1015,11 +1080,12 @@ class ShadowDB {
   }
 
   async saveSystemKeys(keys: SystemKeys) {
-      if (!db) return;
+      if (!db) throw new Error('DB not initialized');
       await setDoc(doc(db, 'system', 'keys'), keys, { merge: true });
   }
 
   async saveContact(contact: DBContact) {
+      if (contact.userId) contact.userId = contact.userId.toLowerCase();
       const db = await this.init();
       const contactWithId = { ...contact, id: contact.id || Date.now() + Math.floor(Math.random() * 1000), synced: true };
       if (contact.userId !== 'GUEST') this.pushToCloud('contacts', contactWithId, 'contacts', contact.userId);

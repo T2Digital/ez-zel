@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2 } from 'lucide-react';
 import { shadowDB, DBFSItem } from '../services/dbService';
+import SpaceCanvas from './SpaceCanvas';
 
 interface Props {
   userId: string;
@@ -15,9 +16,55 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<DBFSItem | null>(null);
 
+  // 3D Navigation State
+  const cameraRef = useRef({ x: 0, y: 0, z: 1000 });
+  const targetCameraRef = useRef({ x: 0, y: 0, z: 1000 });
+  const isDragging = useRef(false);
+  const lastMousePos = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>();
+
+  const itemPositions = useMemo(() => {
+     const posMap = new Map<number, {x: number, y: number, z: number}>();
+     items.forEach((item, i) => {
+         // Create a tighter spiral layout
+         const angle = i * 2.4;
+         const radius = 120 + (i * 15);
+         posMap.set(item.id!, {
+             x: Math.cos(angle) * radius,
+             y: Math.sin(angle) * radius,
+             z: - (i * 50) // spread out in depth less
+         });
+     });
+     return posMap;
+  }, [items]);
+
   useEffect(() => {
     loadItems();
+    // Reset camera on navigation
+    targetCameraRef.current = { x: 0, y: 0, z: 1000 };
   }, [currentFolderId, userId]);
+
+  useEffect(() => {
+    const loop = () => {
+       const cam = cameraRef.current;
+       const target = targetCameraRef.current;
+       
+       cam.x += (target.x - cam.x) * 0.1;
+       cam.y += (target.y - cam.y) * 0.1;
+       cam.z += (target.z - cam.z) * 0.1;
+
+       if (sceneRef.current) {
+         sceneRef.current.style.transform = `translate3d(${-cam.x}px, ${-cam.y}px, ${cam.z}px)`;
+       }
+       rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   const loadItems = async () => {
     const data = await shadowDB.getFSItemsByParent(userId, currentFolderId);
@@ -47,19 +94,50 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'folder': return <Folder className="w-6 h-6 text-amber-400 fill-amber-400/20" />;
-      case 'table': return <Table className="w-6 h-6 text-emerald-400" />;
-      case 'calendar': return <Calendar className="w-6 h-6 text-blue-400" />;
-      case 'project': return <Briefcase className="w-6 h-6 text-purple-400" />;
-      default: return <FileText className="w-6 h-6 text-white/60" />;
+      case 'folder': return <Folder className="w-6 h-6 text-amber-400 fill-amber-400/20 drop-shadow-[0_0_20px_rgba(251,191,36,0.3)]" />;
+      case 'table': return <Table className="w-6 h-6 text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.3)]" />;
+      case 'calendar': return <Calendar className="w-6 h-6 text-blue-400 drop-shadow-[0_0_20px_rgba(96,165,250,0.3)]" />;
+      case 'project': return <Briefcase className="w-6 h-6 text-purple-400 drop-shadow-[0_0_20px_rgba(192,132,252,0.3)]" />;
+      case 'image': return <ImageIcon className="w-6 h-6 text-pink-400 drop-shadow-[0_0_20px_rgba(244,114,182,0.3)]" />;
+      case 'video': return <Video className="w-6 h-6 text-red-400 drop-shadow-[0_0_20px_rgba(248,113,113,0.3)]" />;
+      default: return <FileText className="w-6 h-6 text-white/60 drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]" />;
     }
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    isDragging.current = true;
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+    if (containerRef.current) containerRef.current.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging.current) return;
+    const dx = e.clientX - lastMousePos.current.x;
+    const dy = e.clientY - lastMousePos.current.y;
+    // Panning moves camera in opposite direction
+    targetCameraRef.current.x -= dx * 2;
+    targetCameraRef.current.y -= dy * 2;
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    isDragging.current = false;
+    if (containerRef.current) containerRef.current.releasePointerCapture(e.pointerId);
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    // Zoom in/out moves camera Z
+    targetCameraRef.current.z = Math.max(-5000, Math.min(5000, targetCameraRef.current.z + e.deltaY * 3));
+  };
+
   return (
-    <div className="flex flex-col h-full glass rounded-[40px] overflow-hidden border border-white/5 bg-black/40">
-      {/* Search & Actions */}
-      <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5 backdrop-blur-xl">
-        <div className="flex items-center gap-4 flex-1">
+    <div className="flex flex-col h-full rounded-[40px] overflow-hidden bg-black border border-white/5 relative">
+      <SpaceCanvas interactive={true} />
+      
+      {/* Search & Actions - UI LAYER OVERLAY */}
+      <div className="absolute top-0 left-0 right-0 z-40 p-6 flex items-center justify-between pointer-events-none">
+        <div className="flex items-center gap-4 flex-1 pointer-events-auto">
           {onBack && (
             <button onClick={onBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all">
               <ChevronLeft className="w-5 h-5" />
@@ -76,50 +154,93 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
             />
           </div>
         </div>
-        <button className="p-3 bg-purple-600 rounded-2xl hover:scale-105 active:scale-95 transition-all">
+        <button className="p-3 bg-purple-600 rounded-2xl hover:scale-105 active:scale-95 transition-all pointer-events-auto shadow-[0_0_20px_rgba(147,51,234,0.4)]">
           <Plus className="w-5 h-5 text-white" />
         </button>
       </div>
 
-      {/* Breadcrumbs */}
-      <div className="px-6 py-4 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-        {breadcrumbs.map((crumb, i) => (
-          <React.Fragment key={i}>
-            <button 
-              onClick={() => goBack(i)}
-              className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${i === breadcrumbs.length - 1 ? 'text-purple-400' : 'text-white/30 hover:text-white'}`}
-            >
-              {crumb.name}
-            </button>
-            {i < breadcrumbs.length - 1 && <ChevronLeft className="w-3 h-3 text-white/10 shrink-0" />}
-          </React.Fragment>
-        ))}
+      {/* Breadcrumbs - UI LAYER */}
+      <div className="absolute top-24 left-0 right-0 z-40 px-6 py-2 flex items-center gap-2 overflow-x-auto scrollbar-hide pointer-events-none">
+        <div className="glass px-4 py-2 rounded-2xl flex items-center gap-2 pointer-events-auto border border-white/10">
+            {breadcrumbs.map((crumb, i) => (
+              <React.Fragment key={i}>
+                <button 
+                  onClick={() => goBack(i)}
+                  className={`text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${i === breadcrumbs.length - 1 ? 'text-purple-400' : 'text-white/30 hover:text-white drop-shadow-md'}`}
+                >
+                  {crumb.name}
+                </button>
+                {i < breadcrumbs.length - 1 && <ChevronLeft className="w-3 h-3 text-white/10 shrink-0" />}
+              </React.Fragment>
+            ))}
+        </div>
       </div>
 
-      {/* Grid */}
-      <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {filteredItems.map((item) => (
-            <div 
-              key={item.id} 
-              onClick={() => navigateTo(item)}
-              className="group relative glass p-6 rounded-[32px] border border-white/5 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all cursor-pointer flex flex-col items-center text-center gap-4"
-            >
-              <div className="p-4 bg-white/5 rounded-2xl group-hover:scale-110 transition-all">
-                {getIcon(item.type)}
+      {/* Space Navigator Instructions */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex items-center gap-2 text-white/30 text-xs font-bold uppercase tracking-widest py-2 px-4 rounded-full bg-black/50 border border-white/5 backdrop-blur-sm">
+        <MousePointer2 className="w-3 h-3" /> اسحب للتنقل - سكرول للغوص
+      </div>
+
+      {/* 3D WORKSPACE SCENE */}
+      <div 
+        ref={containerRef}
+        className="flex-1 overflow-hidden relative cursor-grab active:cursor-grabbing z-10 perspective-[1000px]"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onWheel={handleWheel}
+        style={{ perspective: '800px', touchAction: 'none' }}
+      >
+        <div 
+           ref={sceneRef}
+           className="absolute top-1/2 left-1/2 w-0 h-0"
+           style={{ 
+             transformStyle: 'preserve-3d', 
+             transform: `translate3d(-1000px, 0px, 1000px)`, // starting position
+           }}
+        >
+          {filteredItems.map((item) => {
+            const pos = itemPositions.get(item.id!);
+            if (!pos) return null;
+            
+            // Render logic based on data type
+            const isImage = item.type === 'image';
+            
+            return (
+              <div 
+                key={item.id} 
+                onClick={(e) => { e.stopPropagation(); navigateTo(item); }}
+                className="absolute group flex flex-col items-center text-center hover:scale-110 transition-transform cursor-pointer"
+                style={{
+                    transform: `translate3d(${pos.x}px, ${pos.y}px, ${pos.z}px) translate(-50%, -50%)`,
+                    transformStyle: 'preserve-3d'
+                }}
+              >
+                  {/* Floating Orb or Image Preview */}
+                  <div className={`relative flex items-center justify-center p-6 ${isImage ? 'bg-transparent' : 'bg-black/40'} border border-white/10 rounded-full backdrop-blur-md group-hover:border-purple-500/50 group-hover:bg-purple-900/20 transition-all shadow-[0_0_30px_rgba(0,0,0,0.8)]`}>
+                      <div className="absolute inset-0 rounded-full bg-white/5 opacity-0 group-hover:opacity-100 group-hover:animate-ping z-0 pointer-events-none"></div>
+                      <div className="relative z-10 pointer-events-none">
+                         {isImage && item.l2_content ? (
+                             <img src={item.l2_content} className="w-10 h-10 md:w-16 md:h-16 object-cover rounded-2xl border border-white/20 shadow-lg shadow-pink-500/20" />
+                         ) : getIcon(item.type)}
+                      </div>
+                  </div>
+                  
+                  <div className="mt-4 bg-black/60 px-4 py-2 rounded-xl border border-white/10 backdrop-blur-md">
+                    <span className="text-sm font-black text-white block whitespace-nowrap">{item.name}</span>
+                    <span className="text-[10px] text-purple-300 uppercase font-bold tracking-widest mt-1 block drop-shadow-md">
+                      {item.type === 'folder' ? 'مجلد' : 'ملف'}
+                    </span>
+                  </div>
               </div>
-              <div>
-                <span className="text-xs font-bold text-white/80 block truncate w-full px-2">{item.name}</span>
-                <span className="text-[9px] text-white/20 uppercase font-black tracking-widest mt-1">
-                  {item.type === 'folder' ? 'مجلد' : 'ملف'}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
+          
           {filteredItems.length === 0 && (
-            <div className="col-span-full py-20 flex flex-col items-center opacity-20">
-              <Folder className="w-16 h-16 mb-4" />
-              <p className="text-sm italic">المكان فاضي يا ريس.. لسه مبنيناش حاجة هنا.</p>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center opacity-20 pointer-events-none">
+              <Folder className="w-24 h-24 mb-6 mx-auto" />
+              <p className="text-xl font-bold italic tracking-widest">فضاء فارغ للملفات</p>
             </div>
           )}
         </div>
@@ -129,32 +250,67 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
       {selectedFile && (
         <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#111] border border-white/10 rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
-              <div className="flex items-center gap-3">
+            <div className="p-4 border-b border-white/5 flex flex-wrap gap-4 justify-between items-center bg-white/5">
+              <div className="flex items-center gap-3 flex-1 min-w-[50%]">
                 {getIcon(selectedFile.type)}
-                <h3 className="font-bold text-white">{selectedFile.name}</h3>
+                <input 
+                  type="text" 
+                  value={selectedFile.name} 
+                  onChange={e => setSelectedFile({...selectedFile, name: e.target.value})}
+                  className="font-bold text-white bg-transparent border-b border-white/20 focus:border-purple-400 outline-none px-1 w-full flex-1"
+                />
               </div>
-              <button onClick={() => setSelectedFile(null)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
-                <ChevronLeft className="w-5 h-5 rotate-180" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={async () => {
+                      if (selectedFile.id) {
+                         await shadowDB.deleteFSItem(selectedFile.id);
+                         setSelectedFile(null);
+                         loadItems();
+                      }
+                  }} className="p-2 hover:bg-red-500/20 rounded-full text-red-500/80 hover:text-red-500 transition-colors">
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <button onClick={async () => {
+                      await shadowDB.saveFSItem(selectedFile);
+                      loadItems();
+                      setSelectedFile(null);
+                  }} className="p-2 hover:bg-emerald-500/20 rounded-full text-emerald-500/80 hover:text-emerald-500 transition-colors">
+                    <Save className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setSelectedFile(null)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+              </div>
             </div>
-            <div className="p-6 overflow-y-auto flex-1 text-white/80 whitespace-pre-wrap font-mono text-sm leading-relaxed">
-              {selectedFile.l0_summary && (
-                  <div className="mb-4 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                      <strong className="text-purple-400 block mb-1">L0 Summary (Memory Index):</strong>
-                      {selectedFile.l0_summary}
-                  </div>
-              )}
-              {selectedFile.l1_metadata && (
-                  <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                      <strong className="text-blue-400 block mb-1">L1 Metadata:</strong>
-                      {selectedFile.l1_metadata}
-                  </div>
-              )}
-              <div className="p-3 bg-black/30 rounded-lg border border-white/5">
-                <strong className="text-white/40 block mb-2">L2 Content (Full):</strong>
-                {selectedFile.l2_content || selectedFile.content || 'الملف فاضي.'}
+            <div className="p-6 overflow-y-auto flex-1 text-white/80 font-mono text-sm leading-relaxed space-y-4">
+              
+              <div>
+                  <label className="text-purple-400 block mb-1 text-xs">L0 Summary (Memory Index):</label>
+                  <textarea 
+                      value={selectedFile.l0_summary || ''}
+                      onChange={e => setSelectedFile({...selectedFile, l0_summary: e.target.value})}
+                      className="w-full bg-purple-500/5 border border-purple-500/20 rounded-lg p-2 text-white outline-none focus:border-purple-500/50 resize-y min-h-[60px]"
+                  />
               </div>
+
+              <div>
+                  <label className="text-blue-400 block mb-1 text-xs">L1 Metadata:</label>
+                  <textarea 
+                      value={selectedFile.l1_metadata || ''}
+                      onChange={e => setSelectedFile({...selectedFile, l1_metadata: e.target.value})}
+                      className="w-full bg-blue-500/5 border border-blue-500/20 rounded-lg p-2 text-white outline-none focus:border-blue-500/50 resize-y min-h-[60px]"
+                  />
+              </div>
+
+              <div>
+                  <label className="text-white/40 block mb-1 text-xs">L2 Content (Full):</label>
+                  <textarea 
+                      value={selectedFile.l2_content || selectedFile.content || ''}
+                      onChange={e => setSelectedFile({...selectedFile, l2_content: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white outline-none focus:border-white/30 resize-y min-h-[200px]"
+                  />
+              </div>
+
             </div>
           </div>
         </div>

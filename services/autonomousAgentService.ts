@@ -1,4 +1,6 @@
 import { getShadowResponse } from "./geminiService";
+import { DBMessage, shadowDB } from "./dbService";
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 export interface AutonomousTask {
     id: string;
@@ -10,58 +12,79 @@ export interface AutonomousTask {
     updatedAt: number;
 }
 
-// In-memory poll array (Simulates background queue)
-let activeTasks: AutonomousTask[] = [];
-let backgroundWorker: Worker | null = null;
+const activeTasks: Record<string, boolean> = {};
 
 export const submitAutonomousTask = async (userId: string, prompt: string): Promise<string> => {
-    const task: AutonomousTask = {
-        id: `auto_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-        userId,
-        prompt,
-        status: 'pending',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-    };
+    const taskId = `auto_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    console.log(`[AGENT NODE] Dispatching background task ${taskId}...`);
     
-    activeTasks.push(task);
+    // Simulate initial delay to feel like a real background task
+    activeTasks[taskId] = true;
     
-    if (!backgroundWorker) {
-        initWorker();
-    }
+    // Start async without awaiting
+    (async () => {
+        try {
+            await new Promise(r => setTimeout(r, 6000)); // Simulating initial delay
+
+            // Run getShadowResponse in background (hidden from primary chat)
+            const response = await getShadowResponse([], prompt + " (أنت الآن تعمل كعميل مستقل في الخلفية Autonomous Agent. أنجز المهمة المطلوبة منك باستفاضة ولخص النتائج. لا تسأل المستخدم، فقط قم بالتنفيذ النهائي ولخصه.)", { activePersona: 'researcher' }, undefined);
+            
+            // Insert the message to DB as a received message!
+            const msg: DBMessage = {
+                userId,
+                role: 'model',
+                text: `**[مهمة مستقلة مكتملة]**\n\nالمهمة: ${prompt}\n\nالنتائج:\n${response.text}`,
+                timestamp: Date.now(),
+                isAutonomousResult: true
+            };
+            await shadowDB.saveMessage(msg);
+            
+            // Dispatch custom event to notify UI
+            window.dispatchEvent(new CustomEvent('autonomous_message_received'));
+
+            
+            // Notify User
+            try {
+                await LocalNotifications.schedule({
+                    notifications: [
+                        {
+                            title: "انتهت المهمة المستقلة",
+                            body: "الظل أكمل مهمة البحث ويمكنك رؤية النتائج الآن.",
+                            id: new Date().getTime(),
+                            schedule: { at: new Date(Date.now() + 1000) },
+                            sound: null,
+                            attachments: null,
+                            actionTypeId: "",
+                            extra: null
+                        }
+                    ]
+                });
+            } catch(e) {
+                // Fallback to web audio
+                const audio = new Audio('/src/assets/ringtone.mp3');
+                audio.play().catch(() => {});
+            }
+            
+            // Web browser notification API fallback
+            if (Notification.permission === 'granted') {
+                new Notification("الظل | Ez-Zel", { body: "تم إنجاز المهمة المستقلة بنجاح!" });
+            }
+
+        } catch (e) {
+            console.error("Autonomous task failed:", e);
+        } finally {
+            delete activeTasks[taskId];
+        }
+    })();
     
-    backgroundWorker?.postMessage({
-        type: 'START_TASK',
-        taskId: task.id,
-        prompt: task.prompt,
-        userId: task.userId
-    });
-    
-    return task.id;
+    return taskId;
 };
 
 export const initWorker = () => {
-    if (backgroundWorker) return;
-    
-    backgroundWorker = new Worker('/autonomous-worker.js');
-    
-    backgroundWorker.onmessage = (e) => {
-        const { type, taskId, status, result, progress, log, error } = e.data;
-        const task = activeTasks.find(t => t.id === taskId);
-        if (!task) return;
-
-        if (type === 'STATUS') {
-            task.status = status;
-        } else if (type === 'PROGRESS') {
-            console.log(`[Worker ${taskId}]: ${progress}% - ${log}`);
-        } else if (type === 'COMPLETE') {
-            task.status = 'completed';
-            task.result = result;
-            console.log("Autonomous task completed via Worker:", result);
-            // Optionally, handle triggering notification or saving to DB here.
-        } else if (type === 'ERROR') {
-            task.status = 'failed';
-            console.error("Autonomous worker error:", error);
-        }
-    };
+    // Optional: Request Notification permission
+    if (typeof Notification !== 'undefined') {
+        Notification.requestPermission();
+    }
 };
+

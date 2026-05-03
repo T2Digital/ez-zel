@@ -1,7 +1,12 @@
 import React from 'react';
-import { Loader2, Activity, Briefcase, CheckCircle, Clock, Copy, ExternalLink, FileText, FolderOpen, Layout, Printer, Smartphone } from 'lucide-react';
+import { Loader2, Activity, Briefcase, CheckCircle, Clock, Copy, ExternalLink, FileText, FolderOpen, Layout, Printer, Smartphone, Download, Share2, Globe } from 'lucide-react';
 import LiveAgentAction from '../LiveAgentAction';
 import { getCardIcon, handleAppCardAction } from './ToolCardRenderer';
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip } from 'recharts';
+import { InteractiveEducator } from './InteractiveEducator';
+import { TradingViewChart } from './TradingViewChart';
+import { AutonomousDashboard } from './AutonomousDashboard';
+import { VideoDisplay } from './VideoDisplay';
 
 export const renderChatCard = (
     card: any, 
@@ -10,6 +15,18 @@ export const renderChatCard = (
     handleSend: (text: string, v?: any, i?: any, skip?: boolean) => void,
     setSelectedWorkspaceFile: (card: any) => void
 ) => {
+      if (card.cardType === 'interactive_educator') {
+          return <React.Fragment key={i}><InteractiveEducator card={card} /></React.Fragment>;
+      }
+      if (card.cardType === 'tradingview_chart') {
+          return <React.Fragment key={i}><TradingViewChart card={card} /></React.Fragment>;
+      }
+      if (card.cardType === 'autonomous_dashboard') {
+          return <React.Fragment key={i}><AutonomousDashboard card={card} /></React.Fragment>;
+      }
+      if (card.cardType === 'video_display') {
+          return <React.Fragment key={i}><VideoDisplay card={card} /></React.Fragment>;
+      }
       if (card.cardType === 'live_action') {
           return <LiveAgentAction key={i} actionType={card.actionType} args={card.args} userProfile={currentUser} onComplete={(resultText) => {
               handleSend(resultText, undefined, undefined, true);
@@ -239,6 +256,117 @@ export const renderChatCard = (
                       <button onClick={() => setSelectedWorkspaceFile(card)} className="w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-xs">
                           <ExternalLink className="w-3 h-3" /> فتح الملف
                       </button>
+                  )}
+              </div>
+          );
+      }
+      if (card.cardType === 'image_display') {
+          return (
+              <div key={i} className="mt-4 rounded-[22px] p-2 w-full md:w-[320px] bg-[#1a1a1a]/95 border border-white/20 shadow-xl overflow-hidden relative">
+                  <img src={card.url} alt={card.title} className="w-full h-auto rounded-xl object-contain mb-2 bg-black" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                  <div className="p-2">
+                       <h3 className="font-bold text-sm text-white truncate px-1">{card.title}</h3>
+                       <p className="text-[10px] text-white/50 mt-1 px-1">{card.description}</p>
+                       <div className="flex items-center gap-2 mt-4 px-1 pb-1">
+                           <button onClick={async () => {
+                                try {
+                                    const proxyUrl = `/api/proxy?url=${encodeURIComponent(card.url)}`;
+                                    const res = await fetch(proxyUrl);
+                                    const blob = await res.blob();
+                                    const blobUrl = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = blobUrl;
+                                    a.download = `shadow_design_${Date.now()}.png`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+                                } catch (e) {
+                                    window.open(card.url, '_blank');
+                                }
+                           }} className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center gap-2 text-[10px] text-white/80 transition-colors">
+                               <Download className="w-3.5 h-3.5" /> تحميل
+                           </button>
+                           <button onClick={async () => {
+                                try {
+                                    const proxyUrl = `/api/proxy?url=${encodeURIComponent(card.url)}`;
+                                    const res = await fetch(proxyUrl);
+                                    const blob = await res.blob();
+                                    const file = new File([blob], 'shadow_design.png', { type: blob.type });
+                                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                                        await navigator.share({
+                                            title: card.title,
+                                            files: [file]
+                                        });
+                                    } else if (navigator.share) {
+                                        navigator.share({ title: card.title, url: card.url }).catch(() => {});
+                                    } else {
+                                        navigator.clipboard.writeText(card.url);
+                                    }
+                                } catch (e) {
+                                    if (navigator.share) {
+                                        navigator.share({ title: card.title, url: card.url }).catch(() => {});
+                                    } else {
+                                        navigator.clipboard.writeText(card.url);
+                                    }
+                                }
+                           }} className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center gap-2 text-[10px] text-white/80 transition-colors">
+                               <Share2 className="w-3.5 h-3.5" /> مشاركة
+                           </button>
+                           <button onClick={() => handleSend(`انشر التصميم ده على السوشيال ميديا: ${card.url}`, null, null, true)} className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center gap-2 text-[10px] font-bold transition-colors">
+                               <Globe className="w-3.5 h-3.5" /> نشر
+                           </button>
+                       </div>
+                  </div>
+              </div>
+          );
+      }
+      if (card.cardType === 'chart_display') {
+          const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6'];
+          return (
+              <div key={i} className="mt-4 rounded-[22px] p-4 w-full md:w-[380px] bg-[#000000]/95 border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.15)] overflow-hidden relative group">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-blue-500"></div>
+                  <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-emerald-500/20 rounded-xl text-emerald-400">
+                          <Activity className="w-5 h-5" />
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-[15px] text-white">{card.title}</h3>
+                          <p className="text-[11px] text-white/50">تحليل بيانات</p>
+                      </div>
+                  </div>
+                  <div className="h-[200px] w-full text-xs" dir="ltr">
+                      <ResponsiveContainer width="100%" height="100%">
+                          {card.chartType === 'line' ? (
+                              <LineChart data={card.data}>
+                                  <XAxis dataKey="name" stroke="#666" tick={{fill: '#888'}} />
+                                  <YAxis stroke="#666" tick={{fill: '#888'}} />
+                                  <Tooltip contentStyle={{backgroundColor: '#111', borderColor: '#333', borderRadius: '8px'}} itemStyle={{color: '#10b981'}} />
+                                  <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} dot={{r: 4, fill: '#10b981'}} activeDot={{r: 6}} />
+                              </LineChart>
+                          ) : card.chartType === 'pie' ? (
+                              <PieChart>
+                                  <Pie data={card.data} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={5} dataKey="value">
+                                      {card.data.map((entry: any, index: number) => (
+                                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                      ))}
+                                  </Pie>
+                                  <Tooltip contentStyle={{backgroundColor: '#111', borderColor: '#333', borderRadius: '8px'}} />
+                              </PieChart>
+                          ) : (
+                              <BarChart data={card.data}>
+                                  <XAxis dataKey="name" stroke="#666" tick={{fill: '#888'}} />
+                                  <YAxis stroke="#666" tick={{fill: '#888'}} />
+                                  <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{backgroundColor: '#111', borderColor: '#333', borderRadius: '8px'}} />
+                                  <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                              </BarChart>
+                          )}
+                      </ResponsiveContainer>
+                  </div>
+                  {card.description && (
+                      <div className="mt-4 p-3 bg-white/5 border border-white/10 rounded-xl">
+                          <p className="text-xs leading-relaxed text-white/80 font-medium">{card.description}</p>
+                      </div>
                   )}
               </div>
           );

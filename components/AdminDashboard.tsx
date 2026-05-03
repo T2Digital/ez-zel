@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip, Terminal, Tag, BarChart2, MessageCircle } from 'lucide-react';
+import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip, Terminal, Tag, BarChart2, MessageCircle, ShoppingCart, GraduationCap, Palette } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { shadowDB, UserProfile, DBFeedback, AgentProfile } from '../services/dbService';
 import ChatInterface from './ChatInterface';
@@ -8,6 +8,7 @@ import ChatInterface from './ChatInterface';
 interface Props {
     onLogout: () => void;
     onSwitchToUserMode: () => void; 
+    onNavigateTo?: (section: string) => void;
 }
 
 interface AgentInfo {
@@ -20,7 +21,7 @@ interface AgentInfo {
     icon: any;
 }
 
-const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
+const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavigateTo }) => {
   const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings'>('analytics');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [feedbacks, setFeedbacks] = useState<DBFeedback[]>([]);
@@ -227,6 +228,10 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
       { id: 'analyst', name: 'Analyst', role: 'المحلل', status: 'ONLINE', description: 'التحليل النفسي وقراءة الصور.', color: 'purple', icon: <Eye className="w-5 h-5" /> },
       { id: 'healer', name: 'The Healer', role: 'المعالج', status: 'READY', description: 'الجانب الروحاني والنفسي.', color: 'red', icon: <Feather className="w-5 h-5" /> },
       { id: 'trader', name: 'The Trader', role: 'المحلل الفني', status: 'ONLINE', description: 'خبير أسواق المال وتداول الشارت.', color: 'green', icon: <TrendingUp className="w-5 h-5" /> },
+      { id: 'smart_shopper', name: 'Smart Shopper', role: 'المتسوق الذكي', status: 'ONLINE', description: 'خبير التسوق وتعبئة البيانات لطلبات الدفع عند الاستلام.', color: 'orange', icon: <ShoppingCart className="w-5 h-5" /> },
+      { id: 'educator', name: 'Educator', role: 'المعلم', status: 'ONLINE', description: 'مساعد تعليمي للأطفال والطلاب والمدرسين.', color: 'amber', icon: <GraduationCap className="w-5 h-5" /> },
+      { id: 'pro_designer', name: 'Pro Designer', role: 'المصمم المحترف', status: 'ONLINE', description: 'خبير إنشاء وتوليد الصور والفيديوهات.', color: 'pink', icon: <Palette className="w-5 h-5" /> },
+      { id: 'life_coach', name: 'Life Coach', role: 'المدرب الرياضي والنفسي', status: 'ONLINE', description: 'دعم وتحفيز الرياضيين والتوجيه النفسي.', color: 'red', icon: <Activity className="w-5 h-5" /> },
   ];
 
   const filteredProfiles = realProfiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.email.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -234,7 +239,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
   const activeMembers = filteredProfiles.filter(p => p.status === 'active');
   const marketersList = filteredProfiles.filter(p => p.affiliate && (p.affiliate.isMarketer || (p.affiliate.payoutHistory && p.affiliate.payoutHistory.length > 0) || p.affiliate.referralCode));
   
-  if (activeView === 'chat') return <div className="h-screen w-full bg-black"><ChatInterface currentUser={adminProfile} onUpgrade={() => {}} onBack={() => setActiveView('requests')} isAdmin={true} /></div>;
+  if (activeView === 'chat') return <div className="h-screen w-full bg-black"><ChatInterface currentUser={adminProfile} onUpgrade={() => {}} onBack={() => setActiveView('requests')} onNavigateTo={(s) => { if(s === 'affiliate' && onNavigateTo) onNavigateTo('affiliate'); if(s === 'admin') setActiveView('analytics'); }} isAdmin={true} /></div>;
 
   return (
     <div className="min-h-screen bg-[#020202] text-white flex flex-col font-['Cairo'] pb-48">
@@ -718,7 +723,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode }) => {
         <div className="flex items-center justify-around max-w-lg mx-auto overflow-x-auto gap-2 px-2 scrollbar-none">
             <button onClick={() => setActiveView('analytics')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'analytics' ? 'text-white scale-110' : 'text-white/30'}`}><BarChart2 className="w-5 h-5" /><span className="text-[8px] font-bold">تحليل</span></button>
             <button onClick={() => setActiveView('members')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
-            <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30'}`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
+            <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
+            <button onClick={() => { if(onNavigateTo) onNavigateTo('affiliate'); }} className={`flex flex-col items-center min-w-[50px] gap-1 text-white/30`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">عمولاتي</span></button>
             <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
             <button onClick={() => setActiveView('chat')} className="min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black -top-4 relative shadow-lg"><Bot className="w-6 h-6" /></button>
             <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'settings' ? 'text-white scale-110' : 'text-white/30'}`}><Settings className="w-5 h-5" /><span className="text-[8px] font-bold">المفاتيح</span></button>

@@ -289,6 +289,8 @@ const App: React.FC = () => {
           setView('dashboard');
       } else if (section === 'workspace') {
           setView('workspace');
+      } else if (section === 'admin') {
+          setView('admin');
       }
   };
 
@@ -342,7 +344,7 @@ const App: React.FC = () => {
       if (view === 'pricing') return <Pricing onSelectPlan={(plan, cycle) => { setSelectedPlan(plan); if(cycle) setBillingCycle(cycle); setIsAffiliateRegistration(false); setAuthDefaultTab('register'); setView('auth'); }} onTrialStart={handleGuestAccess} onAffiliateStart={() => { setIsAffiliateRegistration(true); setAuthDefaultTab('register'); setView('auth'); }} />;
       if (view === 'auth') return <Auth selectedPlan={selectedPlan} defaultTab={authDefaultTab} isAffiliateRegistration={isAffiliateRegistration} billingCycle={billingCycle} onAuthSuccess={handleAuthSuccess} onAdminLogin={handleAdminLogin} onBack={() => setView('pricing')} />;
       if (view === 'payment') return <Payment planId={selectedPlan} billingCycle={billingCycle} onSuccess={async (proof, finalCycle) => { if (user && user.email !== 'GUEST') { const updatedUser = { ...user, paymentProof: proof, status: 'pending' as const, subscriptionCycle: finalCycle }; try { await shadowDB.saveProfile(updatedUser); setUser(updatedUser); setView('pending_review'); } catch(e) { console.error(e); } } }} onBack={() => setView('auth')} />;
-      if (view === 'admin') return <AdminDashboard onLogout={handleLogout} onSwitchToUserMode={() => setView('dashboard')} />;
+      if (view === 'admin') return <AdminDashboard onLogout={handleLogout} onSwitchToUserMode={() => setView('dashboard')} onNavigateTo={(v) => setView(v as 'dashboard' | 'chat' | 'pricing' | 'auth' | 'admin')} />;
       if (view === 'workspace' && user) return <WorkspaceExplorer userId={user.email} onItemSelect={(item) => console.log('Selected item:', item)} onBack={() => setView('dashboard')} />;
       if (view === 'affiliate' && user) return <AffiliateDashboard user={user} onBack={() => setView('dashboard')} onUpdateUser={setUser} />;
       if (view === 'widget' && user) return <AssistantWidget user={user} onOpenApp={() => window.location.search = ''} />;

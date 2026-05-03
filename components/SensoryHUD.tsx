@@ -28,7 +28,7 @@ export const SensoryHUD: React.FC<{ lastMessage?: string }> = ({ lastMessage = '
     }, [lastMessage]);
 
     return (
-        <div className="flex gap-4 p-2 bg-white/5 border border-white/10 rounded-xl mb-4 text-xs font-['Cairo'] text-white/50 justify-between items-center px-4" dir="rtl">
+        <div className="flex gap-4 p-2 bg-white/5 border border-white/10 rounded-xl mb-3 text-xs font-['Cairo'] text-white/50 justify-between items-center px-4" dir="rtl">
             <div className="flex items-center gap-1.5" title="الشبكة (Context)">
                 <Wifi className="w-3.5 h-3.5 text-cyan-500" />
                 <span className="truncate max-w-[100px]">{network}</span>

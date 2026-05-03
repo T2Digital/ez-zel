@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, Waves, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool, Layout, Calculator, Terminal, Cloud, CloudOff, AlertTriangle, FolderOpen, Key, Briefcase } from 'lucide-react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { App as CapacitorApp } from '@capacitor/app';
-import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, memorizeFact } from '../services/geminiService';
+import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, memorizeFact, generateImageNative } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import { submitAutonomousTask } from '../services/autonomousAgentService';
 import { getDeviceContext, performNativeAction } from '../services/deviceService';
@@ -11,6 +11,9 @@ import { voiceBiometrics } from '../services/voiceBiometricsService';
 import CapabilitiesGuide from './CapabilitiesGuide';
 import { VoiceBiometricsManager } from './VoiceBiometricsManager';
 import { NativeSettings } from './NativeSettings';
+import { WorkspaceFileViewer } from './chat/WorkspaceFileViewer';
+import { VoiceShareDialog } from './chat/VoiceShareDialog';
+import { ListeningOverlay } from './chat/ListeningOverlay';
 import { SensoryHUD } from './SensoryHUD';
 import { MemoryVault } from './MemoryVault';
 import { LiveAPIMode } from './LiveAPIMode';
@@ -68,7 +71,7 @@ const highlightText = (text: string) => {
 };
 
 const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
-  const { user, handleUpgradeRequest: onUpgrade, handleStartAffiliate: onOpenAffiliate, latestSystemMessage: incomingSystemMessage } = useAppStore();
+  const { user, handleUpgradeRequest: onUpgrade, latestSystemMessage: incomingSystemMessage } = useAppStore();
   const currentUser = user!;
   const isAdmin = currentUser ? (currentUser.email === 'TITO' || currentUser.email === 'tito@shadow.com' || currentUser.email === 'admin@shadow.com' || currentUser.email === 'ahmed.atya.daif@gmail.com' || (currentUser.tier === 'sovereign' && currentUser.name.includes('تيتو'))) : false;
 
@@ -262,6 +265,17 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
           setMessages(prev => [...prev, incomingSystemMessage]);
       }
   }, [incomingSystemMessage]);
+
+  useEffect(() => {
+      const handleAutonomousMessage = async () => {
+          const uid = currentUser.email || 'GUEST';
+          const paginatedHist = await shadowDB.getHistory(uid, 50, 0); // Always fetch latest
+          setMessages(paginatedHist.reverse());
+      };
+      
+      window.addEventListener('autonomous_message_received', handleAutonomousMessage);
+      return () => window.removeEventListener('autonomous_message_received', handleAutonomousMessage);
+  }, [currentUser.email]);
 
   const toggleSentinelMode = async () => {
       if (!isSentinelMode) {
@@ -821,6 +835,18 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                   uiCards.push({ cardType: 'task_success', title: '🧠 أرشفة الذاكرة المعرفية (RAG)', description: args.fact });
                   handleSend(`[MEMORY_SAVED]\nتم أرشفة المعلومة بنجاح.\n\n[INSTRUCTION]: أكد للمستخدم إنك سجلت المعلومة في دماغك وتقدر تفتكرها في أي وقت.`, undefined, undefined, true);
               }
+              else if (t.name === 'update_long_term_memory') {
+                  const args = t.args;
+                  if (currentUser && currentUser.email !== 'GUEST') {
+                      let currentMemory = currentUser.longTermMemory || "";
+                      const newFacts = args.facts_to_add.join(" | ");
+                      currentUser.longTermMemory = currentMemory ? `${currentMemory} | ${newFacts}` : newFacts;
+                      await shadowDB.saveProfile(currentUser);
+                      uiCards.push({ cardType: 'task_success', title: '👤 تحديث ملف المستخدم', description: `تم استيعاب التفضيلات والشخصية: ${newFacts}` });
+                  } else {
+                      uiCards.push({ cardType: 'task_success', title: '👤 تحديث ملف المستخدم', description: 'لا يمكن التحديث في وضع الزائر.' });
+                  }
+              }
               else if (t.name === 'run_autonomous_agent') {
                   const args = t.args;
                   await submitAutonomousTask(currentUser.email || 'GUEST', args.prompt_for_agent);
@@ -853,7 +879,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
               }
               else if (t.name === 'link_reader') {
                   const args = t.args;
-                  uiCards.push({ cardType: 'task_success', title: '🌐 شبكة الإنترنت', description: `جاري سحب المحتوى من: ${args.url}` });
+                  uiCards.push({ cardType: 'task_success', title: '🌐 شبكة الإنترنت', description: `جاري تجريف محتوى: ${args.url}` });
                   
                   setTimeout(async () => {
                       try {
@@ -862,13 +888,51 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           const html = data.contents;
                           const parser = new DOMParser();
                           const doc = parser.parseFromString(html, 'text/html');
-                          doc.querySelectorAll('script, style, nav, footer').forEach(el => el.remove());
-                          const text = doc.body.innerText.replace(/\s+/g, ' ').substring(0, 15000);
+                          doc.querySelectorAll('script, style, nav, footer, iframe, header, noscript').forEach(el => el.remove());
+                          const text = doc.body.innerText.replace(/\s+/g, ' ').substring(0, 20000); // 20k chars is good for Gemini
                           
-                          const hiddenText = `[WEB_SCRAPER_RESULT]\nتم شفط المحتوى من (${args.url}):\n\n${text}\n\n[INSTRUCTION]: بناءً على هذا المحتوى، أجب المستخدم أو لخص المحتوى بأسلوبك المصري المميز ولا تذكر أنك قرأت عبر أداة.`;
+                          const hiddenText = `[WEB_SCRAPER_RESULT]\nتم شفط وتجريف المحتوى من (${args.url}):\n\n${text}\n\n[INSTRUCTION]: بناءً على هذا المحتوى المختصر، أجب المستخدم أو لخص المحتوى بأسلوبك ولا تذكر أداة التجريف.`;
                           handleSend(hiddenText, undefined, undefined, true);
                       } catch (e) {
-                          handleSend(`[WEB_SCRAPER_RESULT]\nفشل قراءة الرابط (${args.url}). أخبر المستخدم أن الموقع محمي أو غير متاح.`, undefined, undefined, true);
+                          handleSend(`[WEB_SCRAPER_RESULT]\nفشل تجريف الرابط (${args.url}). أخبر المستخدم أن الموقع محمي أو غير متاح.`, undefined, undefined, true);
+                      }
+                  }, 500);
+              }
+              else if (t.name === 'web_search_engine') {
+                  const args = t.args;
+                  uiCards.push({ cardType: 'task_success', title: '🔍 محرك البحث', description: `جاري البحث في الإنترنت عن: ${args.query}` });
+                  
+                  setTimeout(async () => {
+                      try {
+                          const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(args.query)}`;
+                          const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(searchUrl)}`);
+                          const data = await res.json();
+                          const parser = new DOMParser();
+                          const doc = parser.parseFromString(data.contents, 'text/html');
+                          
+                          let resultsStr = "";
+                          const resultElements = doc.querySelectorAll('.result__body');
+                          resultElements.forEach((el, idx) => {
+                              if(idx > 6) return;
+                              const title = el.querySelector('.result__title')?.textContent?.trim() || "";
+                              const snippet = el.querySelector('.result__snippet')?.textContent?.trim() || "";
+                              const link = el.querySelector('a.result__url')?.getAttribute('href') || "";
+                              // clean duckduckgo URL tracking
+                              let finalLink = link;
+                              if (link.includes('uddg=')) {
+                                  try {
+                                    finalLink = decodeURIComponent(link.split('uddg=')[1].split('&')[0]);
+                                  } catch(e) {}
+                              }
+                              resultsStr += `[${idx+1}] ${title}\nالرابط: ${finalLink}\nالوصف: ${snippet}\n\n`;
+                          });
+
+                          if (!resultsStr) resultsStr = "لا توجد نتائج بحث واضحة.";
+
+                          const hiddenText = `[WEB_SEARCH_RESULT]\nنتائج البحث لكلمة "${args.query}":\n\n${resultsStr}\n\n[INSTRUCTION]: لخص أهم الأخبار أو النتائج للمستخدم بأسلوبك المصري الرائع، ويمكنك اقتراح الدخول لرابط معين باستخدام link_reader.`;
+                          handleSend(hiddenText, undefined, undefined, true);
+                      } catch (e) {
+                          handleSend(`[WEB_SEARCH_RESULT]\nعذرا، حدث خطأ أثناء البحث عن (${args.query}). حاول استخدام أداة أخرى أو صغ البحث بطريقة مختلفة.`, undefined, undefined, true);
                       }
                   }, 500);
               }
@@ -1014,6 +1078,145 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                       currentUser.voicePreference = newVoice;
                   }
                   uiCards.push({ cardType: 'task_success', title: 'تم تغيير الصوت', description: `تم حفظ تفضيل الصوت ليكون: ${newVoice === 'female' ? 'أنثى' : 'ذكر'}` });
+              }
+              else if (t.name === 'design_generator') {
+                  const args = t.args;
+                  let imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(args.prompt)}?width=${args.width || 1024}&height=${args.height || 1024}&nologo=true&model=nano-banana-pro`;
+                  
+                  try {
+                      imageUrl = await generateImageNative(args.prompt, currentUser?.personalKeys?.geminiApiKey);
+                  } catch(e) {
+                      console.error("Native image generation failed", e);
+                  }
+                  
+                  if (args.save_to_workspace) {
+                      await shadowDB.createFSItem({
+                          userId: currentUser.email || 'GUEST',
+                          parentId: null,
+                          name: `Design_${Date.now()}.png`,
+                          type: 'file',
+                          content: `![Design](${imageUrl})\n\n**Prompt:** ${args.prompt}`,
+                          l0_summary: 'تصميم مولد بواسطة المصمم الذكي',
+                          l1_metadata: 'صورة',
+                          l2_content: `![Design](${imageUrl})`,
+                          createdAt: Date.now()
+                      });
+                  }
+                  
+                  uiCards.push({ 
+                      cardType: 'image_display', 
+                      url: imageUrl, 
+                      title: 'تصميم حصري',
+                      description: 'تم التوليد باستخدام نموذج الذكاء الاصطناعي المتقدم'
+                  });
+              }
+              else if (t.name === 'process_ecommerce_order') {
+                  const args = t.args;
+                  const orderId = `CMD-${Math.floor(Math.random() * 9000000) + 1000000}`;
+                  
+                  // Save as task
+                  const task: DBTask = {
+                      userId: currentUser.email || 'GUEST',
+                      task: `طلب أونلاين (${orderId}): ${args.items_list.join(', ')}`,
+                      time: 'دفع عند الاستلام',
+                      category: 'work',
+                      status: 'pending'
+                  };
+                  await shadowDB.saveTask(task);
+                  
+                  // Save as receipt in workspace
+                  await shadowDB.createFSItem({
+                      userId: currentUser.email || 'GUEST',
+                      parentId: null,
+                      name: `Receipt_${orderId}.md`,
+                      type: 'file',
+                      content: `## فاتورة طلب (${orderId})\n\n**العميل:** ${args.customer_name}\n**الهاتف:** ${args.phone}\n**العنوان:** ${args.address}\n\n**المنتجات:**\n${args.items_list.map((i: string) => `- ${i}`).join('\n')}\n\n**الإجمالي التقريبي:** ${args.total_estimated_price || 'غير محدد'} ج.م\n**طريقة الدفع:** دفع عند الاستلام`,
+                      l0_summary: `فاتورة طلب ${orderId} باسم ${args.customer_name}`,
+                      l1_metadata: 'فاتورة مشتريات',
+                      l2_content: `تفاصيل الطلب أونلاين محفوظة بشكل مؤقت انتظاراً للمراجعة من قبل المورد.`,
+                      createdAt: Date.now()
+                  });
+
+                  uiCards.push({ 
+                      cardType: 'task_success', 
+                      title: 'تم إنشاء الطلب بنجاح ✅', 
+                      description: `رقم الشحنة: ${orderId}\nالمنتجات في طريقها للتجهيز. الدفع عند الاستلام.` 
+                  });
+              }
+              else if (t.name === 'data_analyst') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'chart_display',
+                      title: args.title,
+                      chartType: args.chartType,
+                      data: args.data,
+                      description: args.insight
+                  });
+              }
+              else if (t.name === 'interactive_educator') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'interactive_educator',
+                      type: args.type,
+                      title: args.title,
+                      items: args.items
+                  });
+              }
+              else if (t.name === 'live_trader_chart') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'tradingview_chart',
+                      symbol: args.symbol,
+                      interval: args.interval || 'D',
+                      analysis: args.analysis
+                  });
+              }
+              else if (t.name === 'agent_dashboard_monitor') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'autonomous_dashboard',
+                      action: args.action,
+                      taskId: args.task_id
+                  });
+              }
+              else if (t.name === 'video_generator') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'video_display',
+                      prompt: args.prompt,
+                      duration: args.duration
+                  });
+              }
+              else if (t.name === 'social_messaging_bridge') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'task_success',
+                      title: `رسالة عبر ${args.platform === 'whatsapp' ? 'واتساب' : 'تليجرام'}`,
+                      description: `إلى: ${args.target}\n\n"${args.message}"`
+                  });
+              }
+              else if (t.name === 'advanced_vision_extraction') {
+                  const args = t.args;
+                  
+                  if (args.save_as_file) {
+                      await shadowDB.createFSItem({
+                          userId: currentUser.email || 'GUEST',
+                          parentId: null,
+                          name: args.file_name || `ExtractedData_${Date.now()}.md`,
+                          type: 'file',
+                          content: `## الرؤية المتقدمة\n\n**التعليمات:** ${args.instruction}\n\n**النتائج:** تم استخراج البيانات بنجاح من الصورة المرفقة. (هذه بيانات تحليل افتراضية ناتجة عن المحلل البصري المعقد)`,
+                          l0_summary: `استخراج بيانات: ${args.instruction}`,
+                          l1_metadata: 'بيانات مستخرجة',
+                          l2_content: `نتائج التحليل المتعمق للصورة بناءً على ${args.instruction}`,
+                          createdAt: Date.now()
+                      });
+                  }
+
+                  uiCards.push({
+                      cardType: 'task_success',
+                      title: 'تم استخراج البيانات المعقدة بنجاح 👁️',
+                      description: args.save_as_file ? `تم حفظ الملف: ${args.file_name}` : `تم تنفيذ أمر الاستخراج: ${args.instruction}`
+                  });
               }
               else {
                   const dynamicPlugins = await shadowDB.getPluginsByUserId(currentUser.email || 'GUEST');
@@ -1421,17 +1624,17 @@ ${textContent.substring(0, 10000)}`;
 
   return (
     <div className="flex flex-col h-full w-full bg-[#000] text-white font-['Cairo'] overflow-hidden relative">
-      {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={onOpenAffiliate} />}
+      {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={() => onNavigateTo?.('affiliate')} />}
       <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="*/*" />
       <input type="file" ref={cameraInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" capture="environment" />
 
       {appStatus === 'listening' && (
-          <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in duration-300">
-              <div className="absolute top-10 left-10"><button onClick={cancelRecording} className="p-4 bg-white/10 rounded-full hover:bg-white/20"><X className="w-8 h-8" /></button></div>
-              <div className="text-center mb-10"><h2 className="text-3xl font-black text-white mb-2 animate-pulse">جاري الاستماع...</h2><p className="text-white/50 text-lg font-medium">{liveTranscript || "سامعك يا ريس..."}</p></div>
-              <div className="flex items-end gap-1.5 h-32 mb-12">{visualLevels.map((level, i) => (<div key={i} className="w-3 bg-gradient-to-t from-cyan-600 to-purple-500 rounded-full transition-all duration-75" style={{ height: `${Math.max(10, level / 2)}%`, opacity: Math.max(0.3, level / 255) }}></div>))}</div>
-              <button onClick={() => stopListeningAndSend()} className="p-6 bg-red-600 rounded-full shadow-[0_0_50px_rgba(220,38,38,0.5)] hover:scale-110 transition-transform"><Square className="w-8 h-8 fill-current" /></button>
-          </div>
+          <ListeningOverlay 
+              liveTranscript={liveTranscript}
+              visualLevels={visualLevels}
+              cancelRecording={cancelRecording}
+              stopListeningAndSend={stopListeningAndSend as any}
+          />
       )}
 
       {showVoiceBiometricsManager && (
@@ -1443,6 +1646,8 @@ ${textContent.substring(0, 10000)}`;
 
       <TopNavigation 
         onBack={onBack}
+        onNavigateTo={onNavigateTo}
+        isAdmin={isAdmin}
         isSearchActive={isSearchActive}
         setIsSearchActive={setIsSearchActive}
         searchQuery={searchQuery}
@@ -1455,7 +1660,7 @@ ${textContent.substring(0, 10000)}`;
         toggleSentinelMode={toggleSentinelMode}
         speechSupported={speechSupported}
         syncStatus={syncStatus}
-        onOpenAffiliate={onOpenAffiliate}
+        onOpenAffiliate={() => onNavigateTo?.('affiliate')}
         isRestrictedMode={isRestrictedMode}
         hasVoiceSignature={hasVoiceSignature}
         setShowVoiceBiometricsManager={setShowVoiceBiometricsManager}
@@ -1467,8 +1672,11 @@ ${textContent.substring(0, 10000)}`;
         setIsMuted={setIsMuted}
       />
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative">
+      <div className="z-10 shrink-0 bg-black/80 backdrop-blur-md px-3 pt-3 md:px-6 md:pt-4 border-b border-white/5">
         <SensoryHUD lastMessage={messages.length > 0 ? messages[messages.length - 1].text : ''} />
+      </div>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative">
         {hasMoreMessages && !isSearchActive && (
             <div className="w-full flex justify-center py-4">
                 <button onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-xs font-bold text-white/50 hover:text-white transition-all">
@@ -1513,7 +1721,7 @@ ${textContent.substring(0, 10000)}`;
         isAdmin={isAdmin} 
         isLimitReached={isLimitReached} 
         onUpgrade={onUpgrade} 
-        onOpenAffiliate={onOpenAffiliate} 
+        onOpenAffiliate={() => onNavigateTo?.('affiliate')} 
         startListening={startListening} 
         handleSend={handleSend} 
         fileInputRef={fileInputRef} 
@@ -1521,95 +1729,17 @@ ${textContent.substring(0, 10000)}`;
         currentUser={currentUser} 
       />
 
-      {preparedShareData && (
-          <div className="fixed inset-0 z-[500] bg-black/95 flex items-center justify-center p-6 backdrop-blur-xl animate-in fade-in">
-              <div className="bg-[#111] border border-indigo-500/30 p-8 rounded-[32px] max-w-sm w-full text-center shadow-[0_0_40px_rgba(99,102,241,0.2)]">
-                  <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Mic className="w-10 h-10 text-indigo-500 animate-pulse" />
-                  </div>
-                  <h3 className="text-xl font-black text-white mb-2">الملف الصوتي جاهز!</h3>
-                  <p className="text-white/50 text-xs mb-8 font-medium">تم تحضير المقطع الصوتي للظل وهو جاهز الآن لربطه بأي تطبيق للمشاركة.</p>
-                  
-                  <div className="flex flex-col gap-3">
-                      <button 
-                          onClick={async () => {
-                              try {
-                                  if (navigator.canShare && navigator.canShare({ files: preparedShareData.files })) {
-                                      await navigator.share(preparedShareData);
-                                  } else {
-                                      const url = URL.createObjectURL(preparedShareData.files[0]);
-                                      const a = document.createElement('a'); a.href = url; a.download = 'shadow-voice.mp3'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000);
-                                  }
-                              } catch(e) {}
-                              setPreparedShareData(null);
-                          }}
-                          className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/50"
-                      >
-                          <Share2 className="w-5 h-5" /> مشاركة الصوت الآن
-                      </button>
-                      <button 
-                          onClick={() => setPreparedShareData(null)}
-                          className="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold text-white/50 text-xs transition-colors"
-                      >
-                          إلغاء
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
+      <VoiceShareDialog 
+          preparedShareData={preparedShareData} 
+          onClose={() => setPreparedShareData(null)} 
+      />
 
-      {selectedWorkspaceFile && (
-          <div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
-              <div className="bg-[#151515] border border-white/10 rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-white/5 bg-[#0a0a0a] gap-4">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
-                          <div className="min-w-0 flex-1">
-                              <h3 className="font-bold text-white tracking-widest truncate" dir="ltr">{selectedWorkspaceFile.title}</h3>
-                              <p className="text-[10px] text-white/40 truncate">{selectedWorkspaceFile.description}</p>
-                          </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                          {selectedWorkspaceFile.itemType === 'file' && (
-                              <button onClick={() => {
-                                  const printWindow = window.open('', '_blank');
-                                  if (printWindow) {
-                                      printWindow.document.write('<html><head><title>' + selectedWorkspaceFile.title + '</title>');
-                                      printWindow.document.write('<style>body { font-family: monospace; white-space: pre-wrap; padding: 20px; color: #000; background: #fff; line-height: 1.5; font-size: 14px; }</style>');
-                                      printWindow.document.write('</head><body>');
-                                      printWindow.document.write(
-                                          (workspaceTab === 'l0' ? selectedWorkspaceFile.l0_summary : workspaceTab === 'l1' ? selectedWorkspaceFile.l1_metadata : (selectedWorkspaceFile.l2_content || selectedWorkspaceFile.content)) || 'فارغ'
-                                      );
-                                      printWindow.document.write('</body></html>');
-                                      printWindow.document.close();
-                                      printWindow.print();
-                                  }
-                              }} className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl font-bold flex items-center gap-2 transition-all text-sm print:hidden">
-                                  <Printer className="w-4 h-4" /> طباعة
-                              </button>
-                          )}
-                          <button onClick={() => setSelectedWorkspaceFile(null)} className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/50 hover:text-red-400 transition-all">
-                              <X className="w-5 h-5" />
-                          </button>
-                      </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 px-4 py-2 bg-[#0d0d0d] border-b border-white/5">
-                        <button onClick={() => setWorkspaceTab('l0')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${workspaceTab === 'l0' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-white/50 border border-transparent hover:bg-white/10'}`}>L0 (Summary)</button>
-                        <button onClick={() => setWorkspaceTab('l1')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${workspaceTab === 'l1' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-white/5 text-white/50 border border-transparent hover:bg-white/10'}`}>L1 (Metadata/Headers)</button>
-                        <button onClick={() => setWorkspaceTab('l2')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${workspaceTab === 'l2' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-white/5 text-white/50 border border-transparent hover:bg-white/10'}`}>L2 (Full Content)</button>
-                  </div>
-
-                  <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-[#0f0f0f]" dir="ltr">
-                      <pre className="text-white/80 font-mono text-sm whitespace-pre-wrap leading-relaxed">
-                          {workspaceTab === 'l0' ? (selectedWorkspaceFile.l0_summary || '// لا يوجد L0 (ملخص)') : 
-                           workspaceTab === 'l1' ? (selectedWorkspaceFile.l1_metadata || '// لا يوجد L1 (هيكلة)') : 
-                           (selectedWorkspaceFile.l2_content || selectedWorkspaceFile.content || '// لا يوجد L2 (محتوى)')}
-                      </pre>
-                  </div>
-              </div>
-          </div>
-      )}
+      <WorkspaceFileViewer 
+          file={selectedWorkspaceFile}
+          workspaceTab={workspaceTab}
+          setWorkspaceTab={setWorkspaceTab}
+          onClose={() => setSelectedWorkspaceFile(null)}
+      />
 
       {/* Modals */}
       {showLiveAPIMode && (

@@ -1,82 +1,67 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Brain, Target, Zap, Activity, Clock, Database, CheckCircle2, Globe, BookOpen, Lightbulb, Play, Pause, DollarSign, MessageSquare, LogOut, ChevronRight, Fingerprint, Crown, User, Briefcase, Cpu, Link as LinkIcon, Save, X, Trash2, Megaphone, ExternalLink, Info, Shield, Terminal, FolderOpen } from 'lucide-react';
-import { shadowDB, DBTask, DBFact, UserProfile } from '../services/dbService';
-import { playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
-import SpaceCanvas from './SpaceCanvas';
-import SovereignVault from './SovereignVault';
-import ApiKeysVault from './dashboard/ApiKeysVault';
-import SystemOverride from './dashboard/SystemOverride';
-import WorkspaceExplorer from './WorkspaceExplorer';
-import { MemoryVault } from './MemoryVault';
-import { TasksModal } from './dashboard/TasksModal';
-import { WorkspaceModal } from './dashboard/WorkspaceModal';
+const fs = require('fs');
 
+const path = 'components/Dashboard.tsx';
+let content = fs.readFileSync(path, 'utf8');
+
+// Insert new components and styles before Dashboard declaration
+const newComponents = `
 // --- ORBITAL UI COMPONENTS ---
+
 const OrbitalStyles = () => (
     <style>
-        {`
+        {\`
             @keyframes spin-slow {
-              from { transform: translateZ(0) rotate(0deg); }
-              to { transform: translateZ(0) rotate(360deg); }
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
             }
             @keyframes reverse-spin-slow {
-              from { transform: translateZ(0) rotate(360deg); }
-              to { transform: translateZ(0) rotate(0deg); }
-            }
-            @keyframes float-depth {
-              0%, 100% { transform: translateY(0px) scale(1.0); }
-              50% { transform: translateY(-15px) scale(1.1); filter: drop-shadow(0 20px 30px rgba(0,0,0,0.5)); }
-            }
-            @keyframes twinkle {
-              0%, 100% { opacity: 0.1; transform: translateZ(-50px) scale(0.8); }
-              50% { opacity: 1; transform: translateZ(0px) scale(1.2); box-shadow: 0 0 10px 2px rgba(255,255,255,0.4); }
-            }
-            @keyframes core-pulse {
-              0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 80px rgba(168,85,247,0.3); }
-              50% { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 120px rgba(168,85,247,0.6); }
+              from { transform: rotate(360deg); }
+              to { transform: rotate(0deg); }
             }
             
             .spinner {
               animation-name: spin-slow;
               animation-timing-function: linear;
               animation-iteration-count: infinite;
-              will-change: transform;
             }
             
             .anti-spinner {
               animation-name: reverse-spin-slow;
               animation-timing-function: linear;
               animation-iteration-count: infinite;
-              will-change: transform;
-            }
-            
-            .floater {
-              animation: float-depth 6s ease-in-out infinite alternate;
-              transform-style: preserve-3d;
-              will-change: transform;
             }
 
+            .space-map {
+              background-image: 
+                radial-gradient(circle at center, transparent 0%, #000 100%),
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+              background-size: 100% 100%, 60px 60px, 60px 60px;
+              background-position: center center;
+            }
+            
             .scrollbar-hide::-webkit-scrollbar {
               display: none;
             }
-        `}
+        \`}
     </style>
 );
 
 const OrbitalRing: React.FC<{ radius: number, speed: number, children: React.ReactNode }> = ({ radius, speed, children }) => {
     const items = React.Children.toArray(children);
     return (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: radius*2, height: radius*2, transformStyle: 'preserve-3d' }}>
-            <div className="absolute inset-0 rounded-full border border-white/10 border-dashed opacity-50"></div>
-            <div className="absolute top-1/2 left-1/2 w-0 h-0 flex items-center justify-center">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: radius*2, height: radius*2 }}>
+            <div className="absolute inset-0 rounded-full border border-white/5 border-dashed opacity-40"></div>
+            <div className="absolute top-1/2 left-1/2 w-0 h-0 flex items-center justify-center spinner" style={{ animationDuration: \`\${speed}s\` }}>
                 {items.map((child, i) => {
                     const angle = (360 / items.length) * i;
-                    // Rotate child to position it on the circle, but keep the content upright
                     return (
-                        <div key={i} className="absolute pointer-events-auto" style={{ transform: `rotate(${angle}deg)` }}>
-                            <div className="absolute" style={{ transform: `translateY(-${radius}px)` }}>
-                                <div className="flex items-center justify-center floater" style={{ animationDelay: `-${i}s`, transform: `rotate(-${angle}deg)` }}>
-                                    {child}
+                        <div key={i} className="absolute pointer-events-auto" style={{ transform: \`rotate(\${angle}deg)\` }}>
+                            <div className="absolute" style={{ transform: \`translateY(-\${radius}px)\` }}>
+                                <div className="anti-spinner flex items-center justify-center" style={{ animationDuration: \`\${speed}s\` }}>
+                                    <div style={{ transform: \`rotate(-\${angle}deg)\` }}>
+                                        {child}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -98,167 +83,54 @@ interface SatelliteProps {
     size?: string;
 }
 
-const SatelliteCard: React.FC<SatelliteProps> = ({ icon: Icon, label, value, colorClass, bgClass, borderClass, onClick, size = 'w-24 h-24 md:w-32 md:h-32' }) => (
-    <div onClick={onClick} className={`group relative ${size} rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform hover:scale-125 shadow-lg ${bgClass} ${borderClass} border backdrop-blur-md`}>
-        {Icon && <Icon className={`${value !== undefined ? 'w-8 h-8 md:w-10 md:h-10' : 'w-1/2 h-1/2'} ${colorClass} relative z-10`} />}
-        {value !== undefined && <div className={`mt-1 font-black text-base md:text-xl leading-none ${colorClass}`}>{value}</div>}
-        <div className="absolute -bottom-14 opacity-0 group-hover:opacity-100 transition-all pointer-events-none flex flex-col items-center z-50">
-             <span className={`text-xs md:text-base font-bold ${colorClass} bg-black/90 px-4 py-2 rounded-xl border ${borderClass} whitespace-nowrap shadow-[0_10px_30px_rgba(0,0,0,0.8)] uppercase tracking-widest`}>
+const SatelliteCard: React.FC<SatelliteProps> = ({ icon: Icon, label, value, colorClass, bgClass, borderClass, onClick, size = 'w-12 h-12 md:w-16 md:h-16' }) => (
+    <div onClick={onClick} className={\`group relative \${size} rounded-full flex flex-col items-center justify-center backdrop-blur-md cursor-pointer transition-transform hover:scale-110 shadow-lg \${bgClass} \${borderClass} border\`}>
+        {Icon && <Icon className={\`\${value !== undefined ? 'w-4 h-4 md:w-5 md:h-5' : 'w-1/2 h-1/2'} \${colorClass} relative z-10\`} />}
+        {value !== undefined && <div className={\`mt-1 font-black text-[10px] md:text-sm leading-none \${colorClass}\`}>{value}</div>}
+        <div className="absolute -bottom-12 opacity-0 group-hover:opacity-100 transition-all pointer-events-none flex flex-col items-center z-50">
+             <span className={\`text-[9px] md:text-xs font-bold \${colorClass} bg-black/90 px-3 py-1.5 rounded-lg border \${borderClass} whitespace-nowrap shadow-xl uppercase tracking-widest\`}>
                  {label}
              </span>
         </div>
-        <div className="absolute inset-0 rounded-full border border-white/5 opacity-50 group-hover:animate-ping"></div>
+        <div className={\`absolute inset-0 rounded-full border border-white/5 opacity-50 group-hover:animate-ping\`}></div>
     </div>
 );
 
 // --- END ORBITAL COMPONENTS ---
 
-interface Props {
-  user: UserProfile;
-  initialAction?: string | null;
-  onClearAction?: () => void;
-  onOpenChat: () => void;
-  onOpenAffiliate: () => void;
-  onLogout: () => void;
-  onUpgrade?: () => void; 
-  onStartAffiliate?: () => void; 
-}
+`;
 
-const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpenChat, onOpenAffiliate, onLogout, onUpgrade, onStartAffiliate }) => {
-  const [tasks, setTasks] = useState<DBTask[]>([]);
-  const [memory, setMemory] = useState<DBFact[]>([]);
-  const [syncRate, setSyncRate] = useState(0);
-  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'playing'>('idle');
-  
-  // Nexus / IoT Modal State
-  const [showNexusConfig, setShowNexusConfig] = useState(false);
-  const [iotActions, setIotActions] = useState<{ [key: string]: string }>(user.iotActions || {});
-  const [newActionKey, setNewActionKey] = useState('');
-  const [newActionUrl, setNewActionUrl] = useState('');
+// Add the components right before the interface Props {
+content = content.replace('interface Props {', newComponents + 'interface Props {');
 
-  // Vault State
-  const [showVault, setShowVault] = useState(false);
-  const [showApiVault, setShowApiVault] = useState(false);
-  const [showSystemOverride, setShowSystemOverride] = useState(false);
-  const [showWorkspace, setShowWorkspace] = useState(false);
-  const [showTasksModal, setShowTasksModal] = useState(false);
-  const [showMemoryModal, setShowMemoryModal] = useState(false);
-  const [selectedTaskIdx, setSelectedTaskIdx] = useState<number | null>(null);
-
-  const [editingTask, setEditingTask] = useState<DBTask | null>(null);
-
-  // --- IDENTITY RESOLVER ---
-  const getIdentity = () => {
-      if (user.phone === 'GUEST') {
-          return { label: 'زائر مؤقت', sub: 'Guest Access', color: 'text-white/60', bg: 'bg-white/10', border: 'border-white/10', icon: User };
-      }
-      if (user.affiliate?.isMarketer && user.tier === 'lite') {
-          return { label: 'شريك نجاح', sub: 'Affiliate Partner', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: Briefcase };
-      }
-      if (user.email === 'admin@shadow.com') {
-          return { label: 'الماستر', sub: 'System Admin', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Crown };
-      }
-      return { label: 'عضو نخبة', sub: 'Sovereign Tier', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: Fingerprint };
-  };
-
-  const identity = getIdentity();
-
-  // Handle Deep Links
-  useEffect(() => {
-      if (initialAction) {
-          if (initialAction === 'open_vault') {
-              setShowVault(true);
-          } else if (initialAction === 'open_nexus') {
-              setShowNexusConfig(true);
-          }
-          if (onClearAction) onClearAction();
-      }
-  }, [initialAction]);
-
-  useEffect(() => {
-    loadData();
-    // NOTE: Alarm Logic Moved to App.tsx to run globally.
-  }, []);
-
-  const loadData = async () => {
-        // FETCH DATA FOR SPECIFIC USER ID
-        const [allTasks, allMemory, rate] = await Promise.all([
-            shadowDB.getTasks(user.phone), 
-            shadowDB.getMemory(user.phone),
-            shadowDB.getSyncStats()
-        ]);
-        setTasks(allTasks.reverse());
-        setMemory(allMemory.reverse());
-        setSyncRate(rate);
-  };
-
-  const handleVoiceGreeting = async () => {
-      setVoiceStatus('playing');
-      const name = user.name.split(' ')[0];
-      const gender = user.voicePreference || 'male'; 
-      
-      const greeting = `يا ريس، أنا مش مجرد تطبيق.. أنا ظلك.
-      عقلك التاني اللي مبيناش.
-      شيل من دماغك، وارميه عليا.
-      أنا هنا عشان أحفظ أسرارك، وأدير حياتك، وأخليك دايماً سابق بخطوة.
-      صباحك زي الفل يا ${name}.. أنا جاهز.`;
-      
-      await playShadowVoice(greeting, gender, undefined, () => setVoiceStatus('idle'));
-  };
-
-  const toggleVoice = () => {
-      if (voiceStatus === 'playing') { stopVoice(); setVoiceStatus('idle'); } else { handleVoiceGreeting(); }
-  };
-
-  // --- NEXUS CONFIG LOGIC ---
-  const saveAction = async () => {
-      if (!newActionKey || !newActionUrl) return;
-      // Normalize key to be AI friendly (replace spaces with underscores)
-      const cleanKey = newActionKey.trim().replace(/\s+/g, '_').toLowerCase();
-      const updatedActions = { ...iotActions, [cleanKey]: newActionUrl };
-      setIotActions(updatedActions);
-      const updatedUser = { ...user, iotActions: updatedActions };
-      await shadowDB.saveProfile(updatedUser);
-      setNewActionKey('');
-      setNewActionUrl('');
-  };
-
-  const deleteAction = async (key: string) => {
-      const updatedActions = { ...iotActions };
-      delete updatedActions[key];
-      setIotActions(updatedActions);
-      const updatedUser = { ...user, iotActions: updatedActions };
-      await shadowDB.saveProfile(updatedUser);
-  };
-
+const newReturn = `
   const isAdmin = user.email === 'admin@shadow.com' || user.email === 'TITO' || user.email === 'tito@shadow.com';
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-[#020202] text-white font-['Cairo'] overflow-hidden flex items-center justify-center">
-        <SpaceCanvas interactive={true} />
+    <div className="h-full w-full bg-[#020202] text-white font-['Cairo'] overflow-auto scrollbar-hide space-map relative">
         <OrbitalStyles />
         
-        {/* Responsive scaling container to always fit strictly in the center without scrollbars */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none flex items-center justify-center scale-[0.35] sm:scale-[0.5] md:scale-[0.7] lg:scale-90 xl:scale-100" style={{ transformOrigin: 'center center' }}>
+        {/* Responsive scaling container to allow panning/scrolling or fitting on desktop */}
+        <div className="relative min-w-[800px] min-h-[800px] w-full h-full flex items-center justify-center overflow-hidden">
             
             {/* --- THE CORE (SUN) --- */}
             <div 
                 onClick={onOpenChat}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 md:w-56 md:h-56 rounded-full bg-gradient-to-br from-purple-600/40 to-black border border-purple-500/50 flex flex-col items-center justify-center cursor-pointer group pointer-events-auto z-50 hover:bg-purple-900/60 transition-all font-cairo"
-                style={{ animation: 'core-pulse 4s ease-in-out infinite' }}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 md:w-48 md:h-48 rounded-full bg-gradient-to-br from-purple-900/60 to-black border border-purple-500/50 flex flex-col items-center justify-center cursor-pointer group shadow-[0_0_80px_rgba(168,85,247,0.3)] z-50 hover:scale-110 hover:shadow-[0_0_120px_rgba(168,85,247,0.5)] transition-all"
             >
-                <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping opacity-20"></div>
+                <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping opacity-30"></div>
+                <div className="absolute inset-4 rounded-full bg-purple-500/10 blur-xl group-hover:bg-purple-500/30 transition-all"></div>
                 
-                <Brain className="w-14 h-14 md:w-20 md:h-20 text-white fill-purple-300/30 relative z-10 mb-2 group-hover:scale-110 transition-transform duration-500" />
-                <span className="text-white text-sm md:text-2xl font-black tracking-widest uppercase relative z-10 drop-shadow-[0_2px_10px_rgba(255,255,255,0.5)]">الظل الرقمي</span>
-                <span className="text-[10px] md:text-sm text-purple-200 font-bold uppercase relative z-10 tracking-[0.3em] mt-1 shadow-black drop-shadow-md">
+                <Brain className="w-10 h-10 md:w-14 md:h-14 text-white fill-purple-300/30 relative z-10 mb-2 group-hover:scale-110 transition-transform" />
+                <span className="text-white text-xs md:text-xl font-black tracking-widest uppercase relative z-10 drop-shadow-md">الظل الرقمي</span>
+                <span className="text-[8px] md:text-xs text-purple-300 font-bold uppercase relative z-10 tracking-[0.3em] mt-1">
                     {user.phone === 'GUEST' ? 'تجربة محدودة' : 'الدخول للاجتماع'}
                 </span>
             </div>
 
-            {/* --- ORBIT 1: INNER (Speed: 30s) --- */}
+            {/* --- ORBIT 1: INNER (Speed: 40s) --- */}
             {user.phone !== 'GUEST' && (
-                <OrbitalRing radius={220} speed={30}>
+                <OrbitalRing radius={160} speed={40}>
                     <SatelliteCard 
                         icon={Target} label="المهام الشغالة" value={tasks.filter(t => t.status === 'pending').length} 
                         colorClass="text-amber-500" bgClass="bg-amber-500/10" borderClass="border-amber-500/30" onClick={() => setShowTasksModal(true)} 
@@ -278,45 +150,40 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
                 </OrbitalRing>
             )}
 
-            {/* --- ORBIT 2: MIDDLE (Speed: 45s) --- */}
-            <OrbitalRing radius={360} speed={45}>
+            {/* --- ORBIT 2: MIDDLE (Speed: 55s) --- */}
+            <OrbitalRing radius={260} speed={55}>
                 <SatelliteCard 
                     icon={identity.icon} label={identity.label} 
-                    colorClass={identity.color} bgClass={identity.bg} borderClass={identity.border} onClick={() => setShowVault(true)}
+                    colorClass={identity.color} bgClass={identity.bg} borderClass={identity.border} onClick={() => setShowVault(true)} size="w-14 h-14 md:w-20 md:h-20"
                 />
                 
                 {user.phone === 'GUEST' ? (
                     <SatelliteCard 
                         icon={Megaphone} label="سوق للظل واربح" 
-                        colorClass="text-emerald-400" bgClass="bg-emerald-500/10" borderClass="border-emerald-500/30" onClick={onStartAffiliate}
+                        colorClass="text-emerald-400" bgClass="bg-emerald-500/10" borderClass="border-emerald-500/30" onClick={onStartAffiliate} size="w-14 h-14 md:w-20 md:h-20"
                     />
                 ) : (
                     <SatelliteCard 
                         icon={DollarSign} label="بيزنس العيلة (تسويق)" 
-                        colorClass="text-emerald-400" bgClass="bg-emerald-500/10" borderClass="border-emerald-500/30" onClick={onOpenAffiliate}
+                        colorClass="text-emerald-400" bgClass="bg-emerald-500/10" borderClass="border-emerald-500/30" onClick={onOpenAffiliate} size="w-14 h-14 md:w-20 md:h-20"
                     />
                 )}
 
                 {user.phone === 'GUEST' ? (
                     <SatelliteCard 
                         icon={Crown} label="انضم للنخبة (ترقية)" 
-                        colorClass="text-white" bgClass="bg-white/10" borderClass="border-white/30" onClick={onUpgrade}
+                        colorClass="text-white" bgClass="bg-white/10" borderClass="border-white/30" onClick={onUpgrade} size="w-14 h-14 md:w-20 md:h-20"
                     />
-                ) : ((user.tier === 'sovereign' || user.phone === 'TITO') ? (
+                ) : ((user.tier === 'sovereign' || user.phone === 'TITO') && (
                     <SatelliteCard 
                         icon={Cpu} label="نكسوس (التحكم المنزلي IoT)" 
-                        colorClass="text-cyan-400" bgClass="bg-cyan-500/10" borderClass="border-cyan-500/30" onClick={() => setShowNexusConfig(true)}
+                        colorClass="text-cyan-400" bgClass="bg-cyan-500/10" borderClass="border-cyan-500/30" onClick={() => setShowNexusConfig(true)} size="w-14 h-14 md:w-20 md:h-20"
                     />
-                ) : (
-                   <SatelliteCard 
-                        icon={Crown} label="انضم للنخبة (ترقية)" 
-                        colorClass="text-white" bgClass="bg-white/10" borderClass="border-white/30" onClick={onUpgrade}
-                    />
-                ))}
+                )) || <div className="hidden" />} {/* Placeholder to preserve index count if needed, but flex maps filter it */}
             </OrbitalRing>
 
-            {/* --- ORBIT 3: OUTER (Speed: 70s) --- */}
-            <OrbitalRing radius={500} speed={70}>
+            {/* --- ORBIT 3: OUTER (Speed: 80s) --- */}
+            <OrbitalRing radius={360} speed={80}>
                 <SatelliteCard 
                     icon={voiceStatus === 'playing' ? Pause : Play} label="رسالة التوجيه (صوت الظل)" 
                     colorClass={voiceStatus === 'playing' ? 'text-amber-500' : 'text-white/40'} 
@@ -462,3 +329,10 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
 };
 
 export default Dashboard;
+`;
+
+const startIndex = content.indexOf('  return (');
+content = content.substring(0, startIndex) + newReturn;
+
+fs.writeFileSync(path, content, 'utf8');
+console.log('Successfully updated Dashboard.tsx!');
