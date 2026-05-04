@@ -15,47 +15,19 @@ import { WorkspaceModal } from './dashboard/WorkspaceModal';
 const OrbitalStyles = () => (
     <style>
         {`
-            @keyframes spin-slow {
-              from { transform: translateZ(0) rotate(0deg); }
-              to { transform: translateZ(0) rotate(360deg); }
-            }
-            @keyframes reverse-spin-slow {
-              from { transform: translateZ(0) rotate(360deg); }
-              to { transform: translateZ(0) rotate(0deg); }
-            }
             @keyframes float-depth {
               0%, 100% { transform: translateY(0px) scale(1.0); }
               50% { transform: translateY(-15px) scale(1.1); filter: drop-shadow(0 20px 30px rgba(0,0,0,0.5)); }
-            }
-            @keyframes twinkle {
-              0%, 100% { opacity: 0.1; transform: translateZ(-50px) scale(0.8); }
-              50% { opacity: 1; transform: translateZ(0px) scale(1.2); box-shadow: 0 0 10px 2px rgba(255,255,255,0.4); }
             }
             @keyframes core-pulse {
               0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 80px rgba(168,85,247,0.3); }
               50% { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 120px rgba(168,85,247,0.6); }
             }
-            
-            .spinner {
-              animation-name: spin-slow;
-              animation-timing-function: linear;
-              animation-iteration-count: infinite;
-              will-change: transform;
-            }
-            
-            .anti-spinner {
-              animation-name: reverse-spin-slow;
-              animation-timing-function: linear;
-              animation-iteration-count: infinite;
-              will-change: transform;
-            }
-            
             .floater {
               animation: float-depth 6s ease-in-out infinite alternate;
               transform-style: preserve-3d;
               will-change: transform;
             }
-
             .scrollbar-hide::-webkit-scrollbar {
               display: none;
             }
@@ -63,39 +35,8 @@ const OrbitalStyles = () => (
     </style>
 );
 
-const OrbitalRing: React.FC<{ radius: number, speed: number, reverse?: boolean, children: React.ReactNode }> = ({ radius, speed, reverse = false, children }) => {
-    const items = React.Children.toArray(children).filter(child => React.isValidElement(child));
-    const activeSpinClass = reverse ? 'anti-spinner' : 'spinner';
-    const activeCounterSpinClass = reverse ? 'spinner' : 'anti-spinner';
-
-    return (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: radius*2, height: radius*2, transformStyle: 'preserve-3d' }}>
-            <div className="absolute inset-0 rounded-full border border-white/30 border-dashed shadow-[0_0_15px_rgba(255,255,255,0.1)] opacity-70"></div>
-            <div className="absolute top-1/2 left-1/2 w-0 h-0 flex items-center justify-center">
-                {items.map((child, i) => {
-                    const angle = (360 / items.length) * i;
-                    // Make each item have a slightly different speed so they eventually intersect
-                    const itemSpeed = speed + (i * 8); 
-                    return (
-                        <div key={i} className={`absolute w-0 h-0 flex items-center justify-center ${activeSpinClass}`} style={{ animationDuration: `${itemSpeed}s` }}>
-                            <div className="absolute pointer-events-auto" style={{ transform: `rotate(${angle}deg)` }}>
-                                <div className="absolute" style={{ transform: `translateY(-${radius}px)` }}>
-                                    <div className={`${activeCounterSpinClass} flex items-center justify-center`} style={{ animationDuration: `${itemSpeed}s` }}>
-                                        <div className="floater" style={{ animationDelay: `-${i * 1.5}s`, transform: `rotate(-${angle}deg)` }}>
-                                            {child}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-};
-
 interface SatelliteProps {
+    id: string;
     icon?: any;
     label: string;
     value?: string | number;
@@ -104,11 +45,16 @@ interface SatelliteProps {
     borderClass: string;
     onClick?: () => void;
     size?: string;
+    onDragStart: (id: string, e: React.PointerEvent) => void;
 }
 
-const SatelliteCard: React.FC<SatelliteProps> = ({ icon: Icon, label, value, colorClass, bgClass, borderClass, onClick, size = 'w-32 h-32 lg:w-40 lg:h-40' }) => (
-    <div onClick={onClick} className={`group relative ${size} rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform hover:scale-125 shadow-lg ${bgClass} ${borderClass} border backdrop-blur-md`}>
-        {Icon && <Icon className={`${value !== undefined ? 'w-10 h-10 lg:w-14 lg:h-14' : 'w-1/2 h-1/2'} ${colorClass} relative z-10`} style={{ animation: 'spin-slow 10s linear infinite' }} />}
+const SatelliteCard: React.FC<SatelliteProps> = ({ id, icon: Icon, label, value, colorClass, bgClass, borderClass, onClick, size = 'w-32 h-32 lg:w-40 lg:h-40', onDragStart }) => (
+    <div 
+        onPointerDown={(e) => onDragStart(id, e)}
+        onClick={onClick} 
+        className={`group relative ${size} rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform hover:scale-125 shadow-lg ${bgClass} ${borderClass} border backdrop-blur-md canvas-bypass`}
+    >
+        {Icon && <Icon className={`${value !== undefined ? 'w-10 h-10 lg:w-14 lg:h-14' : 'w-1/2 h-1/2'} ${colorClass} relative z-10 transition-transform duration-[10s] ease-linear`} />}
         {value !== undefined && <div className={`mt-1 font-black text-xl lg:text-3xl leading-none ${colorClass}`}>{value}</div>}
         <div className="absolute -bottom-16 opacity-0 group-hover:opacity-100 transition-all pointer-events-none flex flex-col items-center z-50">
              <span className={`text-sm lg:text-lg font-bold ${colorClass} bg-black/90 px-4 py-2 rounded-xl border ${borderClass} whitespace-nowrap shadow-[0_10px_30px_rgba(0,0,0,0.8)] uppercase tracking-widest`}>
@@ -118,8 +64,6 @@ const SatelliteCard: React.FC<SatelliteProps> = ({ icon: Icon, label, value, col
         <div className="absolute inset-0 rounded-full border border-white/5 opacity-50 group-hover:animate-ping"></div>
     </div>
 );
-
-// --- END ORBITAL COMPONENTS ---
 
 interface Props {
   user: UserProfile;
@@ -131,6 +75,9 @@ interface Props {
   onUpgrade?: () => void; 
   onStartAffiliate?: () => void; 
 }
+
+const ORBIT_RADII = [220, 360, 500];
+const ORBIT_SPEEDS = [0.005, -0.003, 0.002]; // radians per frame
 
 const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpenChat, onOpenAffiliate, onLogout, onUpgrade, onStartAffiliate }) => {
   const [tasks, setTasks] = useState<DBTask[]>([]);
@@ -151,45 +98,154 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [showTasksModal, setShowTasksModal] = useState(false);
   const [showMemoryModal, setShowMemoryModal] = useState(false);
-  const [selectedTaskIdx, setSelectedTaskIdx] = useState<number | null>(null);
 
-  const [editingTask, setEditingTask] = useState<DBTask | null>(null);
-
-  // --- IDENTITY RESOLVER ---
+  // Identity Resolver
   const getIdentity = () => {
-      if (user.phone === 'GUEST') {
-          return { label: 'زائر مؤقت', sub: 'Guest Access', color: 'text-white/60', bg: 'bg-white/10', border: 'border-white/10', icon: User };
-      }
-      if (user.affiliate?.isMarketer && user.tier === 'lite') {
-          return { label: 'شريك نجاح', sub: 'Affiliate Partner', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: Briefcase };
-      }
-      if (user.email === 'admin@shadow.com') {
-          return { label: 'الماستر', sub: 'System Admin', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Crown };
-      }
+      if (user.phone === 'GUEST') return { label: 'زائر مؤقت', sub: 'Guest Access', color: 'text-white/60', bg: 'bg-white/10', border: 'border-white/10', icon: User };
+      if (user.affiliate?.isMarketer && user.tier === 'lite') return { label: 'شريك نجاح', sub: 'Affiliate Partner', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: Briefcase };
+      if (user.email === 'admin@shadow.com') return { label: 'الماستر', sub: 'System Admin', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Crown };
       return { label: 'عضو نخبة', sub: 'Sovereign Tier', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: Fingerprint };
   };
-
   const identity = getIdentity();
+  const isAdmin = user.email === 'admin@shadow.com' || user.email === 'TITO' || user.email === 'tito@shadow.com';
 
-  // Handle Deep Links
-  useEffect(() => {
-      if (initialAction) {
-          if (initialAction === 'open_vault') {
-              setShowVault(true);
-          } else if (initialAction === 'open_nexus') {
-              setShowNexusConfig(true);
-          }
-          if (onClearAction) onClearAction();
-      }
-  }, [initialAction]);
+  // ORBITAL DRAG & DROP STATE
+  const [orbitMap, setOrbitMap] = useState<Record<string, number>>({
+      'tasks': 0, 'memory': 0, 'sync': 0, 'vault': 0,
+      'identity': 1, 'affiliate': 1, 'upgrade': 1,
+      'voice': 2, 'override': 2, 'workspace': 2, 'logout': 2
+  });
+
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragStartTimer = useRef<any>(null);
+  const dragStartPos = useRef<{ x: number, y: number } | null>(null);
+  const satelliteRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const orbitAngles = useRef<number[]>([0, 0, 0]);
+
+  // Keep latest state mapped for RAF
+  const activeOrbitGroups = useRef<Record<number, any[]>>({ 0: [], 1: [], 2: [] });
+  const activeDraggingId = useRef(draggingId);
+  const activeDragPos = useRef(dragPos);
+
+  useEffect(() => { activeDraggingId.current = draggingId; activeDragPos.current = dragPos; }, [draggingId, dragPos]);
 
   useEffect(() => {
-    loadData();
-    // NOTE: Alarm Logic Moved to App.tsx to run globally.
+      let frame: number;
+      const loop = () => {
+          orbitAngles.current[0] += ORBIT_SPEEDS[0];
+          orbitAngles.current[1] += ORBIT_SPEEDS[1];
+          orbitAngles.current[2] += ORBIT_SPEEDS[2];
+          
+          Object.keys(activeOrbitGroups.current).forEach(orbitIdxStr => {
+              const orbitIdx = parseInt(orbitIdxStr);
+              const items = activeOrbitGroups.current[orbitIdx];
+              const r = ORBIT_RADII[orbitIdx];
+              const currentAngleOffset = orbitAngles.current[orbitIdx];
+              
+              items.forEach((item, i) => {
+                  const el = satelliteRefs.current[item.id];
+                  if (!el) return;
+
+                  if (activeDraggingId.current === item.id) {
+                      el.style.transform = `translate3d(${activeDragPos.current.x}px, ${activeDragPos.current.y}px, 0)`;
+                  } else {
+                      const spreadAngle = (Math.PI * 2) / items.length;
+                      const elementAngle = currentAngleOffset + (spreadAngle * i);
+                      const x = Math.cos(elementAngle) * r;
+                      const y = Math.sin(elementAngle) * r;
+                      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+                  }
+              });
+          });
+          
+          frame = requestAnimationFrame(loop);
+      };
+      frame = requestAnimationFrame(loop);
+      return () => cancelAnimationFrame(frame);
   }, []);
 
+  const handlePointerDown = (id: string, e: React.PointerEvent) => {
+      // Long press detection
+      e.stopPropagation();
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const scale = rect.width / 1200;
+      const x = (e.clientX - rect.left - rect.width / 2) / scale;
+      const y = (e.clientY - rect.top - rect.height / 2) / scale;
+      
+      dragStartPos.current = { x: e.clientX, y: e.clientY };
+      
+      dragStartTimer.current = setTimeout(() => {
+          setDraggingId(id);
+          setDragPos({ x, y });
+      }, 250); // 250ms long press to drag
+  };
+
+  const handleGlobalPointerMove = (e: PointerEvent) => {
+      if (!draggingId && dragStartTimer.current && dragStartPos.current) {
+          const dx = e.clientX - dragStartPos.current.x;
+          const dy = e.clientY - dragStartPos.current.y;
+          if (Math.hypot(dx, dy) > 10) {
+              clearTimeout(dragStartTimer.current);
+              dragStartTimer.current = null;
+          }
+      }
+      if (draggingId) {
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          const scale = rect.width / 1200;
+          const x = (e.clientX - rect.left - rect.width / 2) / scale;
+          const y = (e.clientY - rect.top - rect.height / 2) / scale;
+          setDragPos({ x, y });
+      }
+  };
+
+  const handleGlobalPointerUp = (e: PointerEvent) => {
+      if (dragStartTimer.current) {
+          clearTimeout(dragStartTimer.current);
+          dragStartTimer.current = null;
+      }
+      if (draggingId) {
+          // Snap to nearest orbit
+          const dist = Math.hypot(dragPos.x, dragPos.y);
+          let targetOrbit = 0;
+          let minDist = Infinity;
+          ORBIT_RADII.forEach((r, i) => {
+              const d = Math.abs(dist - r);
+              if (d < minDist) {
+                  minDist = d;
+                  targetOrbit = i;
+              }
+          });
+          
+          setOrbitMap(prev => ({ ...prev, [draggingId]: targetOrbit }));
+          setDraggingId(null);
+      }
+  };
+
+  useEffect(() => {
+      window.addEventListener('pointermove', handleGlobalPointerMove);
+      window.addEventListener('pointerup', handleGlobalPointerUp);
+      return () => {
+          window.removeEventListener('pointermove', handleGlobalPointerMove);
+          window.removeEventListener('pointerup', handleGlobalPointerUp);
+      };
+  }, [draggingId, dragPos]);
+
+  useEffect(() => {
+      if (initialAction) {
+          if (initialAction === 'open_vault') setShowVault(true);
+          else if (initialAction === 'open_nexus') setShowNexusConfig(true);
+          if (onClearAction) onClearAction();
+      }
+      loadData();
+  }, [initialAction]);
+
   const loadData = async () => {
-        // FETCH DATA FOR SPECIFIC USER ID
         const [allTasks, allMemory, rate] = await Promise.all([
             shadowDB.getTasks(user.phone), 
             shadowDB.getMemory(user.phone),
@@ -204,13 +260,11 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       setVoiceStatus('playing');
       const name = user.name.split(' ')[0];
       const gender = user.voicePreference || 'male'; 
-      
       const greeting = `يا ريس، أنا مش مجرد تطبيق.. أنا ظلك.
       عقلك التاني اللي مبيناش.
       شيل من دماغك، وارميه عليا.
       أنا هنا عشان أحفظ أسرارك، وأدير حياتك، وأخليك دايماً سابق بخطوة.
       صباحك زي الفل يا ${name}.. أنا جاهز.`;
-      
       await playShadowVoice(greeting, gender, undefined, () => setVoiceStatus('idle'));
   };
 
@@ -218,15 +272,13 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       if (voiceStatus === 'playing') { stopVoice(); setVoiceStatus('idle'); } else { handleVoiceGreeting(); }
   };
 
-  // --- NEXUS CONFIG LOGIC ---
+  // Nexus Config
   const saveAction = async () => {
       if (!newActionKey || !newActionUrl) return;
-      // Normalize key to be AI friendly (replace spaces with underscores)
       const cleanKey = newActionKey.trim().replace(/\s+/g, '_').toLowerCase();
       const updatedActions = { ...iotActions, [cleanKey]: newActionUrl };
       setIotActions(updatedActions);
-      const updatedUser = { ...user, iotActions: updatedActions };
-      await shadowDB.saveProfile(updatedUser);
+      await shadowDB.saveProfile({ ...user, iotActions: updatedActions });
       setNewActionKey('');
       setNewActionUrl('');
   };
@@ -235,28 +287,98 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       const updatedActions = { ...iotActions };
       delete updatedActions[key];
       setIotActions(updatedActions);
-      const updatedUser = { ...user, iotActions: updatedActions };
-      await shadowDB.saveProfile(updatedUser);
+      await shadowDB.saveProfile({ ...user, iotActions: updatedActions });
   };
 
-  const isAdmin = user.email === 'admin@shadow.com' || user.email === 'TITO' || user.email === 'tito@shadow.com';
+  // Define available items based on auth
+  const allItems = [
+      ...(user.phone !== 'GUEST' ? [
+          { id: 'tasks', icon: Target, label: "المهام الشغالة", value: tasks.filter(t => t.status === 'pending').length, colorClass: "text-amber-500", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: () => setShowTasksModal(true) },
+          { id: 'memory', icon: Database, label: "الذاكرة والأسرار", value: memory.length, colorClass: "text-purple-500", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowMemoryModal(true) },
+          { id: 'sync', icon: Activity, label: "تزامن النظام", value: syncRate + '%', colorClass: "text-cyan-500", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30" },
+          { id: 'vault', icon: Shield, label: "خزينة المفاتيح API", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowApiVault(true) },
+      ] : []),
+      { id: 'identity', icon: identity.icon, label: identity.label, colorClass: identity.color, bgClass: identity.bg, borderClass: identity.border, onClick: () => setShowVault(true) },
+      { id: 'affiliate', icon: user.phone === 'GUEST' ? Megaphone : DollarSign, label: user.phone === 'GUEST' ? "سوق للظل واربح" : "بيزنس العيلة (تسويق)", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: user.phone === 'GUEST' ? onStartAffiliate : onOpenAffiliate },
+      ...((user.tier === 'sovereign' || user.phone === 'TITO') ? [
+          { id: 'nexus', icon: Cpu, label: "نكسوس (التحكم المنزلي IoT)", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setShowNexusConfig(true) }
+      ] : [
+          { id: 'upgrade', icon: Crown, label: "انضم للنخبة (ترقية)", colorClass: "text-white", bgClass: "bg-white/10", borderClass: "border-white/30", onClick: onUpgrade }
+      ]),
+      { id: 'voice', icon: voiceStatus === 'playing' ? Pause : Play, label: "رسالة التوجيه (صوت الظل)", colorClass: voiceStatus === 'playing' ? 'text-amber-500' : 'text-white/40', bgClass: voiceStatus === 'playing' ? 'bg-amber-500/20' : 'bg-white/5', borderClass: voiceStatus === 'playing' ? 'border-amber-500/50' : 'border-white/10', onClick: toggleVoice },
+      ...(isAdmin ? [
+          { id: 'override', icon: Terminal, label: "النظام الداخلي (Override)", colorClass: "text-red-500", bgClass: "bg-red-900/20", borderClass: "border-red-500/30", onClick: () => setShowSystemOverride(true) },
+          { id: 'workspace', icon: FolderOpen, label: "مساحة العمل (Workspace)", colorClass: "text-purple-500", bgClass: "bg-purple-900/20", borderClass: "border-purple-500/30", onClick: () => setShowWorkspace(true) }
+      ] : []),
+      { id: 'logout', icon: LogOut, label: "خروج مؤقت", colorClass: "text-gray-400", bgClass: "bg-white/5", borderClass: "border-white/10", onClick: onLogout }
+  ];
+
+  // Group items by orbit
+  const orbitGroups: { [key: number]: typeof allItems } = { 0: [], 1: [], 2: [] };
+  allItems.forEach(item => {
+      let o = orbitMap[item.id];
+      if (o === undefined) o = 1; // default fallback
+      orbitGroups[o].push(item);
+  });
+  activeOrbitGroups.current = orbitGroups;
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-[#020202] text-white font-['Cairo'] overflow-hidden flex items-center justify-center">
+    <div className="fixed inset-0 w-full h-full bg-[#020202] text-white font-['Cairo'] overflow-hidden flex items-center justify-center select-none touch-none">
         <SpaceCanvas interactive={true} />
         <OrbitalStyles />
         
-        {/* Responsive scaling container to always fit strictly in the center without scrollbars */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none flex items-center justify-center scale-[0.4] sm:scale-[0.55] md:scale-[0.75] lg:scale-[0.9] xl:scale-100" style={{ transformOrigin: 'center center' }}>
+        {/* Responsive scaling container */}
+        <div ref={containerRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none flex items-center justify-center scale-[0.35] sm:scale-[0.55] md:scale-[0.75] lg:scale-[0.9] xl:scale-100" style={{ transformOrigin: 'center center' }}>
             
+            {/* Draw Ring Lines */}
+            {ORBIT_RADII.map((r, i) => (
+                <div key={i} className="absolute inset-0 rounded-full border-[1.5px] border-white/40 opacity-100 m-auto pointer-events-none transition-all duration-300" 
+                     style={{ width: `${r * 2}px`, height: `${r * 2}px`, boxShadow: draggingId ? `0 0 50px rgba(100, 200, 255, 0.3)` : '0 0 30px rgba(255, 255, 255, 0.05), inset 0 0 20px rgba(255,255,255,0.05)' }}>
+                </div>
+            ))}
+
+            {/* Orbiting Elements */}
+            {Object.keys(orbitGroups).map((orbitIdxStr) => {
+                const orbitIdx = parseInt(orbitIdxStr);
+                const items = orbitGroups[orbitIdx];
+                
+                return items.map((item, i) => {
+                    const isDragging = draggingId === item.id;
+
+                    return (
+                        <div 
+                            key={item.id}
+                            ref={el => { satelliteRefs.current[item.id] = el }}
+                            className={`absolute flex items-center justify-center pointer-events-auto ${isDragging ? 'z-[100] scale-125 transition-transform' : ''}`}
+                            style={{ 
+                                opacity: isDragging ? 0.9 : 1
+                            }}
+                        >
+                            <div className="floater">
+                                <SatelliteCard 
+                                    id={item.id}
+                                    icon={item.icon} 
+                                    label={item.label} 
+                                    value={item.value} 
+                                    colorClass={item.colorClass} 
+                                    bgClass={item.bgClass} 
+                                    borderClass={item.borderClass} 
+                                    onClick={item.onClick}
+                                    onDragStart={handlePointerDown}
+                                />
+                            </div>
+                        </div>
+                    );
+                });
+            })}
+
             {/* --- THE CORE (SUN) --- */}
             <div 
                 onClick={onOpenChat}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 lg:w-64 lg:h-64 rounded-full bg-gradient-to-br from-purple-600/40 to-black border border-purple-500/50 flex flex-col items-center justify-center cursor-pointer group pointer-events-auto z-50 hover:bg-purple-900/60 transition-all font-cairo"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 lg:w-64 lg:h-64 rounded-full bg-gradient-to-br from-purple-600/40 to-black border border-purple-500/50 flex flex-col items-center justify-center cursor-pointer group pointer-events-auto z-50 hover:bg-purple-900/60 transition-all font-cairo shadow-2xl"
                 style={{ animation: 'core-pulse 4s ease-in-out infinite' }}
             >
                 <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping opacity-20"></div>
-                
                 <Brain className="w-16 h-16 lg:w-24 lg:h-24 text-white fill-purple-300/30 relative z-10 mb-2 group-hover:scale-110 transition-transform duration-500" />
                 <span className="text-white text-lg lg:text-3xl font-black tracking-widest uppercase relative z-10 drop-shadow-[0_2px_10px_rgba(255,255,255,0.5)]">الظل الرقمي</span>
                 <span className="text-xs lg:text-base text-purple-200 font-bold uppercase relative z-10 tracking-[0.3em] mt-1 shadow-black drop-shadow-md">
@@ -264,94 +386,6 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
                 </span>
             </div>
 
-            {/* --- ORBIT 1: INNER (Speed: 30s) --- */}
-            {user.phone !== 'GUEST' && (
-                <OrbitalRing radius={220} speed={30}>
-                    <SatelliteCard 
-                        icon={Target} label="المهام الشغالة" value={tasks.filter(t => t.status === 'pending').length} 
-                        colorClass="text-amber-500" bgClass="bg-amber-500/10" borderClass="border-amber-500/30" onClick={() => setShowTasksModal(true)} 
-                    />
-                    <SatelliteCard 
-                        icon={Database} label="الذاكرة والأسرار" value={memory.length} 
-                        colorClass="text-purple-500" bgClass="bg-purple-500/10" borderClass="border-purple-500/30" onClick={() => setShowMemoryModal(true)} 
-                    />
-                    <SatelliteCard 
-                        icon={Activity} label="تزامن النظام" value={syncRate + '%'} 
-                        colorClass="text-cyan-500" bgClass="bg-cyan-500/10" borderClass="border-cyan-500/30" 
-                    />
-                    <SatelliteCard 
-                        icon={Shield} label="خزينة المفاتيح API" 
-                        colorClass="text-emerald-500" bgClass="bg-emerald-500/10" borderClass="border-emerald-500/30" onClick={() => setShowApiVault(true)} 
-                    />
-                </OrbitalRing>
-            )}
-
-            {/* --- ORBIT 2: MIDDLE (Speed: 45s) --- */}
-            <OrbitalRing radius={360} speed={45} reverse={true}>
-                <SatelliteCard 
-                    icon={identity.icon} label={identity.label} 
-                    colorClass={identity.color} bgClass={identity.bg} borderClass={identity.border} onClick={() => setShowVault(true)}
-                />
-                
-                {user.phone === 'GUEST' ? (
-                    <SatelliteCard 
-                        icon={Megaphone} label="سوق للظل واربح" 
-                        colorClass="text-emerald-400" bgClass="bg-emerald-500/10" borderClass="border-emerald-500/30" onClick={onStartAffiliate}
-                    />
-                ) : (
-                    <SatelliteCard 
-                        icon={DollarSign} label="بيزنس العيلة (تسويق)" 
-                        colorClass="text-emerald-400" bgClass="bg-emerald-500/10" borderClass="border-emerald-500/30" onClick={onOpenAffiliate}
-                    />
-                )}
-
-                {user.phone === 'GUEST' ? (
-                    <SatelliteCard 
-                        icon={Crown} label="انضم للنخبة (ترقية)" 
-                        colorClass="text-white" bgClass="bg-white/10" borderClass="border-white/30" onClick={onUpgrade}
-                    />
-                ) : ((user.tier === 'sovereign' || user.phone === 'TITO') ? (
-                    <SatelliteCard 
-                        icon={Cpu} label="نكسوس (التحكم المنزلي IoT)" 
-                        colorClass="text-cyan-400" bgClass="bg-cyan-500/10" borderClass="border-cyan-500/30" onClick={() => setShowNexusConfig(true)}
-                    />
-                ) : (
-                   <SatelliteCard 
-                        icon={Crown} label="انضم للنخبة (ترقية)" 
-                        colorClass="text-white" bgClass="bg-white/10" borderClass="border-white/30" onClick={onUpgrade}
-                    />
-                ))}
-            </OrbitalRing>
-
-            {/* --- ORBIT 3: OUTER (Speed: 70s) --- */}
-            <OrbitalRing radius={500} speed={70}>
-                <SatelliteCard 
-                    icon={voiceStatus === 'playing' ? Pause : Play} label="رسالة التوجيه (صوت الظل)" 
-                    colorClass={voiceStatus === 'playing' ? 'text-amber-500' : 'text-white/40'} 
-                    bgClass={voiceStatus === 'playing' ? 'bg-amber-500/20' : 'bg-white/5'} 
-                    borderClass={voiceStatus === 'playing' ? 'border-amber-500/50' : 'border-white/10'} 
-                    onClick={toggleVoice} 
-                />
-                
-                {isAdmin && (
-                    <SatelliteCard 
-                        icon={Terminal} label="النظام الداخلي (Override)" 
-                        colorClass="text-red-500" bgClass="bg-red-900/20" borderClass="border-red-500/30" onClick={() => setShowSystemOverride(true)} 
-                    />
-                )}
-                
-                {isAdmin && (
-                    <SatelliteCard 
-                        icon={FolderOpen} label="مساحة العمل (Workspace)" 
-                        colorClass="text-purple-500" bgClass="bg-purple-900/20" borderClass="border-purple-500/30" onClick={() => setShowWorkspace(true)} 
-                    />
-                )}
-                
-                <SatelliteCard 
-                    icon={LogOut} label="خروج مؤقت" 
-                    colorClass="text-gray-400" bgClass="bg-white/5" borderClass="border-white/10" onClick={onLogout} 
-                />
-            </OrbitalRing>
         </div>
 
         {/* --- MODALS REUSED EXACTLY AS BEFORE --- */}

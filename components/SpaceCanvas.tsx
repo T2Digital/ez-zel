@@ -29,64 +29,176 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
             });
         }
 
+        // Load Earth & Moon Images safely
+        const earthImg = new Image();
+        earthImg.crossOrigin = 'anonymous'; // Help with CORS
+        earthImg.src = 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_atmos_2048.jpg';
+        
+        const moonImg = new Image();
+        moonImg.crossOrigin = 'anonymous';
+        moonImg.src = 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg';
+
         let animationFrameId: number;
-        let mouseX = 0;
-        let mouseY = 0;
         let targetSpeed = 1.8;
         let currentSpeed = 1.8;
 
-        const handleMouseMove = (e: MouseEvent) => {
+        // Camera Pan/Zoom variables
+        let bgPanX = 0;
+        let bgPanY = 0;
+        let bgZoom = 1;
+        
+        let targetPanX = 0;
+        let targetPanY = 0;
+        let targetZoom = 1;
+
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        
+        // Active pointers for pinch to zoom
+        const activePointers = new Map<number, {x: number, y: number}>();
+        let initialPinchDist: number | null = null;
+        let initialPinchZoom = 1;
+
+        const handlePointerDown = (e: PointerEvent) => {
             if (!interactive) return;
-            mouseX = (e.clientX - width / 2) * 0.03;
-            mouseY = (e.clientY - height / 2) * 0.03;
+            // Ignore if clicking on buttons or interactive UI elements unless it's the canvas/body
+            const target = e.target as HTMLElement;
+            if (target.closest('button') || target.closest('.pointer-events-auto') && !target.closest('.canvas-bypass')) {
+                // Return if clicking some specific UI, actually the workspace elements capture pointers,
+                // but let's allow panning if the target is the dashboard container.
+                // We'll just just not prevent default and let it happen, but avoid disrupting clicks.
+            }
+            
+            activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            
+            if (activePointers.size === 1) {
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+            } else if (activePointers.size === 2) {
+                isDragging = false;
+                const pts = Array.from(activePointers.values());
+                initialPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                initialPinchZoom = targetZoom;
+            }
+        };
+
+        const handlePointerMove = (e: PointerEvent) => {
+            if (!interactive) return;
+            
+            if (activePointers.has(e.pointerId)) {
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            }
+
+            if (activePointers.size === 1 && isDragging) {
+                const dx = e.clientX - lastX;
+                const dy = e.clientY - lastY;
+                targetPanX += dx;
+                targetPanY += dy;
+                lastX = e.clientX;
+                lastY = e.clientY;
+            } else if (activePointers.size === 2 && initialPinchDist !== null) {
+                const pts = Array.from(activePointers.values());
+                const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                const scale = dist / initialPinchDist;
+                targetZoom = Math.min(Math.max(initialPinchZoom * scale, 0.5), 10);
+            }
+            
+            // Speed up stars a bit when moving mouse globally
+            if (activePointers.size === 0) {
+                 // hover effect handled elsewhere or not at all, to keep focus on pan
+            }
+        };
+
+        const handlePointerUp = (e: PointerEvent) => {
+            if (!interactive) return;
+            activePointers.delete(e.pointerId);
+            if (activePointers.size < 2) {
+                initialPinchDist = null;
+            }
+            if (activePointers.size === 1) {
+                const p = Array.from(activePointers.values())[0];
+                lastX = p.x;
+                lastY = p.y;
+                isDragging = true;
+            } else if (activePointers.size === 0) {
+                isDragging = false;
+            }
+        };
+
+        const handleDoubleClick = (e: MouseEvent) => {
+            if (!interactive) return;
+            targetZoom *= 1.5;
+            if (targetZoom > 5) targetZoom = 1; // Reset if too far
         };
 
         const handleWheel = (e: WheelEvent) => {
             if (!interactive) return;
-            // Accelerate zooming when scrolling
-            if (e.deltaY < 0) {
-                targetSpeed = Math.min(targetSpeed + 3, 20);
+            if (e.ctrlKey) {
+                // Trackpad pinch or ctrl+wheel
+                e.preventDefault();
+                targetZoom -= e.deltaY * 0.01;
+                targetZoom = Math.max(0.5, Math.min(targetZoom, 10));
             } else {
-                targetSpeed = Math.max(targetSpeed - 3, -10);
+                targetSpeed = e.deltaY < 0 ? Math.min(targetSpeed + 3, 20) : Math.max(targetSpeed - 3, -10);
+                setTimeout(() => { targetSpeed = 1.8; }, 300);
             }
-            
-            // Decelerate back to normal speed after a short time
-            setTimeout(() => {
-                targetSpeed = 1.8;
-            }, 300);
         };
 
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('wheel', handleWheel, { passive: true });
+        window.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
+        window.addEventListener('dblclick', handleDoubleClick);
+        window.addEventListener('wheel', handleWheel, { passive: false });
+
+        const drawImageSafe = (img: HTMLImageElement, x: number, y: number, w: number, h: number) => {
+            if (img.complete && img.naturalWidth !== 0 && !img.src.endsWith('undefined')) {
+                try {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(x + w/2, y + h/2, w/2, 0, Math.PI * 2);
+                    ctx.clip();
+                    ctx.drawImage(img, x, y, w, h);
+                    ctx.restore();
+                } catch(e) {
+                    // silently ignore broken image
+                }
+            } else {
+                // Draw a fallback circle
+                ctx.beginPath();
+                ctx.arc(x + w/2, y + h/2, w/2, 0, 2*Math.PI);
+                ctx.fillStyle = img === earthImg ? 'rgba(0, 50, 150, 1)' : 'rgba(150, 150, 150, 1)';
+                ctx.fill();
+            }
+        };
 
         const render = () => {
-            // Smooth speed transition
             currentSpeed += (targetSpeed - currentSpeed) * 0.1;
+            
+            // Smoothly approach target pan & zoom
+            bgPanX += (targetPanX - bgPanX) * 0.1;
+            bgPanY += (targetPanY - bgPanY) * 0.1;
+            bgZoom += (targetZoom - bgZoom) * 0.1;
 
             ctx.fillStyle = '#020008';
             ctx.fillRect(0, 0, width, height);
+
+            ctx.save();
             
             const cx = width / 2;
             const cy = height / 2;
-
-            // Draw nebulae (simple radial gradients) - less opacity, larger spread
-            const g1 = ctx.createRadialGradient(cx - mouseX * 2, cy - mouseY * 2, 0, cx - mouseX * 2, cy - mouseY * 2, width * 0.6);
-            g1.addColorStop(0, 'rgba(128, 0, 255, 0.04)');
-            g1.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = g1;
-            ctx.fillRect(0, 0, width, height);
-
-            const g2 = ctx.createRadialGradient(cx + mouseX * 2, cy + mouseY * 2, 0, cx + mouseX * 2, cy + mouseY * 2, width * 0.5);
-            g2.addColorStop(0, 'rgba(0, 255, 255, 0.02)');
-            g2.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = g2;
-            ctx.fillRect(0, 0, width, height);
+            
+            // Apply zoom and pan, pivoting from center
+            ctx.translate(cx, cy);
+            ctx.scale(bgZoom, bgZoom);
+            ctx.translate(-cx + bgPanX, -cy + bgPanY);
 
             for (let i = 0; i < numStars; i++) {
                 const s = stars[i];
                 s.z -= currentSpeed;
                 
-                // Reset star if it passes the screen or goes too far back
                 if (s.z <= 0) {
                     s.z = width;
                     s.x = (Math.random() - 0.5) * width * 2;
@@ -97,15 +209,15 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
                     s.y = (Math.random() - 0.5) * height * 2;
                 }
 
-                // Parallax offset based on mouse
-                const px = cx + (s.x / s.z) * cx - mouseX * (1 - s.z/width);
-                const py = cy + (s.y / s.z) * cy - mouseY * (1 - s.z/width);
+                // Parallax is driven mostly by star's Z, we already handled pan using canvas translate
+                const px = cx + (s.x / s.z) * cx;
+                const py = cy + (s.y / s.z) * cy;
 
-                if (px >= 0 && px <= width && py >= 0 && py <= height) {
+                // Frustum culling simple
+                if (px >= -cx && px <= width+cx && py >= -cy && py <= height+cy) {
                     const depth = Math.max(0, 1 - s.z / width);
-                    const size = s.size * depth * (currentSpeed > 2 ? 1.5 : 1); // stretch slightly when fast
+                    const size = s.size * depth * (currentSpeed > 2 ? 1.5 : 1); 
                     
-                    // calculate twinkle
                     const twinkle = Math.sin(Date.now() * 0.001 + s.x) * 0.5 + 0.5;
                     const opacity = Math.max(0, Math.min(1, s.o * depth * (0.8 + 0.2 * twinkle)));
 
@@ -116,7 +228,76 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
                     ctx.fill();
                 }
             }
+
+            ctx.globalAlpha = 1.0;
+
+            // Draw earth & moon in background
+            const earthSize = 220;
+            const earthX = cx - earthSize / 2;
+            const earthY = cy - earthSize / 2;
             
+            // Moon - orbiting slowly
+            const time = Date.now() * 0.0005;
+            const orbitRadX = 180;
+            const orbitRadY = 60;
+            const moonSize = 40;
+            const moonX = earthX + earthSize/2 + Math.cos(time) * orbitRadX - moonSize/2;
+            const moonY = earthY + earthSize/2 + Math.sin(time) * orbitRadY - moonSize/2;
+            
+            // Draw moon behind earth first
+            if (Math.sin(time) <= 0) {
+                 drawImageSafe(moonImg, moonX, moonY, moonSize, moonSize);
+                 // Moon shadow
+                 const gMoon = ctx.createRadialGradient(moonX + moonSize*0.3, moonY + moonSize*0.3, 0, moonX + moonSize/2, moonY + moonSize/2, moonSize);
+                 gMoon.addColorStop(0, 'rgba(255,255,255,0.2)');
+                 gMoon.addColorStop(0.4, 'rgba(0,0,0,0)');
+                 gMoon.addColorStop(0.8, 'rgba(0,0,0,0.8)');
+                 gMoon.addColorStop(1, 'rgba(0,0,0,1)');
+                 ctx.beginPath();
+                 ctx.arc(moonX + moonSize/2, moonY + moonSize/2, moonSize/2, 0, 2*Math.PI);
+                 ctx.fillStyle = gMoon;
+                 ctx.fill();
+            }
+
+            ctx.shadowColor = 'rgba(100, 200, 255, 0.2)';
+            ctx.shadowBlur = 50;
+            ctx.beginPath();
+            ctx.arc(earthX + earthSize/2, earthY + earthSize/2, earthSize/2, 0, 2*Math.PI);
+            ctx.fillStyle = 'rgba(0,0,0,1)';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Earth
+            drawImageSafe(earthImg, earthX, earthY, earthSize, earthSize);
+            
+            // Earth dark side overlay (shadow based on sun position)
+            const gEarth = ctx.createRadialGradient(earthX + earthSize*0.3, earthY + earthSize*0.3, 0, earthX + earthSize/2, earthY + earthSize/2, earthSize);
+            gEarth.addColorStop(0, 'rgba(255,255,255,0.1)'); // inner light
+            gEarth.addColorStop(0.4, 'rgba(0,0,0,0)');
+            gEarth.addColorStop(0.8, 'rgba(0,0,0,0.7)');
+            gEarth.addColorStop(1, 'rgba(0,0,0,1)');
+            ctx.beginPath();
+            ctx.arc(earthX + earthSize/2, earthY + earthSize/2, earthSize/2, 0, 2*Math.PI);
+            ctx.fillStyle = gEarth;
+            ctx.fill();
+
+            // Draw moon in front of earth
+            if (Math.sin(time) > 0) {
+                 drawImageSafe(moonImg, moonX, moonY, moonSize, moonSize);
+                 
+                 // Moon shadow
+                 const gMoon = ctx.createRadialGradient(moonX + moonSize*0.3, moonY + moonSize*0.3, 0, moonX + moonSize/2, moonY + moonSize/2, moonSize);
+                 gMoon.addColorStop(0, 'rgba(255,255,255,0.2)');
+                 gMoon.addColorStop(0.4, 'rgba(0,0,0,0)');
+                 gMoon.addColorStop(0.8, 'rgba(0,0,0,0.8)');
+                 gMoon.addColorStop(1, 'rgba(0,0,0,1)');
+                 ctx.beginPath();
+                 ctx.arc(moonX + moonSize/2, moonY + moonSize/2, moonSize/2, 0, 2*Math.PI);
+                 ctx.fillStyle = gMoon;
+                 ctx.fill();
+            }
+
+            ctx.restore();
             ctx.globalAlpha = 1.0;
             animationFrameId = requestAnimationFrame(render);
         };
@@ -134,7 +315,11 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
 
         return () => {
             window.removeEventListener('resize', handleResize);
-            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('pointerdown', handlePointerDown);
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
+            window.removeEventListener('dblclick', handleDoubleClick);
             window.removeEventListener('wheel', handleWheel);
             cancelAnimationFrame(animationFrameId);
         };
@@ -150,3 +335,4 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
 };
 
 export default SpaceCanvas;
+

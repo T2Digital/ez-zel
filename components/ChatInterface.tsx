@@ -25,6 +25,7 @@ import LiveAgentAction from './LiveAgentAction';
 import { ChatInputArea } from './chat/ChatInputArea';
 import { ToolCardRenderer, handleAppCardAction, getCardIcon } from './chat/ToolCardRenderer';
 import { useAppStore } from '../services/store';
+import SpaceCanvas from './SpaceCanvas';
 
 interface Props {
     onBack: () => void; 
@@ -1624,18 +1625,22 @@ ${textContent.substring(0, 10000)}`;
 
   return (
     <div className="flex flex-col h-full w-full bg-[#000] text-white font-['Cairo'] overflow-hidden relative">
-      {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={() => onNavigateTo?.('affiliate')} />}
-      <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="*/*" />
-      <input type="file" ref={cameraInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" capture="environment" />
+      <div className="absolute inset-0 pointer-events-none z-0">
+          <SpaceCanvas interactive={false} />
+      </div>
+      <div className="relative z-10 flex flex-col h-full w-full">
+          {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={() => onNavigateTo?.('affiliate')} />}
+          <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="*/*" />
+          <input type="file" ref={cameraInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" capture="environment" />
 
-      {appStatus === 'listening' && (
-          <ListeningOverlay 
-              liveTranscript={liveTranscript}
-              visualLevels={visualLevels}
-              cancelRecording={cancelRecording}
-              stopListeningAndSend={stopListeningAndSend as any}
-          />
-      )}
+          {appStatus === 'listening' && (
+                  <ListeningOverlay 
+                      liveTranscript={liveTranscript}
+                      visualLevels={visualLevels}
+                      cancelRecording={cancelRecording}
+                      stopListeningAndSend={stopListeningAndSend as any}
+                  />
+          )}
 
       {showVoiceBiometricsManager && (
           <VoiceBiometricsManager 
@@ -1676,7 +1681,7 @@ ${textContent.substring(0, 10000)}`;
         <SensoryHUD lastMessage={messages.length > 0 ? messages[messages.length - 1].text : ''} />
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide relative">
         {hasMoreMessages && !isSearchActive && (
             <div className="w-full flex justify-center py-4">
                 <button onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-xs font-bold text-white/50 hover:text-white transition-all">
@@ -1755,6 +1760,7 @@ ${textContent.substring(0, 10000)}`;
           <PersonalKeysManager onClose={() => setShowPersonalKeys(false)} currentUser={currentUser} />
       )}
 
+      </div>
     </div>
   );
 };

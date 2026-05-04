@@ -66,9 +66,9 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
          targetCameraRef.current.z += velocity.current.z;
          
          // Decay
-         velocity.current.x *= 0.95;
-         velocity.current.y *= 0.95;
-         velocity.current.z *= 0.95;
+         velocity.current.x *= 0.96;
+         velocity.current.y *= 0.96;
+         velocity.current.z *= 0.96;
        }
 
        cam.x += (target.x - cam.x) * easeX;
@@ -183,17 +183,23 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
             dragThresholdExceeded.current = true;
         }
         
-        const moveX = dx * 1.5;
-        const moveY = dy * 1.5;
+        const scale = 800 / (800 - targetCameraRef.current.z);
+        const moveX = dx / scale;
+        const moveY = dy / scale;
         targetCameraRef.current.x -= moveX;
         targetCameraRef.current.y -= moveY;
         
         // Calculate velocity (pixels per frame basically, scaled by dt)
-        velocity.current = {
-            x: -moveX / (dt / 16),
-            y: -moveY / (dt / 16),
-            z: 0
-        };
+        if (Math.hypot(dx, dy) > 0.5) {
+            // Smooth velocity by averaging with previous to prevent sudden drops if pointer stalls slightly before release
+            const newVelX = -moveX / (dt / 16);
+            const newVelY = -moveY / (dt / 16);
+            velocity.current = {
+                x: velocity.current.x * 0.4 + newVelX * 0.6,
+                y: velocity.current.y * 0.4 + newVelY * 0.6,
+                z: 0
+            };
+        }
         
         lastMousePos.current = { x: e.clientX, y: e.clientY };
     } else if (activePointers.current.size === 2 && initialPinchDist.current !== null) {
@@ -298,7 +304,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
       {/* 3D WORKSPACE SCENE */}
       <div 
         ref={containerRef}
-        className="flex-1 overflow-hidden relative cursor-grab active:cursor-grabbing z-10 perspective-[1000px]"
+        className="flex-1 overflow-hidden relative cursor-grab active:cursor-grabbing z-10 perspective-[1000px] select-none touch-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
