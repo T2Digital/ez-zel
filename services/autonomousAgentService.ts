@@ -14,6 +14,8 @@ export interface AutonomousTask {
 
 const activeTasks: Record<string, boolean> = {};
 
+export const getActiveTasksCount = () => Object.keys(activeTasks).length;
+
 export const submitAutonomousTask = async (userId: string, prompt: string): Promise<string> => {
     const taskId = `auto_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
@@ -21,6 +23,7 @@ export const submitAutonomousTask = async (userId: string, prompt: string): Prom
     
     // Simulate initial delay to feel like a real background task
     activeTasks[taskId] = true;
+    window.dispatchEvent(new CustomEvent('autonomous_status_changed'));
     
     // Start async without awaiting
     (async () => {
@@ -75,6 +78,7 @@ export const submitAutonomousTask = async (userId: string, prompt: string): Prom
             console.error("Autonomous task failed:", e);
         } finally {
             delete activeTasks[taskId];
+            window.dispatchEvent(new CustomEvent('autonomous_status_changed'));
         }
     })();
     

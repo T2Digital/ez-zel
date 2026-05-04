@@ -28,13 +28,13 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const itemPositions = useMemo(() => {
      const posMap = new Map<number, {x: number, y: number, z: number}>();
      items.forEach((item, i) => {
-         // Create a smooth winding tunnel layout
-         const angle = i * 0.5; // Smooth curve
-         const radius = 150 + (i * 5); // Tighter tunnel
+         // Create a wide, deep 3D grid/tunnel layout
+         const angle = i * 0.8; // Rotate items around
+         const radius = 300 + (Math.sin(angle) * 100); // Wider spread
          posMap.set(item.id!, {
              x: Math.cos(angle) * radius,
              y: Math.sin(angle) * radius,
-             z: - (i * 150) // Space depth
+             z: - (i * 600) // Much deeper spacing to prevent overlap
          });
      });
      return posMap;
@@ -184,8 +184,8 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         }
         
         const scale = 800 / (800 - targetCameraRef.current.z);
-        const moveX = dx / scale;
-        const moveY = dy / scale;
+        const moveX = (dx * 1.5) / scale;
+        const moveY = (dy * 1.5) / scale;
         targetCameraRef.current.x -= moveX;
         targetCameraRef.current.y -= moveY;
         
@@ -253,7 +253,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
 
   return (
     <div className="flex flex-col h-full rounded-[40px] overflow-hidden bg-black border border-white/5 relative">
-      <SpaceCanvas interactive={true} />
+      <SpaceCanvas interactive={false} showEarth={false} />
       
       {/* Search & Actions - UI LAYER OVERLAY */}
       <div className="absolute top-0 left-0 right-0 z-40 p-6 flex items-center justify-between pointer-events-none">

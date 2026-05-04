@@ -84,19 +84,34 @@ const App: React.FC = () => {
 
   // --- POKA-YOKE NAVIGATION HANDLER ---
   useEffect(() => {
-      if (view === 'chat' || view === 'affiliate') {
+      if (view === 'chat' || view === 'affiliate' || view === 'workspace' || view === 'admin') {
           window.history.pushState({ view }, '');
       }
 
       const handlePopState = (event: PopStateEvent) => {
-          if (view === 'chat' || view === 'affiliate') {
+          if (view === 'chat' || view === 'affiliate' || view === 'workspace' || view === 'admin') {
               setView('dashboard'); 
           } 
       };
 
       window.addEventListener('popstate', handlePopState);
-      return () => window.removeEventListener('popstate', handlePopState);
-  }, [view]);
+
+      const setupAndroidBack = async () => {
+          return await CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+              if (view === 'chat' || view === 'affiliate' || view === 'workspace' || view === 'admin') {
+                  setView('dashboard');
+              } else if (canGoBack) {
+                  window.history.back();
+              }
+          });
+      };
+      const backListenerPromise = setupAndroidBack();
+
+      return () => {
+          window.removeEventListener('popstate', handlePopState);
+          backListenerPromise.then(l => l.remove());
+      };
+  }, [view, setView]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

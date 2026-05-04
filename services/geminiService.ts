@@ -684,7 +684,17 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
             } else if (toolActions.some((t: any) => t.name === 'schedule_reminder')) {
                 finalText = "عينيا يا غالي، سجلتلك الميعاد عشان مفوتكش حاجة مهمة.";
             } else if (toolActions.some((t: any) => t.name === 'run_autonomous_agent')) {
-                finalText = "سيبلي المهمة دي شغالة في الخلفية يا ريس، هتابعها وهبلغك لما اخلصها.";
+                const agentAction = toolActions.find((t: any) => t.name === 'run_autonomous_agent');
+                const promptSummary = agentAction?.args?.prompt_for_agent ? agentAction.args.prompt_for_agent.substring(0, 30) + "..." : "المهمة دي";
+                finalText = `سيبلي ${promptSummary} شغالة في الخلفية يا ريس، هتابعها وهبلغك النتيجة.`;
+            } else if (toolActions.some((t: any) => t.name === 'design_generator')) {
+                const designAction = toolActions.find((t: any) => t.name === 'design_generator');
+                const promptSummary = designAction?.args?.prompt ? designAction.args.prompt.substring(0, 30) + "..." : "التصميم ده";
+                finalText = `من عنيا يا ريس، بجهزلك ${promptSummary} بنموذج (Nano Banana Pro) حالا.`;
+            } else if (toolActions.some((t: any) => t.name === 'video_generator')) {
+                const videoAction = toolActions.find((t: any) => t.name === 'video_generator');
+                const promptSummary = videoAction?.args?.prompt ? videoAction.args.prompt.substring(0, 30) + "..." : "الفيديو ده";
+                finalText = `بشغلك محرك Veo 3.1 على ${promptSummary}، ثواني ويكون معاك.`;
             } else if (toolActions.some((t: any) => t.name === 'project_manager')) {
                 finalText = "أوامرك يا ريس، بظبطلك خطة المشروع وبديره بالكامــل، بص كدة على الواجهة دي..";
             } else {

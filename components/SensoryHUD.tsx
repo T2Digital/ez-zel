@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, Battery, Wifi, BrainCircuit } from 'lucide-react';
 import { getContextData, analyzeEmotionFromText } from '../services/sensorService';
+import { getActiveTasksCount } from '../services/autonomousAgentService';
+import { Cpu } from 'lucide-react';
 
-export const SensoryHUD: React.FC<{ lastMessage?: string }> = ({ lastMessage = '' }) => {
+export const SensoryHUD: React.FC<{ lastMessage?: string; isThinking?: boolean }> = ({ lastMessage = '', isThinking = false }) => {
     const [battery, setBattery] = useState('جار القياس...');
     const [network, setNetwork] = useState('جار التحليل...');
     const [emotion, setEmotion] = useState('هادئ');
+    const [bgTasks, setBgTasks] = useState(0);
 
     useEffect(() => {
         const updateContext = async () => {
@@ -19,13 +22,22 @@ export const SensoryHUD: React.FC<{ lastMessage?: string }> = ({ lastMessage = '
     }, []);
 
     useEffect(() => {
-        if (lastMessage) {
+        const updateTasks = () => setBgTasks(getActiveTasksCount());
+        window.addEventListener('autonomous_status_changed', updateTasks);
+        updateTasks();
+        return () => window.removeEventListener('autonomous_status_changed', updateTasks);
+    }, []);
+
+    useEffect(() => {
+        if (isThinking) {
+            setEmotion('معالجة عميقة...');
+        } else if (lastMessage) {
             const emo = analyzeEmotionFromText(lastMessage);
             setEmotion(emo.emotion);
         } else {
             setEmotion('في الانتظار 😐');
         }
-    }, [lastMessage]);
+    }, [lastMessage, isThinking]);
 
     return (
         <div className="flex gap-4 p-2 bg-white/5 border border-white/10 rounded-xl mb-3 text-xs font-['Cairo'] text-white/50 justify-between items-center px-4" dir="rtl">
@@ -37,8 +49,14 @@ export const SensoryHUD: React.FC<{ lastMessage?: string }> = ({ lastMessage = '
                 <Battery className="w-3.5 h-3.5 text-emerald-500" />
                 <span>{battery}</span>
             </div>
-            <div className="flex items-center gap-1.5" title="تحليل المشاعر (Neural RAG Simulation)">
-                <BrainCircuit className="w-3.5 h-3.5 text-fuchsia-500" />
+            {bgTasks > 0 && (
+                <div className="flex items-center gap-1.5" title="مهام تعمل في الخلفية">
+                    <Cpu className="w-3.5 h-3.5 text-orange-500 animate-spin" style={{ animationDuration: '3s' }} />
+                    <span className="text-orange-400 font-bold">{bgTasks}</span>
+                </div>
+            )}
+            <div className="flex items-center gap-1.5" title="تحليل المشاعر / الحالة">
+                <BrainCircuit className={`w-3.5 h-3.5 ${isThinking ? 'text-amber-500 animate-pulse' : 'text-fuchsia-500'}`} />
                 <span>{emotion}</span>
             </div>
         </div>

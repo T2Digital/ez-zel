@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }) => {
+const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({ interactive = true, showEarth = true }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -174,6 +174,26 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
             }
         };
 
+        const drawRotatingImageSafe = (img: HTMLImageElement, x: number, y: number, size: number, time: number, speed: number) => {
+            if (img.complete && img.naturalWidth !== 0 && !img.src.endsWith('undefined')) {
+                try {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
+                    ctx.clip();
+                    
+                    const wid = size * 2; // Keep 2:1 aspect ratio of equirectangular map
+                    const offset = (time * speed) % wid;
+                    
+                    ctx.drawImage(img, x - offset, y, wid, size);
+                    ctx.drawImage(img, x - offset + wid, y, wid, size);
+                    ctx.restore();
+                } catch(e) { }
+            } else {
+                drawImageSafe(img, x, y, size, size);
+            }
+        };
+
         const render = () => {
             currentSpeed += (targetSpeed - currentSpeed) * 0.1;
             
@@ -231,70 +251,72 @@ const SpaceCanvas: React.FC<{ interactive?: boolean }> = ({ interactive = true }
 
             ctx.globalAlpha = 1.0;
 
-            // Draw earth & moon in background
-            const earthSize = 220;
-            const earthX = cx - earthSize / 2;
-            const earthY = cy - earthSize / 2;
-            
-            // Moon - orbiting slowly
-            const time = Date.now() * 0.0005;
-            const orbitRadX = 180;
-            const orbitRadY = 60;
-            const moonSize = 40;
-            const moonX = earthX + earthSize/2 + Math.cos(time) * orbitRadX - moonSize/2;
-            const moonY = earthY + earthSize/2 + Math.sin(time) * orbitRadY - moonSize/2;
-            
-            // Draw moon behind earth first
-            if (Math.sin(time) <= 0) {
-                 drawImageSafe(moonImg, moonX, moonY, moonSize, moonSize);
-                 // Moon shadow
-                 const gMoon = ctx.createRadialGradient(moonX + moonSize*0.3, moonY + moonSize*0.3, 0, moonX + moonSize/2, moonY + moonSize/2, moonSize);
-                 gMoon.addColorStop(0, 'rgba(255,255,255,0.2)');
-                 gMoon.addColorStop(0.4, 'rgba(0,0,0,0)');
-                 gMoon.addColorStop(0.8, 'rgba(0,0,0,0.8)');
-                 gMoon.addColorStop(1, 'rgba(0,0,0,1)');
-                 ctx.beginPath();
-                 ctx.arc(moonX + moonSize/2, moonY + moonSize/2, moonSize/2, 0, 2*Math.PI);
-                 ctx.fillStyle = gMoon;
-                 ctx.fill();
-            }
+            if (showEarth) {
+                // Draw earth & moon in background
+                const earthSize = 220;
+                const earthX = cx - earthSize / 2;
+                const earthY = cy - earthSize / 2;
+                
+                // Moon - orbiting slowly
+                const time = Date.now() * 0.0005;
+                const orbitRadX = 180;
+                const orbitRadY = 60;
+                const moonSize = 40;
+                const moonX = earthX + earthSize/2 + Math.cos(time) * orbitRadX - moonSize/2;
+                const moonY = earthY + earthSize/2 + Math.sin(time) * orbitRadY - moonSize/2;
+                
+                // Draw moon behind earth first
+                if (Math.sin(time) <= 0) {
+                     drawRotatingImageSafe(moonImg, moonX, moonY, moonSize, time, 50);
+                     // Moon shadow
+                     const gMoon = ctx.createRadialGradient(moonX + moonSize*0.3, moonY + moonSize*0.3, 0, moonX + moonSize/2, moonY + moonSize/2, moonSize);
+                     gMoon.addColorStop(0, 'rgba(255,255,255,0.2)');
+                     gMoon.addColorStop(0.4, 'rgba(0,0,0,0)');
+                     gMoon.addColorStop(0.8, 'rgba(0,0,0,0.8)');
+                     gMoon.addColorStop(1, 'rgba(0,0,0,1)');
+                     ctx.beginPath();
+                     ctx.arc(moonX + moonSize/2, moonY + moonSize/2, moonSize/2, 0, 2*Math.PI);
+                     ctx.fillStyle = gMoon;
+                     ctx.fill();
+                }
 
-            ctx.shadowColor = 'rgba(100, 200, 255, 0.2)';
-            ctx.shadowBlur = 50;
-            ctx.beginPath();
-            ctx.arc(earthX + earthSize/2, earthY + earthSize/2, earthSize/2, 0, 2*Math.PI);
-            ctx.fillStyle = 'rgba(0,0,0,1)';
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            
-            // Earth
-            drawImageSafe(earthImg, earthX, earthY, earthSize, earthSize);
-            
-            // Earth dark side overlay (shadow based on sun position)
-            const gEarth = ctx.createRadialGradient(earthX + earthSize*0.3, earthY + earthSize*0.3, 0, earthX + earthSize/2, earthY + earthSize/2, earthSize);
-            gEarth.addColorStop(0, 'rgba(255,255,255,0.1)'); // inner light
-            gEarth.addColorStop(0.4, 'rgba(0,0,0,0)');
-            gEarth.addColorStop(0.8, 'rgba(0,0,0,0.7)');
-            gEarth.addColorStop(1, 'rgba(0,0,0,1)');
-            ctx.beginPath();
-            ctx.arc(earthX + earthSize/2, earthY + earthSize/2, earthSize/2, 0, 2*Math.PI);
-            ctx.fillStyle = gEarth;
-            ctx.fill();
+                ctx.shadowColor = 'rgba(100, 200, 255, 0.2)';
+                ctx.shadowBlur = 50;
+                ctx.beginPath();
+                ctx.arc(earthX + earthSize/2, earthY + earthSize/2, earthSize/2, 0, 2*Math.PI);
+                ctx.fillStyle = 'rgba(0,0,0,1)';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // Earth (rotate slowly)
+                drawRotatingImageSafe(earthImg, earthX, earthY, earthSize, time, 20);
+                
+                // Earth dark side overlay (shadow based on sun position)
+                const gEarth = ctx.createRadialGradient(earthX + earthSize*0.3, earthY + earthSize*0.3, 0, earthX + earthSize/2, earthY + earthSize/2, earthSize);
+                gEarth.addColorStop(0, 'rgba(255,255,255,0.1)'); // inner light
+                gEarth.addColorStop(0.4, 'rgba(0,0,0,0)');
+                gEarth.addColorStop(0.8, 'rgba(0,0,0,0.7)');
+                gEarth.addColorStop(1, 'rgba(0,0,0,1)');
+                ctx.beginPath();
+                ctx.arc(earthX + earthSize/2, earthY + earthSize/2, earthSize/2, 0, 2*Math.PI);
+                ctx.fillStyle = gEarth;
+                ctx.fill();
 
-            // Draw moon in front of earth
-            if (Math.sin(time) > 0) {
-                 drawImageSafe(moonImg, moonX, moonY, moonSize, moonSize);
-                 
-                 // Moon shadow
-                 const gMoon = ctx.createRadialGradient(moonX + moonSize*0.3, moonY + moonSize*0.3, 0, moonX + moonSize/2, moonY + moonSize/2, moonSize);
-                 gMoon.addColorStop(0, 'rgba(255,255,255,0.2)');
-                 gMoon.addColorStop(0.4, 'rgba(0,0,0,0)');
-                 gMoon.addColorStop(0.8, 'rgba(0,0,0,0.8)');
-                 gMoon.addColorStop(1, 'rgba(0,0,0,1)');
-                 ctx.beginPath();
-                 ctx.arc(moonX + moonSize/2, moonY + moonSize/2, moonSize/2, 0, 2*Math.PI);
-                 ctx.fillStyle = gMoon;
-                 ctx.fill();
+                // Draw moon in front of earth
+                if (Math.sin(time) > 0) {
+                     drawRotatingImageSafe(moonImg, moonX, moonY, moonSize, time, 50);
+                     
+                     // Moon shadow
+                     const gMoon = ctx.createRadialGradient(moonX + moonSize*0.3, moonY + moonSize*0.3, 0, moonX + moonSize/2, moonY + moonSize/2, moonSize);
+                     gMoon.addColorStop(0, 'rgba(255,255,255,0.2)');
+                     gMoon.addColorStop(0.4, 'rgba(0,0,0,0)');
+                     gMoon.addColorStop(0.8, 'rgba(0,0,0,0.8)');
+                     gMoon.addColorStop(1, 'rgba(0,0,0,1)');
+                     ctx.beginPath();
+                     ctx.arc(moonX + moonSize/2, moonY + moonSize/2, moonSize/2, 0, 2*Math.PI);
+                     ctx.fillStyle = gMoon;
+                     ctx.fill();
+                }
             }
 
             ctx.restore();

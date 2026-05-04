@@ -1082,13 +1082,9 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
               }
               else if (t.name === 'design_generator') {
                   const args = t.args;
-                  let imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(args.prompt)}?width=${args.width || 1024}&height=${args.height || 1024}&nologo=true&model=nano-banana-pro`;
-                  
-                  try {
-                      imageUrl = await generateImageNative(args.prompt, currentUser?.personalKeys?.geminiApiKey);
-                  } catch(e) {
-                      console.error("Native image generation failed", e);
-                  }
+                  const enhanceKeywords = "masterpiece, high quality, highly detailed, photorealistic, premium, sleek modern design, award winning layout, professional";
+                  const finalPrompt = `${args.prompt}, ${enhanceKeywords}`;
+                  let imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${args.width || 1024}&height=${args.height || 1024}&nologo=true&model=nano-banana-pro`;
                   
                   if (args.save_to_workspace) {
                       await shadowDB.createFSItem({
@@ -1678,7 +1674,7 @@ ${textContent.substring(0, 10000)}`;
       />
 
       <div className="z-10 shrink-0 bg-black/80 backdrop-blur-md px-3 pt-3 md:px-6 md:pt-4 border-b border-white/5">
-        <SensoryHUD lastMessage={messages.length > 0 ? messages[messages.length - 1].text : ''} />
+        <SensoryHUD lastMessage={messages.length > 0 ? messages[messages.length - 1].text : ''} isThinking={appStatus === 'thinking'} />
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide relative">
