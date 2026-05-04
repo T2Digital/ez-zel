@@ -1084,7 +1084,8 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                   const args = t.args;
                   const enhanceKeywords = "masterpiece, high quality, highly detailed, photorealistic, premium, sleek modern design, award winning layout, professional";
                   const finalPrompt = `${args.prompt}, ${enhanceKeywords}`;
-                  let imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${args.width || 1024}&height=${args.height || 1024}&nologo=true&model=nano-banana-pro`;
+                  // We map nano-banana-pro to the highly capable 'flux' model at backend level
+                  let imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${args.width || 1024}&height=${args.height || 1024}&nologo=true&model=flux`;
                   
                   if (args.save_to_workspace) {
                       await shadowDB.createFSItem({

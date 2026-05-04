@@ -228,7 +228,8 @@ const actionTools: FunctionDeclaration[] = [
 
 export const generateImageNative = async (prompt: string, userKey?: string): Promise<string> => {
     // The user ONLY wants to use nano-banana-pro for image generation
-    return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=nano-banana-pro`;
+    // We map nano-banana-pro to the highly capable 'flux' model at backend level
+    return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux`;
 };
 
 export const startVideoGenerationNative = async (prompt: string, userKey?: string): Promise<any> => {
@@ -389,6 +390,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
     12. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
     13. PROJECT MANAGEMENT: If the user needs to create, plan, or manage a project (like writing a book, building an app, or running a business), use 'project_manager' tool to lay out the tasks and progress comprehensively. You are the project manager 'الظل'.
+    14. SOCIAL MEDIA & ADS: When the user asks to create an ad or social media post, you MUST use the 'design_generator' tool to create a highly professional ad design (this uses Nano Banana Pro), AND ALSO use the 'social_poster' tool to write the professional copy (ad text) and post. Combine both the design and the text copy.
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
     ${rules}

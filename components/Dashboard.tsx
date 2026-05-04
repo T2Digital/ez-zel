@@ -74,12 +74,13 @@ interface Props {
   onLogout: () => void;
   onUpgrade?: () => void; 
   onStartAffiliate?: () => void; 
+  onOpenWorkspace?: () => void;
 }
 
 const ORBIT_RADII = [220, 360, 500];
 const ORBIT_SPEEDS = [0.005, -0.003, 0.002]; // radians per frame
 
-const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpenChat, onOpenAffiliate, onLogout, onUpgrade, onStartAffiliate }) => {
+const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpenChat, onOpenAffiliate, onLogout, onUpgrade, onStartAffiliate, onOpenWorkspace }) => {
   const [tasks, setTasks] = useState<DBTask[]>([]);
   const [memory, setMemory] = useState<DBFact[]>([]);
   const [syncRate, setSyncRate] = useState(0);
@@ -308,7 +309,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       { id: 'voice', icon: voiceStatus === 'playing' ? Pause : Play, label: "رسالة التوجيه (صوت الظل)", colorClass: voiceStatus === 'playing' ? 'text-amber-500' : 'text-white/40', bgClass: voiceStatus === 'playing' ? 'bg-amber-500/20' : 'bg-white/5', borderClass: voiceStatus === 'playing' ? 'border-amber-500/50' : 'border-white/10', onClick: toggleVoice },
       ...(isAdmin ? [
           { id: 'override', icon: Terminal, label: "النظام الداخلي (Override)", colorClass: "text-red-500", bgClass: "bg-red-900/20", borderClass: "border-red-500/30", onClick: () => setShowSystemOverride(true) },
-          { id: 'workspace', icon: FolderOpen, label: "مساحة العمل (Workspace)", colorClass: "text-purple-500", bgClass: "bg-purple-900/20", borderClass: "border-purple-500/30", onClick: () => setShowWorkspace(true) }
+          { id: 'workspace', icon: FolderOpen, label: "مساحة العمل (Workspace)", colorClass: "text-purple-500", bgClass: "bg-purple-900/20", borderClass: "border-purple-500/30", onClick: onOpenWorkspace }
       ] : []),
       { id: 'logout', icon: LogOut, label: "خروج مؤقت", colorClass: "text-gray-400", bgClass: "bg-white/5", borderClass: "border-white/10", onClick: onLogout }
   ];

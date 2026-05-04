@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2 } from 'lucide-react';
+import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2, Target } from 'lucide-react';
 import { shadowDB, DBFSItem } from '../services/dbService';
 import SpaceCanvas from './SpaceCanvas';
 
@@ -27,15 +27,30 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
 
   const itemPositions = useMemo(() => {
      const posMap = new Map<number, {x: number, y: number, z: number}>();
+     
+     // Staggered Layer grid layout
+     const itemsPerLayer = 9;
+     const gridCols = 3;
+     const spacingX = 400;
+     const spacingY = 400;
+     const layerSpacingZ = 1500; // Increased spacing
+
      items.forEach((item, i) => {
-         // Create a wide, deep 3D grid/tunnel layout
-         const angle = i * 0.8; // Rotate items around
-         const radius = 300 + (Math.sin(angle) * 100); // Wider spread
-         posMap.set(item.id!, {
-             x: Math.cos(angle) * radius,
-             y: Math.sin(angle) * radius,
-             z: - (i * 600) // Much deeper spacing to prevent overlap
-         });
+         const layerIndex = Math.floor(i / itemsPerLayer);
+         const indexInLayer = i % itemsPerLayer;
+         
+         const col = indexInLayer % gridCols;
+         const row = Math.floor(indexInLayer / gridCols);
+         
+         // Stagger each layer slightly so items behind aren't completely hidden
+         const staggerOffsetX = layerIndex * 150;
+         const staggerOffsetY = layerIndex * 100;
+
+         const x = (col - (gridCols - 1) / 2) * spacingX + staggerOffsetX;
+         const y = (row - (gridCols - 1) / 2) * spacingY + staggerOffsetY;
+         const z = - (layerIndex * layerSpacingZ);
+
+         posMap.set(item.id!, { x, y, z });
      });
      return posMap;
   }, [items]);
@@ -48,8 +63,10 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
 
   useEffect(() => {
     const loop = () => {
-       // Automatic infinite swim inward
-       targetCameraRef.current.z += 1.5;
+       // Auto-fly inward
+       if (targetCameraRef.current.z < 5000) {
+           targetCameraRef.current.z += 1.5;
+       }
 
        const cam = cameraRef.current;
        const target = targetCameraRef.current;
@@ -57,7 +74,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
        const isTouchActive = activePointers.current.size > 0 || isDragging.current;
        const easeX = isTouchActive ? 1 : 0.08;
        const easeY = isTouchActive ? 1 : 0.08;
-       const easeZ = isTouchActive ? 1 : 0.05; // Slightly slower Z inertia for cool double tap/scroll effect
+       const easeZ = isTouchActive ? 1 : 0.08; 
 
        if (!isTouchActive) {
          // Apply momentum
@@ -66,9 +83,9 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
          targetCameraRef.current.z += velocity.current.z;
          
          // Decay
-         velocity.current.x *= 0.96;
-         velocity.current.y *= 0.96;
-         velocity.current.z *= 0.96;
+         velocity.current.x *= 0.94;
+         velocity.current.y *= 0.94;
+         velocity.current.z *= 0.94;
        }
 
        cam.x += (target.x - cam.x) * easeX;
@@ -127,7 +144,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const velocity = useRef({ x: 0, y: 0, z: 0 });
   const lastMoveTime = useRef<number>(0);
 
-  const activePointers = useRef<Map<number, {x: number, y: number}>>(new Map());
+  const activePointers = useRef(new Map<number, {x: number, y: number}>());
   const initialPinchDist = useRef<number | null>(null);
   const dragThresholdExceeded = useRef(false);
 
@@ -143,6 +160,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         dragThresholdExceeded.current = true; // prevent click
     } else {
         lastTapTime.current = now;
+        dragThresholdExceeded.current = false;
     }
 
     activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -151,18 +169,13 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         
         velocity.current = { x: 0, y: 0, z: 0 };
         lastMoveTime.current = Date.now();
-        
-        if (now - lastTapTime.current !== 0) { // meaning we didn't just double tap
-             dragThresholdExceeded.current = false;
-        }
         lastMousePos.current = { x: e.clientX, y: e.clientY };
         initialPointerPos.current = { x: e.clientX, y: e.clientY };
     } else if (activePointers.current.size === 2) {
         isDragging.current = false;
-        const pts = Array.from(activePointers.current.values());
+        const pts = Array.from(activePointers.current.values()) as {x: number, y: number}[];
         initialPinchDist.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
     }
-    if (containerRef.current) containerRef.current.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -183,9 +196,10 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
             dragThresholdExceeded.current = true;
         }
         
-        const scale = 800 / (800 - targetCameraRef.current.z);
-        const moveX = (dx * 1.5) / scale;
-        const moveY = (dy * 1.5) / scale;
+        const scale = 800 / Math.max(100, 800 - targetCameraRef.current.z);
+        // Remove aggressive dampening, make the drag feel 1:1 and fast
+        const moveX = dx * 2.0;
+        const moveY = dy * 2.0;
         targetCameraRef.current.x -= moveX;
         targetCameraRef.current.y -= moveY;
         
@@ -204,7 +218,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         lastMousePos.current = { x: e.clientX, y: e.clientY };
     } else if (activePointers.current.size === 2 && initialPinchDist.current !== null) {
         dragThresholdExceeded.current = true;
-        const pts = Array.from(activePointers.current.values());
+        const pts = Array.from(activePointers.current.values()) as {x: number, y: number}[];
         const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         const diff = currentDist - initialPinchDist.current;
         
@@ -229,7 +243,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         initialPinchDist.current = null;
     }
     if (activePointers.current.size === 1) {
-        const pt = Array.from(activePointers.current.values())[0];
+        const pt = Array.from(activePointers.current.values())[0] as {x: number, y: number};
         lastMousePos.current = { x: pt.x, y: pt.y };
         isDragging.current = true;
     } else if (activePointers.current.size === 0) {
@@ -242,8 +256,8 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    // Zoom in/out moves camera Z
-    targetCameraRef.current.z = Math.max(-5000, Math.min(5000, targetCameraRef.current.z + e.deltaY * 3));
+    // Zoom in/out moves camera Z with responsive speed
+    targetCameraRef.current.z = Math.max(-15000, Math.min(5000, targetCameraRef.current.z + e.deltaY * 3));
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
@@ -251,26 +265,34 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
     targetCameraRef.current.z += 800;
   };
 
+  const resetCamera = () => {
+    targetCameraRef.current = { x: 0, y: 0, z: -500 };
+  };
+
   return (
-    <div className="flex flex-col h-full rounded-[40px] overflow-hidden bg-black border border-white/5 relative">
+    <div className="fixed inset-0 flex flex-col font-['Cairo'] text-white overflow-hidden bg-black">
       <SpaceCanvas interactive={false} showEarth={false} />
       
       {/* Search & Actions - UI LAYER OVERLAY */}
       <div className="absolute top-0 left-0 right-0 z-40 p-6 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-4 flex-1 pointer-events-auto">
           {onBack && (
-            <button onClick={onBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all">
+            <button onClick={onBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all shadow-md" title="رجوع">
               <ChevronLeft className="w-5 h-5" />
             </button>
           )}
-          <div className="relative flex-1 max-w-md">
+          <button onClick={resetCamera} className="p-2 rounded-full bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/40 hover:text-indigo-200 transition-all border border-indigo-500/30 shadow-md" title="توسيط الكاميرا">
+            <Target className="w-5 h-5" />
+          </button>
+          <div className="hidden sm:block text-xl font-black text-white/90 drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">الورك سبيس</div>
+          <div className="relative flex-1 max-w-md mr-4">
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
             <input 
               type="text" 
               placeholder="دور في ذاكرتي..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pr-12 pl-4 text-sm focus:outline-none focus:border-purple-500/50 transition-all"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pr-12 pl-4 text-sm focus:outline-none focus:border-purple-500/50 transition-all shadow-md"
             />
           </div>
         </div>
@@ -364,9 +386,13 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
           })}
           
           {filteredItems.length === 0 && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center opacity-20 pointer-events-none">
-              <Folder className="w-24 h-24 mb-6 mx-auto" />
-              <p className="text-xl font-bold italic tracking-widest">فضاء فارغ للملفات</p>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none" style={{ transform: 'translate3d(-50%, -50%, 0)' }}>
+              <div className="relative">
+                <div className="absolute inset-0 bg-purple-500/20 blur-[50px] rounded-full"></div>
+                <Folder className="relative w-32 h-32 mb-6 mx-auto text-white/50 drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]" />
+              </div>
+              <p className="text-2xl font-black text-white/80 tracking-widest drop-shadow-md">الورك سبيس فارغ</p>
+              <p className="text-sm font-bold text-white/40 mt-3 max-w-xs mx-auto">سيتم حفظ الملفات والصور المولدة هنا تلقائياً</p>
             </div>
           )}
         </div>

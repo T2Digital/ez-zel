@@ -82,26 +82,30 @@ const App: React.FC = () => {
       };
   }, []);
 
-  // --- POKA-YOKE NAVIGATION HANDLER ---
+  // --- HISTORY & NAVIGATION HANDLER ---
   useEffect(() => {
-      if (view === 'chat' || view === 'affiliate' || view === 'workspace' || view === 'admin') {
-          window.history.pushState({ view }, '');
+      // Set initial history state if not present
+      if (!window.history.state?.view) {
+          window.history.replaceState({ view }, '');
       }
 
       const handlePopState = (event: PopStateEvent) => {
-          if (view === 'chat' || view === 'affiliate' || view === 'workspace' || view === 'admin') {
-              setView('dashboard'); 
-          } 
+          if (event.state && event.state.view) {
+              setView(event.state.view);
+          } else {
+              setView('dashboard');
+          }
       };
 
       window.addEventListener('popstate', handlePopState);
 
       const setupAndroidBack = async () => {
           return await CapacitorApp.addListener('backButton', ({ canGoBack }) => {
-              if (view === 'chat' || view === 'affiliate' || view === 'workspace' || view === 'admin') {
-                  setView('dashboard');
-              } else if (canGoBack) {
+              if (window.history.state && window.history.state.view !== 'dashboard') {
                   window.history.back();
+              } else {
+                  // Fallback
+                  setView('dashboard');
               }
           });
       };
@@ -111,7 +115,21 @@ const App: React.FC = () => {
           window.removeEventListener('popstate', handlePopState);
           backListenerPromise.then(l => l.remove());
       };
-  }, [view, setView]);
+  }, []);
+
+  // Sync state changes from store/callbacks cleanly to history
+  useEffect(() => {
+     if (window.history.state?.view !== view) {
+         window.history.pushState({ view }, ''); 
+     }
+  }, [view]);
+
+  // Update history state when view specifically changes via UI buttons
+  const navigateToView = (newView: any) => {
+      if (newView !== view) {
+          setView(newView);
+      }
+  };
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -294,18 +312,18 @@ const App: React.FC = () => {
   const handleChatNavigation = (section: string) => {
       if (section === 'vault') {
           setDashboardAction('open_vault');
-          setView('dashboard');
+          navigateToView('dashboard');
       } else if (section === 'affiliate') {
-          setView('affiliate');
+          navigateToView('affiliate');
       } else if (section === 'pricing') {
           handleUpgradeRequest();
       } else if (section === 'nexus') {
           setDashboardAction('open_nexus');
-          setView('dashboard');
+          navigateToView('dashboard');
       } else if (section === 'workspace') {
-          setView('workspace');
+          navigateToView('workspace');
       } else if (section === 'admin') {
-          setView('admin');
+          navigateToView('admin');
       }
   };
 
@@ -337,11 +355,12 @@ const App: React.FC = () => {
                       user={user}
                       initialAction={dashboardAction} 
                       onClearAction={() => setDashboardAction(null)} 
-                      onOpenChat={() => setView('chat')}
-                      onOpenAffiliate={() => setView('affiliate')}
-                      onLogout={isAdminUser ? () => setView('admin') : handleLogout} 
+                      onOpenChat={() => navigateToView('chat')}
+                      onOpenAffiliate={() => navigateToView('affiliate')}
+                      onLogout={isAdminUser ? () => navigateToView('admin') : handleLogout} 
                       onUpgrade={handleUpgradeRequest}
                       onStartAffiliate={handleStartAffiliate}
+                      onOpenWorkspace={() => navigateToView('workspace')}
                   />
               );
           }
@@ -349,22 +368,22 @@ const App: React.FC = () => {
           return (
             <div className="fixed inset-0 bg-black text-white font-['Cairo'] overflow-hidden">
                 <ChatInterface 
-                    onBack={() => setView('dashboard')} 
+                    onBack={() => window.history.back()} 
                     onNavigateTo={handleChatNavigation}
                 />
             </div>
           );
       }
 
-      if (view === 'pricing') return <Pricing onSelectPlan={(plan, cycle) => { setSelectedPlan(plan); if(cycle) setBillingCycle(cycle); setIsAffiliateRegistration(false); setAuthDefaultTab('register'); setView('auth'); }} onTrialStart={handleGuestAccess} onAffiliateStart={() => { setIsAffiliateRegistration(true); setAuthDefaultTab('register'); setView('auth'); }} />;
-      if (view === 'auth') return <Auth selectedPlan={selectedPlan} defaultTab={authDefaultTab} isAffiliateRegistration={isAffiliateRegistration} billingCycle={billingCycle} onAuthSuccess={handleAuthSuccess} onAdminLogin={handleAdminLogin} onBack={() => setView('pricing')} />;
-      if (view === 'payment') return <Payment planId={selectedPlan} billingCycle={billingCycle} onSuccess={async (proof, finalCycle) => { if (user && user.email !== 'GUEST') { const updatedUser = { ...user, paymentProof: proof, status: 'pending' as const, subscriptionCycle: finalCycle }; try { await shadowDB.saveProfile(updatedUser); setUser(updatedUser); setView('pending_review'); } catch(e) { console.error(e); } } }} onBack={() => setView('auth')} />;
-      if (view === 'admin') return <AdminDashboard onLogout={handleLogout} onSwitchToUserMode={() => setView('dashboard')} onNavigateTo={(v) => setView(v as 'dashboard' | 'chat' | 'pricing' | 'auth' | 'admin')} />;
-      if (view === 'workspace' && user) return <WorkspaceExplorer userId={user.email} onItemSelect={(item) => console.log('Selected item:', item)} onBack={() => setView('dashboard')} />;
-      if (view === 'affiliate' && user) return <AffiliateDashboard user={user} onBack={() => setView('dashboard')} onUpdateUser={setUser} />;
+      if (view === 'pricing') return <Pricing onSelectPlan={(plan, cycle) => { setSelectedPlan(plan); if(cycle) setBillingCycle(cycle); setIsAffiliateRegistration(false); setAuthDefaultTab('register'); navigateToView('auth'); }} onTrialStart={handleGuestAccess} onAffiliateStart={() => { setIsAffiliateRegistration(true); setAuthDefaultTab('register'); navigateToView('auth'); }} />;
+      if (view === 'auth') return <Auth selectedPlan={selectedPlan} defaultTab={authDefaultTab} isAffiliateRegistration={isAffiliateRegistration} billingCycle={billingCycle} onAuthSuccess={handleAuthSuccess} onAdminLogin={handleAdminLogin} onBack={() => navigateToView('pricing')} />;
+      if (view === 'payment') return <Payment planId={selectedPlan} billingCycle={billingCycle} onSuccess={async (proof, finalCycle) => { if (user && user.email !== 'GUEST') { const updatedUser = { ...user, paymentProof: proof, status: 'pending' as const, subscriptionCycle: finalCycle }; try { await shadowDB.saveProfile(updatedUser); setUser(updatedUser); navigateToView('pending_review'); } catch(e) { console.error(e); } } }} onBack={() => navigateToView('auth')} />;
+      if (view === 'admin') return <AdminDashboard onLogout={handleLogout} onSwitchToUserMode={() => navigateToView('dashboard')} onNavigateTo={(v) => navigateToView(v as 'dashboard' | 'chat' | 'pricing' | 'auth' | 'admin')} />;
+      if (view === 'workspace' && user) return <WorkspaceExplorer userId={user.email} onItemSelect={(item) => console.log('Selected item:', item)} onBack={() => navigateToView('dashboard')} />;
+      if (view === 'affiliate' && user) return <AffiliateDashboard user={user} onBack={() => navigateToView('dashboard')} onUpdateUser={setUser} />;
       if (view === 'widget' && user) return <AssistantWidget user={user} onOpenApp={() => window.location.search = ''} />;
       if (view === 'pending_review') return (<div className="fixed inset-0 bg-[#020202] flex items-center justify-center p-6 font-['Cairo'] text-white"><div className="max-w-md w-full glass p-10 rounded-[40px] border border-amber-500/20 text-center relative overflow-hidden"><div className="absolute inset-0 bg-amber-500/5 animate-pulse"></div><div className="relative z-10"><div className="w-20 h-20 mx-auto bg-amber-500/10 rounded-full flex items-center justify-center mb-6 border border-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.2)]"><Clock className="w-10 h-10 text-amber-500 animate-pulse" /></div><h2 className="text-2xl font-black mb-3 text-white">جاري المراجعة</h2><p className="text-white/50 text-sm mb-8 leading-relaxed">طلبك وصل للعمليات. <br/>يتم الآن مراجعة إيصال الدفع وتفعيل حسابك.<span className="block mt-2 text-amber-400 font-bold text-xs">متوسط وقت الانتظار: 10 دقائق</span></p><div className="flex flex-col gap-3"><button onClick={checkStatusManual} disabled={isCheckingStatus} className="w-full py-4 bg-white text-black rounded-2xl font-black text-sm hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">{isCheckingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}تحديث الحالة الآن</button><button onClick={handleLogout} className="w-full py-4 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2"><LogOut className="w-4 h-4" /> خروج مؤقت</button></div></div></div></div>);
-      if (view === 'blocked') return (<div className="fixed inset-0 bg-black flex items-center justify-center text-center p-8 text-white font-['Cairo']"><div><ShieldCheck className="w-16 h-16 text-red-500 mx-auto mb-6" /><h1 className="text-3xl font-black mb-2">الحساب معلق</h1><button onClick={() => setView('pricing')} className="mt-8 px-6 py-3 bg-white/10 rounded-xl">عودة</button></div></div>);
+      if (view === 'blocked') return (<div className="fixed inset-0 bg-black flex items-center justify-center text-center p-8 text-white font-['Cairo']"><div><ShieldCheck className="w-16 h-16 text-red-500 mx-auto mb-6" /><h1 className="text-3xl font-black mb-2">الحساب معلق</h1><button onClick={() => navigateToView('pricing')} className="mt-8 px-6 py-3 bg-white/10 rounded-xl">عودة</button></div></div>);
       return null;
   };
 
