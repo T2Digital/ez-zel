@@ -126,6 +126,42 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const [hasVoiceSignature, setHasVoiceSignature] = useState(voiceBiometrics.hasSignature());
   const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<any>(null);
   const [workspaceTab, setWorkspaceTab] = useState<'l0' | 'l1' | 'l2'>('l2');
+  const [thinkingStep, setThinkingStep] = useState(0);
+  const [isDreaming, setIsDreaming] = useState(false);
+
+  useEffect(() => {
+    let idleTimer: NodeJS.Timeout;
+    const resetIdle = () => {
+        setIsDreaming(false);
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => setIsDreaming(true), 120000); // 2 minutes to dream
+    };
+
+    window.addEventListener('mousemove', resetIdle);
+    window.addEventListener('keydown', resetIdle);
+    window.addEventListener('touchstart', resetIdle);
+    window.addEventListener('click', resetIdle);
+    
+    resetIdle();
+    
+    return () => {
+        window.removeEventListener('mousemove', resetIdle);
+        window.removeEventListener('keydown', resetIdle);
+        window.removeEventListener('touchstart', resetIdle);
+        window.removeEventListener('click', resetIdle);
+        clearTimeout(idleTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (appStatus === 'thinking') {
+      setThinkingStep(0);
+      const interval = setInterval(() => {
+        setThinkingStep(prev => prev + 1);
+      }, 1800);
+      return () => clearInterval(interval);
+    }
+  }, [appStatus]);
 
   const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -1644,6 +1680,13 @@ ${textContent.substring(0, 10000)}`;
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide relative">
+        {isDreaming && (
+            <div className="absolute top-10 left-1/2 -translate-x-1/2 z-0 opacity-50 flex flex-col items-center pointer-events-none fade-in">
+                <Brain className="w-16 h-16 text-cyan-600 animate-pulse mb-4 opacity-50" />
+                <h3 className="text-xl font-black text-cyan-400 tracking-widest blur-[0.5px]">نظام الحلم نشط</h3>
+                <p className="text-xs text-cyan-300 font-bold mt-2">جاري أرشفة وتنظيم الخيوط العصبية...</p>
+            </div>
+        )}
         {hasMoreMessages && !isSearchActive && (
             <div className="w-full flex justify-center py-4">
                 <button onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-xs font-bold text-white/50 hover:text-white transition-all">
@@ -1671,7 +1714,12 @@ ${textContent.substring(0, 10000)}`;
         
         {appStatus === 'thinking' && !searchQuery && (
             <div className="flex justify-end animate-in fade-in slide-in-from-bottom-2 items-center gap-3">
-                <div className="bg-[#0f0f0f] border border-purple-500/20 rounded-[20px] rounded-tr-none p-4 flex items-center gap-3 shadow-lg"><Brain className="w-4 h-4 text-purple-500 animate-pulse" /><div className="flex flex-col"><span className="text-[10px] font-black text-purple-400 animate-pulse tracking-wide">الظل بيفكر...</span></div></div>
+                <div className="bg-[#0f0f0f] border border-purple-500/20 rounded-[20px] rounded-tr-none p-4 flex items-center gap-3 shadow-lg">
+                    <Brain className="w-4 h-4 text-purple-500 animate-pulse" />
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-purple-400 animate-pulse tracking-wide">الظل بيفكر...</span>
+                    </div>
+                </div>
                 <button onClick={() => { if(abortControllerRef.current) abortControllerRef.current.abort(); resetToIdle(); }} className="p-3 bg-red-600 rounded-full text-white shadow-lg"><StopCircle className="w-5 h-5" /></button>
             </div>
         )}

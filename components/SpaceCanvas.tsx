@@ -265,6 +265,65 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                 const moonX = earthX + earthSize/2 + Math.cos(time) * orbitRadX - moonSize/2;
                 const moonY = earthY + earthSize/2 + Math.sin(time) * orbitRadY - moonSize/2;
                 
+                // Agent Orbits
+                const orbit1Dist = 1.6;
+                const orbit2Dist = 2.2;
+                
+                // Draw Orbit Rings
+                ctx.beginPath();
+                ctx.ellipse(earthX + earthSize/2, earthY + earthSize/2, earthSize * orbit1Dist * 0.8, earthSize * orbit1Dist * 0.3, 0, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.ellipse(earthX + earthSize/2, earthY + earthSize/2, earthSize * orbit2Dist * 0.8, earthSize * orbit2Dist * 0.3, 0, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // Agents Orbiting
+                const agents = [
+                    { name: 'Maestro',  color: '#8b5cf6', offset: (Math.PI * 2) * (0/5),   speed: 0.8,  distance: orbit1Dist, size: 8 },
+                    { name: 'Architect',color: '#3b82f6', offset: (Math.PI * 2) * (1/5),   speed: 0.8,  distance: orbit1Dist, size: 6 },
+                    { name: 'Detective',color: '#10b981', offset: (Math.PI * 2) * (2/5),   speed: 0.8,  distance: orbit1Dist, size: 7 },
+                    { name: 'Accountant',color: '#f59e0b',offset: (Math.PI * 2) * (3/5),   speed: 0.8,  distance: orbit1Dist, size: 6 },
+                    { name: 'Executor', color: '#ef4444', offset: (Math.PI * 2) * (4/5),   speed: 0.8,  distance: orbit1Dist, size: 7 },
+                    
+                    { name: 'Nexus',    color: '#06b6d4', offset: (Math.PI * 2) * (0/6),   speed: -0.6, distance: orbit2Dist, size: 8 },
+                    { name: 'Lawyer',   color: '#64748b', offset: (Math.PI * 2) * (1/6),   speed: -0.6, distance: orbit2Dist, size: 6 },
+                    { name: 'Analyst',  color: '#d946ef', offset: (Math.PI * 2) * (2/6),   speed: -0.6, distance: orbit2Dist, size: 7 },
+                    { name: 'Healer',   color: '#14b8a6', offset: (Math.PI * 2) * (3/6),   speed: -0.6, distance: orbit2Dist, size: 5 },
+                    { name: 'Marketer', color: '#ec4899', offset: (Math.PI * 2) * (4/6),   speed: -0.6, distance: orbit2Dist, size: 6 },
+                    { name: 'Trader',   color: '#eab308', offset: (Math.PI * 2) * (5/6),   speed: -0.6, distance: orbit2Dist, size: 8 }
+                ];
+
+                const drawAgent = (agent: typeof agents[0], front: boolean) => {
+                    const agentAngle = time * agent.speed + agent.offset;
+                    const isFront = Math.sin(agentAngle) > 0;
+                    if (isFront !== front) return;
+
+                    const ax = earthX + earthSize/2 + Math.cos(agentAngle) * (earthSize * agent.distance * 0.8);
+                    const ay = earthY + earthSize/2 + Math.sin(agentAngle) * (earthSize * agent.distance * 0.3);
+                    
+                    ctx.beginPath();
+                    ctx.arc(ax, ay, agent.size, 0, Math.PI * 2);
+                    ctx.fillStyle = agent.color;
+                    ctx.shadowColor = agent.color;
+                    ctx.shadowBlur = 15;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    // Agent Name
+                    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                    ctx.font = '10px Cairo, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(agent.name, ax, ay - 12);
+                };
+
+                // Draw agents behind earth
+                agents.forEach(a => drawAgent(a, false));
+
                 // Draw moon behind earth first
                 if (Math.sin(time) <= 0) {
                      drawRotatingImageSafe(moonImg, moonX, moonY, moonSize, time, 50);
@@ -317,6 +376,9 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                      ctx.fillStyle = gMoon;
                      ctx.fill();
                 }
+
+                // Draw agents in front of earth
+                agents.forEach(a => drawAgent(a, true));
             }
 
             ctx.restore();
