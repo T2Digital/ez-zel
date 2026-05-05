@@ -36,7 +36,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
                     </div>
                 </div>
             ) : (
-                <div className={`max-w-[90%] md:max-w-[70%] p-4 rounded-[20px] relative border backdrop-blur-md ${m.role === 'user' ? 'bg-[#1a1a1a] border-white/5 text-white/90 rounded-tl-none' : (m.isError ? 'bg-red-900/20 border-red-500/30 text-red-200' : 'bg-[#0f0f0f] border-purple-500/20 text-white shadow-lg')} ${m.role !== 'user' ? 'rounded-tr-none' : ''}`}>
+                <div className={`max-w-[90%] md:max-w-[70%] p-4 rounded-[20px] relative border backdrop-blur-md ${m.role === 'user' ? 'bg-[#1a1a1a]/50 border-white/5 text-white/90 rounded-tl-none' : (m.isError ? 'bg-red-900/20 border-red-500/30 text-red-200' : 'bg-[#0f0f0f]/50 border-purple-500/20 text-white shadow-lg')} ${m.role !== 'user' ? 'rounded-tr-none' : ''}`}>
                     {m.image && <img src={m.image} className="w-full h-auto max-h-56 object-cover rounded-xl mb-3 border border-white/5" />}
                     <div className="text-sm leading-6 font-medium whitespace-pre-wrap">{highlightText(m.text)}</div>
                     
@@ -48,7 +48,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
                             ))}
                         </div>
                     ) : (
-                        m.uiCard && renderCard(m.uiCard, 0) // Fallback for legacy messages
+                        (m as any).uiCard && renderCard((m as any).uiCard, 0) // Fallback for legacy messages
                     )}
 
                     {/* GROUNDING SOURCES (REAL-TIME INFO) */}

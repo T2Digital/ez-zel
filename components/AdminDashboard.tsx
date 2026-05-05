@@ -104,6 +104,11 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       binanceSecretKey: string;
       metaToken: string;
       metaPageId: string;
+      openAIBaseUrl?: string;
+      openAIApiKey?: string;
+      openAIModelName?: string;
+      pineconeApiKey?: string;
+      pineconeHost?: string;
   }>({ githubToken: '', vercelToken: '', binanceApiKey: '', binanceSecretKey: '', metaToken: '', metaPageId: '' });
 
   useEffect(() => { 
@@ -239,10 +244,10 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   const activeMembers = filteredProfiles.filter(p => p.status === 'active');
   const marketersList = filteredProfiles.filter(p => p.affiliate && (p.affiliate.isMarketer || (p.affiliate.payoutHistory && p.affiliate.payoutHistory.length > 0) || p.affiliate.referralCode));
   
-  if (activeView === 'chat') return <div className="h-screen w-full bg-black"><ChatInterface currentUser={adminProfile} onUpgrade={() => {}} onBack={() => setActiveView('requests')} onNavigateTo={(s) => { if(s === 'affiliate' && onNavigateTo) onNavigateTo('affiliate'); if(s === 'admin') setActiveView('analytics'); }} isAdmin={true} /></div>;
+  if (activeView === 'chat') return <div className="fixed inset-0 bg-transparent text-white font-['Cairo'] overflow-hidden"><ChatInterface onBack={() => setActiveView('requests')} onNavigateTo={(s) => { if(s === 'affiliate' && onNavigateTo) onNavigateTo('affiliate'); if(s === 'admin') setActiveView('analytics'); }} /></div>;
 
   return (
-    <div className="min-h-screen bg-[#020202] text-white flex flex-col font-['Cairo'] pb-48">
+    <div className="min-h-screen bg-transparent text-white flex flex-col font-['Cairo'] pb-48">
       <div className="p-6 md:p-8 flex justify-between items-center bg-black/50 border-b border-white/5 sticky top-0 z-50 backdrop-blur-md">
           <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">A</div><h2 className="text-xl font-black">Shadow <span className="text-amber-500">HQ</span></h2></div>
           <div className="flex items-center gap-2">

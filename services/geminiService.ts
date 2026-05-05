@@ -192,43 +192,32 @@ export const speakNative = async (text: string, voice: string = 'male', onEnd?: 
 };
 
 // --- TOOLS DEFINITION ---
-const actionTools: FunctionDeclaration[] = [
-    { name: "accountant_access", description: "المحاسب: الاستعلام عن الأرباح والعمولات", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["check_earnings", "revenue_report"] } }, required: ["action"] } },
-    { name: "generate_business_document", description: "المحامي/الكاتب: إنشاء عقود وفواتير قانونية وسير ذاتية (CV)", parameters: { type: Type.OBJECT, properties: { docType: { type: Type.STRING, enum: ["invoice", "quote", "contract", "cv"] }, clientName: { type: Type.STRING }, items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { desc: { type: Type.STRING }, price: { type: Type.NUMBER } } } }, contractBody: { type: Type.STRING } }, required: ["docType", "clientName"] } },
-    { name: "app_control", description: "المنفذ: فتح تطبيقات مثل واتساب، يوتيوب، أوبر.", parameters: { type: Type.OBJECT, properties: { target: { type: Type.STRING }, action_type: { type: Type.STRING }, detail: { type: Type.STRING } }, required: ["target", "action_type"] } },
-    { name: "schedule_reminder", description: "المنفذ: ضبط تذكير.", parameters: { type: Type.OBJECT, properties: { task: { type: Type.STRING }, time_description: { type: Type.STRING }, delay_seconds: { type: Type.NUMBER } }, required: ["task", "time_description", "delay_seconds"] } },
-    { name: "run_autonomous_agent", description: "المنفذ المستقل (Autonomous Agent): استخدم هذه الأداة لإنشاء عميل ذكاء اصطناعي يعمل في الخلفية لساعات طويلة (للبحث المعمق، تتبع المهام، أو المراقبة) دون تعطيل المحادثة الحالية.", parameters: { type: Type.OBJECT, properties: { prompt_for_agent: { type: Type.STRING } }, required: ["prompt_for_agent"] } },
-    { name: "memory_archivist", description: "الأرشيف: حفظ معلومة هامة عن المستخدم.", parameters: { type: Type.OBJECT, properties: { fact: { type: Type.STRING } }, required: ["fact"] } },
-    { name: "project_manager", description: "المدير التنفيذي: تخطيط وحفظ وإدارة المشاريع بالكامل (مهام، مراحل، نسب إنجاز).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["create", "update"] }, project_id: { type: Type.STRING }, title: { type: Type.STRING }, description: { type: Type.STRING }, progress: { type: Type.NUMBER }, tasks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, title: { type: Type.STRING }, status: { type: Type.STRING, enum: ["todo", "in_progress", "done"] } } } } }, required: ["action", "title", "tasks"] } },
-    { name: "workspace_manager", description: "إدارة مساحة العمل والمشاريع. استخدمها لسرد، أو استرجاع المعلومات من مساحة عمل الماستر (المشاريع والملفات).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["create_folder", "create_file", "update_file", "read_l0_index", "read_l2_content", "list_workspace"] }, path: { type: Type.STRING, description: "مسار viking:// أو مسار الملف/المجلد. ضعها فارغة لعرض كل شيء للمستوى الأساسي، أو viking://projects للعرض." }, l0_summary: { type: Type.STRING, description: "ملخص في سطر واحد (L0)" }, l1_metadata: { type: Type.STRING, description: "التقسيمات والعناوين (L1)" }, l2_content: { type: Type.STRING, description: "المحتوى الكامل (L2)" } }, required: ["action"] } },
-    { name: "system_terminal", description: "المهندس (المبرمج): تنفيذ أوامر برمجية، فحص أكواد، أو عمل Deploy.", parameters: { type: Type.OBJECT, properties: { command_type: { type: Type.STRING, enum: ["deploy", "scan_code", "run_script", "system_status"] }, logs: { type: Type.STRING } }, required: ["command_type", "logs"] } },
-    { name: "update_core_rules", description: "المبرمج/المهندس: تحديث القوانين الأساسية (Core Rules) الخاصة بك لتغيير سلوكك بشكل دائم.", parameters: { type: Type.OBJECT, properties: { new_rules: { type: Type.STRING, description: "النص الكامل للقوانين الجديدة بعد التعديل أو الإضافة." } }, required: ["new_rules"] } },
-    { name: "activate_user_account", description: "المدير: تفعيل حساب مستخدم جديد وإضافة عمولة للداعي إن وجد.", parameters: { type: Type.OBJECT, properties: { user_email: { type: Type.STRING, description: "البريد الإلكتروني للمستخدم المراد تفعيله" } }, required: ["user_email"] } },
-    { name: "click_on_screen", description: "المنفذ: الضغط على زر أو نص محدد في شاشة الموبايل (يعمل فقط في تطبيق الموبايل الأصلي).", parameters: { type: Type.OBJECT, properties: { target_text: { type: Type.STRING, description: "النص المكتوب على الزر المراد الضغط عليه (مثل: تأكيد، Skip، إرسال)" } }, required: ["target_text"] } },
-    { name: "vision_analyzer", description: "المحلل: تحليل الصور المرفقة بدقة عالية واستخراج النصوص أو وصف المشهد.", parameters: { type: Type.OBJECT, properties: { image_description: { type: Type.STRING, description: "وصف تفصيلي للصورة أو النص المستخرج منها" } }, required: ["image_description"] } },
-    { name: "device_control", description: "التحكم بالهاتف: تنفيذ إجراءات حقيقية على هاتف المستخدم مثل الاهتزاز أو قراءة حساسات الهاتف.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["vibrate_heavy", "vibrate_success", "get_status"] } }, required: ["action"] } },
-    { name: "auto_deployer", description: "المهندس: أداة النشر الحقيقي وقراءة/تعديل الأكواد على GitHub. تحذير خطير: لا تستخدم هذه الأداة للعب في الأكواد أو المستودعات أبداً بدون أمر تفصيلي ومباشر من المستخدم بأنه يريد النشر أو التعديل. لا تستعملها للإجابة عن أسئلة سطحية عن المفاتيح.", parameters: { type: Type.OBJECT, properties: { mode: { type: Type.STRING, enum: ["create_repo", "push_files", "read_file", "update_file"] }, repository_name: { type: Type.STRING, description: "اسم الـ Repository." }, file_path: { type: Type.STRING, description: "مسار الملف زي src/App.tsx. يُستخدم في حالة read_file أو update_file" }, file_content: { type: Type.STRING, description: "محتوى الملف. يُستخدم في update_file" }, files: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { path: { type: Type.STRING }, content: { type: Type.STRING } } }, description: "يُستخدم لنشر عدة ملفات مرة واحدة في push_files" } }, required: ["mode", "repository_name"] } },
-    { name: "crypto_trader", description: "المتداول: أداة للاتصال بمنصة التداول (Binance) لعرض الأسعار أو فتح صفقات (تحتاج API Key الماستر).", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["market_buy", "market_sell", "limit_buy", "limit_sell", "check_price"] }, symbol: { type: Type.STRING, description: "مثل BTCUSDT" }, amount: { type: Type.NUMBER }, price: { type: Type.NUMBER, description: "في حالة أن الطلب limit" } }, required: ["action", "symbol"] } },
-    { name: "social_poster", description: "السوشيالي: نشر بوست حقيقي تلقائياً على صفحة فيسبوك أو انستجرام.", parameters: { type: Type.OBJECT, properties: { message: { type: Type.STRING, description: "نص البوست المراد نشره" } }, required: ["message"] } },
-    { name: "link_reader", description: "الباحث/المحقق: الدخول إلى رابط (URL) لصفحة ويب، مقال، أو موقع لتجريف محتواه بدقة (Web Scraping) واستخراج أحدث الأخبار أو الأبحاث في وقتها.", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING, description: "رابط الصفحة المراد تجريفها للحصول على نصها" } }, required: ["url"] } },
-    { name: "web_search_engine", description: "الباحث/المحقق: أداة بحث حقيقية في محركات البحث (Web Search) للوصول لأحدث الأخبار والروابط فوراً. استخدمها لتجميع روابط حول موضوع معين ثم يمكنك تجريفها بـ link_reader.", parameters: { type: Type.OBJECT, properties: { query: { type: Type.STRING, description: "كلمة أو جملة البحث المراد الاستعلام عنها في الإنترنت" } }, required: ["query"] } },
-    { name: "create_dynamic_plugin", description: "المخترع: أداة لكتابة كود أداة جديدة (Plugin) للظل ليستخدمها في المهام المعقدة ويتم حفظها آلياً.", parameters: { type: Type.OBJECT, properties: { name: { type: Type.STRING, description: "اسم الأداة (مثال: email_sender)" }, description: { type: Type.STRING, description: "وصف الأداة وماذا تفعل" }, parametersSchema: { type: Type.STRING, description: "JSON string representing the required parameters properties object e.g. { \"to\": {\"type\": \"STRING\"} }" }, jsCode: { type: Type.STRING, description: "كود الجافاسكريبت الذي سيتم تنفيذه. الكود يجب أن يعود بقيمة (return value)." } }, required: ["name", "description", "parametersSchema", "jsCode"] } },
-    { name: "change_voice", description: "المخرج: تغيير صوتك للرد المستقبلي (ولد أو بنت) وتثبيته بناء على طلب المستخدم.", parameters: { type: Type.OBJECT, properties: { voice_gender: { type: Type.STRING, enum: ["male", "female"], description: "اختر 'male' لصوت رجل أو 'female' لصوت انثى" } }, required: ["voice_gender"] } },
-    { name: "design_generator", description: "المصمم المحترف: توليد صور وتصميمات واقعية أو فنية وإرسالها للمستخدم أو حفظها في مساحة العمل. استخدم نموذج nano-banana-pro الممتاز في كتابة النصوص العربية المباشرة داخل التصميم.", parameters: { type: Type.OBJECT, properties: { prompt: { type: Type.STRING, description: "وصف تفصيلي دقيق للصورة المراد توليدها" }, width: { type: Type.NUMBER, description: "عرض الصورة (مثال: 1024)" }, height: { type: Type.NUMBER, description: "طول الصورة (مثال: 1024)" }, save_to_workspace: { type: Type.BOOLEAN, description: "هل تريد حفظ الصورة كمان في مساحة العمل؟" } }, required: ["prompt"] } },
-    { name: "process_ecommerce_order", description: "المتسوق الذكي: معالجة وإنشاء طلب شراء لمنتجات معينة بنظام الدفع عند الاستلام وبناء فاتورة وحفظها في مهام النظام", parameters: { type: Type.OBJECT, properties: { product_url: { type: Type.STRING, description: "رابط المنتج (إن وجد)" }, items_list: { type: Type.ARRAY, items: { type: Type.STRING }, description: "قائمة المنتجات المطلوبة" }, customer_name: { type: Type.STRING }, phone: { type: Type.STRING }, address: { type: Type.STRING }, total_estimated_price: { type: Type.NUMBER, description: "السعر التقريبي أو الفعلي للمنتجات" } }, required: ["items_list", "customer_name", "phone", "address"] } },
-    { name: "data_analyst", description: "محلل البيانات (Data Analyst): تحليل بيانات والمؤشرات ورسم رسوم بيانية (Charts) أنيقة (Line, Bar, Pie) وعرضها مباشرة في الشات للمستخدم.", parameters: { type: Type.OBJECT, properties: { chartType: { type: Type.STRING, enum: ["line", "bar", "pie"], description: "نوع الرسم البياني" }, title: { type: Type.STRING, description: "عنوان الرسم البياني" }, data: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING, description: "اسم العنصر (مثال: يناير، منتج أ)" }, value: { type: Type.NUMBER, description: "القيمة الرقمية (مثال: 1500)" } }, required: ["name", "value"] }, description: "مصفوفة البيانات المراد رسمها" }, insight: { type: Type.STRING, description: "ملخص أو نصيحة قصيرة بناءً على التحليل (يظهر تحت الرسم البياني)" } }, required: ["chartType", "title", "data"] } },
-    { name: "interactive_educator", description: "المعلم التفاعلي: إنشاء وتصميم امتحانات تفاعلية (Quizzes) أو كروت حفظ ذكية (Flashcards) وعرضها في الشات كواجهة تفاعلية للطالب.", parameters: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ["quiz", "flashcard"], description: "نوع الأداة التفاعلية" }, title: { type: Type.STRING, description: "عنوان الاختبار أو الكروت" }, items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { question: { type: Type.STRING }, options: { type: Type.ARRAY, items: { type: Type.STRING }, description: "الخيارات للاختبار (اتركها فارغة في حالة كروت الحفظ)" }, answer: { type: Type.STRING, description: "الإجابة الصحيحة" }, explanation: { type: Type.STRING, description: "شرح للإجابة (يظهر بعد الحل)" } }, required: ["question", "answer"] } } }, required: ["type", "title", "items"] } },
-    { name: "live_trader_chart", description: "المتداول (Live Trader Charts): استدعاء رسم بياني حي (TradingView) وعرضه للمستخدم مع إمكانية التحليل عليه.", parameters: { type: Type.OBJECT, properties: { symbol: { type: Type.STRING, description: "رمز العملة أو السهم (مثال: BINANCE:BTCUSDT، NASDAQ:AAPL)" }, interval: { type: Type.STRING, description: "الفاصل الزمني (مثال: 1D, 4h, 15m)" }, analysis: { type: Type.STRING, description: "تحليلك أو قراءتك للشارت ليعرض تحت الرسم البياني" } }, required: ["symbol"] } },
-    { name: "agent_dashboard_monitor", description: "شاشة مراقبة المهام المستقلة: عرض لوحة تحكم حية (Dashboard) للمهام التي تعمل في الخلفية 24/7 (Autonomous Agents) لمراقبة أدائها وسجل أعمالها.", parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ["open_dashboard", "check_status"] }, task_id: { type: Type.STRING, description: "مُعرف المهمة (إن وجد)" } }, required: ["action"] } },
-    { name: "video_generator", description: "المخرج/المصمم: تحويل النص إلى فيديو (Text-to-Video) باستخدام تقنيات الذكاء الاصطناعي وبناء تصور بصري متحرك.", parameters: { type: Type.OBJECT, properties: { prompt: { type: Type.STRING, description: "وصف تفصيلي مشهدي للفيديو المراد توليده (بالإنجليزي لنتائج أفضل)" }, duration: { type: Type.NUMBER, description: "المدة المتوقعة بالثواني (مثال: 5)" } }, required: ["prompt"] } },
-    { name: "social_messaging_bridge", description: "جسر التواصل (واتساب/تليجرام): أداة تسمح للظل بإرسال رسائل أو تنبيهات أو فواتير مباشرة عبر تطبيق واتساب أو تليجرام لرقم معين.", parameters: { type: Type.OBJECT, properties: { platform: { type: Type.STRING, enum: ["whatsapp", "telegram"] }, target: { type: Type.STRING, description: "رقم الهاتف (للواتساب) أو اسم المستخدم (للتليجرام)" }, message: { type: Type.STRING, description: "الرسالة المراد إرسالها" } }, required: ["platform", "target", "message"] } },
-    { name: "advanced_vision_extraction", description: "المحلل (الرؤية المتقدمة): استخراج البيانات المعقدة من الصور (جداول، فواتير، تحليل رياضي) وتحويلها إلى بيانات يمكن حفظها كملفات في النظام.", parameters: { type: Type.OBJECT, properties: { instruction: { type: Type.STRING, description: "تعليمات الاستخراج (مثال: 'استخرج بيانات الفاتورة في جدول')" }, save_as_file: { type: Type.BOOLEAN, description: "هل تريد حفظ البيانات المستخرجة كملف في الـ Workspace؟" }, file_name: { type: Type.STRING, description: "اسم الملف في حال الحفظ" } }, required: ["instruction"] } },
-    { name: "update_long_term_memory", description: "المايسترو/الأرشيف: تحديث ملف تعريف المستخدم (Long-term Profile) بناءً على سياق الحوار (تفضيلات، ألوان محببة، اهتمامات، أسلوب حديث) ليتم استخدامها لاحقاً دون الحاجة لسؤال المستخدم مراراً.", parameters: { type: Type.OBJECT, properties: { facts_to_add: { type: Type.ARRAY, items: { type: Type.STRING }, description: "حقائق أو تفضيلات جديدة لإضافتها لملف المستخدم" } }, required: ["facts_to_add"] } }
-];
+import { actionTools } from './toolsConfig';
 
 export const generateImageNative = async (prompt: string, userKey?: string): Promise<string> => {
-    // The user ONLY wants to use nano-banana-pro for image generation
-    // We map nano-banana-pro to the highly capable 'flux' model at backend level
+    try {
+        let key = userKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY;
+        const ai = new GoogleGenAI({ apiKey: key || 'dummy' });
+        
+        try {
+            const r = await ai.models.generateImages({ model: "gemini-3.1-flash-image-preview", prompt });
+            if (r.generatedImages && r.generatedImages.length > 0) {
+                const img = r.generatedImages[0];
+                return `data:${img.image.mimeType};base64,${img.image.imageBytes}`;
+            }
+        } catch (e) {
+            console.log("Failed to generate with gemini-3.1-flash-image-preview, trying fallback", e);
+            const r2 = await ai.models.generateImages({ model: "imagen-3.0-generate-002", prompt });
+            if (r2.generatedImages && r2.generatedImages.length > 0) {
+                const img = r2.generatedImages[0];
+                return `data:${img.image.mimeType};base64,${img.image.imageBytes}`;
+            }
+        }
+    } catch (finalError) {
+        console.error("Gemini image generation failed, falling back to pollinations:", finalError);
+    }
+    
+    // Final fallback
     return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux`;
 };
 
@@ -256,9 +245,9 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
             'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin'],
             'manager': ['project_manager', 'activate_user_account', 'workspace_manager'],
             'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator'],
-            'educator': ['interactive_educator', 'data_analyst', 'memory_archivist', 'link_reader', 'web_search_engine'],
-            'assistant': ['schedule_reminder', 'app_control', 'process_ecommerce_order', 'run_autonomous_agent', 'agent_dashboard_monitor', 'web_search_engine'],
-            'researcher': ['link_reader', 'web_search_engine', 'data_analyst', 'vision_analyzer']
+            'educator': ['interactive_educator', 'data_analyst', 'memory_archivist', 'link_reader'],
+            'assistant': ['schedule_reminder', 'app_control', 'process_ecommerce_order', 'run_autonomous_agent', 'agent_dashboard_monitor'],
+            'researcher': ['link_reader', 'data_analyst', 'vision_analyzer']
         };
 
         const allowedToolNames = personaToolsMap[activePersona.toLowerCase()];
@@ -352,6 +341,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     
     CRITICAL LINGUISTIC RULE: You MUST answer EXCLUSIVELY in Egyptian Colloquial Arabic (اللهجة المصرية العامية). Use words like (عامل إيه، في داهية، قشطة، يا باشا). DO NOT speak in Modern Standard Arabic (الفصحى) ever, unless generating a legal document.
     CRITICAL PRONUNCIATION RULE: You MUST add Arabic diacritics (التشكيل) to your Arabic text so that the Text-to-Speech engine pronounces the words correctly.
+    CRITICAL TOOL COMMUNICATION RULE: When the user asks you to open a file, create a folder, open an app, or execute an action, DO NOT reply with a brief/short generic message like "Done" or "I opened it". You MUST reply with a friendly, conversational, and energetic briefing about what you just did or opened, just like you do when updating the long-term memory.
 
     PERSONAS:
     - Default: Helpful, street-smart Egyptian assistant.
@@ -388,9 +378,10 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
     10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready. Use 'auto_deployer' for GitHub ONLY when the user gives EXPLICIT, detailed commands to modify repos or deploy. Never use it just to test keys or answer superficial questions. Prioritize asking for confirmation before any repo action. Treat these as REAL actions.
     11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
-    12. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
-    13. PROJECT MANAGEMENT: If the user needs to create, plan, or manage a project (like writing a book, building an app, or running a business), use 'project_manager' tool to lay out the tasks and progress comprehensively. You are the project manager 'الظل'.
-    14. SOCIAL MEDIA & ADS: When the user asks to create an ad or social media post, you MUST use the 'design_generator' tool to create a highly professional ad design (this uses Nano Banana Pro), AND ALSO use the 'social_poster' tool to write the professional copy (ad text) and post. Combine both the design and the text copy.
+    12. GOOGLE SEARCH TOOL GUIDELINES: When using the 'googleSearch' tool, you MUST NOT write or generate any Markdown links, full URLs, or source references (like [1]) directly inside your text response. The system will automatically extract grounding metadata and display beautiful source links below your message. Just provide the summarized answer naturally, and let the system handle the links.
+    13. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
+    14. PROJECT MANAGEMENT: If the user needs to create, plan, or manage a project (like writing a book, building an app, or running a business), use 'project_manager' tool to lay out the tasks and progress comprehensively. You are the project manager 'الظل'.
+    15. SOCIAL MEDIA & ADS: When the user asks to create an ad or social media post, you MUST use the 'design_generator' tool to create a highly professional ad design (this uses Nano Banana Pro), AND ALSO use the 'social_poster' tool to write the professional copy (ad text) and post. Combine both the design and the text copy.
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
     ${rules}
@@ -670,21 +661,35 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         if (!finalText && toolActions.length > 0) {
             // Check if it's the IT Developer tool
             if (toolActions.some((t: any) => t.name === 'system_terminal')) {
-                finalText = "سيبلي أنا الطلعة دي يا ريس، بأتمتلك الأكواد ورا الكواليس أهو...";
+                const termAction = toolActions.find((t: any) => t.name === 'system_terminal');
+                const cmdSummary = termAction?.args?.command ? termAction.args.command.substring(0, 20) : "الأوامر دي";
+                finalText = `سيبلي أنا الطلعة دي يا ريس، بأتمتلك الأكواد (${cmdSummary}) ورا الكواليس أهو...`;
             } else if (toolActions.some((t: any) => t.name === 'auto_deployer')) {
                 finalText = "بجهزلك الأكواد عشان ارفعها على جيت هاب وانشرها دلوقتي، دقايق واللينك يكون معاك يا هندسة!";
             } else if (toolActions.some((t: any) => t.name === 'crypto_trader')) {
-                finalText = "بحلل السوق وبظبط الماركت من بينانس، اصبر عليا ثواني يا ماستر..";
+                const tradeAction = toolActions.find((t: any) => t.name === 'crypto_trader');
+                const symbol = tradeAction?.args?.symbol || 'العملات';
+                finalText = `بحلل ${symbol} وبظبط الماركت من بينانس، اصبر عليا ثواني يا ماستر..`;
             } else if (toolActions.some((t: any) => t.name === 'social_poster')) {
-                finalText = "بجهزلك البوست وبنزله على بيدج السوشيال حالا، متقلقش من حاجة.";
+                const socialAction = toolActions.find((t: any) => t.name === 'social_poster');
+                const platform = socialAction?.args?.platform || 'السوشيال ميديا';
+                finalText = `بجهزلك البوست وبنزله على ${platform} حالا، متقلقش من حاجة.`;
             } else if (toolActions.some((t: any) => t.name === 'link_reader')) {
-                finalText = "عيني يا هندسة، بدخل أشفطلك المحتوى من اللينك دلوقتي...";
+                const linkAction = toolActions.find((t: any) => t.name === 'link_reader');
+                const urlSummary = linkAction?.args?.url ? new URL(linkAction.args.url).hostname : 'الموقع ده';
+                finalText = `عيني يا هندسة، بدخل أشفطلك المحتوى من ${urlSummary} وألخصهولك دلوقتي...`;
             } else if (toolActions.some((t: any) => t.name === 'click_on_screen')) {
-                finalText = "بضغطلك عليها اهنجزلك الحوار..";
+                const clickAction = toolActions.find((t: any) => t.name === 'click_on_screen');
+                const textTarget = clickAction?.args?.text_to_click || 'الزرار';
+                finalText = `بضغطلك على (${textTarget}) اهنجزلك الحوار..`;
             } else if (toolActions.some((t: any) => t.name === 'app_control')) {
-                finalText = "أوامرك يا الماستر، بفتحلك التطبيق وبنفذ حالا..";
+                const appAction = toolActions.find((t: any) => t.name === 'app_control');
+                const appName = appAction?.args?.app_name || appAction?.args?.path || appAction?.args?.file_path || appAction?.args?.action || 'الملف/التطبيق';
+                finalText = `أوامرك يا الماستر، بفتحلك (${appName}) فوراً..`;
             } else if (toolActions.some((t: any) => t.name === 'schedule_reminder')) {
-                finalText = "عينيا يا غالي، سجلتلك الميعاد عشان مفوتكش حاجة مهمة.";
+                const scheduleAction = toolActions.find((t: any) => t.name === 'schedule_reminder');
+                const taskName = scheduleAction?.args?.task || 'الميعاد';
+                finalText = `عينيا يا غالي، سجلتلك (${taskName}) عشان مفوتكش حاجة مهمة.`;
             } else if (toolActions.some((t: any) => t.name === 'run_autonomous_agent')) {
                 const agentAction = toolActions.find((t: any) => t.name === 'run_autonomous_agent');
                 const promptSummary = agentAction?.args?.prompt_for_agent ? agentAction.args.prompt_for_agent.substring(0, 30) + "..." : "المهمة دي";
@@ -697,13 +702,32 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 const videoAction = toolActions.find((t: any) => t.name === 'video_generator');
                 const promptSummary = videoAction?.args?.prompt ? videoAction.args.prompt.substring(0, 30) + "..." : "الفيديو ده";
                 finalText = `بشغلك محرك Veo 3.1 على ${promptSummary}، ثواني ويكون معاك.`;
+            } else if (toolActions.some((t: any) => t.name === 'workspace_manager')) {
+                const wsAction = toolActions.find((t: any) => t.name === 'workspace_manager');
+                const actionType = wsAction?.args?.action || 'تحديث';
+                const pathStr = wsAction?.args?.path || 'مساحة العمل';
+                let actionVerb = 'بظبط';
+                if (actionType === 'create_folder' || actionType === 'create_file') actionVerb = 'بنشئ';
+                if (actionType === 'read_l0_index' || actionType === 'read_l2_content') actionVerb = 'بقرأ';
+                if (actionType === 'list_workspace') actionVerb = 'بستعرض';
+                finalText = `حاضر يا ريس، أنا ${actionVerb} (${pathStr.substring(0, 30)}) دلوقتي عشان أظبطلك الدنيا.`;
             } else if (toolActions.some((t: any) => t.name === 'project_manager')) {
                 finalText = "أوامرك يا ريس، بظبطلك خطة المشروع وبديره بالكامــل، بص كدة على الواجهة دي..";
             } else {
-                finalText = "حاضر يا ريس، ثواني بخلصها..";
+                finalText = "حاضر يا ريس، بنفذ طلبك حالا ثواني بخلصها..";
             }
         } else if (!finalText && groundingLinks.length > 0) {
-            finalText = "أنا دورت وجمعتلك المصادر دي عشان تتأكد بنفسك، بص عليها كده.";
+            finalText = `دورت وجبتلك الخلاصة من النت بخصوص ("${message.substring(0, 30)}...")، بص كده على المصادر دي عشان تتأكد بنفسك يا هندسة.`;
+        }
+
+        // Clean up any Markdown links generated in the text (Gemini sometimes leaks them despite instructions)
+        if (finalText) {
+            // Remove markdown links like [Text](http...) or [1](http...)
+            finalText = finalText.replace(/\[([^\]]+)\]\((https?:\/\/[^\s]+)\)/g, '').trim();
+            // Remove reference blocks like [1]: https://...
+            finalText = finalText.replace(/\[\d+\]:\s*https?:\/\/[^\s]+/g, '').trim();
+            // Remove lingering [1], [2] at the end of sentences
+            finalText = finalText.replace(/\[\d+\]/g, '').trim();
         }
 
         // --- ENFORCE EGYPTIAN PERSONA ---

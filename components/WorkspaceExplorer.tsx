@@ -23,7 +23,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const lastMousePos = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>();
+  const rafRef = useRef<number | null>(null);
 
   const itemPositions = useMemo(() => {
      const posMap = new Map<number, {x: number, y: number, z: number}>();
@@ -192,7 +192,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         
         const totalDx = e.clientX - initialPointerPos.current.x;
         const totalDy = e.clientY - initialPointerPos.current.y;
-        if (Math.hypot(totalDx, totalDy) > 8) {
+        if (Math.hypot(totalDx, totalDy) > 20) {
             dragThresholdExceeded.current = true;
         }
         

@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Brain, Target, Zap, Activity, Clock, Database, CheckCircle2, Globe, BookOpen, Lightbulb, Play, Pause, DollarSign, MessageSquare, LogOut, ChevronRight, Fingerprint, Crown, User, Briefcase, Cpu, Link as LinkIcon, Save, X, Trash2, Megaphone, ExternalLink, Info, Shield, Terminal, FolderOpen } from 'lucide-react';
 import { shadowDB, DBTask, DBFact, UserProfile } from '../services/dbService';
 import { playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
-import SpaceCanvas from './SpaceCanvas';
 import SovereignVault from './SovereignVault';
 import ApiKeysVault from './dashboard/ApiKeysVault';
 import SystemOverride from './dashboard/SystemOverride';
@@ -324,8 +323,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   activeOrbitGroups.current = orbitGroups;
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-[#020202] text-white font-['Cairo'] overflow-hidden flex items-center justify-center select-none touch-none">
-        <SpaceCanvas interactive={true} />
+    <div className="fixed inset-0 w-full h-full bg-transparent text-white font-['Cairo'] overflow-hidden flex items-center justify-center select-none touch-none">
         <OrbitalStyles />
         
         {/* Responsive scaling container */}

@@ -87,6 +87,8 @@ export interface UserProfile {
         twilioSid?: string;
         twilioAuthToken?: string;
         twilioWhatsAppNumber?: string;
+        _encrypted?: string;
+        data?: string;
     };
     vaultState?: {
         contactsImported: boolean;
@@ -100,6 +102,9 @@ export interface UserProfile {
         maestro?: string;
         designer?: string;
         researcher?: string;
+        trader?: string;
+        engineer?: string;
+        archivist?: string;
     };
     lastPulseReceived?: number; 
     synced?: boolean;
@@ -113,7 +118,9 @@ export interface DBTask {
   time: string;
   executionTime?: number;
   category: string;
-  status: 'pending' | 'done';
+  status: 'pending' | 'completed' | 'done';
+  type?: string;
+  recurring?: boolean;
   notified?: boolean;
   synced?: boolean;
 }
@@ -132,7 +139,7 @@ export interface DBFSItem {
   userId: string; 
   parentId: number | null;
   name: string;
-  type: 'folder' | 'table' | 'calendar' | 'project' | 'file';
+  type: 'folder' | 'table' | 'calendar' | 'project' | 'file' | 'image' | 'video' | 'audio' | 'doc';
   content?: string;
   l0_summary?: string;
   l1_metadata?: string;

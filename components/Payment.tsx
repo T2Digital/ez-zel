@@ -110,7 +110,7 @@ const Payment: React.FC<Props> = ({ planId, billingCycle, onSuccess, onBack }) =
   };
 
   return (
-    <div className="h-full w-full bg-[#020202] relative overflow-y-auto font-['Cairo'] px-6 py-8 md:p-12 scrollbar-hide pb-32">
+    <div className="h-full w-full bg-transparent relative overflow-y-auto font-['Cairo'] px-6 py-8 md:p-12 scrollbar-hide pb-32">
       <div className="max-w-xl mx-auto relative z-10">
         <button onClick={onBack} className="flex items-center gap-2 text-white/30 hover:text-white transition-all text-xs font-black mb-6 group">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> العودة للباقات

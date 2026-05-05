@@ -63,7 +63,7 @@ const TerminalEffect = () => {
     }, [currentText, currentLineIndex]);
 
     return (
-        <div className="bg-[#0a0a0a] rounded-[20px] border border-white/10 p-4 font-mono text-left w-full h-[180px] flex flex-col relative overflow-hidden shadow-inner" dir="ltr">
+        <div className="bg-black/60 backdrop-blur-xl rounded-[20px] border border-white/10 p-4 font-mono text-left w-full h-[180px] flex flex-col relative overflow-hidden shadow-inner" dir="ltr">
             <div className="absolute top-2 left-3 flex gap-1.5 z-10">
                 <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
                 <div className="w-2 h-2 rounded-full bg-amber-500/50"></div>
@@ -118,7 +118,7 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#020202] text-white overflow-y-auto overflow-x-hidden flex flex-col font-['Cairo'] relative selection:bg-purple-500/30">
+    <div className="min-h-screen w-full bg-transparent text-white overflow-y-auto overflow-x-hidden flex flex-col font-['Cairo'] relative selection:bg-purple-500/30">
       
       {showCapabilities && (
         <CapabilitiesGuide 
@@ -172,7 +172,7 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
 
         {/* 2. CARD (Center) */}
         <div className="flex-1 flex items-center justify-center relative py-2">
-            <div className="relative w-full glass p-5 pt-10 rounded-[32px] border border-white/10 bg-[#080808]/60 shadow-2xl backdrop-blur-xl group hover:border-purple-500/20 transition-colors">
+            <div className="relative w-full glass p-5 pt-10 rounded-[32px] border border-white/10 bg-black/40 shadow-2xl backdrop-blur-2xl group hover:border-purple-500/20 transition-colors">
                 
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 p-3 bg-[#050505] rounded-[20px] border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-20 group-hover:scale-110 transition-transform duration-500">
                     <Fingerprint className="w-6 h-6 text-purple-500 animate-pulse" />

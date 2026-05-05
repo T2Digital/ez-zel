@@ -160,7 +160,7 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#020202] font-['Cairo'] relative overflow-y-auto overflow-x-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-transparent font-['Cairo'] relative overflow-y-auto overflow-x-hidden">
       
       <div className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <button onClick={onBack} className="mb-8 flex items-center gap-2 text-white/30 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest group">
@@ -181,7 +181,7 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
             {referralCode && <p className="text-emerald-400 text-xs mt-2 font-bold animate-pulse">دعوة خاصة مفعلة ✅</p>}
         </div>
 
-        <div className="glass rounded-[48px] p-8 border border-white/10 shadow-2xl bg-[#080808]">
+        <div className="glass rounded-[48px] p-8 border border-white/10 shadow-2xl bg-black/40 backdrop-blur-2xl">
             {error && <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold text-center flex items-center justify-center gap-2"><AlertTriangle className="w-4 h-4" /> {error}</div>}
             {successMsg && <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold text-center flex items-center justify-center gap-2"><CheckCircle2 className="w-4 h-4" /> {successMsg}</div>}
 

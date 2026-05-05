@@ -25,7 +25,6 @@ import LiveAgentAction from './LiveAgentAction';
 import { ChatInputArea } from './chat/ChatInputArea';
 import { ToolCardRenderer, handleAppCardAction, getCardIcon } from './chat/ToolCardRenderer';
 import { useAppStore } from '../services/store';
-import SpaceCanvas from './SpaceCanvas';
 
 interface Props {
     onBack: () => void; 
@@ -82,6 +81,8 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [input, setInput] = useState('');
   const [appStatus, setAppStatus] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
+  const appStatusRef = useRef(appStatus);
+  useEffect(() => { appStatusRef.current = appStatus; }, [appStatus]);
   const [isMuted, setIsMuted] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
   const wakeWordEngineRef = useRef<WakeWordEngine | null>(null);
@@ -307,7 +308,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const passiveRecognitionRef = useRef<any>(null);
   
   const startPassiveListening = () => {
-      if (shouldContinueListeningRef.current || appStatus === 'speaking') return;
+      if (shouldContinueListeningRef.current || appStatusRef.current === 'speaking') return;
 
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) return;
@@ -322,7 +323,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       rec.lang = 'ar-EG'; 
 
       rec.onresult = (e: any) => {
-          if (shouldContinueListeningRef.current || isSubmittingRef.current || appStatus === 'speaking') return;
+          if (shouldContinueListeningRef.current || isSubmittingRef.current || appStatusRef.current === 'speaking') return;
           const results = e.results;
           const transcript = results[results.length - 1][0].transcript.trim().toLowerCase();
           const wakeWords = ['يا ظل', 'يا شادو', 'يا تيتو', 'يا صاحبي', 'ya shadow', 'ya tito', 'ya sahby'];
@@ -337,7 +338,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       };
 
       rec.onend = () => {
-          if (isSentinelMode && !shouldContinueListeningRef.current && !isSubmittingRef.current && appStatus !== 'speaking') {
+          if (isSentinelMode && !shouldContinueListeningRef.current && !isSubmittingRef.current && appStatusRef.current !== 'speaking') {
               try { rec.start(); } catch(e) { setTimeout(startPassiveListening, 500); }
           }
       };
@@ -899,44 +900,6 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                       }
                   }, 500);
               }
-              else if (t.name === 'web_search_engine') {
-                  const args = t.args;
-                  uiCards.push({ cardType: 'task_success', title: '🔍 محرك البحث', description: `جاري البحث في الإنترنت عن: ${args.query}` });
-                  
-                  setTimeout(async () => {
-                      try {
-                          const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(args.query)}`;
-                          const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(searchUrl)}`);
-                          const data = await res.json();
-                          const parser = new DOMParser();
-                          const doc = parser.parseFromString(data.contents, 'text/html');
-                          
-                          let resultsStr = "";
-                          const resultElements = doc.querySelectorAll('.result__body');
-                          resultElements.forEach((el, idx) => {
-                              if(idx > 6) return;
-                              const title = el.querySelector('.result__title')?.textContent?.trim() || "";
-                              const snippet = el.querySelector('.result__snippet')?.textContent?.trim() || "";
-                              const link = el.querySelector('a.result__url')?.getAttribute('href') || "";
-                              // clean duckduckgo URL tracking
-                              let finalLink = link;
-                              if (link.includes('uddg=')) {
-                                  try {
-                                    finalLink = decodeURIComponent(link.split('uddg=')[1].split('&')[0]);
-                                  } catch(e) {}
-                              }
-                              resultsStr += `[${idx+1}] ${title}\nالرابط: ${finalLink}\nالوصف: ${snippet}\n\n`;
-                          });
-
-                          if (!resultsStr) resultsStr = "لا توجد نتائج بحث واضحة.";
-
-                          const hiddenText = `[WEB_SEARCH_RESULT]\nنتائج البحث لكلمة "${args.query}":\n\n${resultsStr}\n\n[INSTRUCTION]: لخص أهم الأخبار أو النتائج للمستخدم بأسلوبك المصري الرائع، ويمكنك اقتراح الدخول لرابط معين باستخدام link_reader.`;
-                          handleSend(hiddenText, undefined, undefined, true);
-                      } catch (e) {
-                          handleSend(`[WEB_SEARCH_RESULT]\nعذرا، حدث خطأ أثناء البحث عن (${args.query}). حاول استخدام أداة أخرى أو صغ البحث بطريقة مختلفة.`, undefined, undefined, true);
-                      }
-                  }, 500);
-              }
               else if (t.name === 'auto_deployer' || t.name === 'crypto_trader' || t.name === 'social_poster') {
                   uiCards.push({
                       cardType: 'live_action',
@@ -1084,8 +1047,13 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                   const args = t.args;
                   const enhanceKeywords = "masterpiece, high quality, highly detailed, photorealistic, premium, sleek modern design, award winning layout, professional";
                   const finalPrompt = `${args.prompt}, ${enhanceKeywords}`;
-                  // We map nano-banana-pro to the highly capable 'flux' model at backend level
-                  let imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${args.width || 1024}&height=${args.height || 1024}&nologo=true&model=flux`;
+                  
+                  let imageUrl = '';
+                  try {
+                      imageUrl = await generateImageNative(finalPrompt, currentUser?.personalKeys?.geminiApiKey);
+                  } catch (e) {
+                      imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${args.width || 1024}&height=${args.height || 1024}&nologo=true&model=flux`;
+                  }
                   
                   if (args.save_to_workspace) {
                       await shadowDB.createFSItem({
@@ -1621,10 +1589,7 @@ ${textContent.substring(0, 10000)}`;
   });
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#000] text-white font-['Cairo'] overflow-hidden relative">
-      <div className="absolute inset-0 pointer-events-none z-0">
-          <SpaceCanvas interactive={false} />
-      </div>
+    <div className="flex flex-col h-full w-full bg-transparent text-white font-['Cairo'] overflow-hidden relative">
       <div className="relative z-10 flex flex-col h-full w-full">
           {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={() => onNavigateTo?.('affiliate')} />}
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="*/*" />
