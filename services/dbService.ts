@@ -745,6 +745,17 @@ class ShadowDB {
       });
   }
 
+  async deleteMessage(id: number) {
+      const db = await this.init();
+      const tx = db.transaction('history', 'readwrite');
+      const store = tx.objectStore('history');
+      return new Promise<void>((resolve, reject) => {
+          const request = store.delete(id);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+      });
+  }
+
   async syncWithNeuralNetwork(userId: string) {
       console.log("Initiating Cross-Device Neural Sync via Firebase");
       return new Promise<void>(async (resolve, reject) => {
@@ -994,6 +1005,32 @@ class ShadowDB {
             }
         };
         request.onerror = () => reject(request.error);
+    });
+  }
+
+  async clearHistory(userId: string): Promise<void> {
+    const db = await this.init();
+    const tx = db.transaction('history', 'readwrite');
+    const store = tx.objectStore('history');
+    const index = store.index('userId');
+    const request = index.openCursor(IDBKeyRange.only(userId));
+
+    return new Promise((resolve, reject) => {
+        request.onsuccess = (event: any) => {
+            const cursor = event.target.result;
+            if (cursor) {
+                cursor.delete();
+                cursor.continue();
+            }
+        };
+        tx.oncomplete = () => {
+            try {
+               localStorage.removeItem('shadow_history_sync');
+               localStorage.setItem('shadow_chat_cleared', Date.now().toString());
+            } catch(e) {}
+            resolve();
+        };
+        tx.onerror = () => reject(tx.error);
     });
   }
 

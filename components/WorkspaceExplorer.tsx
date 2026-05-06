@@ -63,18 +63,13 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
 
   useEffect(() => {
     const loop = () => {
-       // Auto-fly inward
-       if (targetCameraRef.current.z < 5000) {
-           targetCameraRef.current.z += 1.5;
-       }
-
        const cam = cameraRef.current;
        const target = targetCameraRef.current;
        
        const isTouchActive = activePointers.current.size > 0 || isDragging.current;
-       const easeX = isTouchActive ? 1 : 0.08;
-       const easeY = isTouchActive ? 1 : 0.08;
-       const easeZ = isTouchActive ? 1 : 0.08; 
+       const easeX = isTouchActive ? 1 : 0.2;
+       const easeY = isTouchActive ? 1 : 0.2;
+       const easeZ = isTouchActive ? 1 : 0.2; 
 
        if (!isTouchActive) {
          // Apply momentum
@@ -83,9 +78,9 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
          targetCameraRef.current.z += velocity.current.z;
          
          // Decay
-         velocity.current.x *= 0.94;
-         velocity.current.y *= 0.94;
-         velocity.current.z *= 0.94;
+         velocity.current.x *= 0.90;
+         velocity.current.y *= 0.90;
+         velocity.current.z *= 0.90;
        }
 
        cam.x += (target.x - cam.x) * easeX;

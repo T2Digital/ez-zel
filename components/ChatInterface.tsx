@@ -25,6 +25,7 @@ import LiveAgentAction from './LiveAgentAction';
 import { ChatInputArea } from './chat/ChatInputArea';
 import { ToolCardRenderer, handleAppCardAction, getCardIcon } from './chat/ToolCardRenderer';
 import { useAppStore } from '../services/store';
+import { AutonomousManager } from './AutonomousManager';
 
 interface Props {
     onBack: () => void; 
@@ -123,6 +124,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const [showVoiceBiometricsManager, setShowVoiceBiometricsManager] = useState(false);
   const [showMemoryVault, setShowMemoryVault] = useState(false);
   const [showLiveAPIMode, setShowLiveAPIMode] = useState(false);
+  const [showAutonomousManager, setShowAutonomousManager] = useState(false);
   const [hasVoiceSignature, setHasVoiceSignature] = useState(voiceBiometrics.hasSignature());
   const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<any>(null);
   const [workspaceTab, setWorkspaceTab] = useState<'l0' | 'l1' | 'l2'>('l2');
@@ -315,6 +317,8 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       return () => window.removeEventListener('autonomous_message_received', handleAutonomousMessage);
   }, [currentUser.email]);
 
+  const keepAliveStreamRef = useRef<MediaStream | null>(null);
+
   const toggleSentinelMode = async () => {
       if (!isSentinelMode) {
           try {
@@ -324,7 +328,13 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
               }
           } catch (err) {}
           
+          try {
+              // Keep microphone active to avoid browser notification flashing
+              keepAliveStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+          } catch (e) {}
+
           setIsSentinelMode(true);
+          if (wakeWordEngineRef.current) wakeWordEngineRef.current.stop();
           startPassiveListening();
           const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
           audio.volume = 0.3;
@@ -335,9 +345,16 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
               try { await wakeLockRef.current.release(); } catch(e){}
               wakeLockRef.current = null;
           }
+          if (keepAliveStreamRef.current) {
+              keepAliveStreamRef.current.getTracks().forEach(track => track.stop());
+              keepAliveStreamRef.current = null;
+          }
           setIsSentinelMode(false);
           stopPassiveListening();
-          if (appStatus === 'idle') setAppStatus('idle');
+          if (appStatus === 'idle') {
+              setAppStatus('idle');
+              if (wakeWordEngineRef.current) wakeWordEngineRef.current.start();
+          }
       }
   };
 
@@ -421,6 +438,20 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   
   const isCancelledRef = useRef<boolean>(false);
 
+  const handleDeleteMessage = async (id: number) => {
+      if (window.confirm("هل أنت متأكد من مسح هذه الرسالة؟")) {
+          try {
+              if (playingMessageId === id) {
+                 handleStopPlayback();
+              }
+              await shadowDB.deleteMessage(id);
+              setMessages(prev => prev.filter(m => m.id !== id));
+          } catch (e) {
+              console.error("Failed to delete message:", e);
+          }
+      }
+  };
+
   const resetToIdle = useCallback(() => {
     if (isSubmittingRef.current) return;
 
@@ -444,9 +475,11 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
     setLiveTranscript('');
     setPendingImage(null);
 
-    // Resume Wake Word listening when idle
-    if (wakeWordEngineRef.current) {
+    // Resume Wake Word listening when idle, unless Sentinel Mode is active since it handles its own passive listening
+    if (wakeWordEngineRef.current && !isSentinelMode) {
         wakeWordEngineRef.current.start();
+    } else if (wakeWordEngineRef.current && isSentinelMode) {
+        wakeWordEngineRef.current.stop();
     }
 
     if (isSentinelMode) setTimeout(startPassiveListening, 1000); 
@@ -1671,6 +1704,8 @@ ${textContent.substring(0, 10000)}`;
         setShowMemoryVault={setShowMemoryVault}
         setShowPersonalKeys={setShowPersonalKeys}
         setShowNativeSettings={setShowNativeSettings}
+        setShowAutonomousManager={setShowAutonomousManager}
+        runningTasks={useAppStore(s => s.runningTasks)}
         isMuted={isMuted}
         setIsMuted={setIsMuted}
       />
@@ -1709,6 +1744,7 @@ ${textContent.substring(0, 10000)}`;
             playingMessageId={playingMessageId}
             handleStopPlayback={handleStopPlayback}
             handlePlayMessage={handlePlayMessage}
+            handleDeleteMessage={handleDeleteMessage}
           />
         ))}
         
@@ -1762,6 +1798,9 @@ ${textContent.substring(0, 10000)}`;
       )}
       {showMemoryVault && (
           <MemoryVault onClose={() => setShowMemoryVault(false)} />
+      )}
+      {showAutonomousManager && (
+          <AutonomousManager onClose={() => setShowAutonomousManager(false)} />
       )}
       {showNativeSettings && (
           <NativeSettings onClose={() => setShowNativeSettings(false)} />

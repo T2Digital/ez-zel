@@ -15,7 +15,7 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
         canvas.height = height;
 
         const stars: {x: number, y: number, z: number, o: number, size: number, color: string}[] = [];
-        const numStars = 1500;
+        const numStars = 800;
         
         const colors = ['#ffffff', '#e0f7fa', '#f3e5f5', '#fff9c4', '#e8eaf6'];
         for (let i = 0; i < numStars; i++) {
@@ -229,23 +229,19 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                     s.y = (Math.random() - 0.5) * height * 2;
                 }
 
-                // Parallax is driven mostly by star's Z, we already handled pan using canvas translate
                 const px = cx + (s.x / s.z) * cx;
                 const py = cy + (s.y / s.z) * cy;
 
-                // Frustum culling simple
                 if (px >= -cx && px <= width+cx && py >= -cy && py <= height+cy) {
                     const depth = Math.max(0, 1 - s.z / width);
-                    const size = s.size * depth * (currentSpeed > 2 ? 1.5 : 1); 
+                    const size = Math.max(0.5, s.size * depth * (currentSpeed > 2 ? 1.5 : 1)); 
                     
                     const twinkle = Math.sin(Date.now() * 0.001 + s.x) * 0.5 + 0.5;
                     const opacity = Math.max(0, Math.min(1, s.o * depth * (0.8 + 0.2 * twinkle)));
 
-                    ctx.beginPath();
-                    ctx.arc(px, py, size, 0, 2 * Math.PI);
                     ctx.fillStyle = s.color;
                     ctx.globalAlpha = opacity;
-                    ctx.fill();
+                    ctx.fillRect(px, py, size, size);
                 }
             }
 

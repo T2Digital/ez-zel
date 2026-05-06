@@ -15,6 +15,7 @@ interface AppState {
   isAppLocked: boolean;
   latestSystemMessage: DBMessage | null;
   isAuthReady: boolean;
+  runningTasks: number;
 
   // Setters
   setView: (view: ViewState) => void;
@@ -28,6 +29,7 @@ interface AppState {
   setIsAppLocked: (val: boolean) => void;
   setLatestSystemMessage: (msg: DBMessage | null) => void;
   setIsAuthReady: (val: boolean) => void;
+  setRunningTasks: (val: number) => void;
 
   // Complex Actions
   checkSession: () => Promise<void>;
@@ -52,6 +54,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAppLocked: true,
   latestSystemMessage: null,
   isAuthReady: false,
+  runningTasks: 0,
 
   setView: (view) => set({ view }),
   setUser: (user) => set({ user }),
@@ -64,6 +67,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setIsAppLocked: (isAppLocked) => set({ isAppLocked }),
   setLatestSystemMessage: (latestSystemMessage) => set({ latestSystemMessage }),
   setIsAuthReady: (isAuthReady) => set({ isAuthReady }),
+  setRunningTasks: (runningTasks) => set({ runningTasks }),
 
   checkSession: async () => {
     try {

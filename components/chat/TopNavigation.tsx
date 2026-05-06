@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Search, X, Brain, Activity, AlertTriangle, Cloud, RefreshCw, CloudOff, Ear, DollarSign, Shield, Waves, Key, Smartphone, Volume2, VolumeX, Crown } from 'lucide-react';
+import { Home, Search, X, Brain, Activity, AlertTriangle, Cloud, RefreshCw, CloudOff, Ear, DollarSign, Shield, Waves, Key, Smartphone, Volume2, VolumeX, Crown, Bot } from 'lucide-react';
 
 interface TopNavigationProps {
     onBack: () => void;
@@ -25,6 +25,8 @@ interface TopNavigationProps {
     setShowMemoryVault: (val: boolean) => void;
     setShowPersonalKeys: (val: boolean) => void;
     setShowNativeSettings: (val: boolean) => void;
+    setShowAutonomousManager?: (val: boolean) => void; // Added this prop
+    runningTasks?: number; // Added this prop
     isMuted: boolean;
     setIsMuted: (val: boolean) => void;
 }
@@ -34,7 +36,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
     appStatus, isTito, getGreetingSubtitle, isSentinelMode, toggleSentinelMode,
     speechSupported, syncStatus, onOpenAffiliate, isRestrictedMode,
     hasVoiceSignature, setShowVoiceBiometricsManager, setShowLiveAPIMode,
-    setShowMemoryVault, setShowPersonalKeys, setShowNativeSettings,
+    setShowMemoryVault, setShowPersonalKeys, setShowNativeSettings, setShowAutonomousManager, runningTasks = 0,
     isMuted, setIsMuted
 }) => {
     return (
@@ -94,10 +96,16 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                         </button>
                     )}
                     
-                    <button onClick={toggleSentinelMode} className={`px-3 py-1.5 shrink-0 rounded-full border transition-all flex items-center gap-2 ${isSentinelMode ? 'bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}>
+                    <button onClick={toggleSentinelMode} className={`p-2 shrink-0 rounded-full border transition-all flex items-center justify-center ${isSentinelMode ? 'bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-white/30 hover:text-white hover:border-white/20'}`} title={isSentinelMode ? 'الحارس نشط' : 'الحارس (للخلفية)'}>
                         <Ear className={`w-4 h-4 ${isSentinelMode ? 'animate-pulse' : ''}`} />
-                        <span className="text-[10px] font-bold inline">{isSentinelMode ? 'الحارس نشط' : 'الحارس'}</span>
                     </button>
+                    
+                    {setShowAutonomousManager && (
+                        <button onClick={() => setShowAutonomousManager(true)} className={`relative p-2 shrink-0 rounded-full border transition-all flex items-center justify-center ${runningTasks > 0 ? 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-500/50 shadow-[0_0_10px_rgba(217,70,239,0.2)]' : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:border-white/20'}`} title="المهام الآلية المستقلة">
+                            <Bot className={`w-4 h-4 ${runningTasks > 0 ? 'animate-pulse' : ''}`} />
+                            {runningTasks > 0 && <span className="absolute -top-1 -right-1 bg-fuchsia-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{runningTasks}</span>}
+                        </button>
+                    )}
                     
                     {onOpenAffiliate && !isRestrictedMode && (
                         <button onClick={onOpenAffiliate} className="p-2 shrink-0 bg-emerald-900/20 border border-emerald-500/20 rounded-full text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all">

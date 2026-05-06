@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, ExternalLink, RefreshCw, Edit3, Share2, Mic, Play, Square, Loader2, MessageCircle, Video, PhoneCall, Car, Search, Hotel, MapPin, Calculator, Terminal, Layout, Activity, Briefcase, CheckCircle, FolderOpen, FileText, Smartphone } from 'lucide-react';
+import { Clock, ExternalLink, RefreshCw, Edit3, Share2, Mic, Play, Square, Loader2, MessageCircle, Video, PhoneCall, Car, Search, Hotel, MapPin, Calculator, Terminal, Layout, Activity, Briefcase, CheckCircle, FolderOpen, FileText, Smartphone, Trash2 } from 'lucide-react';
 import { DBMessage } from '../../services/dbService';
 
 interface ExtendedMessage extends DBMessage {
@@ -19,12 +19,13 @@ interface MessageBubbleProps {
     playingMessageId: number | null;
     handleStopPlayback: () => void;
     handlePlayMessage: (m: ExtendedMessage) => void;
+    handleDeleteMessage?: (id: number) => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
     m, idx, highlightText, renderCard, handleSend, setInput,
     handleShareMessage, handleShareVoiceMessage, isSharingVoice,
-    playingMessageId, handleStopPlayback, handlePlayMessage
+    playingMessageId, handleStopPlayback, handlePlayMessage, handleDeleteMessage
 }) => {
     return (
         <div className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
@@ -69,7 +70,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
                     )}
 
                     <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
-                        <span className="text-[9px] text-white/20 font-black tracking-widest">{new Date(m.timestamp).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
+                        <div className="flex items-center gap-3">
+                            {handleDeleteMessage && m.id && (
+                                <button onClick={() => handleDeleteMessage(m.id!)} className="px-2 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1 hover:bg-red-500/20" title="حذف الرسالة"><Trash2 className="w-2.5 h-2.5" /></button>
+                            )}
+                            <span className="text-[9px] text-white/20 font-black tracking-widest">{new Date(m.timestamp).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</span>
+                        </div>
                         <div className="flex gap-2 items-center">
                             {m.isError && <button onClick={() => handleSend(m.text)} className="flex items-center gap-1 text-[9px] text-red-400 font-bold bg-red-900/20 px-2 py-1 rounded-full border border-red-500/30"><RefreshCw className="w-3 h-3" /></button>}
                             {m.role === 'user' && !m.voiceData && (

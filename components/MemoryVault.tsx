@@ -1,27 +1,39 @@
 import React, { useEffect, useState } from 'react';
-import { Brain, Trash2, X, Activity } from 'lucide-react';
+import { Brain, Trash2, X, Activity, Plus } from 'lucide-react';
 import { shadowDB } from '../services/dbService';
 import { useAppStore } from '../services/store';
+import { memorizeFact } from '../services/geminiService';
 
 export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { user } = useAppStore();
     const [memories, setMemories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [newFact, setNewFact] = useState('');
+
+    const fetchMemories = async () => {
+        if (user?.email) {
+            const mems = await shadowDB.getMemory(user.email);
+            setMemories(mems.filter(m => m.fact).reverse()); // Newest first
+        }
+        setLoading(false);
+    };
 
     useEffect(() => {
-        const fetchMemories = async () => {
-            if (user?.email) {
-                const mems = await shadowDB.getMemory(user.email);
-                setMemories(mems.filter(m => m.fact).reverse()); // Newest first
-            }
-            setLoading(false);
-        };
         fetchMemories();
     }, [user]);
 
     const handleDelete = async (id: number) => {
         await shadowDB.deleteMemory(id);
         setMemories(prev => prev.filter(m => m.id !== id));
+    };
+
+    const handleAddMemory = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newFact.trim() || !user || user.email === 'GUEST') return;
+        
+        await memorizeFact(user.email, newFact.trim());
+        setNewFact('');
+        fetchMemories();
     };
 
     return (
@@ -42,6 +54,21 @@ export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     <button onClick={onClose} className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/50 hover:text-white transition-all">
                         <X className="w-6 h-6" />
                     </button>
+                </div>
+                
+                <div className="p-4 border-b border-white/5 bg-black/50">
+                    <form onSubmit={handleAddMemory} className="flex gap-2 relative">
+                        <input
+                            type="text"
+                            value={newFact}
+                            onChange={(e) => setNewFact(e.target.value)}
+                            placeholder="أضف معلومة جديدة للذاكرة يدوياً..."
+                            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-fuchsia-500/50 transition-colors"
+                        />
+                        <button type="submit" disabled={!newFact.trim()} className="bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-4 py-2 font-bold rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <Plus className="w-4 h-4" /> إضافة
+                        </button>
+                    </form>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
