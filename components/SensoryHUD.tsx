@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, Battery, BrainCircuit, Cpu } from 'lucide-react';
-import { getContextData, analyzeEmotionFromText } from '../services/sensorService';
+import { getContextData, analyzeEmotionFromText, generateDynamicThinkingSteps } from '../services/sensorService';
 import { getActiveTasksCount } from '../services/autonomousAgentService';
 
 export const SensoryHUD: React.FC<{ lastMessage?: string; isThinking?: boolean }> = ({ lastMessage = '', isThinking = false }) => {
@@ -39,7 +39,7 @@ export const SensoryHUD: React.FC<{ lastMessage?: string; isThinking?: boolean }
 
     useEffect(() => {
         if (isThinking) {
-            const steps = [
+            const steps = lastMessage ? generateDynamicThinkingSteps(lastMessage) : [
                 "جاري استيعاب الطلب...",
                 "البحث في الذاكرة المعرفية...",
                 "تفعيل الوكلاء للعمل على المعطيات...",

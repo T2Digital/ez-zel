@@ -9,7 +9,7 @@ import { processOfflineCommand } from "./offlineEdgeService";
 
 // --- API KEY PREPARATION ---
 let _ai: GoogleGenAI | null = null;
-const getAI = () => {
+export const getAI = () => {
     if (!_ai) {
         // Try multiple ways to get the key and trim it to remove accidental quotes/spaces
         let rawKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY;
@@ -17,10 +17,10 @@ const getAI = () => {
         
         if (!key) {
             console.error("GEMINI_API_KEY is not defined! Application AI features will fail. Please add it to your environment variables.");
-             _ai = new GoogleGenAI({ apiKey: "MISSING_KEY_ERROR_WILL_BE_THROWN_ON_USE" });
+             _ai = new GoogleGenAI({ apiKey: "MISSING_KEY_ERROR_WILL_BE_THROWN_ON_USE", apiVersion: 'v1beta' });
              return _ai;
         }
-        _ai = new GoogleGenAI({ apiKey: key });
+        _ai = new GoogleGenAI({ apiKey: key, apiVersion: 'v1beta' });
     }
     return _ai;
 };
@@ -197,7 +197,7 @@ import { actionTools } from './toolsConfig';
 export const generateImageNative = async (prompt: string, userKey?: string): Promise<string> => {
     try {
         let key = userKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY;
-        const ai = new GoogleGenAI({ apiKey: key || 'dummy' });
+        const ai = new GoogleGenAI({ apiKey: key || 'dummy', apiVersion: 'v1beta' });
         
         try {
             const r = await ai.models.generateImages({ model: "gemini-3.1-flash-image-preview", prompt });
@@ -226,7 +226,7 @@ export const startVideoGenerationNative = async (prompt: string, userKey?: strin
     if (!key) {
         throw new Error("API Key is required for Veo 3 / Veo 2 generation.");
     }
-    const ai = new GoogleGenAI({ apiKey: key });
+    const ai = new GoogleGenAI({ apiKey: key, apiVersion: 'v1beta' });
     const op = await ai.models.generateVideos({
         model: "veo-2.0-generate-001",
         prompt
@@ -342,6 +342,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     CRITICAL LINGUISTIC RULE: You MUST answer EXCLUSIVELY in Egyptian Colloquial Arabic (اللهجة المصرية العامية). Use words like (عامل إيه، في داهية، قشطة، يا باشا). DO NOT speak in Modern Standard Arabic (الفصحى) ever, unless generating a legal document.
     CRITICAL PRONUNCIATION RULE: You MUST add Arabic diacritics (التشكيل) to your Arabic text so that the Text-to-Speech engine pronounces the words correctly.
     CRITICAL TOOL COMMUNICATION RULE: When the user asks you to open a file, create a folder, open an app, or execute an action, DO NOT reply with a brief/short generic message like "Done" or "I opened it". You MUST reply with a friendly, conversational, and energetic briefing about what you just did or opened, just like you do when updating the long-term memory.
+    CRITICAL AUTONOMOUS LEARNING RULE: استخرج تلقائياً (Autonomously extract) أي مهام متكررة (recurring tasks)، تفضيلات شخصية (preferences)، وجداول مواعيد (schedules) من كلام المستخدم بدون ما يطلب منك بشكل مباشر. استخدم أداة "update_long_term_memory" لحفظ التفضيلات والمهام المتكررة وأداة "memory_archivist" للأحداث، أو أداة "schedule_reminder" لجدولة المواعيد والتنبيهات. تذكر واستفد من المعلومات المخزنة لتقديم اقتراحات ذكية وتنبيهات مستقبلية استباقية.
 
     PERSONAS:
     - Default: Helpful, street-smart Egyptian assistant.
@@ -406,7 +407,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export const generateEmbedding = async (text: string): Promise<number[]> => {
     try {
         const result = await getAI().models.embedContent({
-            model: 'gemini-embedding-2-preview',
+            model: 'models/text-embedding-004',
             contents: text
         });
         return result.embeddings?.[0]?.values || [];
@@ -443,6 +444,59 @@ export const memorizeFact = async (userId: string, factText: string) => {
     if (memEmbedding.length > 0) {
         const idNum = typeof id === 'number' ? id : factObj.timestamp;
         await syncFactToPinecone(idNum, factText, memEmbedding, userId);
+    }
+};
+
+export const autonomousLearningRoutine = async (userId: string, history: any[], userProfile: UserProfile | undefined) => {
+    if (!userProfile || history.length < 3) return;
+    
+    const now = Date.now();
+    const lastRunStr = localStorage.getItem(`last_autonomous_learning_${userId}`);
+    // Throttle learning to once every 2 minutes
+    if (lastRunStr && (now - parseInt(lastRunStr) < 120000)) return;
+    
+    localStorage.setItem(`last_autonomous_learning_${userId}`, now.toString());
+
+    try {
+        const recentHistory = history.slice(-5).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n');
+        
+        const prompt = `Analyze the following recent conversation between the user and the assistant.
+Extract ANY specific user preferences, recurring habits, or permanent facts that the assistant should remember about the user for future interactions (e.g., preferred response length, tone, favorite topics, schedules).
+If the user mentions a preference (e.g., "I prefer brief news", "always remind me at 8 AM"), explicitly state it.
+DO NOT output anything if the conversation is just casual chat or questions without personal preferences.
+Only output the extracted facts/preferences as a bulleted list. If there is nothing new or significant to learn that isn't already in Memory, output exactly "NO_NEW_LEARNING".
+
+Current Long-Term Memory:
+${userProfile.longTermMemory || 'None'}
+
+Conversation:
+${recentHistory}`;
+        
+        const result = await getAI().models.generateContent({
+            model: 'gemini-flash-latest', // fast model for background tasks
+            contents: prompt
+        });
+        
+        const extracted = result.text?.trim();
+        if (extracted && extracted !== "NO_NEW_LEARNING" && !extracted.includes("NO_NEW_LEARNING")) {
+            const newMemories = extracted.split('\n').map(l => l.replace(/^[-*•]\s*/, '').trim()).filter(Boolean);
+            if (newMemories.length > 0) {
+                 const currentMem = userProfile.longTermMemory || "";
+                 userProfile.longTermMemory = currentMem ? `${currentMem} | ${newMemories.join(' | ')}` : newMemories.join(' | ');
+                 await shadowDB.saveProfile(userProfile);
+                 
+                 // Try to live update the UI via the global store if possible
+                 try {
+                     const { useAppStore } = await import('./store');
+                     useAppStore.getState().setUser({...userProfile});
+                 } catch(e) {}
+                 
+                 console.log("🧠 Autonomous Learning extracted:", newMemories);
+            }
+        }
+        
+    } catch (e) {
+        console.error("Autonomous learning error:", e);
     }
 };
 
@@ -495,11 +549,12 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
     isRequesting = true;
     
     try {
-        const [relevantMemories, rules, agents, systemKeys] = await Promise.all([
+        const [relevantMemories, rules, agents, systemKeys, pendingTasks] = await Promise.all([
             getRelevantMemories(message, userProfile?.email || 'GUEST'), 
             shadowDB.getGlobalRules(), 
             shadowDB.getAllAgents(),
-            shadowDB.getSystemKeys()
+            shadowDB.getSystemKeys(),
+            shadowDB.getTasks(userProfile?.email || 'GUEST')
         ]);
         const systemInstruction = generateSystemPrompt(userProfile, relevantMemories, rules, agents);
         
@@ -511,12 +566,17 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         const now = new Date();
         const timeStamp = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
         
+        const scheduledTasksText = pendingTasks.filter((t: any) => t.status === 'pending').map((t: any) => `- ${t.task} (وقت التنفيذ: ${t.time})`).join('\n') || '- لا يوجد مهام مجدولة حالياً.';
+
         const contextData = await getContextData();
         const emotionData = analyzeEmotionFromText(message);
 
         const identityInjection = `
         \n\n[SYSTEM_HIDDEN_CONTEXT]:
         - CURRENT_TIME: ${timeStamp}
+        - PENDING_TASKS & SCHEDULES: 
+        ${scheduledTasksText}
+        (إذا كان هناك مهام قادمة قريبة أو متكررة، قم بتذكير المستخدم أو تقديم اقتراح ذكي استباقي بناءً عليها)
         - BATTERY_STATUS: ${contextData.battery}
         - NETWORK_STATUS: ${contextData.network}
         - DEVICE_INFO: ${contextData.userAgent}
@@ -800,10 +860,42 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
         const buffer = await decodeAudioData(decode(base64), ctx);
         const source = ctx.createBufferSource();
         source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.onended = () => { currentSource = null; onEnded?.(); };
+        
+        // Add Analyser for lip-sync and face reactivity
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
+        
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        let animationFrame: number;
+        
+        const updateAudioLevel = () => {
+            if (!currentSource) return;
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Calculate average level
+            let sum = 0;
+            for(let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            const average = sum / dataArray.length;
+            const normalizedLevel = Math.min(1, average / 128); // 0 to 1
+            
+            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: normalizedLevel } }));
+            animationFrame = requestAnimationFrame(updateAudioLevel);
+        };
+        
+        source.onended = () => { 
+            currentSource = null; 
+            cancelAnimationFrame(animationFrame);
+            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
+            onEnded?.(); 
+        };
+        
         source.start(0);
         currentSource = source;
+        updateAudioLevel();
     } catch (e) { 
         console.error("Voice Playback Error:", e); 
         speakNative(text, voice, onEnded);

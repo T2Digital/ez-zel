@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Send, Mic, Ear, Paperclip, Camera, Loader2, X, DollarSign, Brain } from 'lucide-react';
+import { Send, Mic, Ear, Paperclip, Camera, Loader2, X, DollarSign, Brain, Monitor } from 'lucide-react';
 import { UserProfile } from '../../services/dbService';
 
 interface ChatInputAreaProps {
@@ -19,10 +19,11 @@ interface ChatInputAreaProps {
   fileInputRef: React.RefObject<HTMLInputElement>;
   cameraInputRef: React.RefObject<HTMLInputElement>;
   currentUser: UserProfile;
+  handleScreenCapture?: () => void;
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
-  input, setInput, pendingImage, setPendingImage, isProcessingImage, isSentinelMode, isRestrictedMode, isAdmin, isLimitReached, onUpgrade, onOpenAffiliate, startListening, handleSend, fileInputRef, cameraInputRef, currentUser
+  input, setInput, pendingImage, setPendingImage, isProcessingImage, isSentinelMode, isRestrictedMode, isAdmin, isLimitReached, onUpgrade, onOpenAffiliate, startListening, handleSend, fileInputRef, cameraInputRef, currentUser, handleScreenCapture
 }) => {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
 
@@ -40,6 +41,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                 <div className="flex items-center gap-1 mb-0.5">
                     <button disabled={isProcessingImage} onClick={() => { if(fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } }} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`} title="إرفاق صورة">{isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}</button>
                     <button disabled={isProcessingImage} onClick={() => { if(cameraInputRef.current) { cameraInputRef.current.value = ''; cameraInputRef.current.click(); } }} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`} title="التقاط صورة"><Camera className="w-5 h-5" /></button>
+                    {handleScreenCapture && (
+                      <button disabled={isProcessingImage} onClick={handleScreenCapture} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-emerald-500/50 hover:text-emerald-400'}`} title="مشاركة الشاشة للظل"><Monitor className="w-5 h-5" /></button>
+                    )}
                 </div>
                 <textarea 
                     value={input} 

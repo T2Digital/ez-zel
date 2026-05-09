@@ -122,6 +122,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         localStorage.removeItem('shadow_guest_history');
         localStorage.removeItem('shadow_guest_active');
     }
+    
+    // Start the proactive sentinel locally
+    if (profile.email !== 'GUEST') {
+        import('./autonomousAgentService').then(mod => {
+            mod.startProactiveSentinel(profile.email);
+        });
+    }
 
     if (profile.email === 'admin@shadow.com') {
         set({ view: 'admin', isAppLocked: false });

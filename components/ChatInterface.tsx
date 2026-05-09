@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, Waves, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool, Layout, Calculator, Terminal, Cloud, CloudOff, AlertTriangle, FolderOpen, Key, Briefcase } from 'lucide-react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { App as CapacitorApp } from '@capacitor/app';
-import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, memorizeFact, generateImageNative } from '../services/geminiService';
+import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, memorizeFact, generateImageNative, autonomousLearningRoutine } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import { submitAutonomousTask } from '../services/autonomousAgentService';
 import { getDeviceContext, performNativeAction } from '../services/deviceService';
@@ -20,6 +20,7 @@ import { LiveAPIMode } from './LiveAPIMode';
 import { PersonalKeysManager } from './chat/PersonalKeysManager';
 import { TopNavigation } from './chat/TopNavigation';
 import { MessageBubble } from './chat/MessageBubble';
+import { ShadowFace } from './ShadowFace';
 import { renderChatCard } from './chat/ChatCardsRenderer';
 import LiveAgentAction from './LiveAgentAction';
 import { ChatInputArea } from './chat/ChatInputArea';
@@ -113,6 +114,8 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const [playingMessageId, setPlayingMessageId] = useState<number | null>(null);
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [showBigFace, setShowBigFace] = useState(false);
   
   const [isSentinelMode, setIsSentinelMode] = useState(false);
   const wakeLockRef = useRef<any>(null);
@@ -317,6 +320,12 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       return () => window.removeEventListener('autonomous_message_received', handleAutonomousMessage);
   }, [currentUser.email]);
 
+  useEffect(() => {
+      const handleAudioLevel = (e: any) => setAudioLevel(e.detail.level);
+      window.addEventListener('shadow_audio_level', handleAudioLevel);
+      return () => window.removeEventListener('shadow_audio_level', handleAudioLevel);
+  }, []);
+
   const keepAliveStreamRef = useRef<MediaStream | null>(null);
 
   const toggleSentinelMode = async () => {
@@ -503,6 +512,11 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
     isCancelledRef.current = false;
 
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          alert("عذراً، الميكروفون غير متوفر في هذا المتصفح.");
+          resetToIdle();
+          return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const source = audioCtx.createMediaStreamSource(stream);
@@ -585,8 +599,11 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
           }
       }, 500);
 
-    } catch (e) { 
+    } catch (e: any) { 
         console.error("Mic Error", e);
+        if (e.name === 'NotAllowedError' || e.message?.includes('Permission denied')) {
+            alert("تم رفض صلاحية الميكروفون. يرجى تفعيلها من إعدادات المتصفح.");
+        }
         resetToIdle(); 
     }
   };
@@ -796,10 +813,12 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                       time: args.time_description,
                       executionTime: executionTime, 
                       category: 'general',
-                      status: 'pending'
+                      status: 'pending',
+                      recurring: args.recurring || false
                   };
                   await shadowDB.saveTask(task);
-                  uiCards.push({ cardType: 'task_success', title: args.task, description: args.time_description });
+                  uiCards.push({ cardType: 'task_success', title: args.task, description: args.time_description + (args.recurring ? " (متكرر)" : "") });
+                  handleSend(`[REMINDER_SET]\nتم التذكير بنجاح.\n\n[INSTRUCTION]: أكد للمستخدم بروح مرحة إنك ظبطت المنبه السري وأنك هتفكروا بيه في وقته المخفي بدون إزعاج.`, undefined, undefined, true);
               }
               else if (t.name === 'workspace_manager') {
                   const args = t.args;
@@ -1265,9 +1284,11 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                                       self.onmessage = async (e) => {
                                           try {
                                               const args = e.data.args;
+                                              const inputs = e.data.args;
+                                              const parameters = e.data.args;
                                               const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-                                              const fn = new AsyncFunction('args', e.data.code);
-                                              const result = await fn(args);
+                                              const fn = new AsyncFunction('args', 'inputs', 'parameters', e.data.code);
+                                              const result = await fn(args, inputs, parameters);
                                               self.postMessage({ success: true, result });
                                           } catch (err) {
                                               self.postMessage({ success: false, error: err.message });
@@ -1340,6 +1361,11 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       try { await Haptics.notification({ type: 'SUCCESS' as any }); } catch(e) {}
       
       isSubmittingRef.current = false;
+      
+      // Trigger Autonomous Learning in background
+      if (currentUser.email !== 'GUEST') {
+          autonomousLearningRoutine(currentUser.email, [...history, modelMsg], currentUser).catch(console.error);
+      }
 
       // Always attempt to speak unless explicitly muted, regardless of tools
       if (!isMuted && !result.isError && finalResponseText) {
@@ -1610,6 +1636,34 @@ ${textContent.substring(0, 10000)}`;
       }
   };
   
+  const handleScreenCapture = async () => {
+      try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+              alert("عذراً، مشاركة الشاشة غير مدعومة في هذا المتصفح أو التطبيق.");
+              return;
+          }
+          const stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "browser" } });
+          const video = document.createElement('video');
+          video.srcObject = stream;
+          await video.play();
+
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+              setPendingImage({ data: dataUrl, type: 'image/jpeg', originalFile: new File([dataUrl], 'screen_capture.jpg') });
+          }
+
+          const tracks = stream.getTracks();
+          tracks.forEach(track => track.stop());
+      } catch (e) {
+          console.error("Screen capture failed", e);
+      }
+  };
+  
   const handleAppCardAction = async (card: any) => { 
       if (!card) return; 
       if (card.cardType === 'internal_nav') { 
@@ -1708,11 +1762,22 @@ ${textContent.substring(0, 10000)}`;
         runningTasks={useAppStore(s => s.runningTasks)}
         isMuted={isMuted}
         setIsMuted={setIsMuted}
+        audioLevel={audioLevel}
+        onFaceClick={() => setShowBigFace(true)}
       />
 
-      <div className="z-10 shrink-0 bg-black/80 backdrop-blur-md px-3 pt-3 md:px-6 md:pt-4 border-b border-white/5">
+      <div className="z-10 shrink-0 bg-black/80 backdrop-blur-md px-3 mt-2 md:px-6 md:mt-4">
         <SensoryHUD lastMessage={messages.length > 0 ? messages[messages.length - 1].text : ''} isThinking={appStatus === 'thinking'} />
       </div>
+
+      {showBigFace && (
+          <div className="absolute inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in" onClick={() => setShowBigFace(false)}>
+              <div className="relative pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+                  <ShadowFace appStatus={appStatus} audioLevel={audioLevel} size="large" />
+              </div>
+              <p className="text-white/30 text-sm mt-8 font-bold animate-pulse">انقر في أي مكان للإغلاق</p>
+          </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide relative">
         {isDreaming && (
@@ -1778,6 +1843,7 @@ ${textContent.substring(0, 10000)}`;
         fileInputRef={fileInputRef} 
         cameraInputRef={cameraInputRef} 
         currentUser={currentUser} 
+        handleScreenCapture={handleScreenCapture}
       />
 
       <VoiceShareDialog 

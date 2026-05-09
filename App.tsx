@@ -378,8 +378,13 @@ const App: React.FC = () => {
           await shadowDB.saveMessage(alarmMsg, true);
           setLatestSystemMessage(alarmMsg);
 
-          // 6. Mark Done
-          await shadowDB.updateTaskStatus(task.id!, { notified: true });
+          // 6. Mark Done or Reschedule
+          if (task.recurring) {
+              const nextTime = Date.now() + 24 * 60 * 60 * 1000; // Reschedule for next day (24 hours) by default
+              await shadowDB.updateTaskStatus(task.id!, { notified: false, executionTime: nextTime });
+          } else {
+              await shadowDB.updateTaskStatus(task.id!, { notified: true, status: "completed" });
+          }
         }
       } finally {
         isChecking = false;

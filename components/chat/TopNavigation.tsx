@@ -1,5 +1,6 @@
 import React from 'react';
 import { Home, Search, X, Brain, Activity, AlertTriangle, Cloud, RefreshCw, CloudOff, Ear, DollarSign, Shield, Waves, Key, Smartphone, Volume2, VolumeX, Crown, Bot } from 'lucide-react';
+import { ShadowFace } from '../ShadowFace';
 
 interface TopNavigationProps {
     onBack: () => void;
@@ -25,10 +26,12 @@ interface TopNavigationProps {
     setShowMemoryVault: (val: boolean) => void;
     setShowPersonalKeys: (val: boolean) => void;
     setShowNativeSettings: (val: boolean) => void;
-    setShowAutonomousManager?: (val: boolean) => void; // Added this prop
-    runningTasks?: number; // Added this prop
+    setShowAutonomousManager?: (val: boolean) => void;
+    runningTasks?: number;
     isMuted: boolean;
     setIsMuted: (val: boolean) => void;
+    audioLevel: number;
+    onFaceClick: () => void;
 }
 
 export const TopNavigation: React.FC<TopNavigationProps> = ({
@@ -37,48 +40,53 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
     speechSupported, syncStatus, onOpenAffiliate, isRestrictedMode,
     hasVoiceSignature, setShowVoiceBiometricsManager, setShowLiveAPIMode,
     setShowMemoryVault, setShowPersonalKeys, setShowNativeSettings, setShowAutonomousManager, runningTasks = 0,
-    isMuted, setIsMuted
+    isMuted, setIsMuted, audioLevel, onFaceClick
 }) => {
     return (
         <div className="py-2 px-4 border-b border-white/10 bg-[#0a0a0a] flex flex-col gap-2 shrink-0 z-50 shadow-md relative transition-all">
             <div className="flex justify-between items-center w-full">
-                <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                <div className="flex items-center gap-3">
                     <button onClick={onBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all group shrink-0">
                         <Home className="w-4 h-4 group-hover:text-cyan-400 transition-colors" />
                     </button>
-                    {isSearchActive ? (
-                        <div className="flex-1 flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
-                            <div className="relative flex-1">
-                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                                <input 
-                                    ref={searchInputRef} 
-                                    type="text" 
-                                    value={searchQuery} 
-                                    onChange={(e) => setSearchQuery(e.target.value)} 
-                                    placeholder="ابحث في الذاكرة..." 
-                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-full py-1.5 pr-9 pl-4 text-sm text-white focus:border-purple-500/50 outline-none" 
-                                />
-                            </div>
-                            <button onClick={() => { setIsSearchActive(false); setSearchQuery(''); }} className="p-1.5 bg-white/5 rounded-full hover:bg-red-500/20 text-white/50 hover:text-red-400 transition-all">
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-3 overflow-hidden">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500 shrink-0 ${appStatus === 'thinking' ? 'bg-purple-600 shadow-purple-500/50' : 'bg-white/10'}`}>
-                                {appStatus === 'thinking' ? <Brain className="w-4 h-4 text-white animate-pulse" /> : <Activity className="w-4 h-4 text-cyan-400" />}
-                            </div>
-                            <div className="overflow-hidden">
-                                <h1 className="text-base font-black tracking-tighter leading-none text-white whitespace-nowrap">غرفة عمليات الظل</h1>
-                                <div className="flex items-center gap-1 mt-1">
-                                    <span className={`text-[10px] font-bold truncate ${isTito ? 'text-amber-500' : 'text-purple-500'}`}>{getGreetingSubtitle()}</span>
-                                    <span className="text-[10px] text-white/30">•</span>
-                                    <span className={`text-[9px] font-bold uppercase tracking-widest ${isSentinelMode ? 'text-red-500 animate-pulse' : 'text-white/40'}`}>{isSentinelMode ? 'Sentinel ON' : 'Live'}</span>
-                                </div>
+                    {!isSearchActive && (
+                        <div className="overflow-hidden">
+                            <h1 className="text-base font-black tracking-tighter leading-none text-white whitespace-nowrap">غرفة عمليات الظل</h1>
+                            <div className="flex items-center gap-1 mt-1">
+                                <span className={`text-[10px] font-bold truncate ${isTito ? 'text-amber-500' : 'text-purple-500'}`}>{getGreetingSubtitle()}</span>
+                                <span className="text-[10px] text-white/30">•</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-widest ${isSentinelMode ? 'text-red-500 animate-pulse' : 'text-white/40'}`}>{isSentinelMode ? 'Sentinel ON' : 'Live'}</span>
                             </div>
                         </div>
                     )}
                 </div>
+                {isSearchActive ? (
+                    <div className="flex-1 flex items-center gap-2 animate-in fade-in slide-in-from-right-2 ml-3">
+                        <div className="relative flex-1">
+                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                            <input 
+                                ref={searchInputRef} 
+                                type="text" 
+                                value={searchQuery} 
+                                onChange={(e) => setSearchQuery(e.target.value)} 
+                                placeholder="ابحث في الذاكرة..." 
+                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-full py-1.5 pr-9 pl-4 text-sm text-white focus:border-purple-500/50 outline-none" 
+                            />
+                        </div>
+                        <button onClick={() => { setIsSearchActive(false); setSearchQuery(''); }} className="p-1.5 bg-white/5 rounded-full hover:bg-red-500/20 text-white/50 hover:text-red-400 transition-all">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex-1 flex items-center justify-center pointer-events-auto">
+                        <ShadowFace 
+                            appStatus={appStatus} 
+                            audioLevel={audioLevel} 
+                            size="small" 
+                            onClick={onFaceClick} 
+                        />
+                    </div>
+                )}
             </div>
             
             {/* Tool buttons row directly underneath title/user */}
