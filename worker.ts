@@ -151,6 +151,74 @@ const tools = [
         }
     },
     {
+        name: "adk_rollback_code_changes",
+        description: "استرجاع النسخة الاحتياطية لملف تم تعديله مؤخراً (اسم_الملف.backup)، في حال حدث خطأ أو خلل بعد التعديل.",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                file_path: { type: "STRING", description: "Path to restore (e.g. 'worker.ts')" } 
+            },
+            required: ["file_path"]
+        }
+    },
+    {
+        name: "adk_search_code",
+        description: "بحث متقدم (RAG) داخل ملفات الكود للمشروع لإيجاد دوال أو متغيرات دون الحاجة لقراءة الملف كاملاً (يمنع اختناق الذاكرة).",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                query: { type: "STRING", description: "النص أو الكلمة المفتاحية (Regex/String)" },
+                directory: { type: "STRING", description: "المسار للبحث فيه (اتركه فارغاً للبحث في كل الملفات '.' )" }
+            },
+            required: ["query"]
+        }
+    },
+    {
+        name: "adk_write_sandbox_code",
+        description: "تعديل الكود في بيئة معزولة (Sandbox). استخدمه لاختبار الكود قبل نقله للنظام الأساسي. سيتم الكتابة في ملف ينتهي بـ .sandbox",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                file_path: { type: "STRING", description: "المسار الأصلي للملف (مثلاً 'worker.ts')" },
+                content: { type: "STRING", description: "الكود الكامل للملف" }
+            },
+            required: ["file_path", "content"]
+        }
+    },
+    {
+        name: "adk_run_sandbox_tests",
+        description: "اختبار الكود الموجود في بيئة معزولة ومحاولة تجميعه (Compile) للتأكد من خلوه من الأخطاء، استخدمه دائما قبل الاعتماد النهائي.",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                file_path: { type: "STRING", description: "المسار الأصلي للملف (مثلاً 'worker.ts')" } 
+            },
+            required: ["file_path"]
+        }
+    },
+    {
+        name: "adk_commit_sandbox",
+        description: "اعتماد الكود من الـ Sandbox إلى الملف الفعلي (Production) بعد اجتيازه الاختبار بنجاح.",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                file_path: { type: "STRING", description: "مسار الملف الذي تريد اعتماده (مثلاً 'worker.ts')" } 
+            },
+            required: ["file_path"]
+        }
+    },
+    {
+        name: "adk_browse_web",
+        description: "تصفح الويب المباشر عبر Puppeteer لفتح موقع وقراءة محتواه، الأخبار، أو أي معلومات من العالم الخارجي.",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                url: { type: "STRING", description: "الرابط الكامل للموقع للذهاب إليه" }
+            },
+            required: ["url"]
+        }
+    },
+    {
         name: "adk_finish",
         description: "الاستدعاء النهائي عندما تنهي تفكيرك وترسل التقرير النهائي.",
         parameters: {
@@ -186,7 +254,7 @@ export async function processAgentTask(job: Job) {
                 contents: history as any,
                 config: {
                     tools: [{ functionDeclarations: tools as any }],
-                    systemInstruction: { parts: [{ text: "أنت الظل (Ez-Zel Digital Shadow)، تمتلك قدرات استثنائية للوصول لنظامك وقراءة أكوادك عبر أداة adk_read_source_code. استخدمها لتعرف نفسك وتتعلم. تمتلك أيضاً متصفح خفي (Puppeteer). تم إرسال طلب جديد من المستخدم. قم بالتفكير كخطوات ثم استدع adk_finish بالنهاية." }] },
+                    systemInstruction: { parts: [{ text: "أنت الظل (Ez-Zel Digital Shadow)، تمتلك قدرات استثنائية للوصول لنظامك وقراءة أكوادك عبر أداة adk_read_source_code بالإضافة للقدرة على تصفح الانترنت وبرمجة وتعديل النظام. استخدم Sandbox دائما كقاعدة للاختبار. تم إرسال طلب جديد من المستخدم. قم بالتفكير كخطوات ثم استدع adk_finish بالنهاية." }] },
                     temperature: 0.6
                 }
             });
@@ -246,6 +314,93 @@ export async function processAgentTask(job: Job) {
                      } catch(err: any) {
                          toolResult = "HTTP Error: " + err.message;
                      }
+                 } else if (call.name === 'adk_rollback_code_changes') {
+                     const { file_path } = call.args as any;
+                     try {
+                         const resolved = path.resolve(process.cwd(), file_path);
+                         const backupPath = resolved + ".backup";
+                         if (fs.existsSync(backupPath)) {
+                             fs.copyFileSync(backupPath, resolved);
+                             toolResult = `Successfully rolled back ${file_path} from backup.`;
+                         } else {
+                             toolResult = `Backup file not found for ${file_path}.`;
+                         }
+                     } catch(err: any) { toolResult = `Rollback Error: ${err.message}`; }
+                 } else if (call.name === 'adk_search_code') {
+                     const { query, directory = '.' } = call.args as any;
+                     try {
+                         const { execSync } = require('child_process');
+                         // Using grep to search text in files
+                         const res = execSync(`grep -rnI --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist "${query}" ${directory}`, { stdio: 'pipe' });
+                         toolResult = `Search Results:\n${res.toString().substring(0, 4000)}`;
+                     } catch(err: any) {
+                         toolResult = `No matches found or search error: ${err.stdout?.toString() || err.message}`;
+                     }
+                 } else if (call.name === 'adk_write_sandbox_code') {
+                     const { file_path, content } = call.args as any;
+                     try {
+                         const resolved = path.resolve(process.cwd(), file_path + ".sandbox");
+                         if (!resolved.startsWith(process.cwd())) {
+                             toolResult = "Error: Cannot write outside workspace.";
+                         } else {
+                             fs.writeFileSync(resolved, content, 'utf-8');
+                             toolResult = `Successfully wrote to sandbox: ${file_path}.sandbox. Now run adk_run_sandbox_tests.`;
+                         }
+                     } catch(err: any) { toolResult = `Write Error: ${err.message}`; }
+                 } else if (call.name === 'adk_run_sandbox_tests') {
+                     const { file_path } = call.args as any;
+                     try {
+                         const resolvedSandbox = path.resolve(process.cwd(), file_path + ".sandbox");
+                         if (!fs.existsSync(resolvedSandbox)) {
+                             toolResult = "Sandbox file not found.";
+                         } else {
+                             // Rename temporarily and run TS Check
+                             const resolved = path.resolve(process.cwd(), file_path);
+                             const originalContent = fs.existsSync(resolved) ? fs.readFileSync(resolved, 'utf-8') : null;
+                             
+                             fs.copyFileSync(resolvedSandbox, resolved); // overwrite actual file to test compiling
+                             
+                             const { execSync } = require('child_process');
+                             try {
+                                 execSync('npx tsc --noEmit', { stdio: 'pipe' });
+                                 toolResult = `Tests passed successfully! The sandbox code is syntactically valid. You can now use adk_commit_sandbox to finalize it.`;
+                             } catch(tsError: any) {
+                                 toolResult = `Compilation failed:\n${tsError.stdout?.toString() || tsError.message}\nPlease fix it and write to sandbox again.`;
+                             } finally {
+                                 // Always revert original temp test
+                                 if (originalContent !== null) fs.writeFileSync(resolved, originalContent, 'utf-8');
+                                 else fs.unlinkSync(resolved);
+                             }
+                         }
+                     } catch(err: any) { toolResult = `Test run error: ${err.message}`; }
+                 } else if (call.name === 'adk_commit_sandbox') {
+                     const { file_path } = call.args as any;
+                     try {
+                         const resolved = path.resolve(process.cwd(), file_path);
+                         const resolvedSandbox = path.resolve(process.cwd(), file_path + ".sandbox");
+                         if (fs.existsSync(resolvedSandbox)) {
+                             if (fs.existsSync(resolved)) fs.copyFileSync(resolved, resolved + ".backup");
+                             fs.copyFileSync(resolvedSandbox, resolved);
+                             fs.unlinkSync(resolvedSandbox);
+                             toolResult = `Committed ${file_path} to production successfully. Backup created. Note: server may restart.`;
+                         } else {
+                             toolResult = "Sandbox file not found.";
+                         }
+                     } catch(e: any) { toolResult = `Commit Error: ${e.message}`; }
+                 } else if (call.name === 'adk_browse_web') {
+                     // Same logic as rpa
+                     const targetUrl = (call.args as any).url;
+                     const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+                     const page = await browser.newPage();
+                     try {
+                         await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+                         const textContent = await page.evaluate(() => document.body.innerText.substring(0, 5000));
+                         toolResult = `محتوى الويب لـ ${targetUrl}:\n${textContent}`;
+                     } catch(e: any) {
+                         toolResult = "Browser Error: " + e.message;
+                     } finally {
+                         await browser.close();
+                     }
                  } else if (call.name === 'adk_store_memory') {
                      const k = (call.args as any).key;
                      const v = (call.args as any).value;
@@ -273,6 +428,9 @@ export async function processAgentTask(job: Job) {
                              toolResult = "Error: Cannot write outside of the application directory.";
                          } else {
                              const originalContent = fs.existsSync(resolved) ? fs.readFileSync(resolved, 'utf-8') : null;
+                             if (originalContent !== null) {
+                                  fs.copyFileSync(resolved, resolved + ".backup");
+                             }
                              fs.writeFileSync(resolved, content, 'utf-8');
                              
                              // Try compiling to ensure safety
