@@ -16,7 +16,7 @@ console.log("[WORKER] Booting background microservice...");
 
 // 1. Redis Connection
 let connection: any = null;
-if (process.env.REDIS_URL) {
+if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('redis')) {
     connection = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
 }
 
@@ -556,18 +556,26 @@ export async function processAgentTask(job: Job) {
 }
 
 // 6. BullMQ Worker instantiation
-if (process.env.REDIS_URL) {
-    const worker = new Worker('autonomous-agents-queue', processAgentTask, { connection });
+if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('redis')) {
+    try {
+        const worker = new Worker('autonomous-agents-queue', processAgentTask, { connection });
 
-    worker.on('completed', job => {
-      console.log(`[WORKER] Job ${job.id} completed successfully`);
-    });
+        worker.on('error', err => {
+            console.error(`[WORKER] BullMQ Error (e.g. cmsgpack nil on Vercel KV):`, err.message);
+        });
 
-    worker.on('failed', (job, err) => {
-      console.error(`[WORKER] Job ${job?.id} failed with ${err.message}`);
-    });
+        worker.on('completed', job => {
+          console.log(`[WORKER] Job ${job.id} completed successfully`);
+        });
 
-    console.log("[WORKER] Worker Service is active and securely listening for queue jobs.");
+        worker.on('failed', (job, err) => {
+          console.error(`[WORKER] Job ${job?.id} failed with ${err.message}`);
+        });
+
+        console.log("[WORKER] Worker Service is active and securely listening for queue jobs.");
+    } catch (e: any) {
+        console.error("[WORKER] BullMQ Worker creation failed:", e.message);
+    }
 } else {
     console.log("[WORKER] Running without REDIS_URL. Real BullMQ Worker is disabled.");
 }

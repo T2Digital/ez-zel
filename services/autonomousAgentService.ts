@@ -132,11 +132,11 @@ class ADKEngine {
             let response;
             try {
                 response = await ai.models.generateContent({
-                    model: 'gemini-1.5-pro',
+                    model: 'gemini-3.1-pro-preview',
                     contents: history as any,
                     config: {
                         tools: [{ functionDeclarations: tools as any }],
-                        systemInstruction: { parts: [{ text: "You are an autonomous intelligence powered by ADK. Think step by step. Use your tools to gather data or take actions. When finished, ALWAYS call adk_finish." }] },
+                        systemInstruction: "You are an autonomous intelligence powered by ADK. Think step by step. Use your tools to gather data or take actions. When finished, ALWAYS call adk_finish.",
                         temperature: 0.6
                     }
                 });
@@ -258,12 +258,12 @@ export const startProactiveSentinel = (userId: string) => {
                 // Let Gemini decide if this is worth interrupting the user
                 const ai = getAI();
                 const response = await ai.models.generateContent({
-                    model: 'gemini-1.5-flash',
+                    model: 'gemini-3-flash-preview',
                     config: {
-                         systemInstruction: { parts: [{ text: `You are EzZel (الظل), an autonomous proactive AI. 
+                         systemInstruction: `You are EzZel (الظل), an autonomous proactive AI. 
 Read the following top news. If it is highly important or relevant to a general user's life, write a SHORT, friendly, proactive message in Arabic (1-2 sentences) to notify them. 
 Example: 'يا تيتو، لاحظت أن هناك خبر عاجل بخصوص كذا، هل تحب أن ألخصه لك؟'
-If it's boring or not important, output exactly "IGNORE".` }] }
+If it's boring or not important, output exactly "IGNORE".`
                     },
                     contents: `User Profile: ${JSON.stringify(profile)}\n\nLatest News: ${topNews}`
                 });

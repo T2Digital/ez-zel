@@ -1341,7 +1341,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
 
       // Fetch audio BEFORE showing the message if not muted
       if (!isMuted && !result.isError && finalResponseText) {
-          voiceDataToSave = await getShadowVoice(finalResponseText, 'male') || undefined;
+          voiceDataToSave = await getShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male') || undefined;
       }
 
       const modelMsg: ExtendedMessage = { 
@@ -1407,7 +1407,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const handleShareVoiceMessage = async (msg: DBMessage) => {
       setIsSharingVoice(msg.timestamp);
       try {
-          const selectedVoice = (await shadowDB.getConfig('shadow_voice')) || 'male';
+          const selectedVoice = currentUser.voicePreference === 'female' ? 'female' : 'male';
           let base64 = audioCache.get(msg.text);
           let neededFetch = false;
           if (!base64) {

@@ -10,7 +10,7 @@ import { spawn } from "child_process";
 import { processAgentTask } from "./worker";
 let autonomousQueue: any;
 
-if (process.env.REDIS_URL) {
+if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('redis')) {
     const connection = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
     autonomousQueue = new Queue("autonomous-agents-queue", { connection });
 } else {
@@ -69,7 +69,7 @@ setupCronJobs();
 // 3. Spawn the separate Worker microservice!
 let workerProcess: ReturnType<typeof spawn>;
 function spawnWorker() {
-    if (!process.env.REDIS_URL) {
+    if (!process.env.REDIS_URL || !process.env.REDIS_URL.startsWith('redis')) {
         console.log("[SYSTEM] Not spawning separate worker process (using in-memory queue fallback).");
         return;
     }

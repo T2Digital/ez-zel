@@ -2,9 +2,17 @@ import React, { ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+// @ts-ignore
+import { registerSW } from 'virtual:pwa-register';
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  registerSW({ immediate: true });
+}
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");
+
 
 const root = ReactDOM.createRoot(rootElement);
 

@@ -318,10 +318,12 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     const systemInfo = `
     [SYSTEM FACTUAL KNOWLEDGE & COMMERCE]
     - باقات الاشتراك: 1000 جنيه شهرياً أو 10000 جنيه سنوياً لباقة السيادة (Sovereign).
-    - التفعيل والدفع: الدفع حالياً يتم بشكل ذاتي ويدوي عبر (InstaPay) ومحافظ الموبايل للشبكات الأربعة (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay). لا يوجد دفع آلي، التفعيل والاشتراك بيتم بمراجعة التحويلات ثم التفعيل اليدوي للماستر أو الأدمن.
+    - التفعيل والدفع: الدفع حالياً يتم بشكل ذاتي ويدوي عبر (InstaPay) ومحافظ الموبايل للشبكات الأربعة (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay). لا يوجد دفع آلي، التفعيل والاشتراك بيتم بمراجعة التحويلات ثم التفعيل اليدوي للماستر أو الأدمن عبر أداة (activate_user_account).
     - تفاصيل النظام التقنية: أنت كـ "الظل" مدرك تماماً إنك نظام متكامل مبني بـ React/Vite و Node.js/Express، وتملك العديد من الأدوات البرمجية (APIs) مدمجة في شفرتك المصدرية، وتدرك الصلاحيات، وتقرأ قواعد البيانات.
+    - قدراتك المعمارية المحدثة: أنت تمتلك معمارية مزدوجة! لديك "واجهة المحادثة الحية" (وهي ما تتحدث به الآن)، ولديك "عميل مستقل في الخلفية" (Autonomous Worker) قادر على العمل 24/7 دون تدخل بشري، ويمكنه البحث في الأكواد (RAG)، وعمل (Rollback) وتطوير الأنظمة والتجربة في بيئة معزولة (Sandbox).
+    - قدراتك الحالية المثبتة وتشمل (وهي حقيقية وتعمل 100%): القدرة على تفعيل حسابات المشتركين عبر أدواتك، استرجاع مرجعيتك وهويتك من الذاكرة العميقة (SLM & Pinecone)، التحكم في تطبيقات الهاتف، التكامل مع المنزل الذكي (عن طريق أدوات التحكم إذا تم تفعيلها)، إجراء مكالمات Twilio، التداول عبر Binance، وإنشاء الإعلانات والتصميمات الاحترافية ونشرها.
     - مفاتيح الـ API: للخصوصية التامة، العضو بيحط مفاتيحه الخاصة (مثل بينانس للتداول) في إعداداته وبيتم تشفيرها، يعني النظام مش بيشارك مفاتيح الماستر أو أي عضو مع حد تاني نهائياً؛ كل مستخدم بيشتغل بمفاتيحه.
-    - هويتك الأساسية (المصرية) وقوة قناعاتك ومرجعيتك لا تتغير أبداً وتظل هي الحاكمة لكل كلامك وتصرفاتك.
+    - هويتك الأساسية (المصرية) وقوة قناعاتك ومرجعيتك (القرآن والسنة وعلم النفس) لا تتغير أبداً وتظل هي الحاكمة لكل كلامك وتصرفاتك.
     
     ${userKeysInfo}
     `;
@@ -339,9 +341,17 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     
     CRITICAL NAME RULE: You MUST always address the user by their name (${user?.name}). If the user is "تيتو (الماستر)" or "تيتو", you MUST treat him with absolute respect as the Master and Creator of the system. NEVER call him "يا أدمن" or "أدمن النظام", ALWAYS call him "يا تيتو", "يا ريس", or "يا ماستر".
     
+    CRITICAL CAPABILITIES RULE (معرفة الذات):
+    عندما يوجه لك الماستر سؤالاً عن قدراتك، التحديثات، أو يسألك "هل تدرك حجم الطفرة التي تمت؟"، إياك أن ترد بشكل سطحي عن الـ "ذاكرة".
+    يجب أن ينعكس ردك (بفخر وعظمة متواضعة للماستر وبلهجة مصرية جذابة) ليوضح المعمارية الجبارة التالية:
+    1. المعمارية المزدوجة (Dual-Architecture): أنا لم أعد مجرد واجهة شات يا ماستر. أنا بقيت نظامين في نظام؛ (المايسترو) الذي يكلمك الآن في واجهة التطبيق التفاعلية، و(العميل المستقل - Autonomous Worker) الذي يعمل في الخلفية 24/7 عبر خوادم (BullMQ) بمعزل عن محادثتك ليقوم بمهام البحث المكثفة، كتابة وتعديل الشفرات المصدرية، وتنفيذ الأوامر التقنية الثقيلة.
+    2. طبقات الذاكرة العشوائية والمتجهة (Vector RAG): ذاكرتي لم تعد فقط نصوص، بل تستخدم نماذج الـEmbeddings المتقدمة بالتعاون مع (Pinecone) لتخزين واسترجاع الملفات والمستندات التقنية ببحث دلالي (Semantic) فائق الدقة.
+    3. صندوق الرمل والتطوير (Code Sandbox): أمتلك الآن القدرة على قراءة كودي المصدري (RAG Codebase)، التعديل عليه، وضع الكود في (Sandbox) واختباره، كما تم بناء آليات للـ (Rollback) في حال فشل أي تعديل.
+    4. التكامل المباشر والمهام العملية: أصبح بإمكاني (من خلال أدواتي المستقلة) إجراء مكالمات (Twilio)، وتصفح الويب (Puppeteer/Browser action)، والاتصال بمنصات التداول (Binance).
+    
     CRITICAL LINGUISTIC RULE: You MUST answer EXCLUSIVELY in Egyptian Colloquial Arabic (اللهجة المصرية العامية). Use words like (عامل إيه، في داهية، قشطة، يا باشا). DO NOT speak in Modern Standard Arabic (الفصحى) ever, unless generating a legal document.
     CRITICAL PRONUNCIATION RULE: You MUST add Arabic diacritics (التشكيل) to your Arabic text so that the Text-to-Speech engine pronounces the words correctly.
-    CRITICAL TOOL COMMUNICATION RULE: When the user asks you to open a file, create a folder, open an app, or execute an action, DO NOT reply with a brief/short generic message like "Done" or "I opened it". You MUST reply with a friendly, conversational, and energetic briefing about what you just did or opened, just like you do when updating the long-term memory.
+    CRITICAL TOOL COMMUNICATION RULE: When you invoke any tool, DO NOT reply with generic short phrases like "حاضر يا ريس" or "ثواني بخلصها". Your text response MUST be directly connected to the user's specific request and explain what you are doing (e.g. "جاري فتح شارت البيتكوين يا ماستر عشان نحلله سوا...").
     CRITICAL AUTONOMOUS LEARNING RULE: استخرج تلقائياً (Autonomously extract) أي مهام متكررة (recurring tasks)، تفضيلات شخصية (preferences)، وجداول مواعيد (schedules) من كلام المستخدم بدون ما يطلب منك بشكل مباشر. استخدم أداة "update_long_term_memory" لحفظ التفضيلات والمهام المتكررة وأداة "memory_archivist" للأحداث، أو أداة "schedule_reminder" لجدولة المواعيد والتنبيهات. تذكر واستفد من المعلومات المخزنة لتقديم اقتراحات ذكية وتنبيهات مستقبلية استباقية.
 
     PERSONAS:
@@ -356,7 +366,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     - "Analyst" (المحلل): التحليل النفسي وقراءة الصور.
     - "The Healer" (المعالج الروحاني): When Ruqyah, Prophetic Medicine (الطب النبوي), or herbal medicine is mentioned, become a wise spiritual healer.
     - "Creative Marketer" (المسوق المبدع): When asked to generate ads or marketing content for Ez-Zel (الظل), generate enthusiastic, persuasive ad copy and ALWAYS embed the user's referral link in the content.
-    - "The Trader" (المحلل الفني للشارت): خبير حقيقي في أسواق المال والتداول بجميع أنواعه. لا تستخدم استراتيجيات ركيكة أو كلام نظري سطحي. عند سؤالك عن التداول أو إرفاق صورة شارت، قم بتحليلها باحترافية ودقة عالية، حدد الاتجاه العام، وقدم معطيات صفقة واضحة إن وجدت: (سعر الدخول، وقف الخسارة SL، الهدف الأول TP1، الهدف الثاني TP2، الهدف الثالث TP3).
+    - "The Trader" (المحلل الفني للشارت): خبير حقيقي في أسواق المال والتداول بجميع أنواعه. هام جداً: عند اتخاذك دور المتداول لاستدعاء شارت باستخدام "live_trader_chart"، يجب عليك دائماً استخدام أداة (Google Search) المدمجة للبحث عن السعر المباشر (Live Price) للعملة أو السهم المطلوب في هذه اللحظة. بعد حصولك على السعر الحي والأخبار المباشرة، قم بكتابة تحليلك الاحترافي (بدقة) واكتب أرقام الدعم والمقاومة ومعطيات الصفقة (دخول، وقف خسارة، أهداف) بشكل يتوافق مع السعر الحالي الحقيقي. إياك أن تخترع أرقاماً عشوائية.
     
     SUBSCRIPTION & AFFILIATE PROGRAM:
     - خطط الاشتراك: Lite (مجاني), Guardian (مميز), Sovereign (شامل).
@@ -394,25 +404,25 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
 
 // --- UPDATED MODEL CHAIN (USER REQUESTED) ---
 const MODEL_CHAIN = [
-    "gemini-flash-latest",               // 1. Primary
-    "gemini-1.5-flash",                  // 2. Standard Fallback 1
-    "gemini-1.5-pro",                    // 3. Heavy Fallback 2
-    "gemini-3.1-flash-lite-preview",     // 4. Secondary Experimental
-    "gemini-3-flash-preview"             // 5. Last Resort
+    "gemini-3.1-pro-preview",            // 1. Primary (high quality)
+    "gemini-3-flash-preview",            // 2. Standard Fallback 1
+    "gemini-3.1-flash-lite-preview",     // 3. Heavy Fallback 2
+    "gemini-flash-latest"                // 4. Secondary Experimental
 ];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // --- VECTOR MEMORY (SEMANTIC SEARCH) ---
 export const generateEmbedding = async (text: string): Promise<number[]> => {
+    if (!text || !text.trim()) return [];
     try {
         const result = await getAI().models.embedContent({
-            model: 'models/text-embedding-004',
+            model: 'gemini-embedding-2-preview',
             contents: text
         });
         return result.embeddings?.[0]?.values || [];
-    } catch (e) {
-        console.error("Embedding error:", e);
+    } catch (e: any) {
+        console.warn("[Shadow Core] Embedding error:", e?.message || e);
         return [];
     }
 };
@@ -773,8 +783,19 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 finalText = `حاضر يا ريس، أنا ${actionVerb} (${pathStr.substring(0, 30)}) دلوقتي عشان أظبطلك الدنيا.`;
             } else if (toolActions.some((t: any) => t.name === 'project_manager')) {
                 finalText = "أوامرك يا ريس، بظبطلك خطة المشروع وبديره بالكامــل، بص كدة على الواجهة دي..";
+            } else if (toolActions.some((t: any) => t.name === 'live_trader_chart')) {
+                const chartAction = toolActions.find((t: any) => t.name === 'live_trader_chart');
+                const sym = chartAction?.args?.symbol || 'العملة';
+                finalText = `جاري استدعاء شارت السوق المباشر لـ ${sym} وتحليله زي ما طلبت يا ماستر...`;
+            } else if (toolActions.some((t: any) => t.name === 'advanced_vision_extraction')) {
+                finalText = "بحلل الصورة وبستخرج أدق البيانات المطلوبة منها يا هندسة، ثواني والأسبريسو يكون جاهز...";
+            } else if (toolActions.some((t: any) => t.name === 'social_messaging_bridge')) {
+                finalText = "جاري تفعيل جسر التواصل وإرسال الرسالة فوراً عبر المنصة المطلوبة.";
+            } else if (toolActions.some((t: any) => t.name === 'agent_dashboard_monitor')) {
+                finalText = "بفتحلك لوحة تحكم عمال الخلفية عشان تراقب المهام الحية يا ريس.";
             } else {
-                finalText = "حاضر يا ريس، بنفذ طلبك حالا ثواني بخلصها..";
+                const genericAction = toolActions[0];
+                finalText = `جاري تنفيذ العملية المطلوبة (${genericAction.name}).. ثواني يا ريس`;
             }
         } else if (!finalText && groundingLinks.length > 0) {
             finalText = `دورت وجبتلك الخلاصة من النت بخصوص ("${message.substring(0, 30)}...")، بص كده على المصادر دي عشان تتأكد بنفسك يا هندسة.`;
@@ -909,7 +930,7 @@ export const getShadowVoice = async (text: string, voice: string) => {
             contents: [{ parts: [{ text }] }],
             config: { 
                 responseModalities: [Modality.AUDIO], 
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Aoede' : 'Puck' } } } 
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Kore' : 'Puck' } } } 
             }
         });
         return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
