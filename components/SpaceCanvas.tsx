@@ -64,6 +64,9 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
             if (!interactive) return;
             // Ignore if clicking on buttons or interactive UI elements unless it's the canvas/body
             const target = e.target as HTMLElement;
+            if (target.closest('.no-canvas-pan')) {
+                return;
+            }
             if (target.closest('button') || target.closest('.pointer-events-auto') && !target.closest('.canvas-bypass')) {
                 // Return if clicking some specific UI, actually the workspace elements capture pointers,
                 // but let's allow panning if the target is the dashboard container.

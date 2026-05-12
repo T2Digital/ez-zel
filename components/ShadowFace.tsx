@@ -6,9 +6,10 @@ interface ShadowFaceProps {
     size?: 'small' | 'large';
     onClick?: () => void;
     onPressHold?: () => void;
+    className?: string;
 }
 
-export const ShadowFace: React.FC<ShadowFaceProps> = ({ appStatus, audioLevel = 0, size = 'small', onClick, onPressHold }) => {
+export const ShadowFace: React.FC<ShadowFaceProps> = ({ appStatus, audioLevel = 0, size = 'small', onClick, onPressHold, className = '' }) => {
     const [isBlinking, setIsBlinking] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [reactionCycle, setReactionCycle] = useState(0);
@@ -145,8 +146,8 @@ export const ShadowFace: React.FC<ShadowFaceProps> = ({ appStatus, audioLevel = 
     const mouthPath = `M ${mLeftX} ${cy} Q ${cx} ${mUpperY} ${mRightX} ${cy} Q ${cx} ${mLowerY} ${mLeftX} ${cy} Z`;
 
     const containerStyle = size === 'small' 
-        ? "w-10 h-10 bg-[#050505] rounded-xl cursor-pointer hover:scale-105 shadow-md flex-shrink-0" 
-        : "w-64 h-64 bg-[#050505] rounded-[3rem] cursor-pointer hover:scale-105 shadow-2xl mx-auto";
+        ? `w-12 h-12 bg-[#050505] rounded-xl cursor-pointer hover:scale-105 shadow-md flex-shrink-0 ${className}` 
+        : `w-64 h-64 bg-[#050505] rounded-[3rem] cursor-pointer hover:scale-105 shadow-2xl mx-auto ${className}`;
 
     const handleClick = () => {
         if (size === 'large') {
@@ -196,7 +197,7 @@ export const ShadowFace: React.FC<ShadowFaceProps> = ({ appStatus, audioLevel = 
                 }}
             />
 
-            <svg viewBox="0 0 100 100" className="w-[80%] h-[80%] z-10 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] filter">
+            <svg viewBox="0 0 100 100" className="w-[100%] h-[100%] z-10 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] filter p-[2px]">
                 <style>
                     {`
                     .face-path {

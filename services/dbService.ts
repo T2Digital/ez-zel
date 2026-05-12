@@ -65,6 +65,7 @@ export interface UserProfile {
     uid?: string; // Firebase Auth UID
     name: string;
     shadowName?: string;
+    shadowId?: string; // Unique, easily shareable ID for shadow-to-shadow comms
     voicePreference?: 'male' | 'female';
     paymentProof?: string;
     tier: 'lite' | 'guardian' | 'sovereign';
@@ -188,6 +189,31 @@ export interface DBCoupon {
     expiryDate?: number;
 }
 
+export interface GraphNode {
+    id?: number;
+    userId: string;
+    label: string;
+    properties: any;
+}
+
+export interface GraphEdge {
+    id?: number;
+    userId: string;
+    sourceNodeId: number;
+    targetNodeId: number;
+    relationship: string;
+    weight?: number;
+}
+
+export interface ShadowMessage {
+    id?: number;
+    fromUserId: string;
+    toUserId: string;
+    content: string;
+    status: 'pending' | 'delivered' | 'read' | 'acted_upon';
+    timestamp: number;
+}
+
 export interface AgentProfile {
     id: string; 
     name: string;
@@ -245,7 +271,7 @@ class ShadowDB {
   }
 
   private dbName = 'ShadowCore_V20_Email'; 
-  private version = 21; // Incremented version for schema change
+  private version = 22; // Incremented version for schema change
   public unsubscribeListeners: Function[] = [];
   public systemUnsubscribe: Function[] = [];
   public adminUnsubscribe: Function | null = null;
@@ -284,10 +310,10 @@ class ShadowDB {
       request.onerror = (event) => reject((event.target as any).error);
       request.onupgradeneeded = (e: any) => {
         const db = e.target.result;
-        const stores = ['history', 'tasks', 'memory', 'profiles', 'fs', 'contacts', 'feedback', 'config', 'agents', 'coupons', 'plugins'];
+        const stores = ['history', 'tasks', 'memory', 'profiles', 'fs', 'contacts', 'feedback', 'config', 'agents', 'coupons', 'plugins', 'graph_nodes', 'graph_edges', 'shadow_messages'];
         stores.forEach(s => {
           if (!db.objectStoreNames.contains(s)) {
-            const store = db.createObjectStore(s, { keyPath: s === 'profiles' ? 'email' : (s === 'config' ? 'key' : (s === 'agents' || s === 'coupons' ? 'code' : 'id')), autoIncrement: s === 'feedback' || s === 'history' || s === 'tasks' || s === 'memory' || s === 'plugins' });
+            const store = db.createObjectStore(s, { keyPath: s === 'profiles' ? 'email' : (s === 'config' ? 'key' : (s === 'agents' || s === 'coupons' ? 'code' : 'id')), autoIncrement: s === 'feedback' || s === 'history' || s === 'tasks' || s === 'memory' || s === 'plugins' || s === 'graph_nodes' || s === 'graph_edges' || s === 'shadow_messages' || s === 'fs' });
             if (s !== 'profiles' && s !== 'config' && s !== 'agents' && s !== 'coupons' && !store.indexNames.contains('userId')) store.createIndex('userId', 'userId', { unique: false });
           }
         });
@@ -318,6 +344,7 @@ class ShadowDB {
           uid,
           name: isAdmin ? 'تيتو (الماستر)' : name, 
           shadowName: isAdmin ? 'الماستر' : (isAffiliate ? 'Marketer' : 'الظل'),
+          shadowId: 'SHADOW-' + Math.floor(100000 + Math.random() * 900000).toString(),
           voicePreference: 'male',
           tier: isAdmin ? 'sovereign' : (isAffiliate ? 'lite' : 'sovereign'),
           status: isAdmin ? 'active' : (isAffiliate ? 'active' : 'pending'),
@@ -435,6 +462,7 @@ class ShadowDB {
                   const docSnap = await getDoc(doc(db, "users", cleanEmail));
                   if (docSnap.exists()) {
                       profile = docSnap.data() as UserProfile;
+                      if (!profile.shadowId) profile.shadowId = 'SHADOW-' + Math.floor(100000 + Math.random() * 900000).toString();
                       if (profile.personalKeys) {
                           profile.personalKeys = {
                               githubToken: decryptData(profile.personalKeys.githubToken || '', cleanEmail),
@@ -464,6 +492,7 @@ class ShadowDB {
               uid: uid,
               name: isAdmin ? 'تيتو (الماستر)' : namePart,
               shadowName: isAdmin ? 'الماستر' : 'الظل',
+              shadowId: 'SHADOW-' + Math.floor(100000 + Math.random() * 900000).toString(),
               tier: isAdmin ? 'sovereign' : 'lite',
               status: 'active',
               joinedAt: Date.now(),
@@ -485,6 +514,12 @@ class ShadowDB {
       }
 
       if (!profile) throw new Error("Profile creation failed");
+      
+      if (!profile.shadowId) {
+          profile.shadowId = 'SHADOW-' + Math.floor(100000 + Math.random() * 900000).toString();
+          await this.saveProfile(profile, true);
+      }
+      
       this.downloadUserCloudData(cleanEmail);
       return profile;
   }
@@ -799,6 +834,81 @@ class ShadowDB {
     const tx = db.transaction('plugins', 'readwrite');
     const pluginWithId = { ...plugin, id: plugin.id || Date.now() + Math.floor(Math.random() * 1000) };
     return tx.objectStore('plugins').put(pluginWithId);
+  }
+
+  // --- KNOWLEDGE GRAPH MEMORY ---
+  async addGraphNode(node: GraphNode): Promise<number> {
+    const db = await this.init();
+    return new Promise((resolve) => {
+      const tx = db.transaction('graph_nodes', 'readwrite');
+      const req = tx.objectStore('graph_nodes').put(node);
+      req.onsuccess = () => {
+          this.pushToCloud('graph_nodes', { ...node, id: req.result }, 'graph_nodes', node.userId);
+          resolve(req.result as number);
+      };
+    });
+  }
+
+  async addGraphEdge(edge: GraphEdge): Promise<number> {
+    const db = await this.init();
+    return new Promise((resolve) => {
+      const tx = db.transaction('graph_edges', 'readwrite');
+      const req = tx.objectStore('graph_edges').put(edge);
+      req.onsuccess = () => {
+          this.pushToCloud('graph_edges', { ...edge, id: req.result }, 'graph_edges', edge.userId);
+          resolve(req.result as number);
+      };
+    });
+  }
+
+  async getGraphNodes(userId: string): Promise<GraphNode[]> {
+    const db = await this.init();
+    const tx = db.transaction('graph_nodes', 'readonly');
+    const index = tx.objectStore('graph_nodes').index('userId');
+    return new Promise((resolve) => {
+      const req = index.getAll(userId);
+      req.onsuccess = () => resolve(req.result);
+    });
+  }
+
+  async getGraphEdges(userId: string): Promise<GraphEdge[]> {
+    const db = await this.init();
+    const tx = db.transaction('graph_edges', 'readonly');
+    const index = tx.objectStore('graph_edges').index('userId');
+    return new Promise((resolve) => {
+      const req = index.getAll(userId);
+      req.onsuccess = () => resolve(req.result);
+    });
+  }
+
+  // --- COLLABORATIVE SHADOWS (AGENT TO AGENT) ---
+  async addShadowMessage(msg: ShadowMessage): Promise<number> {
+    const db = await this.init();
+    return new Promise(async (resolve) => {
+        const tx = db.transaction('shadow_messages', 'readwrite');
+        const req = tx.objectStore('shadow_messages').put(msg);
+        req.onsuccess = async () => {
+            if (auth) {
+                // write directly to firestore so the other user can see it
+                const { doc, setDoc, getFirestore } = await import('firebase/firestore');
+                setDoc(doc(getFirestore(), 'users', msg.toUserId, 'shadow_messages', Date.now().toString()), { ...msg, id: req.result });
+            }
+            resolve(req.result as number);
+        };
+    });
+  }
+
+  async getShadowMessages(userId: string): Promise<ShadowMessage[]> {
+    const db = await this.init();
+    const tx = db.transaction('shadow_messages', 'readonly');
+    return new Promise((resolve) => {
+      const store = tx.objectStore('shadow_messages');
+      const request = store.getAll();
+      request.onsuccess = () => {
+         const msgs = request.result.filter((m: any) => m.toUserId === userId || m.userId === userId);
+         resolve(msgs);
+      }
+    });
   }
 
   async getPluginsByUserId(userId: string): Promise<DBPlugin[]> {

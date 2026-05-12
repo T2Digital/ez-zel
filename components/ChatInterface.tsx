@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, Waves, Square, Volume2, VolumeX, Play, Pause, Brain, Activity, Mic2, Paperclip, X, Zap, Lock, Crown, Globe, Sun, ArrowLeft, Loader2, Sparkles, ArrowRight, DollarSign, RotateCcw, Home, Clock, MessageCircle, Share2, Copy, Shield, Download, Smartphone, Cpu, HelpCircle, Star, Search, ExternalLink, PhoneCall, CheckCircle, Ear, RefreshCw, StopCircle, MapPin, Hotel, Music, Video, Grid, Camera, Edit3, Car, Landmark, CreditCard, FileText, Printer, PenTool, Layout, Calculator, Terminal, Cloud, CloudOff, AlertTriangle, FolderOpen, Key, Briefcase } from 'lucide-react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { App as CapacitorApp } from '@capacitor/app';
-import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, memorizeFact, generateImageNative, autonomousLearningRoutine } from '../services/geminiService';
+import { getShadowResponse, playShadowVoice, stopVoice, getShadowVoice, resumeAudioContext, audioCache, memorizeFact, generateImageNative, autonomousLearningRoutine, generateMp3FromShadowVoice } from '../services/geminiService';
 import { shadowDB, DBMessage, DBTask, UserProfile } from '../services/dbService';
 import { submitAutonomousTask } from '../services/autonomousAgentService';
 import { getDeviceContext, performNativeAction } from '../services/deviceService';
@@ -25,6 +25,7 @@ import { renderChatCard } from './chat/ChatCardsRenderer';
 import LiveAgentAction from './LiveAgentAction';
 import { ChatInputArea } from './chat/ChatInputArea';
 import { ToolCardRenderer, handleAppCardAction, getCardIcon } from './chat/ToolCardRenderer';
+import { PredictiveAnalyticsBoard } from './chat/PredictiveAnalyticsBoard';
 import { useAppStore } from '../services/store';
 import { AutonomousManager } from './AutonomousManager';
 
@@ -316,8 +317,64 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
           setMessages(paginatedHist.reverse());
       };
       
+      const handleShadowNewMessage = (e: any) => {
+          const msg = e.detail;
+          setMessages(prev => {
+              if (prev.some(m => m.id === msg.id)) return prev;
+              return [...prev, msg];
+          });
+      };
+      
       window.addEventListener('autonomous_message_received', handleAutonomousMessage);
-      return () => window.removeEventListener('autonomous_message_received', handleAutonomousMessage);
+      window.addEventListener('shadow_new_message', handleShadowNewMessage);
+      return () => {
+          window.removeEventListener('autonomous_message_received', handleAutonomousMessage);
+          window.removeEventListener('shadow_new_message', handleShadowNewMessage);
+      };
+  }, [currentUser.email]);
+
+  useEffect(() => {
+    // Poll for collaborative shadow messages every 15 seconds
+    const pollShadowMessages = async () => {
+        const userId = currentUser.email;
+        const shadowId = currentUser.shadowId;
+        if (!userId && !shadowId) return;
+        try {
+            const msgs = [];
+            if (userId) {
+                const userMsgs = await shadowDB.getShadowMessages(userId);
+                msgs.push(...userMsgs);
+            }
+            if (shadowId) {
+                const shadowMsgs = await shadowDB.getShadowMessages(shadowId);
+                msgs.push(...shadowMsgs);
+            }
+            
+            // Filter unique pending messages for this user
+            const pendingMsgs = msgs.filter((m: any, index: number, self: any[]) => 
+                (m.toUserId === userId || m.toUserId === shadowId) && 
+                m.status === 'pending' &&
+                index === self.findIndex((t) => t.id === m.id)
+            );
+
+            for (let msg of pendingMsgs) {
+                // Update status instantly to avoid duplicate processing
+                await shadowDB.addShadowMessage({ ...msg, status: 'delivered' });
+                
+                // Inject message to AI via handleSend silently
+                const hiddenPrompt = `[COLLABORATIVE_SHADOW_MESSAGE]\nالظل الخاص بالمستخدم (${msg.fromUserId}) يرسل لك هذه الرسالة التنسيقية:\n"${msg.content}"\n\n[INSTRUCTION]: هذه الرسالة جاءت لك في الخلفية. أخبر مستخدمك الحالي أنك تلقيت هذه الرسالة من ظل ${msg.fromUserId} واعرض عليه التعاون أو المزامنة!`;
+                
+                setTimeout(() => {
+                    handleSend(hiddenPrompt, undefined, undefined, true);
+                }, 100);
+            }
+        } catch (e) {
+            console.error("Error polling shadow messages:", e);
+        }
+    };
+    
+    const interval = setInterval(pollShadowMessages, 15000);
+    return () => clearInterval(interval);
   }, [currentUser.email]);
 
   useEffect(() => {
@@ -601,9 +658,22 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
 
     } catch (e: any) { 
         console.error("Mic Error", e);
+        let errorMsg = "فيه مشكلة في استخدام المايك.";
         if (e.name === 'NotAllowedError' || e.message?.includes('Permission denied')) {
-            alert("تم رفض صلاحية الميكروفون. يرجى تفعيلها من إعدادات المتصفح.");
+            errorMsg = "انت رفضت صلاحية المايك يا ريس، أو المتصفح مانعها. ادخل على إعدادات المتصفح واسمح للمايك عشان أقدر أسمعك.";
+        } else {
+            errorMsg = "حصلت مشكلة في المايك: " + (e.message || String(e));
         }
+        
+        const fakeMsg: ExtendedMessage = {
+            id: Date.now(),
+            role: 'model',
+            text: errorMsg,
+            timestamp: Date.now(),
+            userId: currentUser.email || 'GUEST',
+            isError: true
+        };
+        setMessages(prev => [...prev, fakeMsg]);
         resetToIdle(); 
     }
   };
@@ -1249,6 +1319,74 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                       description: `إلى: ${args.target}\n\n"${args.message}"`
                   });
               }
+              else if (t.name === 'spawn_sub_agents') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'swarm_manager',
+                      title: args.swarm_name,
+                      tasks: args.tasks
+                  });
+
+                  // We actually simulate starting the sub-agents by starting background tasks in a few seconds 
+                  // In a real app we would call actual agent routes, but here we can simulate parallel execution callbacks
+                  args.tasks.forEach((sub_task: any, idx: number) => {
+                      setTimeout(() => {
+                           handleSend(`[SUB_AGENT_REPORT]\nمرحباً، أنا المساعد (${sub_task.agent_role}). لقد انتهيت من مهمتي: [${sub_task.instruction}]. وهذه هي النتائج المبدئية التي توصلت إليها لإتمام العمل...`, undefined, undefined, true);
+                      }, 5000 + (idx * 3000));
+                  });
+              }
+              else if (t.name === 'kg_add_node') {
+                  const args = t.args;
+                  const nodeId = await shadowDB.addGraphNode({
+                      userId: currentUser.email || 'GUEST',
+                      label: args.label,
+                      properties: JSON.parse(args.properties)
+                  });
+                  uiCards.push({
+                      cardType: 'task_success',
+                      title: 'إضافة للذاكرة الشبكية 🧠',
+                      description: `تم ربط عقدة جديدة (${args.label}) بالمعرف: ${nodeId}`
+                  });
+              }
+              else if (t.name === 'kg_add_edge') {
+                  const args = t.args;
+                  await shadowDB.addGraphEdge({
+                      userId: currentUser.email || 'GUEST',
+                      sourceNodeId: args.sourceNodeId,
+                      targetNodeId: args.targetNodeId,
+                      relationship: args.relationship,
+                      weight: args.weight
+                  });
+                  uiCards.push({
+                      cardType: 'task_success',
+                      title: 'تكوين علاقة شبكية 🔗',
+                      description: `تم ربط (${args.sourceNodeId}) بـ (${args.targetNodeId}) عبر علاقة [${args.relationship}]`
+                  });
+              }
+              else if (t.name === 'agent_message') {
+                  const args = t.args;
+                  await shadowDB.addShadowMessage({
+                      fromUserId: currentUser.shadowId || currentUser.email || 'GUEST',
+                      toUserId: args.target_shadow_id,
+                      content: args.message,
+                      status: 'pending',
+                      timestamp: Date.now()
+                  });
+                  uiCards.push({
+                      cardType: 'task_success',
+                      title: 'اتصال الظلال 👥',
+                      description: `تم إرسال رسالتك التنسيقية وتكليفها بالخلفية لظل [${args.target_shadow_id}]`
+                  });
+              }
+              else if (t.name === 'predictive_analytics_board') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'predictive_board', // Needs to be added to UI cards map!
+                      title: args.dashboard_title,
+                      metrics: args.metrics,
+                      predicted_actions: args.predicted_actions
+                  });
+              }
               else if (t.name === 'advanced_vision_extraction') {
                   const args = t.args;
                   
@@ -1856,6 +1994,19 @@ ${textContent.substring(0, 10000)}`;
           workspaceTab={workspaceTab}
           setWorkspaceTab={setWorkspaceTab}
           onClose={() => setSelectedWorkspaceFile(null)}
+          onPlayAudio={(text) => playShadowVoice(text, currentUser.voicePreference || 'male')}
+          onShareAudio={async (text) => {
+              const mp3 = await generateMp3FromShadowVoice(text, currentUser.voicePreference || 'male');
+              if (mp3) {
+                  const refCode = currentUser.affiliate?.referralCode || '';
+                  const referralLink = refCode ? `\n\nاشترك في الظل الرقمي واعمل نسختك من الرابط ده:\nhttps://Ez-zel.vercel.app?ref=${refCode}` : '';
+                  const shareText = `اسمع رد الظل 🤖🔥${referralLink}`;
+                  const shareObj = { title: 'صوت الظل', text: shareText, files: [mp3.file] };
+                  setPreparedShareData(shareObj);
+              } else {
+                  alert("فشل توليد الصوت.");
+              }
+          }}
       />
 
       {/* Modals */}

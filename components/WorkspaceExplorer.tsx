@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2, Target } from 'lucide-react';
 import { shadowDB, DBFSItem } from '../services/dbService';
+import { playShadowVoice, generateMp3FromShadowVoice } from '../services/geminiService';
 import SpaceCanvas from './SpaceCanvas';
+import { WorkspaceFileViewer } from './chat/WorkspaceFileViewer';
 
 interface Props {
   userId: string;
@@ -15,6 +17,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: number | null, name: string }[]>([{ id: null, name: 'الورك سبيس' }]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<DBFSItem | null>(null);
+  const [workspaceTab, setWorkspaceTab] = useState<'l0' | 'l1' | 'l2'>('l2');
 
   // 3D Navigation State
   const cameraRef = useRef({ x: 0, y: 0, z: -500 });
@@ -395,72 +398,46 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
 
       {/* File Viewer Modal */}
       {selectedFile && (
-        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111] border border-white/10 rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-white/5 flex flex-wrap gap-4 justify-between items-center bg-white/5">
-              <div className="flex items-center gap-3 flex-1 min-w-[50%]">
-                {getIcon(selectedFile.type)}
-                <input 
-                  type="text" 
-                  value={selectedFile.name} 
-                  onChange={e => setSelectedFile({...selectedFile, name: e.target.value})}
-                  className="font-bold text-white bg-transparent border-b border-white/20 focus:border-purple-400 outline-none px-1 w-full flex-1"
-                />
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={async () => {
-                      if (selectedFile.id) {
-                         await shadowDB.deleteFSItem(selectedFile.id);
-                         setSelectedFile(null);
-                         loadItems();
+          <WorkspaceFileViewer
+              file={selectedFile}
+              workspaceTab={workspaceTab}
+              setWorkspaceTab={setWorkspaceTab}
+              onClose={() => setSelectedFile(null)}
+              isEditable={true}
+              onFileChange={setSelectedFile}
+              onSave={async () => {
+                  await shadowDB.saveFSItem(selectedFile);
+                  loadItems();
+              }}
+              onDelete={async () => {
+                  if (selectedFile.id) {
+                     await shadowDB.deleteFSItem(selectedFile.id);
+                     setSelectedFile(null);
+                     loadItems();
+                  }
+              }}
+              onPlayAudio={(text) => playShadowVoice(text, 'male')}
+              onShareAudio={async (text) => {
+                  const mp3 = await generateMp3FromShadowVoice(text, 'male');
+                  if (mp3) {
+                      const shareObj = { title: 'صوت الملف', text: 'مشاركة صوت الملف من مساحة العمل', files: [mp3.file] };
+                      if (navigator.canShare && navigator.canShare({ files: [mp3.file] })) {
+                          try { await navigator.share(shareObj); } catch (err) {}
+                      } else {
+                          const url = URL.createObjectURL(mp3.file);
+                          const a = document.createElement('a'); 
+                          a.href = url; 
+                          a.download = 'shadow-voice.mp3'; 
+                          document.body.appendChild(a); 
+                          a.click(); 
+                          document.body.removeChild(a); 
+                          setTimeout(() => URL.revokeObjectURL(url), 1000);
                       }
-                  }} className="p-2 hover:bg-red-500/20 rounded-full text-red-500/80 hover:text-red-500 transition-colors">
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                  <button onClick={async () => {
-                      await shadowDB.saveFSItem(selectedFile);
-                      loadItems();
-                      setSelectedFile(null);
-                  }} className="p-2 hover:bg-emerald-500/20 rounded-full text-emerald-500/80 hover:text-emerald-500 transition-colors">
-                    <Save className="w-5 h-5" />
-                  </button>
-                  <button onClick={() => setSelectedFile(null)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
-                    <X className="w-5 h-5" />
-                  </button>
-              </div>
-            </div>
-            <div className="p-6 overflow-y-auto flex-1 text-white/80 font-mono text-sm leading-relaxed space-y-4">
-              
-              <div>
-                  <label className="text-purple-400 block mb-1 text-xs">L0 Summary (Memory Index):</label>
-                  <textarea 
-                      value={selectedFile.l0_summary || ''}
-                      onChange={e => setSelectedFile({...selectedFile, l0_summary: e.target.value})}
-                      className="w-full bg-purple-500/5 border border-purple-500/20 rounded-lg p-2 text-white outline-none focus:border-purple-500/50 resize-y min-h-[60px]"
-                  />
-              </div>
-
-              <div>
-                  <label className="text-blue-400 block mb-1 text-xs">L1 Metadata:</label>
-                  <textarea 
-                      value={selectedFile.l1_metadata || ''}
-                      onChange={e => setSelectedFile({...selectedFile, l1_metadata: e.target.value})}
-                      className="w-full bg-blue-500/5 border border-blue-500/20 rounded-lg p-2 text-white outline-none focus:border-blue-500/50 resize-y min-h-[60px]"
-                  />
-              </div>
-
-              <div>
-                  <label className="text-white/40 block mb-1 text-xs">L2 Content (Full):</label>
-                  <textarea 
-                      value={selectedFile.l2_content || selectedFile.content || ''}
-                      onChange={e => setSelectedFile({...selectedFile, l2_content: e.target.value})}
-                      className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white outline-none focus:border-white/30 resize-y min-h-[200px]"
-                  />
-              </div>
-
-            </div>
-          </div>
-        </div>
+                  } else {
+                      alert("فشل توليد الصوت.");
+                  }
+              }}
+          />
       )}
     </div>
   );

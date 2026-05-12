@@ -247,8 +247,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   if (activeView === 'chat') return <div className="fixed inset-0 bg-transparent text-white font-['Cairo'] overflow-hidden"><ChatInterface onBack={() => setActiveView('requests')} onNavigateTo={(s) => { if(s === 'affiliate' && onNavigateTo) onNavigateTo('affiliate'); if(s === 'admin') setActiveView('analytics'); }} /></div>;
 
   return (
-    <div className="min-h-screen bg-transparent text-white flex flex-col font-['Cairo'] pb-48">
-      <div className="p-6 md:p-8 flex justify-between items-center bg-black/50 border-b border-white/5 sticky top-0 z-50 backdrop-blur-md">
+    <div className="min-h-screen bg-[#020008] text-white flex flex-col font-['Cairo'] pb-48 relative z-50 overflow-x-hidden">
+      <div className="p-6 md:p-8 flex justify-between items-center bg-[#020008] border-b border-white/5 sticky top-0 z-50">
           <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">A</div><h2 className="text-xl font-black">Shadow <span className="text-amber-500">HQ</span></h2></div>
           <div className="flex items-center gap-2">
               <button onClick={onSwitchToUserMode} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">وضع المستخدم</button>
@@ -258,7 +258,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
 
       <div className="flex-1 p-6 space-y-8">
         {activeView !== 'core' && activeView !== 'broadcast' && (
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2 md:gap-3">
                 {councilAgents.map(agent => (
                     <div key={agent.id} onClick={() => handleAgentClick(agent)} className="p-4 rounded-2xl border border-white/5 bg-[#080808] flex flex-col items-center cursor-pointer hover:border-amber-500/30 transition-all group">
                         <div className={`p-3 rounded-full bg-white/5 text-${agent.color}-400 mb-2 group-hover:scale-110 transition-transform`}>{agent.icon}</div><span className="text-[9px] font-black uppercase text-white/40">{agent.name}</span>
@@ -702,41 +702,43 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                     </div>
                 </div>
 
-                <div className="p-6 bg-[#080808] rounded-[32px] border border-white/5 w-full h-[350px]">
-                     <h4 className="text-sm font-bold text-white mb-6">نمو الأعضاء (آخر 7 أيام)</h4>
-                     <ResponsiveContainer width="100%" height="80%">
-                        <AreaChart data={growthData}>
-                            <defs>
-                                <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                            <XAxis dataKey="name" stroke="#ffffff50" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                            <YAxis stroke="#ffffff50" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                            <RechartsTooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333', borderRadius: '12px', fontSize: '12px' }} />
-                            <Area type="monotone" dataKey="users" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorUsers)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                <div className="p-4 md:p-6 bg-[#080808] rounded-[32px] border border-white/5 w-full overflow-hidden flex flex-col items-center justify-center">
+                     <h4 className="text-sm font-bold text-white mb-4 w-full text-right">نمو الأعضاء (آخر 7 أيام)</h4>
+                     <div className="w-full h-[250px] md:h-[300px]">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={growthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                                <XAxis dataKey="name" stroke="#ffffff50" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                                <YAxis stroke="#ffffff50" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                                <RechartsTooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333', borderRadius: '12px', fontSize: '12px' }} />
+                                <Area type="monotone" dataKey="users" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorUsers)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                     </div>
                 </div>
             </div>
         )}
       </div>
 
-      <nav className="fixed bottom-[32px] left-0 w-full bg-black/95 border-t border-white/10 pb-6 pt-3 z-[100] rounded-t-[40px]">
-        <div className="flex items-center justify-around max-w-lg mx-auto overflow-x-auto gap-2 px-2 scrollbar-none">
-            <button onClick={() => setActiveView('analytics')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'analytics' ? 'text-white scale-110' : 'text-white/30'}`}><BarChart2 className="w-5 h-5" /><span className="text-[8px] font-bold">تحليل</span></button>
-            <button onClick={() => setActiveView('members')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
-            <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
-            <button onClick={() => { if(onNavigateTo) onNavigateTo('affiliate'); }} className={`flex flex-col items-center min-w-[50px] gap-1 text-white/30`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">عمولاتي</span></button>
-            <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
-            <button onClick={() => setActiveView('chat')} className="min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black -top-4 relative shadow-lg"><Bot className="w-6 h-6" /></button>
-            <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'settings' ? 'text-white scale-110' : 'text-white/30'}`}><Settings className="w-5 h-5" /><span className="text-[8px] font-bold">المفاتيح</span></button>
-            <button onClick={() => setActiveView('feedback')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'feedback' ? 'text-white scale-110' : 'text-white/30'}`}><MessageCircle className="w-5 h-5" /><span className="text-[8px] font-bold">الآراء</span></button>
-            <button onClick={() => setActiveView('coupons')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'coupons' ? 'text-white scale-110' : 'text-white/30'}`}><Tag className="w-5 h-5" /><span className="text-[8px] font-bold">كوبونات</span></button>
-            <button onClick={() => setActiveView('broadcast')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'broadcast' ? 'text-white scale-110' : 'text-white/30'}`}><Megaphone className="w-5 h-5" /><span className="text-[8px] font-bold">النبض</span></button>
-            <button onClick={() => setActiveView('core')} className={`flex flex-col items-center min-w-[50px] gap-1 ${activeView === 'core' ? 'text-white scale-110' : 'text-white/30'}`}><Cpu className="w-5 h-5" /><span className="text-[8px] font-bold">النواة</span></button>
+      <nav className="fixed bottom-0 left-0 w-full bg-black/95 border-t border-white/10 pb-6 pt-5 z-[100] rounded-t-[40px]">
+        <div className="flex items-center justify-start md:justify-center max-w-full md:max-w-3xl mx-auto overflow-x-auto gap-4 px-6 scrollbar-none">
+            <button onClick={() => setActiveView('analytics')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'analytics' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><BarChart2 className="w-5 h-5" /><span className="text-[8px] font-bold">تحليل</span></button>
+            <button onClick={() => setActiveView('members')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
+            <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
+            <button onClick={() => { if(onNavigateTo) onNavigateTo('affiliate'); }} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all text-white/30 hover:text-white/60`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">عمولاتي</span></button>
+            <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
+            <button onClick={() => setActiveView('chat')} className="flex-shrink-0 min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black -top-6 relative shadow-lg hover:scale-110 transition-transform"><Bot className="w-6 h-6" /></button>
+            <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'settings' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Settings className="w-5 h-5" /><span className="text-[8px] font-bold">المفاتيح</span></button>
+            <button onClick={() => setActiveView('feedback')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'feedback' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><MessageCircle className="w-5 h-5" /><span className="text-[8px] font-bold">الآراء</span></button>
+            <button onClick={() => setActiveView('coupons')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'coupons' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Tag className="w-5 h-5" /><span className="text-[8px] font-bold">كوبونات</span></button>
+            <button onClick={() => setActiveView('broadcast')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'broadcast' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Megaphone className="w-5 h-5" /><span className="text-[8px] font-bold">النبض</span></button>
+            <button onClick={() => setActiveView('core')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'core' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Cpu className="w-5 h-5" /><span className="text-[8px] font-bold">النواة</span></button>
         </div>
       </nav>
 

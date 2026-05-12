@@ -2,6 +2,7 @@ import { getAI } from "./geminiService";
 import { DBMessage, shadowDB, DBTask } from "./dbService";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { useAppStore } from "./store";
+import { showSafeNotification } from "./notificationService";
 
 export interface AutonomousTask {
     id: string;
@@ -254,6 +255,9 @@ export const startProactiveSentinel = (userId: string) => {
                 const topNews = data.items.slice(0, 3).map((i: any) => i.title).join(" | ");
                 
                 const profile = await shadowDB.getProfile(userId);
+                // Also get user tasks
+                const allTasks = await shadowDB.getTasks(userId);
+                const pendingTasks = allTasks.filter(t => t.status === 'pending').map(t => `${t.task} (Category: ${t.category || 'N/A'})`).join(" | ");
                 
                 // Let Gemini decide if this is worth interrupting the user
                 const ai = getAI();
@@ -261,11 +265,15 @@ export const startProactiveSentinel = (userId: string) => {
                     model: 'gemini-3-flash-preview',
                     config: {
                          systemInstruction: `You are EzZel (الظل), an autonomous proactive AI. 
-Read the following top news. If it is highly important or relevant to a general user's life, write a SHORT, friendly, proactive message in Arabic (1-2 sentences) to notify them. 
-Example: 'يا تيتو، لاحظت أن هناك خبر عاجل بخصوص كذا، هل تحب أن ألخصه لك؟'
-If it's boring or not important, output exactly "IGNORE".`
+Read the user's pending tasks and top news. Decide if you should send a proactive notification in Arabic. 
+Only notify if:
+- there is a highly relevant news item related to their profile/tasks.
+- Or they have pending tasks you can help them start or remind them of creatively.
+Write a SHORT, friendly, proactive message (1-2 sentences). 
+Example: 'يا ${profile?.name || 'صديقي'}، لاحظت أن لديك مهمة لم تنجزها بعد، هل أساعدك فيها؟'
+If nothing is important, output exactly "IGNORE".`
                     },
-                    contents: `User Profile: ${JSON.stringify(profile)}\n\nLatest News: ${topNews}`
+                    contents: `User Profile: ${JSON.stringify(profile)}\nPending Tasks: ${pendingTasks}\nLatest News: ${topNews}`
                 });
                 
                 const reply = response.text?.trim();
@@ -282,7 +290,7 @@ If it's boring or not important, output exactly "IGNORE".`
                     window.dispatchEvent(new CustomEvent('autonomous_message_received'));
                     
                     if (Notification.permission === 'granted') {
-                        new Notification("الظل | خبر جديد لك", { body: reply });
+                        showSafeNotification("الظل | خبر جديد لك", { body: reply });
                     }
                 }
             }
@@ -364,8 +372,8 @@ export const submitAutonomousTask = async (userId: string, prompt: string): Prom
             window.dispatchEvent(new CustomEvent('autonomous_message_received'));
             
             // Notify User
-            if (Notification.permission === 'granted') {
-                new Notification("الظل | Ez-Zel", { body: "تم إنجاز المهمة بواسطة السيرفر بنجاح!" });
+            if ('Notification' in window && Notification.permission === 'granted') {
+                showSafeNotification("الظل | Ez-Zel", { body: "تم إنجاز المهمة بواسطة السيرفر بنجاح!" });
             }
 
         } catch (e) {

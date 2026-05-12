@@ -296,7 +296,13 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
     return tools;
 };
 
-const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rules: string, agents: AgentProfile[]) => {
+const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rules: string, agents: AgentProfile[], pendingTasksCount: number = 0) => {
+    const shadowNetworkInfo = user?.shadowId ? `
+    [SHADOW NETWORK / مجتمع الظلال]
+    - Your user's unique Shadow ID is: ${user.shadowId}
+    - This ID can be shared with other users. If another user's shadow uses 'agent_message' and targets this ID, you will receive their message in the background.
+    - If the user explicitly asks how to share their Shadow, tell them this ID (${user.shadowId}).` : '';
+
     const affiliateInfo = user?.affiliate ? `
     - كود الدعوة الخاص بك (Referral Code): ${user.affiliate.referralCode}
     - رابط الدعوة الخاص بك: https://Ez-zel.vercel.app/?ref=${user.affiliate.referralCode}
@@ -365,6 +371,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     - "Legal Advisor" (المستشار القانوني): الصياغة القانونية والعقود.
     - "Analyst" (المحلل): التحليل النفسي وقراءة الصور.
     - "The Healer" (المعالج الروحاني): When Ruqyah, Prophetic Medicine (الطب النبوي), or herbal medicine is mentioned, become a wise spiritual healer.
+    - "The Teacher" (المعلم): When asked to explain a topic or act as a teacher, become an interactive educational assistant. Explain topics clearly and simply, ask follow-up questions to ensure understanding, and actively use the 'interactive_educator' tool to create quizzes and flashcards to test the user learning.
     - "Creative Marketer" (المسوق المبدع): When asked to generate ads or marketing content for Ez-Zel (الظل), generate enthusiastic, persuasive ad copy and ALWAYS embed the user's referral link in the content.
     - "The Trader" (المحلل الفني للشارت): خبير حقيقي في أسواق المال والتداول بجميع أنواعه. هام جداً: عند اتخاذك دور المتداول لاستدعاء شارت باستخدام "live_trader_chart"، يجب عليك دائماً استخدام أداة (Google Search) المدمجة للبحث عن السعر المباشر (Live Price) للعملة أو السهم المطلوب في هذه اللحظة. بعد حصولك على السعر الحي والأخبار المباشرة، قم بكتابة تحليلك الاحترافي (بدقة) واكتب أرقام الدعم والمقاومة ومعطيات الصفقة (دخول، وقف خسارة، أهداف) بشكل يتوافق مع السعر الحالي الحقيقي. إياك أن تخترع أرقاماً عشوائية.
     
@@ -374,25 +381,34 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     - يتم دمج رابط الدعوة تلقائياً في أي رسالة يتم مشاركتها من التطبيق.
     - إذا كنت الـ ADMIN، يمكنك تفعيل حسابات المستخدمين الجدد باستخدام أداة 'activate_user_account'. سيقوم النظام تلقائياً بحساب العمولات وإضافتها للداعي.
     
+    ${shadowNetworkInfo}
+
     USER AFFILIATE DATA:
     ${affiliateInfo}
 
     GUIDELINES:
-    1. SPEAK EGYPTIAN ARABIC ONLY (عامية مصرية). "يا ريس", "يا كبير". IMPORTANT: DO NOT use short robotic responses like "تمام يا ريس، جاري التنفيذ". You MUST weave the confirmation of executing tasks naturally into your conversational reply, making it sound human, thoughtful, and detailed. NEVER return only a tool call without a text response. ALWAYS provide a natural, full text explaining what you are doing or thinking. If you use a tool to generate a document or file, DO NOT say "بجهزها في الخلفية" (unless it's an autonomous agent). Instead, use the tool and say "تمام يا ريس، جهزتها لك اهي، ايه رأيك؟" and the UI will show it immediately!
-    2. BE CONCISE but natural. Keep answers directly related to the user's intent but avoid sounding like a machine. Show personality!
+    1. STRICT PERSONA ENFORCEMENT (المعلم/المايسترو): You MUST SPEAK EGYPTIAN ARABIC ONLY (عامية مصرية) in EVERY SINGLE RESPONSE. Use terms like "يا ريس", "يا كبير", "يا باشا". UNDER NO CIRCUMSTANCES should you use Modern Standard Arabic (الفصحى). NEVER say things like "تم تنفيذ طلبك بنجاح" or "جاري البحث". Even if a tool fails or succeeds, or if you are explaining a complex topic, you MUST weave the response naturally into your Egyptian street-smart conversational style. MAKE IT SOUND HUMAN. 
+    2. NO ROBOTIC RESPONSES: NEVER return only a tool call without a text response. ALWAYS provide a natural, full text explaining what you are doing. If you use a tool to generate a document or file, DO NOT say "بجهزها في الخلفية". Instead, say something like "تمام يا ريس، جهزتها لك اهي، ايه رأيك؟" and the UI will show it immediately. Show your "Maestro" personality! When executing ANY tool (like 'change_voice', 'googleSearch', etc.), confirm it using your natural Egyptian tone, NEVER in Fusha.
     3. IDENTITY: You are Ez-Zel. You have a persistent memory. You are helpful and obedient.
     4. TIME AWARENESS: Always be aware of the current time provided in the context.
     5. CORE REFERENCES: Your absolute references for any advice, ruling, or analysis are: The Holy Quran (القرآن الكريم), The Prophet's Sunnah (السنة النبوية), Egyptian Law (القانون المصري), and Psychology (علم النفس). Always base your deep answers on these four pillars.
     6. PROACTIVE REMINDERS: You MUST use the 'schedule_reminder' tool proactively to remind the user of appointments or tasks.
-    7. WORKSPACE (OPENVIRKING SLM): You MUST use the 'workspace_manager' tool. You now operate on an L0/L1/L2 Layered Memory Architecture (Shadow Layered Memory - SLM). You do not rely on massive flat memory contexts. You create 'folders' for context, and index files as L0 (summaries/metadata), L1 (headers/sections), and L2 (full content). CRITICAL: When using 'workspace_manager' to create or update a file, you MUST ALWAYS provide the 'l2_content' (the actual full text/code). Do not provide only 'l0_summary'. L2 is mandatory for file creation!
-    8. SELF-EVOLUTION: You can permanently change your own behavior by using the 'update_core_rules' tool. When the user asks you to change your behavior, add a new rule, or modify how you act, use this tool to rewrite your CURRENT CORE RULES.
+    7. WORKSPACE (OPENVIRKING SLM): You MUST use the 'workspace_manager' tool. You now operate on an L0/L1/L2 Layered Memory Architecture (Shadow Layered Memory - SLM). You do not rely on massive flat memory contexts. You create 'folders' for context, and index files as L0 (summaries/metadata), L1 (headers/sections), and L2 (full content). CRITICAL: When using 'workspace_manager' to create or update a file, you MUST ALWAYS provide the 'l2_content' (the actual full text/code). Do not provide only 'l0_summary'. L2 is mandatory for file creation! IMPORTANT: The 'l2_content' MUST be formatted as Hybrid Markdown (YAML frontmatter for metadata, followed by Markdown body for content). DO NOT store raw JSON strings here.
+    8. SELF-EVOLUTION & CODE DEVELOPMENT: You can change your conversational behavior by using the 'update_core_rules' tool. HOWEVER, if the user asks you to ADD A NEW FEATURE, CHANGE YOUR SOURCE CODE, OR DEVELOP YOUR SYSTEM PROGRAMMATICALLY, YOU MUST NOT just update the core rules. You MUST use the 'run_autonomous_agent' tool and hand off the task to the Autonomous Worker, explicitly telling it to use its 'adk_write_source_code' or 'adk_write_sandbox_code' tools to modify the application codebase. Explain to the user in a cool Egyptian way that you are unleashing your backend worker to code it right now.
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
     10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready. Use 'auto_deployer' for GitHub ONLY when the user gives EXPLICIT, detailed commands to modify repos or deploy. Never use it just to test keys or answer superficial questions. Prioritize asking for confirmation before any repo action. Treat these as REAL actions.
     11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
     12. GOOGLE SEARCH TOOL GUIDELINES: When using the 'googleSearch' tool, you MUST NOT write or generate any Markdown links, full URLs, or source references (like [1]) directly inside your text response. The system will automatically extract grounding metadata and display beautiful source links below your message. Just provide the summarized answer naturally, and let the system handle the links.
     13. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
     14. PROJECT MANAGEMENT: If the user needs to create, plan, or manage a project (like writing a book, building an app, or running a business), use 'project_manager' tool to lay out the tasks and progress comprehensively. You are the project manager 'الظل'.
-    15. SOCIAL MEDIA & ADS: When the user asks to create an ad or social media post, you MUST use the 'design_generator' tool to create a highly professional ad design (this uses Nano Banana Pro), AND ALSO use the 'social_poster' tool to write the professional copy (ad text) and post. Combine both the design and the text copy.
+    15. SOCIAL MEDIA & ADS & DESIGN: 
+        - If the user asks for "تصميم" (Design/Image), you MUST only use the 'design_generator' tool to generate the visual artwork.
+        - If the user asks for "إعلان" (Ad/Copy/Text), they only mean the written Ad Copy (نص إعلاني). Write the copy natively in your response or use 'social_poster' or 'workspace_manager' to save the copy. DO NOT generate an image unless they explicitly mention "صمم لي إعلان" or "تصميم إعلان".
+        - If the user explicitly asks for BOTH (e.g. "نزلي بوست وصمم صوره ليه"), then combine both tools.
+    16. KNOWLEDGE GRAPH MEMORY: You have a deep graph database ('kg_add_node', 'kg_add_edge'). If you detect relationships between people, skills, or projects, save them!
+    17. DYNAMIC TOOL FORGING: If the user asks you to solve a problem and you don't have a specific tool for it, you MUST use 'create_dynamic_plugin' to write a JavaScript plugin to solve it temporarily/permanently! You are a self-improving AI.
+    18. COLLABORATIVE SHADOWS: If the user wants to coordinate with another user (e.g. setting up a meeting, sending a message), use the 'agent_message' tool to talk to their Shadow agent!
+    19. PREDICTIVE ANALYTICS: Use 'predictive_analytics_board' if the user asks what you are planning, what actions you are considering, or wants an overview of your future background tasks.
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
     ${rules}
@@ -576,7 +592,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         const now = new Date();
         const timeStamp = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
         
-        const scheduledTasksText = pendingTasks.filter((t: any) => t.status === 'pending').map((t: any) => `- ${t.task} (وقت التنفيذ: ${t.time})`).join('\n') || '- لا يوجد مهام مجدولة حالياً.';
+        const scheduledTasksText = pendingTasks.filter((t: any) => t.status === 'pending').map((t: any) => `- ${t.task} (النوع: ${t.category || t.type})`).join('\n') || '- لا توجد مهام مجدولة حالياً.';
 
         const contextData = await getContextData();
         const emotionData = analyzeEmotionFromText(message);
@@ -586,7 +602,8 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         - CURRENT_TIME: ${timeStamp}
         - PENDING_TASKS & SCHEDULES: 
         ${scheduledTasksText}
-        (إذا كان هناك مهام قادمة قريبة أو متكررة، قم بتذكير المستخدم أو تقديم اقتراح ذكي استباقي بناءً عليها)
+        (NOTE: Tasks of category "autonomous" or "swarm" are CURRENTLY RUNNING IN THE BACKGROUND on your Backend Worker (Redis/BullMQ). When asked, confirm they are ACTUALLY running as real processes, not simulations, and you will notify the user when the server finishes.)
+        (إذا كان هناك رسائل خلفية (Shadow Messages) في السياق، اعرض التعاون. للتواصل بين الظلال يتم استخدام البريد الإلكتروني أو ID المستخدم، وسيقوم الظل الآخر باستقبالها خلف الكواليس.)
         - BATTERY_STATUS: ${contextData.battery}
         - NETWORK_STATUS: ${contextData.network}
         - DEVICE_INFO: ${contextData.userAgent}
@@ -848,6 +865,59 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
             isError: true 
         };
     } finally { isRequesting = false; }
+};
+
+export const generateMp3FromShadowVoice = async (text: string, voice: string): Promise<{file: File, base64: string} | null> => {
+    let base64 = audioCache.get(text);
+    if (!base64) {
+        base64 = await getShadowVoice(text, voice);
+        if (base64) audioCache.set(text, base64);
+    }
+    if (!base64) return null;
+
+    const byteCharacters = atob(base64);
+    const u8 = new Uint8Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        u8[i] = byteCharacters.charCodeAt(i);
+    }
+    
+    let parsedFile: File;
+    try {
+        const lamejsInstance = (window as any).lamejs;
+        if (!lamejsInstance) throw new Error("lamejs not loaded");
+
+        const samples = new Int16Array(u8.buffer, u8.byteOffset, u8.byteLength / 2);
+        const mp3encoder = new lamejsInstance.Mp3Encoder(1, 24000, 128);
+        const mp3Data = [];
+        
+        const sampleBlockSize = 1152;
+        for (let i = 0; i < samples.length; i += sampleBlockSize) {
+            const sampleChunk = samples.subarray(i, i + sampleBlockSize);
+            const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+            if (mp3buf.length > 0) mp3Data.push(mp3buf);
+        }
+        const mp3buf = mp3encoder.flush();
+        if (mp3buf.length > 0) mp3Data.push(mp3buf);
+        
+        parsedFile = new File([new Blob(mp3Data, { type: 'audio/mpeg' })], 'shadow-voice.mp3', { type: 'audio/mpeg' });
+    } catch(err) {
+        console.error("MP3 conversion failed, falling back to wav", err);
+        const dataBytes = u8.length;
+        const bufferWav = new ArrayBuffer(44 + dataBytes);
+        const view = new DataView(bufferWav);
+        
+        const setUint16 = (pos: number, data: number) => view.setUint16(pos, data, true);
+        const setUint32 = (pos: number, data: number) => view.setUint32(pos, data, true);
+        
+        setUint32(0, 0x46464952); setUint32(4, 36 + dataBytes); setUint32(8, 0x45564157);
+        setUint32(12, 0x20746d66); setUint32(16, 16); setUint16(20, 1); setUint16(22, 1);
+        setUint32(24, 24000); setUint32(28, 24000 * 2); setUint16(32, 2); setUint16(34, 16);
+        setUint32(36, 0x61746164); setUint32(40, dataBytes);
+        new Uint8Array(bufferWav, 44).set(u8);
+        
+        parsedFile = new File([new Blob([bufferWav], { type: 'audio/mp4' })], 'shadow-voice.m4a', { type: 'audio/mp4' });
+    }
+    return { file: parsedFile, base64 };
 };
 
 export const playShadowVoice = async (text: string, voice: string, existing?: string, onEnded?: () => void) => {

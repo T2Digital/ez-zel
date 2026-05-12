@@ -18,6 +18,7 @@ import LiveTickers from "./components/LiveTickers";
 import InstallPrompt from "./components/InstallPrompt";
 import WorkspaceExplorer from "./components/WorkspaceExplorer";
 import { AssistantWidget } from "./components/AssistantWidget";
+import { FloatingShadowAvatar } from "./components/FloatingShadowAvatar";
 import SpaceCanvas from "./components/SpaceCanvas";
 import { shadowDB, DBMessage } from "./services/dbService";
 import {
@@ -37,6 +38,7 @@ import {
 import { useAppStore } from "./services/store";
 import { App as CapacitorApp } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { showSafeNotification } from "./services/notificationService";
 
 const App: React.FC = () => {
   const {
@@ -361,7 +363,7 @@ const App: React.FC = () => {
               "Notification" in window &&
               Notification.permission === "granted"
             ) {
-              new Notification("تنبيه من الظل", {
+              showSafeNotification("تنبيه من الظل", {
                 body: task.task,
                 icon: "/icon.png",
               });
@@ -758,6 +760,10 @@ const App: React.FC = () => {
           {renderView()}
         </div>
       </div>
+      
+      {/* Floating Maestro Avatar */}
+      <FloatingShadowAvatar user={user} onNavigateChat={() => navigateToView("chat")} hide={view === 'chat' || location.pathname === '/chat' || location.pathname.startsWith('/chat/')} />
+
       <audio
         id="notification-sound"
         src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"

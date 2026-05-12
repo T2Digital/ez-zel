@@ -1,5 +1,7 @@
 import React from 'react';
 import { Clock, ExternalLink, RefreshCw, Edit3, Share2, Mic, Play, Square, Loader2, MessageCircle, Video, PhoneCall, Car, Search, Hotel, MapPin, Calculator, Terminal, Layout, Activity, Briefcase, CheckCircle, FolderOpen, FileText, Smartphone, Trash2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { DBMessage } from '../../services/dbService';
 
 interface ExtendedMessage extends DBMessage {
@@ -9,7 +11,7 @@ interface ExtendedMessage extends DBMessage {
 interface MessageBubbleProps {
     m: ExtendedMessage;
     idx: number;
-    highlightText: (text: string) => React.ReactNode;
+    highlightText?: (text: string) => React.ReactNode; // Keeping optional so we don't break parent
     renderCard: (card: any, index: number) => React.ReactNode;
     handleSend: (text: string) => void;
     setInput: (text: string) => void;
@@ -39,7 +41,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
             ) : (
                 <div className={`max-w-[90%] md:max-w-[70%] p-4 rounded-[20px] relative border backdrop-blur-md ${m.role === 'user' ? 'bg-[#1a1a1a]/50 border-white/5 text-white/90 rounded-tl-none' : (m.isError ? 'bg-red-900/20 border-red-500/30 text-red-200' : 'bg-[#0f0f0f]/50 border-purple-500/20 text-white shadow-lg')} ${m.role !== 'user' ? 'rounded-tr-none' : ''}`}>
                     {m.image && <img src={m.image} className="w-full h-auto max-h-56 object-cover rounded-xl mb-3 border border-white/5" />}
-                    <div className="text-sm leading-6 font-medium whitespace-pre-wrap">{highlightText(m.text)}</div>
+                    
+                    <div className="text-sm leading-7 font-medium markdown-body select-text" dir="auto">
+                        <ReactMarkdown 
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                                a: ({node, ...props}) => <a {...props} className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2" target="_blank" rel="noopener noreferrer"/>,
+                                pre: ({node, ...props}) => <pre className="bg-[#0a0a0a] p-3 rounded-lg border border-white/5 overflow-x-auto my-2" dir="ltr" {...props}/>,
+                                code: ({node, className, children, ...props}: any) => {
+                                    const match = /language-(\w+)/.exec(className || '');
+                                    const isBlock = match || (node?.position?.start?.line !== node?.position?.end?.line);
+                                    return <code className={`${isBlock ? 'text-emerald-300' : 'bg-black/40 text-purple-300 px-1.5 py-0.5 rounded-md'} font-mono text-xs ${className || ''}`} {...props}>{children}</code>;
+                                },
+                                ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props}/>,
+                                ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props}/>,
+                                strong: ({node, ...props}) => <strong className="text-purple-400 font-bold" {...props}/>
+                            }}
+                        >
+                            {m.text}
+                        </ReactMarkdown>
+                    </div>
                     
                     {/* MULTITASKING UI CARDS: RENDER ALL */}
                     {m.uiCards && m.uiCards.length > 0 ? (

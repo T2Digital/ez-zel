@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Activity, Briefcase, CheckCircle, Clock, Copy, ExternalLink, FileText, FolderOpen, Layout, Printer, Smartphone, Download, Share2, Globe } from 'lucide-react';
+import { Loader2, Activity, Briefcase, CheckCircle, Clock, Copy, ExternalLink, FileText, FolderOpen, Layout, Printer, Smartphone, Download, Share2, Globe, Users, Bot } from 'lucide-react';
 import LiveAgentAction from '../LiveAgentAction';
 import { getCardIcon, handleAppCardAction } from './ToolCardRenderer';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip } from 'recharts';
@@ -7,6 +7,7 @@ import { InteractiveEducator } from './InteractiveEducator';
 import { TradingViewChart } from './TradingViewChart';
 import { AutonomousDashboard } from './AutonomousDashboard';
 import { VideoDisplay } from './VideoDisplay';
+import { PredictiveAnalyticsBoard } from './PredictiveAnalyticsBoard';
 
 export const renderChatCard = (
     card: any, 
@@ -15,6 +16,39 @@ export const renderChatCard = (
     handleSend: (text: string, v?: any, i?: any, skip?: boolean) => void,
     setSelectedWorkspaceFile: (card: any) => void
 ) => {
+      if (card.cardType === 'swarm_manager') {
+          return (
+              <div key={i} className="bg-[#121212] border border-emerald-500/30 rounded-xl overflow-hidden font-sans shadow-[0_0_15px_rgba(16,185,129,0.1)] my-4" dir="rtl">
+                  <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 p-4 border-b border-emerald-500/20 flex items-center gap-3">
+                      <Users className="w-5 h-5 text-emerald-400" />
+                      <div>
+                          <h3 className="font-semibold text-emerald-300 tracking-tight">{card.title}</h3>
+                          <div className="text-xs text-emerald-500/70 mt-0.5">سرب تفكير جماعي يعمل بالتوازي</div>
+                      </div>
+                  </div>
+                  <div className="p-4 space-y-3">
+                      {card.tasks.map((task: any, idx: number) => (
+                          <div key={idx} className="bg-black/40 border border-white/5 rounded-lg p-3 flex gap-3 items-start relative overflow-hidden group">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/50"></div>
+                              <div className="bg-emerald-500/10 p-2 rounded-md shrink-0">
+                                  <Bot className="w-4 h-4 text-emerald-400" />
+                              </div>
+                              <div>
+                                  <div className="text-sm font-bold text-white/90">عميل: {task.agent_role}</div>
+                                  <div className="text-xs text-white/50 leading-relaxed mt-1">المهمة: {task.instruction}</div>
+                              </div>
+                              <div className="mr-auto self-center">
+                                  <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          );
+      }
+      if (card.cardType === 'predictive_board') {
+          return <React.Fragment key={i}><PredictiveAnalyticsBoard title={card.title} metrics={card.metrics || []} predicted_actions={card.predicted_actions || []} onApproveAction={(desc) => handleSend(`وافق على القرار: ${desc}`, undefined, undefined, false)} /></React.Fragment>;
+      }
       if (card.cardType === 'interactive_educator') {
           return <React.Fragment key={i}><InteractiveEducator card={card} /></React.Fragment>;
       }
