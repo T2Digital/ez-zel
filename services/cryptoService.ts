@@ -1,12 +1,21 @@
 import CryptoJS from 'crypto-js';
 
-// A constant salt/secret for symmetric encryption. 
-// In a real production app, you might want this to be a true E2E key derived from a user password,
-// but since users log in via Google/OAuth, we will use their UID + a global secret to isolate encrypted data.
 const GLOBAL_SECRET = 'shadow_secure_vault_2026';
 
+let customVaultKey: string | null = null;
+
+export const setE2EEVaultKey = (pinOrPassword: string) => {
+    customVaultKey = pinOrPassword;
+    console.log("[E2EE] Custom vault key activated for AES-256 encryption.");
+};
+
+export const hasE2EEVaultKey = () => !!customVaultKey;
+
 const getDerivedKey = (userId: string) => {
-    return CryptoJS.SHA256(userId + GLOBAL_SECRET).toString();
+    if (customVaultKey) {
+        return CryptoJS.SHA256(userId + customVaultKey).toString(CryptoJS.enc.Hex);
+    }
+    return CryptoJS.SHA256(userId + GLOBAL_SECRET).toString(CryptoJS.enc.Hex);
 };
 
 export const encryptData = (data: string, userId: string): string => {
@@ -16,7 +25,7 @@ export const encryptData = (data: string, userId: string): string => {
         return CryptoJS.AES.encrypt(data, key).toString();
     } catch (e) {
         console.error('Encryption failed', e);
-        return data; // Fallback
+        return data; 
     }
 };
 
@@ -37,11 +46,10 @@ export const decryptData = (cipherText: string, userId: string): string => {
     try {
         const oldDecrypted = decodeURIComponent(escape(atob(cipherText)));
         if (oldDecrypted && oldDecrypted !== cipherText && oldDecrypted.includes("SHADOW_CORE_V1")) {
-            // Cut off the salt and anything after it (which is the userId)
             const splitPoint = oldDecrypted.lastIndexOf("SHADOW_CORE_V1");
             return oldDecrypted.substring(0, splitPoint);
         }
     } catch (e) {}
 
-    return cipherText; // Likely plain text
+    return cipherText;
 };

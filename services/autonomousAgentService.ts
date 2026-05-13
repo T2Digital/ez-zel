@@ -300,7 +300,24 @@ If nothing is important, output exactly "IGNORE".`
     }, 5 * 60 * 1000); // 5 minutes
 };
 
-export const submitAutonomousTask = async (userId: string, prompt: string): Promise<string> => {
+export const cleanupStaleAutonomousTasks = async (userId: string) => {
+    const tasks = await shadowDB.getTasks(userId);
+    const pendingAuto = tasks.filter(t => t.category === 'autonomous' && t.status === 'pending');
+    let hasChanges = false;
+    for (const bgTask of pendingAuto) {
+        if (Date.now() - new Date(bgTask.time).getTime() > 20 * 60 * 1000) { // 20 mins timeout
+            bgTask.status = 'failed';
+            await shadowDB.saveTask(bgTask);
+            hasChanges = true;
+        }
+    }
+    if (hasChanges) {
+        useAppStore.getState().setRunningTasks(getActiveTasksCount());
+        window.dispatchEvent(new CustomEvent('autonomous_status_changed'));
+    }
+};
+
+export const submitAutonomousTask = async (userId: string, prompt: string, persona?: string): Promise<string> => {
     console.log(`[AGENT NODE] Dispatching background task to Dedicated Server Queue...`);
     
     // Save task to DB
@@ -324,7 +341,7 @@ export const submitAutonomousTask = async (userId: string, prompt: string): Prom
             const res = await fetch('/api/agents/spawn', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, userId })
+                body: JSON.stringify({ prompt, userId, persona })
             });
             const data = await res.json();
             
@@ -340,9 +357,11 @@ export const submitAutonomousTask = async (userId: string, prompt: string): Prom
             // Long-polling / Status check from Backend Server
             let adkResult = "";
             let isDone = false;
+            let counter = 0;
             
-            while (!isDone) {
-                await new Promise(r => setTimeout(r, 2000));
+            while (!isDone && counter < 400) { // Safety break
+                await new Promise(r => setTimeout(r, 3000));
+                counter++;
                 try {
                     const statusRes = await fetch(`/api/agents/${taskId}`);
                     if (!statusRes.ok) break;
@@ -357,11 +376,18 @@ export const submitAutonomousTask = async (userId: string, prompt: string): Prom
                 }
             }
 
+            // Tell Maestro to report it!
+            const { getShadowResponse, playShadowVoice } = await import('./geminiService');
+            const profile = await shadowDB.getProfile(userId);
+            
+            const systemMessage = `[معلومة للنظام - للظل فقط]\nأنجز العميل المستقل (${persona || 'الباحث'}) المهمة التالية في الخلفية:\nالمهمة: ${prompt}\n\nالنتيجة:\n${adkResult}\n\nيرجى صياغة رد للمستخدم تبلغه فيه بإنهاء المهمة وتشرح له النتيجة بأسلوبك المصري الرائع وباختصار.`;
+            const finalMaestroResponse = await getShadowResponse([], systemMessage, {}, profile);
+
             // Record Final Output to Local DB
             const msg: DBMessage = {
                 userId,
                 role: 'model',
-                text: `**[ADK Server Report]**\n\nالمهمة: ${prompt}\n\nالنتائج (RPA/Workers):\n${adkResult}`,
+                text: finalMaestroResponse.text,
                 timestamp: Date.now(),
                 isAutonomousResult: true
             };
@@ -373,8 +399,10 @@ export const submitAutonomousTask = async (userId: string, prompt: string): Prom
             
             // Notify User
             if ('Notification' in window && Notification.permission === 'granted') {
-                showSafeNotification("الظل | Ez-Zel", { body: "تم إنجاز المهمة بواسطة السيرفر بنجاح!" });
+                showSafeNotification("الظل | المهمة انتهت", { body: finalMaestroResponse.text });
             }
+            // Auto Play Voice if app is open
+            playShadowVoice(finalMaestroResponse.text, profile?.voicePreference || "male");
 
         } catch (e) {
             console.error("ADK task server submission failed:", e);

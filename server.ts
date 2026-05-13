@@ -93,11 +93,11 @@ async function startServer() {
 
   // 1. Autonomous Agent Queue endpoint (ADK Server-Side Executor)
   app.post("/api/agents/spawn", async (req, res) => {
-    const { prompt, userId } = req.body;
+    const { prompt, userId, persona } = req.body;
     const taskId = crypto.randomBytes(16).toString("hex");
     console.log(`[SERVER] Enqueuing background task ${taskId} into BullMQ for ${userId}`);
     
-    await autonomousQueue.add('agent-task', { prompt, userId, taskId }, {
+    await autonomousQueue.add('agent-task', { prompt, userId, taskId, persona }, {
         jobId: taskId,
         attempts: 3,
         backoff: { type: 'exponential', delay: 1000 }

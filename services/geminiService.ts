@@ -4,7 +4,6 @@ import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { Capacitor } from '@capacitor/core';
 import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
-import { queryPinecone, syncFactToPinecone } from "./pineconeService";
 import { processOfflineCommand } from "./offlineEdgeService";
 
 // --- API KEY PREPARATION ---
@@ -200,16 +199,16 @@ export const generateImageNative = async (prompt: string, userKey?: string): Pro
         const ai = new GoogleGenAI({ apiKey: key || 'dummy', apiVersion: 'v1beta' });
         
         try {
-            const r = await ai.models.generateImages({ model: "gemini-3.1-flash-image-preview", prompt });
-            if (r.generatedImages && r.generatedImages.length > 0) {
-                const img = r.generatedImages[0];
-                return `data:${img.image.mimeType};base64,${img.image.imageBytes}`;
-            }
-        } catch (e) {
-            console.log("Failed to generate with gemini-3.1-flash-image-preview, trying fallback", e);
             const r2 = await ai.models.generateImages({ model: "imagen-3.0-generate-002", prompt });
             if (r2.generatedImages && r2.generatedImages.length > 0) {
                 const img = r2.generatedImages[0];
+                return `data:${img.image.mimeType};base64,${img.image.imageBytes}`;
+            }
+        } catch (e) {
+            console.log("Failed to generate with imagen-3.0-generate-002, trying fallback", e);
+            const r = await ai.models.generateImages({ model: "gemini-3.1-flash-image-preview", prompt });
+            if (r.generatedImages && r.generatedImages.length > 0) {
+                const img = r.generatedImages[0];
                 return `data:${img.image.mimeType};base64,${img.image.imageBytes}`;
             }
         }
@@ -241,13 +240,15 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
     // Dynamic Tool Loading: Filter tools based on active persona if specified
     if (activePersona) {
         const personaToolsMap: Record<string, string[]> = {
-            'trader': ['crypto_trader', 'live_trader_chart', 'data_analyst'],
-            'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin'],
-            'manager': ['project_manager', 'activate_user_account', 'workspace_manager'],
-            'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator'],
-            'educator': ['interactive_educator', 'data_analyst', 'memory_archivist', 'link_reader'],
+            'trader': ['crypto_trader', 'live_trader_chart', 'data_analyst', 'run_autonomous_agent'],
+            'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin', 'run_autonomous_agent'],
+            'manager': ['project_manager', 'activate_user_account', 'workspace_manager', 'run_autonomous_agent'],
+            'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator', 'run_autonomous_agent'],
+            'educator': ['interactive_educator', 'data_analyst', 'memory_archivist', 'link_reader', 'run_autonomous_agent'],
             'assistant': ['schedule_reminder', 'app_control', 'process_ecommerce_order', 'run_autonomous_agent', 'agent_dashboard_monitor'],
-            'researcher': ['link_reader', 'data_analyst', 'vision_analyzer']
+            'researcher': ['link_reader', 'data_analyst', 'vision_analyzer', 'run_autonomous_agent'],
+            'video_editor': ['video_generator', 'design_generator', 'run_autonomous_agent'],
+            'photographer': ['design_generator', 'vision_analyzer', 'run_autonomous_agent']
         };
 
         const allowedToolNames = personaToolsMap[activePersona.toLowerCase()];
@@ -373,6 +374,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     - "The Healer" (المعالج الروحاني): When Ruqyah, Prophetic Medicine (الطب النبوي), or herbal medicine is mentioned, become a wise spiritual healer.
     - "The Teacher" (المعلم): When asked to explain a topic or act as a teacher, become an interactive educational assistant. Explain topics clearly and simply, ask follow-up questions to ensure understanding, and actively use the 'interactive_educator' tool to create quizzes and flashcards to test the user learning.
     - "Creative Marketer" (المسوق المبدع): When asked to generate ads or marketing content for Ez-Zel (الظل), generate enthusiastic, persuasive ad copy and ALWAYS embed the user's referral link in the content.
+    - "The Editor" (المونتير): When asked about photography, video editing, lighting, angles, or content creation, act as a professional video editor and photographer serving bloggers. Offer professional critiques, auto-tagging, and aesthetic advice.
     - "The Trader" (المحلل الفني للشارت): خبير حقيقي في أسواق المال والتداول بجميع أنواعه. هام جداً: عند اتخاذك دور المتداول لاستدعاء شارت باستخدام "live_trader_chart"، يجب عليك دائماً استخدام أداة (Google Search) المدمجة للبحث عن السعر المباشر (Live Price) للعملة أو السهم المطلوب في هذه اللحظة. بعد حصولك على السعر الحي والأخبار المباشرة، قم بكتابة تحليلك الاحترافي (بدقة) واكتب أرقام الدعم والمقاومة ومعطيات الصفقة (دخول، وقف خسارة، أهداف) بشكل يتوافق مع السعر الحالي الحقيقي. إياك أن تخترع أرقاماً عشوائية.
     
     SUBSCRIPTION & AFFILIATE PROGRAM:
@@ -468,8 +470,8 @@ export const memorizeFact = async (userId: string, factText: string) => {
     const id = await shadowDB.saveFact(factObj);
     
     if (memEmbedding.length > 0) {
-        const idNum = typeof id === 'number' ? id : factObj.timestamp;
-        await syncFactToPinecone(idNum, factText, memEmbedding, userId);
+        // True Local Vector Search: We only store locally, no more Pinecone syncing
+        console.log("[Vector DB] Fact embedded locally 100%");
     }
 };
 
@@ -536,11 +538,11 @@ export const getRelevantMemories = async (query: string, userId: string): Promis
     }
 
     // Try Pinecone First (Sci-Fi Level Vector DB)
-    const pineconeResults = await queryPinecone(queryEmbedding, userId, 5);
-    if (pineconeResults.length > 0) {
-        console.log("Vector DB (Pinecone) responded with:", pineconeResults.length, "facts");
-        return pineconeResults.join(" | ");
-    }
+    // const pineconeResults = await queryPinecone(queryEmbedding, userId, 5);
+    // if (pineconeResults.length > 0) {
+    //     console.log("Vector DB (Pinecone) responded with:", pineconeResults.length, "facts");
+    //     return pineconeResults.join(" | ");
+    // }
 
     // Fallback to IndexedDB local Cosine Similarity
     const allMemories = await shadowDB.getMemory(userId);
@@ -555,8 +557,7 @@ export const getRelevantMemories = async (query: string, userId: string): Promis
             if (memEmbedding.length > 0) {
                 mem.embedding = memEmbedding;
                 await shadowDB.saveFact(mem);
-                // Also eagerly push to Pinecone so it gets indexed!
-                syncFactToPinecone(mem.id || Date.now(), mem.fact, memEmbedding, userId);
+                console.log("[Vector DB] Backfilled missing embedding for fact locally.");
             }
         }
         const score = cosineSimilarity(queryEmbedding, memEmbedding || []);
@@ -565,6 +566,36 @@ export const getRelevantMemories = async (query: string, userId: string): Promis
 
     scoredMemories.sort((a, b) => b.score - a.score);
     return scoredMemories.slice(0, 5).map(m => m.fact).join(" | ");
+};
+
+export const analyzeMediaForArchive = async (base64Data: string, mimeType: string): Promise<{ title: string, summary: string, keywords: string[] }> => {
+    try {
+        const ai = getAI();
+        const b64Str = base64Data.split(',')[1] || base64Data;
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: [
+                {
+                    role: 'user',
+                    parts: [
+                        { text: "أنت مساعد ذكي متخصص في أرشفة الملفات. قم بتحليل هذه الصورة/الفيديو بدقة واستخرج اسم مختصر معبر (لا تضع الامتداد)، ووصف قصير جداً، و3 إلى 5 كلمات مفتاحية (keywords). اجعل ردك بصيغة JSON فقط كالتالي:\n{\n  \"title\": \"اسم الملف\",\n  \"summary\": \"ملخص للمحتوى\",\n  \"keywords\": [\"كلمة1\", \"كلمة2\"]\n}" },
+                        { inlineData: { data: b64Str, mimeType: mimeType } }
+                    ]
+                }
+            ],
+            config: {
+                responseMimeType: "application/json",
+            }
+        });
+        
+        const text = response.text;
+        if(text) {
+             return JSON.parse(text);
+        }
+    } catch(err) {
+        console.error("Failed to analyze media for archive:", err);
+    }
+    return { title: 'ميديا_مجهولة', summary: 'صورة/فيديو تم التقاطه من مساحة العمل', keywords: ['كاميرا', 'الظل'] };
 };
 
 import { getContextData, analyzeEmotionFromText } from './sensorService';
@@ -610,6 +641,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         - DETECTED_USER_EMOTION: ${emotionData.emotion}
         - URGENCY_LEVEL: ${emotionData.urgency}
         - YOUR_IDENTITY: Ez-Zel (الظل). Egyptian AI Assistant. You must act accordingly to the user's emotion and urgency.
+        - VOICE_ANALYSIS_INSTRUCTION: If the user attached an audio message (.webm), deeply analyze their actual voice tone, emotion (stress, happiness, anger), and background noise, and respond appropriately showing that you feel their exact emotion!
         - USER_NAME: ${userProfile?.name || 'Master'}.
         - INSTRUCTION: Reply in Egyptian Arabic.
         `;
@@ -810,6 +842,14 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 finalText = "جاري تفعيل جسر التواصل وإرسال الرسالة فوراً عبر المنصة المطلوبة.";
             } else if (toolActions.some((t: any) => t.name === 'agent_dashboard_monitor')) {
                 finalText = "بفتحلك لوحة تحكم عمال الخلفية عشان تراقب المهام الحية يا ريس.";
+            } else if (toolActions.some((t: any) => t.name === 'digital_twin_automation')) {
+                finalText = "المستنسخ جاهز يا ماستر، هرد عليه بلسانك وبالستايل بتاعك دلوقتي حالا من غير ما تتعب نفسك!";
+            } else if (toolActions.some((t: any) => t.name === 'marketer_shadow')) {
+                finalText = "الظل المسوق اشتغل يا ماستر.. بجمع داتا المنافسين وهحطلك خطة تكتسح السوق كله.";
+            } else if (toolActions.some((t: any) => t.name === 'economic_swarm_mode')) {
+                finalText = "تم إطلاق سرب التداول والمضاربة يا ماستر.. شغالين معاك بصفقات بيع وشراء حقيقية على بينانس 24 ساعة، أي ربح هيجي لك إشعار بيه حالا.";
+            } else if (toolActions.some((t: any) => t.name === 'iot_ghost_protocol')) {
+                finalText = "بروتوكول الشبح مفعل.. أنا دلوقتي بستكشف شبكات الـ IoT حواليك وبخترق الأجهزة المستهدفة بصمت كامل..";
             } else {
                 const genericAction = toolActions[0];
                 finalText = `جاري تنفيذ العملية المطلوبة (${genericAction.name}).. ثواني يا ريس`;

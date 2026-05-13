@@ -79,12 +79,18 @@ interface Props {
 const ORBIT_RADII = [220, 360, 500];
 const ORBIT_SPEEDS = [0.005, -0.003, 0.002]; // radians per frame
 
+import { VoiceSecurityGate } from './VoiceSecurityGate';
+
+// inside the Dashboard functional component:
 const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpenChat, onOpenAffiliate, onLogout, onUpgrade, onStartAffiliate, onOpenWorkspace }) => {
   const [tasks, setTasks] = useState<DBTask[]>([]);
   const [memory, setMemory] = useState<DBFact[]>([]);
   const [syncRate, setSyncRate] = useState(0);
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'playing'>('idle');
   
+  // Voice Gate
+  const [pendingSecureAction, setPendingSecureAction] = useState<'nexus' | 'admin' | null>(null);
+
   // Nexus / IoT Modal State
   const [showNexusConfig, setShowNexusConfig] = useState(false);
   const [iotActions, setIotActions] = useState<{ [key: string]: string }>(user.iotActions || {});
@@ -301,13 +307,13 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       { id: 'identity', icon: identity.icon, label: identity.label, colorClass: identity.color, bgClass: identity.bg, borderClass: identity.border, onClick: () => setShowVault(true) },
       { id: 'affiliate', icon: user.phone === 'GUEST' ? Megaphone : DollarSign, label: user.phone === 'GUEST' ? "سوق للظل واربح" : "بيزنس العيلة (تسويق)", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: user.phone === 'GUEST' ? onStartAffiliate : onOpenAffiliate },
       ...((user.tier === 'sovereign' || user.phone === 'TITO') ? [
-          { id: 'nexus', icon: Cpu, label: "نكسوس (التحكم المنزلي IoT)", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setShowNexusConfig(true) }
+          { id: 'nexus', icon: Cpu, label: "نكسوس (التحكم المنزلي IoT)", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setPendingSecureAction('nexus') }
       ] : [
           { id: 'upgrade', icon: Crown, label: "انضم للنخبة (ترقية)", colorClass: "text-white", bgClass: "bg-white/10", borderClass: "border-white/30", onClick: onUpgrade }
       ]),
       { id: 'voice', icon: voiceStatus === 'playing' ? Pause : Play, label: "رسالة التوجيه (صوت الظل)", colorClass: voiceStatus === 'playing' ? 'text-amber-500' : 'text-white/40', bgClass: voiceStatus === 'playing' ? 'bg-amber-500/20' : 'bg-white/5', borderClass: voiceStatus === 'playing' ? 'border-amber-500/50' : 'border-white/10', onClick: toggleVoice },
       ...(isAdmin ? [
-          { id: 'override', icon: Terminal, label: "النظام الداخلي (Override)", colorClass: "text-red-500", bgClass: "bg-red-900/20", borderClass: "border-red-500/30", onClick: () => setShowSystemOverride(true) },
+          { id: 'override', icon: Terminal, label: "النظام الداخلي (Override)", colorClass: "text-red-500", bgClass: "bg-red-900/20", borderClass: "border-red-500/30", onClick: () => setPendingSecureAction('admin') },
           { id: 'workspace', icon: FolderOpen, label: "مساحة العمل (Workspace)", colorClass: "text-purple-500", bgClass: "bg-purple-900/20", borderClass: "border-purple-500/30", onClick: onOpenWorkspace }
       ] : []),
       { id: 'logout', icon: LogOut, label: "خروج مؤقت", colorClass: "text-gray-400", bgClass: "bg-white/5", borderClass: "border-white/10", onClick: onLogout }
@@ -392,6 +398,18 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
             <SovereignVault user={user} onVaultReady={() => setShowVault(false)} />
         )}
 
+        {pendingSecureAction && (
+            <VoiceSecurityGate 
+                onClose={() => setPendingSecureAction(null)} 
+                onSuccess={() => {
+                    const action = pendingSecureAction;
+                    setPendingSecureAction(null);
+                    if (action === 'nexus') setShowNexusConfig(true);
+                    if (action === 'admin') setShowSystemOverride(true);
+                }}
+            />
+        )}
+
         {showApiVault && (
             <ApiKeysVault user={user} onClose={() => setShowApiVault(false)} onSave={(updatedUser) => {
                 setShowApiVault(false);
@@ -416,17 +434,15 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
                     <div className="bg-white/5 p-5 rounded-[24px] border border-white/5 mb-6">
                         <h4 className="flex items-center gap-2 text-sm font-black text-white mb-2">
                              <Info className="w-4 h-4 text-cyan-400" />
-                             طريقة الربط (eWeLink / Tuya):
+                             طريقة الربط (Home Assistant Local Bridge / eWeLink):
                         </h4>
                         <ol className="text-xs text-white/70 space-y-3 list-decimal list-inside leading-relaxed p-2">
-                            <li>ادخل موقع <b>IFTTT.com</b> واعمل Create New Applet.</li>
-                            <li>في خانة (If This) اختار <b>Webhooks</b>، وسمي الحدث (مثلاً: <span className="text-amber-400 font-mono">room_light</span>).</li>
-                            <li>في خانة (Then That) اختار <b>eWeLink</b> أو <b>Smart Life</b> وحدد الجهاز (مثلاً: اللمبة تشتغل).</li>
-                            <li>انسخ رابط الويب هوك (Webhook URL) من إعدادات IFTTT.</li>
-                            <li>ضيف الرابط ده هنا تحت، بنفس الاسم اللي اخترته (room_light).</li>
-                            <li>قول للظل: "ولع نور الغرفة"، وهو هينفذ فوراً.</li>
+                            <li>ادخل شبكة الماستر المنزلية <b>Home Assistant</b> أو <b>IFTTT.com</b> واعمل Webhooks.</li>
+                            <li>في حالة (Home Assistant)، قم بكتابة روابط اللوكال الخاصة بك هنا (http://192.168.1.10:8123/api/webhook/YOUR_ID). </li>
+                            <li>يعمل النظام كعميل (Capacitor/Native) ويستطيع الجسر إرسال الأوامر للشبكة المحلية مباشرة بحرية على هاتفك.</li>
+                            <li>ضيف الرابط ده هنا تحت باسم الحدث. وقول للظل: "ولع النور"، وهو هينفذ.</li>
                         </ol>
-                        <p className="text-[10px] text-white/40 mt-3 font-medium">ملاحظة: هذه هي الطريقة المعيارية لربط الأجهزة الذكية عبر الإنترنت بدون Hardware Hub خاص.</p>
+                        <p className="text-[10px] text-white/40 mt-3 font-medium">ملاحظة: استخدام شبكات الـ Local Proxy يستلزم أن يكون الهاتف على نفس الشبكة المنزلية.</p>
                         <a href="https://ifttt.com/maker_webhooks" target="_blank" className="inline-flex items-center gap-1 mt-3 px-4 py-2 bg-cyan-900/30 rounded-lg text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-500/20">
                             فتح موقع IFTTT للإعداد <ExternalLink className="w-3 h-3" />
                         </a>

@@ -36,6 +36,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAppStore } from "./services/store";
+import { cleanupStaleAutonomousTasks } from "./services/autonomousAgentService";
+import { setupBackgroundProcessing } from "./services/backgroundTaskService";
 import { App as CapacitorApp } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { showSafeNotification } from "./services/notificationService";
@@ -119,6 +121,8 @@ const App: React.FC = () => {
         console.log("Local Notifications Permission:", result.display);
       })
       .catch(() => {});
+
+    setupBackgroundProcessing();
 
     return () => {
       unsub();
@@ -296,12 +300,19 @@ const App: React.FC = () => {
     // ALARM CHECKER
     let isChecking = false;
     let timeoutId: any;
+    let loopCount = 0;
     const runBackgroundChecks = async () => {
       if (isChecking) return;
       isChecking = true;
       try {
+        loopCount++;
         const now = Date.now();
         const uid = user.email || "GUEST";
+        
+        if (loopCount % 60 === 0 && uid !== "GUEST") {
+            cleanupStaleAutonomousTasks(uid).catch(console.error);
+        }
+
         const allTasks = await shadowDB.getTasks(uid);
 
         const dueTasks = allTasks.filter(

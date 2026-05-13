@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip, Terminal, Tag, BarChart2, MessageCircle, ShoppingCart, GraduationCap, Palette } from 'lucide-react';
+import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip, Terminal, Tag, BarChart2, MessageCircle, ShoppingCart, GraduationCap, Palette, Film } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { shadowDB, UserProfile, DBFeedback, AgentProfile } from '../services/dbService';
 import ChatInterface from './ChatInterface';
@@ -237,6 +237,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       { id: 'educator', name: 'Educator', role: 'المعلم', status: 'ONLINE', description: 'مساعد تعليمي للأطفال والطلاب والمدرسين.', color: 'amber', icon: <GraduationCap className="w-5 h-5" /> },
       { id: 'pro_designer', name: 'Pro Designer', role: 'المصمم المحترف', status: 'ONLINE', description: 'خبير إنشاء وتوليد الصور والفيديوهات.', color: 'pink', icon: <Palette className="w-5 h-5" /> },
       { id: 'life_coach', name: 'Life Coach', role: 'المدرب الرياضي والنفسي', status: 'ONLINE', description: 'دعم وتحفيز الرياضيين والتوجيه النفسي.', color: 'red', icon: <Activity className="w-5 h-5" /> },
+      { id: 'editor', name: 'The Editor', role: 'المونتير', status: 'ONLINE', description: 'مصمم ومونتير فيديو للمدونين وصناع المحتوى.', color: 'cyan', icon: <Film className="w-5 h-5" /> },
   ];
 
   const filteredProfiles = realProfiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.email.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -247,8 +248,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   if (activeView === 'chat') return <div className="fixed inset-0 bg-transparent text-white font-['Cairo'] overflow-hidden"><ChatInterface onBack={() => setActiveView('requests')} onNavigateTo={(s) => { if(s === 'affiliate' && onNavigateTo) onNavigateTo('affiliate'); if(s === 'admin') setActiveView('analytics'); }} /></div>;
 
   return (
-    <div className="min-h-screen bg-[#020008] text-white flex flex-col font-['Cairo'] pb-48 relative z-50 overflow-x-hidden">
-      <div className="p-6 md:p-8 flex justify-between items-center bg-[#020008] border-b border-white/5 sticky top-0 z-50">
+    <div className="min-h-screen bg-transparent text-white flex flex-col font-['Cairo'] pb-48">
+      <div className="p-6 md:p-8 flex justify-between items-center bg-black/50 border-b border-white/5 sticky top-0 z-50 backdrop-blur-md">
           <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">A</div><h2 className="text-xl font-black">Shadow <span className="text-amber-500">HQ</span></h2></div>
           <div className="flex items-center gap-2">
               <button onClick={onSwitchToUserMode} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">وضع المستخدم</button>
@@ -256,14 +257,29 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
           </div>
       </div>
 
-      <div className="flex-1 p-6 space-y-8">
+      <div className="flex-1 p-6 space-y-8 relative z-10">
         {activeView !== 'core' && activeView !== 'broadcast' && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2 md:gap-3">
-                {councilAgents.map(agent => (
-                    <div key={agent.id} onClick={() => handleAgentClick(agent)} className="p-4 rounded-2xl border border-white/5 bg-[#080808] flex flex-col items-center cursor-pointer hover:border-amber-500/30 transition-all group">
-                        <div className={`p-3 rounded-full bg-white/5 text-${agent.color}-400 mb-2 group-hover:scale-110 transition-transform`}>{agent.icon}</div><span className="text-[9px] font-black uppercase text-white/40">{agent.name}</span>
-                    </div>
-                ))}
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-3 relative z-10">
+                {councilAgents.map(agent => {
+                    const colorMap: Record<string, string> = {
+                        purple: "text-purple-400 group-hover:bg-purple-500/10 group-hover:border-purple-500/30",
+                        blue: "text-blue-400 group-hover:bg-blue-500/10 group-hover:border-blue-500/30",
+                        emerald: "text-emerald-400 group-hover:bg-emerald-500/10 group-hover:border-emerald-500/30",
+                        amber: "text-amber-400 group-hover:bg-amber-500/10 group-hover:border-amber-500/30",
+                        cyan: "text-cyan-400 group-hover:bg-cyan-500/10 group-hover:border-cyan-500/30",
+                        red: "text-red-400 group-hover:bg-red-500/10 group-hover:border-red-500/30",
+                        green: "text-green-400 group-hover:bg-green-500/10 group-hover:border-green-500/30",
+                        orange: "text-orange-400 group-hover:bg-orange-500/10 group-hover:border-orange-500/30",
+                        pink: "text-pink-400 group-hover:bg-pink-500/10 group-hover:border-pink-500/30"
+                    };
+                    const colorClass = colorMap[agent.color] || "text-white group-hover:bg-white/10";
+                    return (
+                        <div key={agent.id} onClick={() => handleAgentClick(agent)} className={`p-4 rounded-2xl border border-white/5 bg-[#080808]/80 backdrop-blur-md flex flex-col items-center cursor-pointer transition-all group ${colorClass}`}>
+                            <div className={`p-3 rounded-full bg-white/5 mb-2 group-hover:scale-110 transition-transform ${colorMap[agent.color] ? colorMap[agent.color].split(' ')[0] : 'text-white'}`}>{agent.icon}</div>
+                            <span className="text-[9px] font-black uppercase text-white/40 group-hover:text-white transition-colors">{agent.name}</span>
+                        </div>
+                    );
+                })}
             </div>
         )}
 
@@ -672,28 +688,28 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                 </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="p-5 bg-[#111] rounded-[24px] border border-white/5 relative overflow-hidden group">
+                    <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">إجمالي الأعضاء</h4>
                         <div className="text-2xl font-black text-white flex items-center gap-2">
                             {realProfiles.length} <Users className="w-4 h-4 text-white/20" />
                         </div>
                     </div>
-                    <div className="p-5 bg-[#111] rounded-[24px] border border-white/5 relative overflow-hidden group">
+                    <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">الأعضاء النشطين</h4>
                         <div className="text-2xl font-black text-emerald-400 flex items-center gap-2">
                             {realProfiles.filter(p => p.status === 'active').length} <CheckCircle className="w-4 h-4 text-emerald-500/30" />
                         </div>
                     </div>
-                    <div className="p-5 bg-[#111] rounded-[24px] border border-white/5 relative overflow-hidden group">
+                    <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">المسوقين (Affiliates)</h4>
                         <div className="text-2xl font-black text-amber-500 flex items-center gap-2">
                             {realProfiles.filter(p => p.affiliate && p.affiliate.isMarketer).length} <Briefcase className="w-4 h-4 text-amber-500/30" />
                         </div>
                     </div>
-                    <div className="p-5 bg-[#111] rounded-[24px] border border-white/5 relative overflow-hidden group">
+                    <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">الربح المتوقع (إجمالي)</h4>
                         <div className="text-2xl font-black text-purple-400 flex items-center gap-2">
@@ -702,11 +718,11 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                     </div>
                 </div>
 
-                <div className="p-4 md:p-6 bg-[#080808] rounded-[32px] border border-white/5 w-full overflow-hidden flex flex-col items-center justify-center">
-                     <h4 className="text-sm font-bold text-white mb-4 w-full text-right">نمو الأعضاء (آخر 7 أيام)</h4>
-                     <div className="w-full h-[250px] md:h-[300px]">
+                <div className="p-6 bg-[#080808]/80 backdrop-blur-md rounded-[32px] border border-white/5 w-full flex flex-col justify-center min-h-[350px]">
+                     <h4 className="text-sm font-bold text-white mb-6">نمو الأعضاء (آخر 7 أيام)</h4>
+                     <div className="flex-1 w-full relative min-h-[250px]">
                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={growthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <AreaChart data={growthData}>
                                 <defs>
                                     <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
@@ -720,7 +736,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                                 <Area type="monotone" dataKey="users" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorUsers)" />
                             </AreaChart>
                         </ResponsiveContainer>
-                     </div>
+                    </div>
                 </div>
             </div>
         )}

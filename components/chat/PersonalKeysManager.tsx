@@ -101,6 +101,23 @@ export const PersonalKeysManager: React.FC<Props> = ({ onClose, currentUser }) =
                         </div>
                         
                         <div className="space-y-4 mb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">OpenAI API Key</label>
+                                    <input type="password" value={personalKeys.openaiApiKey || ''} onChange={e => setPersonalKeys({ ...personalKeys, openaiApiKey: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all placeholder:text-white/20" placeholder="sk-..." />
+                                </div>
+                                <div>
+                                    <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">Anthropic API Key</label>
+                                    <input type="password" value={personalKeys.anthropicApiKey || ''} onChange={e => setPersonalKeys({ ...personalKeys, anthropicApiKey: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all placeholder:text-white/20" placeholder="sk-ant-..." />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">Gemini API Key (مفتاح إضافي)</label>
+                                <input type="password" value={personalKeys.geminiApiKey || ''} onChange={e => setPersonalKeys({ ...personalKeys, geminiApiKey: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all placeholder:text-white/20" placeholder="AIzaSy..." />
+                            </div>
+                            
+                            <hr className="border-white/5 my-4" />
+
                             <div>
                                 <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">GitHub Token (للنشر على جت هاب)</label>
                                 <input type="password" value={personalKeys.githubToken || ''} onChange={e => setPersonalKeys({ ...personalKeys, githubToken: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all placeholder:text-white/20" placeholder="ghp_..." />

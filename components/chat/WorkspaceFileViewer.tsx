@@ -192,6 +192,26 @@ export const WorkspaceFileViewer: React.FC<WorkspaceFileViewerProps> = ({
                             const renderContent = () => {
                                 if (!rawContent) return null;
 
+                                if (file.type === 'image') {
+                                    return (
+                                        <div className="flex flex-col items-center justify-center space-y-4">
+                                            <img src={rawContent} alt={file.name} className="max-w-full max-h-[60vh] h-auto rounded-xl shadow-2xl object-contain border border-white/10" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                                        </div>
+                                    );
+                                }
+
+                                if (file.type === 'audio') {
+                                    return (
+                                        <div className="flex flex-col items-center justify-center space-y-6 bg-black/40 p-8 rounded-2xl border border-white/5">
+                                            <div className="w-24 h-24 rounded-full bg-violet-500/20 flex items-center justify-center animate-pulse">
+                                                <Volume2 className="w-12 h-12 text-violet-400" />
+                                            </div>
+                                            <h3 className="text-xl font-bold text-white">{file.name}</h3>
+                                            <audio src={rawContent} controls className="w-full max-w-md filter drop-shadow-lg" autoPlay />
+                                        </div>
+                                    );
+                                }
+
                                 // Try parsing as JSON first
                                 if (rawContent.trim().startsWith('{') && rawContent.trim().endsWith('}')) {
                                     try {

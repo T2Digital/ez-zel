@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Activity, Briefcase, CheckCircle, Clock, Copy, ExternalLink, FileText, FolderOpen, Layout, Printer, Smartphone, Download, Share2, Globe, Users, Bot } from 'lucide-react';
+import { Loader2, Activity, Briefcase, CheckCircle, Clock, Copy, ExternalLink, FileText, FolderOpen, Layout, Printer, Smartphone, Download, Share2, Globe, Users, Bot, Terminal } from 'lucide-react';
 import LiveAgentAction from '../LiveAgentAction';
 import { getCardIcon, handleAppCardAction } from './ToolCardRenderer';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip } from 'recharts';
@@ -405,16 +405,29 @@ export const renderChatCard = (
               </div>
           );
       }
+      if (card.cardType === 'system_log') {
+          return (
+              <div key={i} className="mt-4 bg-[#111] p-4 rounded-[16px] border border-blue-500/20 flex flex-col gap-2 font-mono text-left w-full md:w-[380px]" dir="ltr">
+                  <div className="flex items-center gap-2">
+                     <Terminal className="w-4 h-4 text-blue-400" />
+                     <span className="text-blue-400 text-xs font-bold">{card.title || 'System Log'}</span>
+                  </div>
+                  <pre className="text-white/70 text-[10px] whitespace-pre-wrap">{card.description}</pre>
+              </div>
+          );
+      }
       return (
         <div key={i} className={`mt-4 rounded-[22px] p-4 w-full md:w-[320px] bg-[#0f0f0f]/90 border border-white/10`}>
             <div className="flex items-center gap-3 mb-3">
                 <div className={`p-2 rounded-xl bg-white/10`}>{getCardIcon(card.cardType, card.number)}</div>
                 <div><h3 className={`font-black text-xs text-white`}>{card.title}</h3><p className="text-[10px] text-white/50 truncate max-w-[200px]">{card.description}</p></div>
             </div>
-            <button onClick={() => handleAppCardAction(card)} className={`w-full py-2.5 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-xs border bg-white/10 hover:bg-white/20 text-white border-white/10`}>
-                {card.cardType === 'internal_nav' ? <Layout className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
-                {card.cardType === 'internal_nav' ? 'فتح الصفحة' : 'فتح التطبيق'}
-            </button>
+            {(card.cardType === 'internal_nav' || card.url || card.cardType === 'deep_link_fallback') && (
+                <button onClick={() => handleAppCardAction(card)} className={`w-full py-2.5 font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-xs border bg-white/10 hover:bg-white/20 text-white border-white/10`}>
+                    {card.cardType === 'internal_nav' ? <Layout className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
+                    {card.cardType === 'internal_nav' ? 'فتح الصفحة' : 'فتح الرابط'}
+                </button>
+            )}
         </div>
       );
 };

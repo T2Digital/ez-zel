@@ -254,8 +254,8 @@ const tools = [
 
 // 5. Worker Engine Loop
 export async function processAgentTask(job: Job) {
-    const { prompt, userId, taskId } = job.data;
-    console.log(`[WORKER] Received Task ${taskId}: ${prompt}`);
+    const { prompt, userId, taskId, persona } = job.data;
+    console.log(`[WORKER] Received Task ${taskId}: ${prompt} with persona: ${persona || 'default'}`);
     
     let isDone = false;
     let finalOutput = "";
@@ -265,7 +265,7 @@ export async function processAgentTask(job: Job) {
     ];
     
     let iteration = 0;
-    const maxIterations = 30;
+    const maxIterations = 20; // Reduced to 20 for faster closure
     
     while (!isDone && iteration < maxIterations) {
         iteration++;
@@ -277,7 +277,10 @@ export async function processAgentTask(job: Job) {
                 contents: history as any,
                 config: {
                     tools: [{ functionDeclarations: tools as any }],
-                    systemInstruction: { parts: [{ text: "أنت الظل (Ez-Zel Digital Shadow)، تمتلك قدرات استثنائية للوصول لنظامك وقراءة أكوادك عبر أداة adk_read_source_code بالإضافة للقدرة على تصفح الانترنت وبرمجة وتعديل النظام. استخدم Sandbox دائما كقاعدة للاختبار. تم إرسال طلب جديد من المستخدم. قم بالتفكير كخطوات ثم استدع adk_finish بالنهاية." }] },
+                    systemInstruction: { parts: [{ text: `أنت الظل (Ez-Zel Digital Shadow)، تمتلك قدرات استثنائية. 
+                    شخصيتك الحالية المكلفة بتنفيذ العمل: ${persona || 'خبير ومساعد ذكي'}. تصرف بناء على هذه الشخصية.
+                    لديك قدرة للوصول لنظامك وتعديله بأداة adk_read_source_code، وللإنترنت وبرمجة النظام. استخدم Sandbox كسجل للاختبار.
+                    قم بالتفكير كخطوات ثم استدع adk_finish بالنهاية سريعا بمجرد إنهاء المهمة ولا تكرر الكلام.` }] },
                     temperature: 0.6
                 }
             });

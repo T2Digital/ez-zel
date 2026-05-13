@@ -119,7 +119,7 @@ export interface DBTask {
   time: string;
   executionTime?: number;
   category: string;
-  status: 'pending' | 'completed' | 'done';
+  status: 'pending' | 'completed' | 'done' | 'failed';
   type?: string;
   recurring?: boolean;
   notified?: boolean;

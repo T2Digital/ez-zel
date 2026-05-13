@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2, Target } from 'lucide-react';
+import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2, Target, Volume2 } from 'lucide-react';
 import { shadowDB, DBFSItem } from '../services/dbService';
 import { playShadowVoice, generateMp3FromShadowVoice } from '../services/geminiService';
 import SpaceCanvas from './SpaceCanvas';
@@ -18,6 +18,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<DBFSItem | null>(null);
   const [workspaceTab, setWorkspaceTab] = useState<'l0' | 'l1' | 'l2'>('l2');
+  const [ripples, setRipples] = useState<{id: number, x: number, y: number}[]>([]);
 
   // 3D Navigation State
   const cameraRef = useRef({ x: 0, y: 0, z: -500 });
@@ -70,8 +71,8 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
        const target = targetCameraRef.current;
        
        const isTouchActive = activePointers.current.size > 0 || isDragging.current;
-       const easeX = isTouchActive ? 1 : 0.2;
-       const easeY = isTouchActive ? 1 : 0.2;
+       const easeX = isTouchActive ? 1 : 0.3;
+       const easeY = isTouchActive ? 1 : 0.3;
        const easeZ = isTouchActive ? 1 : 0.2; 
 
        if (!isTouchActive) {
@@ -81,8 +82,8 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
          targetCameraRef.current.z += velocity.current.z;
          
          // Decay
-         velocity.current.x *= 0.90;
-         velocity.current.y *= 0.90;
+         velocity.current.x *= 0.92;
+         velocity.current.y *= 0.92;
          velocity.current.z *= 0.90;
        }
 
@@ -135,6 +136,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
       case 'project': return <Briefcase className="w-6 h-6 text-purple-400 drop-shadow-[0_0_20px_rgba(192,132,252,0.3)]" />;
       case 'image': return <ImageIcon className="w-6 h-6 text-pink-400 drop-shadow-[0_0_20px_rgba(244,114,182,0.3)]" />;
       case 'video': return <Video className="w-6 h-6 text-red-400 drop-shadow-[0_0_20px_rgba(248,113,113,0.3)]" />;
+      case 'audio': return <Volume2 className="w-6 h-6 text-violet-400 drop-shadow-[0_0_20px_rgba(139,92,246,0.3)]" />;
       default: return <FileText className="w-6 h-6 text-white/60 drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]" />;
     }
   };
@@ -150,6 +152,12 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const initialPointerPos = useRef({ x: 0, y: 0 });
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    const newRipple = { id: Date.now(), x: e.clientX, y: e.clientY };
+    setRipples(prev => [...prev, newRipple]);
+    setTimeout(() => {
+        setRipples(prev => prev.filter(r => r.id !== newRipple.id));
+    }, 800);
+
     const now = Date.now();
     if (activePointers.current.size === 0 && now - lastTapTime.current < 300) {
         // Double tap
@@ -196,8 +204,8 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         
         const scale = 800 / Math.max(100, 800 - targetCameraRef.current.z);
         // Remove aggressive dampening, make the drag feel 1:1 and fast
-        const moveX = dx * 2.0;
-        const moveY = dy * 2.0;
+        const moveX = dx * 3.0;
+        const moveY = dy * 3.0;
         targetCameraRef.current.x -= moveX;
         targetCameraRef.current.y -= moveY;
         
@@ -271,6 +279,11 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
     <div className="fixed inset-0 flex flex-col font-['Cairo'] text-white overflow-hidden bg-black">
       <SpaceCanvas interactive={false} showEarth={false} />
       
+      {/* Ripples */}
+      {ripples.map(r => (
+          <div key={r.id} className="absolute w-16 h-16 bg-cyan-400/40 border border-cyan-300 rounded-full pointer-events-none animate-[ping_0.8s_cubic-bezier(0,0,0.2,1)_forwards]" style={{ left: r.x - 32, top: r.y - 32, zIndex: 100 }} />
+      ))}
+
       {/* Search & Actions - UI LAYER OVERLAY */}
       <div className="absolute top-0 left-0 right-0 z-40 p-6 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-4 flex-1 pointer-events-auto">
@@ -339,6 +352,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
            style={{ 
              transformStyle: 'preserve-3d', 
              transform: `translate3d(-1000px, 0px, 1000px)`, // starting position
+             willChange: 'transform'
            }}
         >
           {filteredItems.map((item) => {
@@ -357,7 +371,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
                         navigateTo(item); 
                     }
                 }}
-                className="absolute group flex flex-col items-center text-center hover:scale-110 transition-transform cursor-pointer"
+                className="absolute group flex flex-col items-center text-center hover:scale-110 active:scale-90 transition-transform duration-100 cursor-pointer"
                 style={{
                     transform: `translate3d(${pos.x}px, ${pos.y}px, ${pos.z}px) translate(-50%, -50%)`,
                     transformStyle: 'preserve-3d'

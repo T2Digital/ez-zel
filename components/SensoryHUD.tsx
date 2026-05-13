@@ -1,29 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Activity, Battery, BrainCircuit, Cpu } from 'lucide-react';
 import { getContextData, analyzeEmotionFromText, generateDynamicThinkingSteps } from '../services/sensorService';
 import { getActiveTasksCount } from '../services/autonomousAgentService';
 
 export const SensoryHUD: React.FC<{ lastMessage?: string; isThinking?: boolean }> = ({ lastMessage = '', isThinking = false }) => {
     const [battery, setBattery] = useState('جار القياس...');
-    const [emotion, setEmotion] = useState('هادئ');
     const [bgTasks, setBgTasks] = useState(0);
     const [thinkingStep, setThinkingStep] = useState(0);
 
     useEffect(() => {
+        let isMounted = true;
         const updateContext = async () => {
             const ctx = await getContextData();
-            setBattery(ctx.battery);
+            if (isMounted) setBattery(ctx.battery);
         };
         updateContext();
         const interval = setInterval(updateContext, 10000); 
-        return () => clearInterval(interval);
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        }
     }, []);
 
     useEffect(() => {
-        const updateTasks = () => setBgTasks(getActiveTasksCount());
+        let isMounted = true;
+        const updateTasks = () => {
+            if (isMounted) setBgTasks(getActiveTasksCount());
+        };
         window.addEventListener('autonomous_status_changed', updateTasks);
         updateTasks();
-        return () => window.removeEventListener('autonomous_status_changed', updateTasks);
+        return () => {
+            isMounted = false;
+            window.removeEventListener('autonomous_status_changed', updateTasks);
+        }
     }, []);
 
     useEffect(() => {
@@ -33,11 +42,13 @@ export const SensoryHUD: React.FC<{ lastMessage?: string; isThinking?: boolean }
             interval = setInterval(() => {
                 setThinkingStep(prev => prev + 1);
             }, 1800);
+        } else {
+            setThinkingStep(0);
         }
         return () => clearInterval(interval);
     }, [isThinking]);
 
-    useEffect(() => {
+    const emotion = useMemo(() => {
         if (isThinking) {
             const steps = lastMessage ? generateDynamicThinkingSteps(lastMessage) : [
                 "جاري استيعاب الطلب...",
@@ -47,13 +58,12 @@ export const SensoryHUD: React.FC<{ lastMessage?: string; isThinking?: boolean }
                 "المراجعة الأمنية والتدقيق...",
                 "صياغة الرد النهائي..."
             ];
-            setEmotion(steps[Math.min(thinkingStep, steps.length - 1)]);
+            return steps[Math.min(thinkingStep, steps.length - 1)];
         } else if (lastMessage) {
             const emo = analyzeEmotionFromText(lastMessage);
-            setEmotion(emo.emotion);
-        } else {
-            setEmotion('في الانتظار 😐');
+            return emo.emotion;
         }
+        return 'في الانتظار 😐';
     }, [lastMessage, isThinking, thinkingStep]);
 
     return (
@@ -75,3 +85,4 @@ export const SensoryHUD: React.FC<{ lastMessage?: string; isThinking?: boolean }
         </div>
     );
 };
+
