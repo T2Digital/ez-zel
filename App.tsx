@@ -41,6 +41,7 @@ import { setupBackgroundProcessing } from "./services/backgroundTaskService";
 import { App as CapacitorApp } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { showSafeNotification } from "./services/notificationService";
+import { ProactiveNotification } from "./components/ProactiveNotification";
 
 const App: React.FC = () => {
   const {
@@ -774,6 +775,7 @@ const App: React.FC = () => {
       
       {/* Floating Maestro Avatar */}
       <FloatingShadowAvatar user={user} onNavigateChat={() => navigateToView("chat")} hide={view === 'chat' || location.pathname === '/chat' || location.pathname.startsWith('/chat/')} />
+      <ProactiveNotification />
 
       <audio
         id="notification-sound"

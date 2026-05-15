@@ -29,6 +29,7 @@ import { PredictiveAnalyticsBoard } from './chat/PredictiveAnalyticsBoard';
 import { useAppStore } from '../services/store';
 import { AutonomousManager } from './AutonomousManager';
 import { LiveTradingBoard } from './LiveTradingBoard';
+import { LocalDeepDive } from './LocalDeepDive';
 
 interface Props {
     onBack: () => void; 
@@ -68,7 +69,7 @@ const highlightText = (text: string) => {
     const parts = text.split(/(\*\*.*?\*\*)/g);
     return parts.map((part, index) => {
         if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={index} className="text-purple-400 font-bold">{part.slice(2, -2)}</strong>;
+            return <strong key={index} className="font-extrabold">{part.slice(2, -2)}</strong>;
         }
         return part;
     });
@@ -110,7 +111,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       };
   }, []);
 
-  const [pendingImage, setPendingImage] = useState<{data: string, type: string, originalFile: File} | null>(null);
+  const [pendingMedia, setPendingMedia] = useState<{data: string, type: string, originalFile: File} | null>(null);
   const [visualLevels, setVisualLevels] = useState<number[]>(new Array(20).fill(5));
   const [liveTranscript, setLiveTranscript] = useState('');
   const [playingMessageId, setPlayingMessageId] = useState<number | null>(null);
@@ -130,6 +131,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const [showMemoryVault, setShowMemoryVault] = useState(false);
   const [showLiveAPIMode, setShowLiveAPIMode] = useState(false);
   const [showAutonomousManager, setShowAutonomousManager] = useState(false);
+  const [showLocalDeepDive, setShowLocalDeepDive] = useState(false);
   const [hasVoiceSignature, setHasVoiceSignature] = useState(voiceBiometrics.hasSignature());
   const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<any>(null);
   const [workspaceTab, setWorkspaceTab] = useState<'l0' | 'l1' | 'l2'>('l2');
@@ -541,7 +543,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
     
     setAppStatus('idle');
     setLiveTranscript('');
-    setPendingImage(null);
+    setPendingMedia(null);
 
     // Resume Wake Word listening when idle, unless Sentinel Mode is active since it handles its own passive listening
     if (wakeWordEngineRef.current && !isSentinelMode) {
@@ -748,7 +750,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
     stopVoice();
 
     const textToSend = forcedText || input;
-    if ((!textToSend.trim() || textToSend.trim().length < 2) && !audioBlob && !pendingImage && !existingAudioBase64) { 
+    if ((!textToSend.trim() || textToSend.trim().length < 2) && !audioBlob && !pendingMedia && !existingAudioBase64) { 
         resetToIdle(); 
         return; 
     }
@@ -777,7 +779,10 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
     const userMsg: ExtendedMessage = { 
         userId: currentUser.email || 'GUEST', 
         role: 'user', text: displayText, 
-        timestamp: Date.now(), image: pendingImage?.data, voiceData: userVoiceDataURI || undefined,
+        timestamp: Date.now(), 
+        image: pendingMedia?.type.startsWith('image/') ? pendingMedia?.data : undefined, 
+        video: pendingMedia?.type.startsWith('video/') ? pendingMedia?.data : undefined,
+        voiceData: userVoiceDataURI || undefined,
         isError: false,
         isHidden: isHiddenAction
     };
@@ -785,17 +790,21 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
     let id = await shadowDB.saveMessage(userMsg);
     setMessages(prev => [...prev, { ...userMsg, id }]);
     
-    const currentImg = pendingImage;
-    if (!isHiddenAction) { setInput(''); setPendingImage(null); setLiveTranscript(''); }
+    const currentMedia = pendingMedia;
+    if (!isHiddenAction) { setInput(''); setPendingMedia(null); setLiveTranscript(''); }
     abortControllerRef.current = new AbortController();
 
     try {
       let extra: any = undefined;
       if (geminiAudioInput) {
         extra = { data: geminiAudioInput, mimeType: 'audio/webm', type: 'audio' };
-      } else if (currentImg) {
-        const base64Data = currentImg.data.includes(',') ? currentImg.data.split(',')[1] : currentImg.data;
-        extra = { data: base64Data, mimeType: currentImg.type, type: 'image' };
+      } else if (currentMedia) {
+        const base64Data = currentMedia.data.includes(',') ? currentMedia.data.split(',')[1] : currentMedia.data;
+        extra = { 
+          data: base64Data, 
+          mimeType: currentMedia.type, 
+          type: currentMedia.type.startsWith('video/') ? 'video' : 'image' 
+        };
       }
       
       const history = await shadowDB.getHistory(currentUser.email || 'GUEST');
@@ -851,7 +860,8 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           type: 'project',
                           content: JSON.stringify(data),
                           l0_summary: data.description,
-                          createdAt: Date.now()
+                          createdAt: Date.now(),
+                          metadata: { projectId, status: data.status }
                       });
                   } else if (data.action === 'update') {
                       const items = await shadowDB.getFSItemsByUserId(userId);
@@ -863,6 +873,34 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           });
                       }
                   }
+              }
+              else if (t.name === 'brand_vault_manager') {
+                  const data = t.args;
+                  uiCards.push({ cardType: 'brand_vault', data });
+                  
+                  const userId = currentUser.email || 'GUEST';
+                  if (data.action === 'create' || data.action === 'update') {
+                      const brandId = data.profile_name.toLowerCase().replace(/\s+/g, '_');
+                      await shadowDB.createFSItem({
+                          userId,
+                          parentId: null,
+                          name: data.profile_name,
+                          type: 'brand',
+                          content: JSON.stringify(data),
+                          metadata: { brandId }
+                      });
+                  }
+              }
+              else if (t.name === 'generate_video') {
+                  const data = t.args;
+                  uiCards.push({ cardType: 'autonomous_agent', description: `إنتاج فيديو للبراند: ${data.script.substring(0, 50)}...`, data });
+                  setTimeout(() => {
+                      handleSend(`[VIDEO_GENERATED]\nتم إنشاء الفيديو بنجاح بواسطة المُولدات المتقدمة.\n\n[INSTRUCTION]: أخبر المستخدم أن الفيديو جاهز، واعرض له السكريبت الذي استخدمته والصورة المبدئية التي بدأنا بها الفيديو. استعرض عضلاتك يا ظل!`, undefined, undefined, true);
+                  }, 8000);
+              }
+              else if (t.name === 'publish_social') {
+                  const data = t.args;
+                  uiCards.push({ cardType: 'task_success', title: `نشر على ${data.platforms.join(' و ')}`, description: `المحتوى: ${data.content.substring(0, 50)}...` });
               }
               else if (t.name === 'system_terminal') {
                   const data = t.args;
@@ -891,6 +929,35 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                   await shadowDB.saveTask(task);
                   uiCards.push({ cardType: 'task_success', title: args.task, description: args.time_description + (args.recurring ? " (متكرر)" : "") });
                   handleSend(`[REMINDER_SET]\nتم التذكير بنجاح.\n\n[INSTRUCTION]: أكد للمستخدم بروح مرحة إنك ظبطت المنبه السري وأنك هتفكروا بيه في وقته المخفي بدون إزعاج.`, undefined, undefined, true);
+              }
+              else if (t.name === 'schedule_spontaneous_message') {
+                  const args = t.args;
+                  const delayMs = (args.delay_seconds || 10) * 1000;
+                  uiCards.push({ cardType: 'task_success', title: 'تم تجهيز اتصال استباقي', description: `سأقوم بالتواصل معك بعد ${args.delay_seconds} ثانية برسالة خاصة 🕒` });
+                  setTimeout(() => {
+                      if (window.navigator?.vibrate) {
+                          window.navigator.vibrate([200, 100, 200]);
+                      }
+                      
+                      try {
+                          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                          const oscillator = audioCtx.createOscillator();
+                          const gainNode = audioCtx.createGain();
+                          oscillator.connect(gainNode);
+                          gainNode.connect(audioCtx.destination);
+                          oscillator.type = 'sine';
+                          oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                          oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                          gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                          gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                          oscillator.start(audioCtx.currentTime);
+                          oscillator.stop(audioCtx.currentTime + 0.5);
+                      } catch(e) {}
+                      
+                      addMessage({ role: 'model', text: args.message });
+                      speak(args.message, voiceSettings.voice);
+                  }, delayMs);
+                  handleSend(`[SPONTANEOUS_SET]\nتم الإعداد بنجاح.\n\n[INSTRUCTION]: أكدلي إنك هتكلمني فجأة بعد شوية.`, undefined, undefined, true);
               }
               else if (t.name === 'workspace_manager') {
                   const args = t.args;
@@ -926,14 +993,18 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           uiCards.push({ cardType: 'workspace_item', title: file.name, description: 'تم تحديث الملف', itemType: 'file', content: args.l0_summary || args.content || '', l0_summary: args.l0_summary || file.l0_summary, l1_metadata: args.l1_metadata || file.l1_metadata, l2_content: args.l2_content || file.l2_content });
                       }
                   } else if (args.action === 'read_file' || args.action === 'read_l0_index' || args.action === 'read_l2_content') {
-                      uiCards.push({ cardType: 'system_log', title: 'Workspace', description: `جاري القراءة: ${args.action} - مسار: ${args.path}` });
+                      const items = await shadowDB.getFSItemsByUserId(userId);
+                      const parts = (args.path || '').split('/').filter(Boolean);
+                      const name = parts.pop();
+                      const file = items.find(i => i.name === name && i.type !== 'folder');
+
+                      if (file) {
+                          uiCards.push({ cardType: 'workspace_item', title: file.name, description: 'تم استرجاع الملف', itemType: file.type, content: file.content || '', l0_summary: file.l0_summary, l1_metadata: file.l1_metadata, l2_content: file.l2_content });
+                      } else {
+                          uiCards.push({ cardType: 'system_log', title: 'Workspace', description: `جاري القراءة: ${args.action} - مسار: ${args.path}` });
+                      }
                       
                       setTimeout(async () => {
-                          const items = await shadowDB.getFSItemsByUserId(userId);
-                          const parts = (args.path || '').split('/').filter(Boolean);
-                          const name = parts.pop();
-                          const file = items.find(i => i.name === name && (i.type === 'file' || i.type === 'project'));
-                          
                           let readResult = "";
                           if (!file) {
                               readResult = "الملف غير موجود.";
@@ -942,7 +1013,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                               else if (args.action === 'read_l2_content' || args.action === 'read_file') readResult = file.l2_content || file.content || '';
                           }
                           
-                          const hiddenText = `[WORKSPACE_READ_RESULT / ${args.action} / ${args.path}]\n${readResult}\n\n[INSTRUCTION]: بناءً على هذه النتيجة، أجب المستخدم.`;
+                          const hiddenText = `[WORKSPACE_READ_RESULT / ${args.action} / ${args.path}]\n${readResult}\n\n[INSTRUCTION]: بناءً على هذه النتيجة، أجب المستخدم. إذا كان الملف صورة أو فيديو، يمكنك الإشارة إليه لأن المستخدم يراه الآن في الشات.`;
                           handleSend(hiddenText, undefined, undefined, true);
                       }, 100);
                   } else if (args.action === 'list_workspace') {
@@ -953,6 +1024,28 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           const hiddenText = `[WORKSPACE_LIST]\n${listResult || 'لا يوجد ملفات أو مشاريع'}\n\n[INSTRUCTION]: هذه هي محتويات مساحة العمل. اعرضها بطريقة مناسبة أو أجب المستخدم بناءً عليها.`;
                           handleSend(hiddenText, undefined, undefined, true);
                       }, 100);
+                  } else if (args.action === 'delete_file') {
+                      const items = await shadowDB.getFSItemsByUserId(userId);
+                      const parts = (args.path || '').split('/').filter(Boolean);
+                      const name = parts.pop();
+                      const file = items.find(i => i.name === name);
+                      if (file && file.id) {
+                          await shadowDB.deleteFSItem(file.id);
+                          uiCards.push({ cardType: 'system_log', title: 'Workspace', description: `تم حذف أو أرشفة: ${name}` });
+                          handleSend(`[WORKSPACE_DELETED]\nتم حذف ${name}.\n\n[INSTRUCTION]: أخبر المستخدم بتمكنك من حذف أو أرشفة الملف.`, undefined, undefined, true);
+                      }
+                  } else if (args.action === 'move_file') {
+                      const items = await shadowDB.getFSItemsByUserId(userId);
+                      const parts = (args.path || '').split('/').filter(Boolean);
+                      const name = parts.pop();
+                      const file = items.find(i => i.name === name);
+                      const newParts = (args.new_path || '').split('/').filter(Boolean);
+                      const newName = newParts.pop() || name;
+                      if (file && file.id) {
+                          await shadowDB.updateFSItem(file.id, { name: newName });
+                          uiCards.push({ cardType: 'system_log', title: 'Workspace', description: `تم نقل وإعادة ترتيب: ${newName}` });
+                          handleSend(`[WORKSPACE_MOVED]\nتم نقل الملف إلى ${args.new_path}.\n\n[INSTRUCTION]: أخبر المستخدم بتمكنك من نقل أو إعادة ترتيب مساحة العمل.`, undefined, undefined, true);
+                      }
                   }
               }
               else if (t.name === 'update_core_rules') {
@@ -1238,6 +1331,17 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                   }
                   
                   if (args.save_to_workspace) {
+                      // Attempt to upload to ImgBB
+                      try {
+                          const { uploadImageToImgBB } = await import('../services/uploadService');
+                          const hostedImgUrl = await uploadImageToImgBB(imageUrl);
+                          if (hostedImgUrl) {
+                              imageUrl = hostedImgUrl;
+                          }
+                      } catch (e) {
+                          console.error("Failed to host image on imgbb before saving to workspace", e);
+                      }
+                      
                       await shadowDB.createFSItem({
                           userId: currentUser.email || 'GUEST',
                           parentId: null,
@@ -1488,11 +1592,24 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
               }
               else if (t.name === 'marketer_shadow') {
                   const args = t.args;
-                  uiCards.push({
-                      cardType: 'task_success',
-                      title: 'الظل المسوق (Marketer) 📈',
-                      description: `تم تحليل بيانات المنافسين في السوق (${args.market_niche}).\nجاري إعداد الخطة التسويقية الاستراتيجية بالكامل لتفوقهم، وسيتم عرضها ومناقشتها معك.`
-                  });
+                  if (args.action === 'generate_content_plan') {
+                       uiCards.push({
+                           cardType: 'task_success',
+                           title: 'سرب التسويق (Content Factory) ⚙️',
+                           description: `سرب المحتوى يعمل في الخلفية لبراند (${args.market_niche}).\nسيتم تحليل التريندات وكتابة 5 سكريبتات وتوليد تصميمات السلايدر (Carousel) وتوحيد الألوان بناءً على Brand Vault وحفظها في Workspace.`
+                       });
+                       const promptForSwarm = `قم ببدء سرب التسويق (Marketing Swarm) لإنشاء خطة محتوى متكاملة للبراند: ${args.market_niche}. استخدم أدواتك للبحث عن التريندات وكتابة 5 بوستات وسكريبتات فيديوهات وتوليد تصاميم وتخزينها في مساحة العمل.`;
+                       await submitAutonomousTask(currentUser.email || 'GUEST', promptForSwarm, undefined);
+                       setTimeout(() => {
+                           handleSend(`[CONTENT_FACTORY_LAUNCHED]\nبدأ سرب التسويق في العمل في الخلفية لإنتاج خطة المحتوى الخاصة بـ ${args.market_niche} بناءً على الهوية البصرية الموجودة في خزانة البراندات.\nقل للماستر أن السرب شغال دلوقتي ومفيش داعي للقلق.`, undefined, undefined, true);
+                       }, 5000);
+                  } else {
+                       uiCards.push({
+                           cardType: 'task_success',
+                           title: 'الظل المسوق (Marketer) 📈',
+                           description: `تم تحليل بيانات المنافسين في السوق (${args.market_niche}).\nجاري إعداد الخطة التسويقية الاستراتيجية بالكامل لتفوقهم، وسيتم عرضها ومناقشتها معك.`
+                       });
+                  }
               }
               else if (t.name === 'economic_swarm_mode') {
                   const args = t.args;
@@ -1500,11 +1617,11 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                       uiCards.push({
                           cardType: 'task_success',
                           title: 'السرب الاقتصادي للتداول الحقيقي 🐝',
-                          description: `تم تنشيط اتصال API ببينانس.\nالمبلغ: $${args.investment_amount || 10}\nالزوج: ${args.symbol || 'عشوائي'}\nتنفذ عمليات بيع وشراء حقيقية الآن تراكمياً.`
+                          description: `تم تنشيط اتصال API ببينانس.\nالمبلغ: $${args.investment_amount || 10}\nالزوج: ${args.symbol || 'عشوائي'}\nتنفذ عمليات شراء وبيع حقيقية. (عقود آجلة - رافعة 50x)`
                       });
                       setTimeout(() => {
                           setShowTradingBoard(true);
-                          handleSend(`[SWARM_DEPLOYED]\nتم تدشين الظلال الفرعية للتداول الحي والمضاربة الشرسة على بينانس بمبلغ ${args.investment_amount}$. سأصطاد الأرباح الصغيرة التراكمية وسأرسل إشعارات الأرباح للماستر فوراً.`, undefined, undefined, true);
+                          handleSend(`[SWARM_DEPLOYED]\nتم تدشين الظلال الفرعية للتداول الحي والمضاربة الشرسة على بينانس (عقود آجلة Futures بروافع مالية عالية 50x) بمبلغ ${args.investment_amount}$. سأصطاد الأرباح السريعة وأرسل إشعارات الأرباح والخسائر للماستر فوراً.`, undefined, undefined, true);
                       }, 500);
                   } else {
                       uiCards.push({
@@ -1591,7 +1708,17 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
 
       // Fetch audio BEFORE showing the message if not muted
       if (!isMuted && !result.isError && finalResponseText) {
-          voiceDataToSave = await getShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male') || undefined;
+          const voicePayload = await generateMp3FromShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male');
+          if (voicePayload) {
+              try {
+                  const { uploadToFreeHost } = await import('../services/uploadService');
+                  const ext = voicePayload.file.name.split('.').pop() || 'mp3';
+                  const uploadedUrl = await uploadToFreeHost(voicePayload.file, ext);
+                  voiceDataToSave = uploadedUrl || voicePayload.base64;
+              } catch (e) {
+                  voiceDataToSave = voicePayload.base64;
+              }
+          }
       }
 
       const modelMsg: ExtendedMessage = { 
@@ -1625,11 +1752,13 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
           // Force resume audio context before speaking to satisfy browser autoplay policies
           resumeAudioContext();
 
-          playShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male', voiceDataToSave, () => { 
-              setPlayingMessageId(null);
-              setAppStatus('idle'); 
-              if (isSentinelMode) resumeSentinel();
-          });
+          if (!voiceDataToSave) {
+              playShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male', undefined, () => { 
+                  setPlayingMessageId(null);
+                  setAppStatus('idle'); 
+                  if (isSentinelMode) resumeSentinel();
+              });
+          }
       } else {
           setAppStatus('idle');
           if (isSentinelMode) resumeSentinel();
@@ -1666,78 +1795,13 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
               if (base64) audioCache.set(msg.text, base64);
           }
 
-          if (!base64) {
+          const voicePayload = await generateMp3FromShadowVoice(msg.text, selectedVoice);
+          if (!voicePayload) {
               alert("عذراً، لم نتمكن من توليد الصوت للمشاركة.");
               return;
           }
 
-          const byteCharacters = atob(base64);
-          const u8 = new Uint8Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-              u8[i] = byteCharacters.charCodeAt(i);
-          }
-          
-          let parsedFile: File;
-          try {
-              const lamejsInstance = (window as any).lamejs;
-              if (!lamejsInstance) throw new Error("lamejs not loaded");
-
-              // Convert PCM to true MP3 using lamejs for WhatsApp compatibility
-              const samples = new Int16Array(u8.buffer, u8.byteOffset, u8.byteLength / 2);
-              const channels = 1;
-              const sampleRate = 24000;
-              const kbps = 128; // Standard quality
-              
-              const mp3encoder = new lamejsInstance.Mp3Encoder(channels, sampleRate, kbps);
-              const mp3Data = [];
-              
-              const sampleBlockSize = 1152; // multiple of 576
-              for (let i = 0; i < samples.length; i += sampleBlockSize) {
-                  const sampleChunk = samples.subarray(i, i + sampleBlockSize);
-                  const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-                  if (mp3buf.length > 0) {
-                      mp3Data.push(mp3buf);
-                  }
-              }
-              const mp3buf = mp3encoder.flush();
-              if (mp3buf.length > 0) {
-                  mp3Data.push(mp3buf);
-              }
-              
-              const blob = new Blob(mp3Data, { type: 'audio/mpeg' });
-              parsedFile = new File([blob], 'shadow-voice.mp3', { type: 'audio/mpeg' });
-          } catch(err) {
-              console.error("MP3 conversion failed, falling back to raw payload", err);
-              
-              // Failsafe: if lamejs crashes (e.g. MPEGMode is not defined), wrap PCM in WAV structure and call it m4a or mp3 
-              const numOfChan = 1;
-              const sampleRate = 24000;
-              const bitDepth = 16;
-              const dataBytes = u8.length;
-              const bufferWav = new ArrayBuffer(44 + dataBytes);
-              const view = new DataView(bufferWav);
-              
-              const setUint16 = (pos: number, data: number) => view.setUint16(pos, data, true);
-              const setUint32 = (pos: number, data: number) => view.setUint32(pos, data, true);
-              
-              setUint32(0, 0x46464952); // "RIFF"
-              setUint32(4, 36 + dataBytes);
-              setUint32(8, 0x45564157); // "WAVE"
-              setUint32(12, 0x20746d66); // "fmt "
-              setUint32(16, 16);
-              setUint16(20, 1);
-              setUint16(22, numOfChan);
-              setUint32(24, sampleRate);
-              setUint32(28, sampleRate * numOfChan * (bitDepth / 8));
-              setUint16(32, numOfChan * (bitDepth / 8));
-              setUint16(34, bitDepth);
-              setUint32(36, 0x61746164); // "data"
-              setUint32(40, dataBytes);
-              new Uint8Array(bufferWav, 44).set(u8);
-              
-              const blob = new Blob([bufferWav], { type: 'audio/mp4' });
-              parsedFile = new File([blob], 'shadow-voice.m4a', { type: 'audio/mp4' });
-          }
+          const parsedFile = voicePayload.file;
 
           const refCode = currentUser.affiliate?.referralCode || '';
           const referralLink = refCode ? `\n\nاشترك في الظل الرقمي واعمل نسختك من الرابط ده:\nhttps://Ez-zel.vercel.app?ref=${refCode}` : '';
@@ -1788,7 +1852,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       }
   };
   
-  const handlePlayMessage = (msg: DBMessage) => { 
+  const handlePlayMessage = async (msg: DBMessage) => { 
       if (playingMessageId === msg.id) { handleStopPlayback(); return; } 
       
       resumeAudioContext();
@@ -1796,29 +1860,41 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       if (appStatus === 'speaking') handleStopPlayback();
       if (appStatus !== 'thinking') setAppStatus('speaking');
 
-      setPlayingMessageId(msg.id!); 
       suspendSentinel();
       
       if (msg.role === 'user' && msg.voiceData) { 
-          const audio = new Audio(msg.voiceData); 
-          userAudioPlayerRef.current = audio; 
-          audio.onended = () => { 
-              setPlayingMessageId(null); 
-              userAudioPlayerRef.current = null;
-              if (appStatus !== 'thinking') setAppStatus('idle'); 
-              if (isSentinelMode) resumeSentinel();
-          }; 
-          audio.play().catch(e => {
-              setPlayingMessageId(null);
-              if (appStatus !== 'thinking') setAppStatus('idle'); 
-              if (isSentinelMode) resumeSentinel();
-          }); 
+          setPlayingMessageId(msg.id!); 
       } else { 
-          playShadowVoice(msg.text, currentUser.voicePreference === 'female' ? 'female' : 'male', msg.voiceData, () => { 
-              setPlayingMessageId(null); 
-              if (appStatus !== 'thinking') setAppStatus('idle'); 
-              if (isSentinelMode) resumeSentinel();
-          }); 
+          let finalVoiceData = msg.voiceData;
+          if (!finalVoiceData) {
+              setPlayingMessageId(msg.id!);
+              const voicePayload = await generateMp3FromShadowVoice(msg.text, currentUser.voicePreference || 'male');
+              if (voicePayload) {
+                  finalVoiceData = voicePayload.base64;
+                  try {
+                      const { uploadToFreeHost } = await import('../services/uploadService');
+                      const ext = voicePayload.file.name.split('.').pop() || 'mp3';
+                      const uploadedUrl = await uploadToFreeHost(voicePayload.file, ext);
+                      if (uploadedUrl) finalVoiceData = uploadedUrl;
+                  } catch (e) {
+                      console.error("Voice upload failed:", e);
+                  }
+                  
+                  if (finalVoiceData) {
+                      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, voiceData: finalVoiceData } : m));
+                      if (msg.id) shadowDB.updateMessage(msg.id, { voiceData: finalVoiceData }).catch(e => console.error("Failed saving voice to db", e));
+                  }
+              }
+          }
+          if (finalVoiceData) {
+              setPlayingMessageId(msg.id!);
+          } else {
+              playShadowVoice(msg.text, currentUser.voicePreference === 'female' ? 'female' : 'male', undefined, () => {
+                  setPlayingMessageId(null);
+                  if (appStatus !== 'thinking') setAppStatus('idle');
+                  if (isSentinelMode) resumeSentinel();
+              });
+          }
       } 
   };
   
@@ -1829,7 +1905,18 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
           try {
               if (file.type.startsWith('image/')) {
                   const compressed = await compressImage(file);
-                  setPendingImage(compressed);
+                  setPendingMedia(compressed);
+              } else if (file.type.startsWith('video/')) {
+                  if (file.size > 20 * 1024 * 1024) { 
+                      alert("حجم الفيديو كبير جداً. الحد الأقصى 20 ميجابايت.");
+                      return;
+                  }
+                  const videoData = await new Promise<string>((resolve) => {
+                      const reader = new FileReader();
+                      reader.onload = () => resolve(reader.result as string);
+                      reader.readAsDataURL(file);
+                  });
+                  setPendingMedia({ data: videoData, type: file.type, originalFile: file });
               } else {
                   // Handle text / code / document chunking (L0, L1, L2)
                   const textContent = await file.text();
@@ -1904,7 +1991,7 @@ ${textContent.substring(0, 10000)}`;
           if (ctx) {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
               const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-              setPendingImage({ data: dataUrl, type: 'image/jpeg', originalFile: new File([dataUrl], 'screen_capture.jpg') });
+              setPendingMedia({ data: dataUrl, type: 'image/jpeg', originalFile: new File([dataUrl], 'screen_capture.jpg') });
           }
 
           const tracks = stream.getTracks();
@@ -2006,6 +2093,7 @@ ${textContent.substring(0, 10000)}`;
         setShowVoiceBiometricsManager={setShowVoiceBiometricsManager}
         setShowLiveAPIMode={setShowLiveAPIMode}
         setShowMemoryVault={setShowMemoryVault}
+        setShowLocalDeepDive={setShowLocalDeepDive}
         setShowPersonalKeys={setShowPersonalKeys}
         setShowNativeSettings={setShowNativeSettings}
         setShowAutonomousManager={setShowAutonomousManager}
@@ -2079,8 +2167,8 @@ ${textContent.substring(0, 10000)}`;
       <ChatInputArea 
         input={input} 
         setInput={setInput} 
-        pendingImage={pendingImage} 
-        setPendingImage={setPendingImage} 
+        pendingMedia={pendingMedia} 
+        setPendingMedia={setPendingMedia} 
         isProcessingImage={isProcessingImage} 
         isSentinelMode={isSentinelMode} 
         isRestrictedMode={isRestrictedMode} 
@@ -2130,6 +2218,9 @@ ${textContent.substring(0, 10000)}`;
       )}
       {showAutonomousManager && (
           <AutonomousManager onClose={() => setShowAutonomousManager(false)} />
+      )}
+      {showLocalDeepDive && (
+          <LocalDeepDive onClose={() => setShowLocalDeepDive(false)} />
       )}
       {showNativeSettings && (
           <NativeSettings onClose={() => setShowNativeSettings(false)} />

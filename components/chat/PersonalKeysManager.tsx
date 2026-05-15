@@ -138,7 +138,42 @@ export const PersonalKeysManager: React.FC<Props> = ({ onClose, currentUser }) =
                             </div>
                             <div>
                                 <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">Meta Access Token (لنشر البوستات)</label>
-                                <input type="password" value={personalKeys.metaAccessToken || ''} onChange={e => setPersonalKeys({ ...personalKeys, metaAccessToken: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all" />
+                                <input type="password" value={personalKeys.metaAccessToken || ''} onChange={e => setPersonalKeys({ ...personalKeys, metaAccessToken: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all mb-4" />
+                                
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">Meta App ID</label>
+                                        <input type="text" value={personalKeys.metaAppId || ''} onChange={e => setPersonalKeys({ ...personalKeys, metaAppId: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">Meta App Secret</label>
+                                        <input type="password" value={personalKeys.metaAppSecret || ''} onChange={e => setPersonalKeys({ ...personalKeys, metaAppSecret: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">X (Twitter) API Key</label>
+                                        <input type="password" value={personalKeys.xApiKey || ''} onChange={e => setPersonalKeys({ ...personalKeys, xApiKey: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">X (Twitter) API Secret</label>
+                                        <input type="password" value={personalKeys.xApiSecret || ''} onChange={e => setPersonalKeys({ ...personalKeys, xApiSecret: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">TikTok Key</label>
+                                        <input type="password" value={personalKeys.tiktokKey || ''} onChange={e => setPersonalKeys({ ...personalKeys, tiktokKey: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">Youtube API Key</label>
+                                        <input type="password" value={personalKeys.youtubeKey || ''} onChange={e => setPersonalKeys({ ...personalKeys, youtubeKey: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-white/70 text-xs font-bold mb-2 uppercase tracking-widest">Snapchat Client ID</label>
+                                    <input type="password" value={personalKeys.snapchatKey || ''} onChange={e => setPersonalKeys({ ...personalKeys, snapchatKey: e.target.value })} className="w-full bg-[#111] border border-white/5 rounded-xl px-4 py-3 text-white/90 text-sm focus:border-purple-500/50 outline-none transition-all" />
+                                </div>
                             </div>
                         </div>
 

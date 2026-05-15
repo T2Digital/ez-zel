@@ -14,7 +14,8 @@ try {
             app = initializeApp(firebaseConfigData);
             // Initialize Firestore with memory cache to avoid IndexedDB corruption/assertion issues
             db = initializeFirestore(app, { 
-                localCache: memoryLocalCache()
+                localCache: memoryLocalCache(),
+                experimentalForceLongPolling: true
             }, (firebaseConfigData as any).firestoreDatabaseId);
         } else {
             app = getApp();

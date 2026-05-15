@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Brain, Target, Zap, Activity, Clock, Database, CheckCircle2, Globe, BookOpen, Lightbulb, Play, Pause, DollarSign, MessageSquare, LogOut, ChevronRight, Fingerprint, Crown, User, Briefcase, Cpu, Link as LinkIcon, Save, X, Trash2, Megaphone, ExternalLink, Info, Shield, Terminal, FolderOpen } from 'lucide-react';
+import { Brain, Target, Zap, Activity, Clock, Database, CheckCircle2, Globe, BookOpen, Lightbulb, Play, Pause, DollarSign, MessageSquare, LogOut, ChevronRight, Fingerprint, Crown, User, Briefcase, Cpu, Link as LinkIcon, Save, X, Trash2, Megaphone, ExternalLink, Info, Shield, Terminal, FolderOpen, Wallet, Mic } from 'lucide-react';
 import { shadowDB, DBTask, DBFact, UserProfile } from '../services/dbService';
 import { playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import SovereignVault from './SovereignVault';
@@ -9,6 +9,9 @@ import WorkspaceExplorer from './WorkspaceExplorer';
 import { MemoryVault } from './MemoryVault';
 import { TasksModal } from './dashboard/TasksModal';
 import { WorkspaceModal } from './dashboard/WorkspaceModal';
+import { BrandManagerModal } from './dashboard/BrandManagerModal';
+import { ShadowWalletModal } from './dashboard/ShadowWalletModal';
+import { LiveSessionModal } from './dashboard/LiveSessionModal';
 
 // --- ORBITAL UI COMPONENTS ---
 const OrbitalStyles = () => (
@@ -81,11 +84,12 @@ const ORBIT_SPEEDS = [0.005, -0.003, 0.002]; // radians per frame
 
 import { VoiceSecurityGate } from './VoiceSecurityGate';
 
-// inside the Dashboard functional component:
+  // inside the Dashboard functional component:
 const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpenChat, onOpenAffiliate, onLogout, onUpgrade, onStartAffiliate, onOpenWorkspace }) => {
   const [tasks, setTasks] = useState<DBTask[]>([]);
   const [memory, setMemory] = useState<DBFact[]>([]);
   const [syncRate, setSyncRate] = useState(0);
+  const [liveSync, setLiveSync] = useState("0.00");
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'playing'>('idle');
   
   // Voice Gate
@@ -104,6 +108,9 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [showTasksModal, setShowTasksModal] = useState(false);
   const [showMemoryModal, setShowMemoryModal] = useState(false);
+  const [showBrandsModal, setShowBrandsModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showLiveModal, setShowLiveModal] = useState(false);
 
   // Identity Resolver
   const getIdentity = () => {
@@ -137,6 +144,13 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const activeDragPos = useRef(dragPos);
 
   useEffect(() => { activeDraggingId.current = draggingId; activeDragPos.current = dragPos; }, [draggingId, dragPos]);
+
+  useEffect(() => {
+      let interval = setInterval(() => {
+         setLiveSync((syncRate + (Math.random() * 0.1) - 0.05).toFixed(2));
+      }, 500);
+      return () => clearInterval(interval);
+  }, [syncRate]);
 
   useEffect(() => {
       let frame: number;
@@ -301,8 +315,11 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       ...(user.phone !== 'GUEST' ? [
           { id: 'tasks', icon: Target, label: "المهام الشغالة", value: tasks.filter(t => t.status === 'pending').length, colorClass: "text-amber-500", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: () => setShowTasksModal(true) },
           { id: 'memory', icon: Database, label: "الذاكرة والأسرار", value: memory.length, colorClass: "text-purple-500", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowMemoryModal(true) },
-          { id: 'sync', icon: Activity, label: "تزامن النظام", value: syncRate + '%', colorClass: "text-cyan-500", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30" },
-          { id: 'vault', icon: Shield, label: "خزينة المفاتيح API", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowApiVault(true) },
+          { id: 'brands', icon: Briefcase, label: "إدارة البراندات", value: undefined, colorClass: "text-pink-500", bgClass: "bg-pink-500/10", borderClass: "border-pink-500/30", onClick: () => setShowBrandsModal(true) },
+          { id: 'wallet', icon: Wallet, label: "محفظة السرب ₿", value: "ETH", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowWalletModal(true) },
+          { id: 'live', icon: Mic, label: "الجلسة الحية المتصلة 🎙️", colorClass: "text-blue-500", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowLiveModal(true) },
+          { id: 'vault', icon: Shield, label: "مفاتيح API", colorClass: "text-red-500", bgClass: "bg-red-500/10", borderClass: "border-red-500/30", onClick: () => setShowApiVault(true) },
+          { id: 'sync', icon: Activity, label: "تزامن النظام", value: liveSync + '%', colorClass: "text-cyan-500", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30" },
       ] : []),
       { id: 'identity', icon: identity.icon, label: identity.label, colorClass: identity.color, bgClass: identity.bg, borderClass: identity.border, onClick: () => setShowVault(true) },
       { id: 'affiliate', icon: user.phone === 'GUEST' ? Megaphone : DollarSign, label: user.phone === 'GUEST' ? "سوق للظل واربح" : "بيزنس العيلة (تسويق)", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: user.phone === 'GUEST' ? onStartAffiliate : onOpenAffiliate },
@@ -512,6 +529,18 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
 
         {showWorkspace && (
             <WorkspaceModal user={user} onClose={() => setShowWorkspace(false)} />
+        )}
+
+        {showBrandsModal && (
+            <BrandManagerModal user={user} onClose={() => setShowBrandsModal(false)} />
+        )}
+
+        {showWalletModal && (
+            <ShadowWalletModal onClose={() => setShowWalletModal(false)} />
+        )}
+
+        {showLiveModal && (
+            <LiveSessionModal user={user} onClose={() => setShowLiveModal(false)} />
         )}
 
     </div>

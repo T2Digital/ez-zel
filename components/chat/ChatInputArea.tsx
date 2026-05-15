@@ -5,8 +5,8 @@ import { UserProfile } from '../../services/dbService';
 interface ChatInputAreaProps {
   input: string;
   setInput: (val: string) => void;
-  pendingImage: { data: string, type: string, originalFile: File } | null;
-  setPendingImage: (img: { data: string, type: string, originalFile: File } | null) => void;
+  pendingMedia: { data: string, type: string, originalFile: File } | null;
+  setPendingMedia: (media: { data: string, type: string, originalFile: File } | null) => void;
   isProcessingImage: boolean;
   isSentinelMode: boolean;
   isRestrictedMode: boolean;
@@ -23,24 +23,24 @@ interface ChatInputAreaProps {
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
-  input, setInput, pendingImage, setPendingImage, isProcessingImage, isSentinelMode, isRestrictedMode, isAdmin, isLimitReached, onUpgrade, onOpenAffiliate, startListening, handleSend, fileInputRef, cameraInputRef, currentUser, handleScreenCapture
+  input, setInput, pendingMedia, setPendingMedia, isProcessingImage, isSentinelMode, isRestrictedMode, isAdmin, isLimitReached, onUpgrade, onOpenAffiliate, startListening, handleSend, fileInputRef, cameraInputRef, currentUser, handleScreenCapture
 }) => {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
 
   return (
     <>
       <div className={`fixed bottom-[32px] left-0 w-full p-3 md:p-4 bg-[#0a0a0a] border-t border-white/5 z-50 transition-all duration-500 ${isLimitReached ? 'opacity-0 pointer-events-none translate-y-full' : 'opacity-100'}`}>
-        {pendingImage && (
+        {pendingMedia && (
           <div className="mb-2 flex items-center gap-2 px-3 py-1 bg-white/5 rounded-lg w-fit border border-white/10">
-            <span className="text-[10px] text-white/70 font-bold">صورة مرفقة</span>
-            <button onClick={() => setPendingImage(null)}><X className="w-3 h-3 text-white/50 hover:text-red-400" /></button>
+            <span className="text-[10px] text-white/70 font-bold">{pendingMedia.type.startsWith('video/') ? 'فيديو مرفق' : 'صورة مرفقة'}</span>
+            <button onClick={() => setPendingMedia(null)}><X className="w-3 h-3 text-white/50 hover:text-red-400" /></button>
           </div>
         )}
         <div className="flex items-end gap-2 max-w-4xl mx-auto w-full">
             <div className="flex-1 bg-[#151515] border border-white/10 rounded-[24px] flex items-end p-2 focus-within:border-cyan-500/30 transition-colors shadow-inner">
                 <div className="flex items-center gap-1 mb-0.5">
                     <button disabled={isProcessingImage} onClick={() => { if(fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } }} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`} title="إرفاق صورة">{isProcessingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}</button>
-                    <button disabled={isProcessingImage} onClick={() => { if(cameraInputRef.current) { cameraInputRef.current.value = ''; cameraInputRef.current.click(); } }} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`} title="التقاط صورة"><Camera className="w-5 h-5" /></button>
+                    <button disabled={isProcessingImage} onClick={() => { if(cameraInputRef.current) { cameraInputRef.current.value = ''; cameraInputRef.current.click(); } }} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-white/20 hover:text-white'}`} title="التقاط صورة/فيديو"><Camera className="w-5 h-5" /></button>
                     {handleScreenCapture && (
                       <button disabled={isProcessingImage} onClick={handleScreenCapture} className={`p-2 transition-colors hover:bg-white/5 rounded-full ${isProcessingImage ? 'text-purple-500 animate-pulse' : 'text-emerald-500/50 hover:text-emerald-400'}`} title="مشاركة الشاشة للظل"><Monitor className="w-5 h-5" /></button>
                     )}
@@ -55,7 +55,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                     style={{ height: 'auto', minHeight: '50px' }} 
                     onInput={(e) => { const target = e.target as HTMLTextAreaElement; target.style.height = 'auto'; target.style.height = `${Math.min(target.scrollHeight, 150)}px`; }} 
                 />
-                {(input.trim() || pendingImage) && <button onClick={() => handleSend()} className="p-3 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-all shadow-lg hover:shadow-cyan-600/20 mb-0.5 animate-in zoom-in"><Send className="w-5 h-5 text-white" /></button>}
+                {(input.trim() || pendingMedia) && <button onClick={() => handleSend()} className="p-3 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-all shadow-lg hover:shadow-cyan-600/20 mb-0.5 animate-in zoom-in"><Send className="w-5 h-5 text-white" /></button>}
             </div>
             <button onClick={startListening} className={`p-4 rounded-[24px] border shadow-lg transition-all active:scale-95 mb-0.5 ${isSentinelMode ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}>{isSentinelMode ? <Ear className="w-6 h-6 animate-pulse" /> : <Mic className="w-6 h-6" />}</button>
         </div>

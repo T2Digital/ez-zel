@@ -360,7 +360,8 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
             if (!pos) return null;
             
             // Render logic based on data type
-            const isImage = item.type === 'image';
+            const isImage = item.type === 'image' || (typeof item.name === 'string' && item.name.match(/\.(png|jpe?g|gif|webp|svg)$/i));
+            const contentToUse = item.l2_content || item.content;
             
             return (
               <div 
@@ -378,11 +379,11 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
                 }}
               >
                   {/* Floating Orb or Image Preview */}
-                  <div className={`relative flex items-center justify-center p-4 ${isImage ? 'bg-transparent' : 'bg-black/40'} border border-white/10 rounded-full backdrop-blur-md group-hover:border-purple-500/50 group-hover:bg-purple-900/20 transition-all shadow-[0_0_30px_rgba(0,0,0,0.8)]`}>
-                      <div className="absolute inset-0 rounded-full bg-white/5 opacity-0 group-hover:opacity-100 group-hover:animate-ping z-0 pointer-events-none"></div>
+                  <div className={`relative flex items-center justify-center ${isImage ? 'p-1 bg-black/60 shadow-[0_0_40px_rgba(200,100,255,0.4)]' : 'p-4 bg-black/40 shadow-[0_0_30px_rgba(0,0,0,0.8)]'} border border-white/10 ${isImage ? 'rounded-lg' : 'rounded-full'} backdrop-blur-md ${isImage ? 'group-hover:border-pink-500/50' : 'group-hover:border-purple-500/50'} group-hover:bg-purple-900/20 transition-all`}>
+                      <div className={`absolute inset-0 ${isImage ? 'rounded-lg' : 'rounded-full'} bg-white/5 opacity-0 group-hover:opacity-100 group-hover:animate-ping z-0 pointer-events-none`}></div>
                       <div className="relative z-10 pointer-events-none">
-                         {isImage && item.l2_content ? (
-                             <img src={item.l2_content} className="w-8 h-8 md:w-12 md:h-12 object-cover rounded-xl border border-white/20 shadow-lg shadow-pink-500/20" />
+                         {isImage && contentToUse ? (
+                             <img src={contentToUse || undefined} className="w-24 h-24 md:w-32 md:h-32 object-cover rounded-md border border-white/20 shadow-lg shadow-pink-500/20" />
                          ) : getIcon(item.type)}
                       </div>
                   </div>

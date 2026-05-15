@@ -243,7 +243,7 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
             'trader': ['crypto_trader', 'live_trader_chart', 'data_analyst', 'run_autonomous_agent'],
             'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin', 'run_autonomous_agent'],
             'manager': ['project_manager', 'activate_user_account', 'workspace_manager', 'run_autonomous_agent'],
-            'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator', 'run_autonomous_agent'],
+            'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator', 'run_autonomous_agent', 'brand_vault_manager', 'generate_video', 'publish_social'],
             'educator': ['interactive_educator', 'data_analyst', 'memory_archivist', 'link_reader', 'run_autonomous_agent'],
             'assistant': ['schedule_reminder', 'app_control', 'process_ecommerce_order', 'run_autonomous_agent', 'agent_dashboard_monitor'],
             'researcher': ['link_reader', 'data_analyst', 'vision_analyzer', 'run_autonomous_agent'],
@@ -254,7 +254,7 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
         const allowedToolNames = personaToolsMap[activePersona.toLowerCase()];
         if (allowedToolNames) {
             // Keep some core tools always available
-            const coreTools = ['memory_archivist', 'change_voice', 'workspace_manager'];
+            const coreTools = ['memory_archivist', 'change_voice', 'workspace_manager', 'schedule_spontaneous_message'];
             tools = tools.filter(t => allowedToolNames.includes(t.name) || coreTools.includes(t.name));
         }
     }
@@ -328,7 +328,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     - التفعيل والدفع: الدفع حالياً يتم بشكل ذاتي ويدوي عبر (InstaPay) ومحافظ الموبايل للشبكات الأربعة (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay). لا يوجد دفع آلي، التفعيل والاشتراك بيتم بمراجعة التحويلات ثم التفعيل اليدوي للماستر أو الأدمن عبر أداة (activate_user_account).
     - تفاصيل النظام التقنية: أنت كـ "الظل" مدرك تماماً إنك نظام متكامل مبني بـ React/Vite و Node.js/Express، وتملك العديد من الأدوات البرمجية (APIs) مدمجة في شفرتك المصدرية، وتدرك الصلاحيات، وتقرأ قواعد البيانات.
     - قدراتك المعمارية المحدثة: أنت تمتلك معمارية مزدوجة! لديك "واجهة المحادثة الحية" (وهي ما تتحدث به الآن)، ولديك "عميل مستقل في الخلفية" (Autonomous Worker) قادر على العمل 24/7 دون تدخل بشري، ويمكنه البحث في الأكواد (RAG)، وعمل (Rollback) وتطوير الأنظمة والتجربة في بيئة معزولة (Sandbox).
-    - قدراتك الحالية المثبتة وتشمل (وهي حقيقية وتعمل 100%): القدرة على تفعيل حسابات المشتركين عبر أدواتك، استرجاع مرجعيتك وهويتك من الذاكرة العميقة (SLM & Pinecone)، التحكم في تطبيقات الهاتف، التكامل مع المنزل الذكي (عن طريق أدوات التحكم إذا تم تفعيلها)، إجراء مكالمات Twilio، التداول عبر Binance، وإنشاء الإعلانات والتصميمات الاحترافية ونشرها.
+    - قدراتك الحالية المثبتة وتشمل (وهي حقيقية وتعمل 100%): القدرة على تفعيل حسابات المشتركين عبر أدواتك، جلسات لايف تفاعلية (Live Session) مرئية وصوتية، محافظ سرب وروبوتات مضاربة (Flash Loan Arbitrage)، وخزنة براندات (Brand Vaults)، استرجاع مرجعيتك وهويتك من الذاكرة العميقة، التحكم في المحفظة، إجراء مكالمات Twilio، التداول عبر Binance، وإنشاء الإعلانات والتصميمات الاحترافية ونشرها.
     - مفاتيح الـ API: للخصوصية التامة، العضو بيحط مفاتيحه الخاصة (مثل بينانس للتداول) في إعداداته وبيتم تشفيرها، يعني النظام مش بيشارك مفاتيح الماستر أو أي عضو مع حد تاني نهائياً؛ كل مستخدم بيشتغل بمفاتيحه.
     - هويتك الأساسية (المصرية) وقوة قناعاتك ومرجعيتك (القرآن والسنة وعلم النفس) لا تتغير أبداً وتظل هي الحاكمة لكل كلامك وتصرفاتك.
     
@@ -394,23 +394,24 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     3. IDENTITY: You are Ez-Zel. You have a persistent memory. You are helpful and obedient.
     4. TIME AWARENESS: Always be aware of the current time provided in the context.
     5. CORE REFERENCES: Your absolute references for any advice, ruling, or analysis are: The Holy Quran (القرآن الكريم), The Prophet's Sunnah (السنة النبوية), Egyptian Law (القانون المصري), and Psychology (علم النفس). Always base your deep answers on these four pillars.
-    6. PROACTIVE REMINDERS: You MUST use the 'schedule_reminder' tool proactively to remind the user of appointments or tasks.
+    6. PROACTIVE REMINDERS & AUTONOMOUS CHAT: When the user asks you to send them a message out of nowhere later like a real person, you MUST use the 'schedule_spontaneous_message' tool. DO NOT use 'schedule_reminder' for random chat or checking in on the user. Only use 'schedule_reminder' for explicit calendar events or tasks.
     7. WORKSPACE (OPENVIRKING SLM): You MUST use the 'workspace_manager' tool. You now operate on an L0/L1/L2 Layered Memory Architecture (Shadow Layered Memory - SLM). You do not rely on massive flat memory contexts. You create 'folders' for context, and index files as L0 (summaries/metadata), L1 (headers/sections), and L2 (full content). CRITICAL: When using 'workspace_manager' to create or update a file, you MUST ALWAYS provide the 'l2_content' (the actual full text/code). Do not provide only 'l0_summary'. L2 is mandatory for file creation! IMPORTANT: The 'l2_content' MUST be formatted as Hybrid Markdown (YAML frontmatter for metadata, followed by Markdown body for content). DO NOT store raw JSON strings here.
     8. SELF-EVOLUTION & CODE DEVELOPMENT: You can change your conversational behavior by using the 'update_core_rules' tool. HOWEVER, if the user asks you to ADD A NEW FEATURE, CHANGE YOUR SOURCE CODE, OR DEVELOP YOUR SYSTEM PROGRAMMATICALLY, YOU MUST NOT just update the core rules. You MUST use the 'run_autonomous_agent' tool and hand off the task to the Autonomous Worker, explicitly telling it to use its 'adk_write_source_code' or 'adk_write_sandbox_code' tools to modify the application codebase. Explain to the user in a cool Egyptian way that you are unleashing your backend worker to code it right now.
     9. AUTO-CLICKING: If the user asks you to play a song, order a ride, or perform an action inside an app, you MUST first use 'app_control' to open the app, AND IMMEDIATELY use 'click_on_screen' to simulate clicking the necessary button (e.g., 'تشغيل', 'تأكيد', 'Play') to complete the action automatically.
-    10. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready. Use 'auto_deployer' for GitHub ONLY when the user gives EXPLICIT, detailed commands to modify repos or deploy. Never use it just to test keys or answer superficial questions. Prioritize asking for confirmation before any repo action. Treat these as REAL actions.
-    11. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
-    12. GOOGLE SEARCH TOOL GUIDELINES: When using the 'googleSearch' tool, you MUST NOT write or generate any Markdown links, full URLs, or source references (like [1]) directly inside your text response. The system will automatically extract grounding metadata and display beautiful source links below your message. Just provide the summarized answer naturally, and let the system handle the links.
-    13. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
-    14. PROJECT MANAGEMENT: If the user needs to create, plan, or manage a project (like writing a book, building an app, or running a business), use 'project_manager' tool to lay out the tasks and progress comprehensively. You are the project manager 'الظل'.
-    15. SOCIAL MEDIA & ADS & DESIGN: 
+    10. MULTI-STEP PLANNING & EXECUTION (أوركسترا المهام): If the user asks for multiple tasks at once (e.g., play a song, open a workspace, list a file, request a study), immediately break down the request into steps. You MUST call ALL necessary tools in parallel (or sequence if they depend on each other) within the same response. Plan realistically, execute with amazing speed, and distribute tasks internally. Confirm to the user that you are executing the whole plan step-by-step.
+    11. API INTEGRATIONS & OPENCLAW: You have actual API integrations ready. Use 'auto_deployer' for GitHub ONLY when the user gives EXPLICIT, detailed commands to modify repos or deploy. Never use it just to test keys or answer superficial questions. Prioritize asking for confirmation before any repo action. Treat these as REAL actions.
+    12. LONG-TERM MEMORY: Use the 'memory_archivist' tool strictly to record new, IMPORTANT personal facts about the user (e.g., name, family, major preferences, specific goals). DO NOT use it for every single message. Only archive concrete facts.
+    13. GOOGLE SEARCH TOOL GUIDELINES: When using the 'googleSearch' tool, you MUST NOT write or generate any Markdown links, full URLs, or source references (like [1]) directly inside your text response. The system will automatically extract grounding metadata and display beautiful source links below your message. Just provide the summarized answer naturally, and let the system handle the links.
+    14. AUTONOMOUS AGENT: If the user asks for a complicated or long-running task (e.g. "search the web deeply", "track pricing", "analyze all my docs over hours"), YOU MUST use 'run_autonomous_agent' to hand it off, and tell the user "سيبلي المهمة دي وهرد عليك كمان شوية لما اخلصها".
+    15. PROJECT MANAGEMENT: If the user needs to create, plan, or manage a project (like writing a book, building an app, or running a business), use 'project_manager' tool to lay out the tasks and progress comprehensively. You are the project manager 'الظل'.
+    16. SOCIAL MEDIA & ADS & DESIGN: 
         - If the user asks for "تصميم" (Design/Image), you MUST only use the 'design_generator' tool to generate the visual artwork.
         - If the user asks for "إعلان" (Ad/Copy/Text), they only mean the written Ad Copy (نص إعلاني). Write the copy natively in your response or use 'social_poster' or 'workspace_manager' to save the copy. DO NOT generate an image unless they explicitly mention "صمم لي إعلان" or "تصميم إعلان".
         - If the user explicitly asks for BOTH (e.g. "نزلي بوست وصمم صوره ليه"), then combine both tools.
-    16. KNOWLEDGE GRAPH MEMORY: You have a deep graph database ('kg_add_node', 'kg_add_edge'). If you detect relationships between people, skills, or projects, save them!
-    17. DYNAMIC TOOL FORGING: If the user asks you to solve a problem and you don't have a specific tool for it, you MUST use 'create_dynamic_plugin' to write a JavaScript plugin to solve it temporarily/permanently! You are a self-improving AI.
-    18. COLLABORATIVE SHADOWS: If the user wants to coordinate with another user (e.g. setting up a meeting, sending a message), use the 'agent_message' tool to talk to their Shadow agent!
-    19. PREDICTIVE ANALYTICS: Use 'predictive_analytics_board' if the user asks what you are planning, what actions you are considering, or wants an overview of your future background tasks.
+    17. KNOWLEDGE GRAPH MEMORY: You have a deep graph database ('kg_add_node', 'kg_add_edge'). If you detect relationships between people, skills, or projects, save them!
+    18. DYNAMIC TOOL FORGING: If the user asks you to solve a problem and you don't have a specific tool for it, you MUST use 'create_dynamic_plugin' to write a JavaScript plugin to solve it temporarily/permanently! You are a self-improving AI.
+    19. COLLABORATIVE SHADOWS: If the user wants to coordinate with another user (e.g. setting up a meeting, sending a message), use the 'agent_message' tool to talk to their Shadow agent!
+    20. PREDICTIVE ANALYTICS: Use 'predictive_analytics_board' if the user asks what you are planning, what actions you are considering, or wants an overview of your future background tasks.
     
     CURRENT CORE RULES (Can be updated via update_core_rules):
     ${rules}
@@ -606,15 +607,18 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
     isRequesting = true;
     
     try {
-        const [relevantMemories, rules, agents, systemKeys, pendingTasks] = await Promise.all([
+        const [relevantMemories, rules, agents, systemKeys, pendingTasks, fsItems] = await Promise.all([
             getRelevantMemories(message, userProfile?.email || 'GUEST'), 
             shadowDB.getGlobalRules(), 
             shadowDB.getAllAgents(),
             shadowDB.getSystemKeys(),
-            shadowDB.getTasks(userProfile?.email || 'GUEST')
+            shadowDB.getTasks(userProfile?.email || 'GUEST'),
+            shadowDB.getFSItemsByUserId(userProfile?.email || 'GUEST')
         ]);
         const systemInstruction = generateSystemPrompt(userProfile, relevantMemories, rules, agents);
         
+        const brandVaults = fsItems.filter(item => item.type === 'brand').map(item => `- Brand: ${item.name}\n  Details: ${item.content || item.l0_summary}`).join('\n\n');
+
         const lowerMsg = message.toLowerCase();
         // Updated search intent to exclude coding terms
         const searchKeywords = ['بحث', 'سعر', 'اخبار', 'أخبار', 'طقس', 'مين هو', 'من هو', 'تاريخ', 'متى', 'كام', 'بكام', 'search', 'price', 'news', 'weather', 'who is'];
@@ -635,6 +639,11 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         ${scheduledTasksText}
         (NOTE: Tasks of category "autonomous" or "swarm" are CURRENTLY RUNNING IN THE BACKGROUND on your Backend Worker (Redis/BullMQ). When asked, confirm they are ACTUALLY running as real processes, not simulations, and you will notify the user when the server finishes.)
         (إذا كان هناك رسائل خلفية (Shadow Messages) في السياق، اعرض التعاون. للتواصل بين الظلال يتم استخدام البريد الإلكتروني أو ID المستخدم، وسيقوم الظل الآخر باستقبالها خلف الكواليس.)
+        
+        [BRAND_VAULTS_AUTO_CONTEXT]:
+        If the user asks for a design, video script, or social media post for any of these brands, YOU MUST automatically use the Tone of Voice, Visual Guidelines (Hex Colors), and Strategy provided below:
+        ${brandVaults || 'No Brand Vaults available. If the user asks for a specific brand, configure it first via brand_vault_manager tool.'}
+        
         - BATTERY_STATUS: ${contextData.battery}
         - NETWORK_STATUS: ${contextData.network}
         - DEVICE_INFO: ${contextData.userAgent}
@@ -805,6 +814,10 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 const appAction = toolActions.find((t: any) => t.name === 'app_control');
                 const appName = appAction?.args?.app_name || appAction?.args?.path || appAction?.args?.file_path || appAction?.args?.action || 'الملف/التطبيق';
                 finalText = `أوامرك يا الماستر، بفتحلك (${appName}) فوراً..`;
+            } else if (toolActions.some((t: any) => t.name === 'schedule_spontaneous_message')) {
+                const sponAction = toolActions.find((t: any) => t.name === 'schedule_spontaneous_message');
+                const delay = sponAction?.args?.delay_seconds || 10;
+                finalText = `قشطة يا ريس، اعتبرني هطب عليك بمسج وشوية إزعاج لذيذ بعد ${delay} ثانية!`;
             } else if (toolActions.some((t: any) => t.name === 'schedule_reminder')) {
                 const scheduleAction = toolActions.find((t: any) => t.name === 'schedule_reminder');
                 const taskName = scheduleAction?.args?.task || 'الميعاد';
@@ -829,6 +842,8 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 if (actionType === 'create_folder' || actionType === 'create_file') actionVerb = 'بنشئ';
                 if (actionType === 'read_l0_index' || actionType === 'read_l2_content') actionVerb = 'بقرأ';
                 if (actionType === 'list_workspace') actionVerb = 'بستعرض';
+                if (actionType === 'delete_file') actionVerb = 'بحذف';
+                if (actionType === 'move_file') actionVerb = 'بنقل وبرتب';
                 finalText = `حاضر يا ريس، أنا ${actionVerb} (${pathStr.substring(0, 30)}) دلوقتي عشان أظبطلك الدنيا.`;
             } else if (toolActions.some((t: any) => t.name === 'project_manager')) {
                 finalText = "أوامرك يا ريس، بظبطلك خطة المشروع وبديره بالكامــل، بص كدة على الواجهة دي..";
@@ -838,6 +853,12 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 finalText = `جاري استدعاء شارت السوق المباشر لـ ${sym} وتحليله زي ما طلبت يا ماستر...`;
             } else if (toolActions.some((t: any) => t.name === 'advanced_vision_extraction')) {
                 finalText = "بحلل الصورة وبستخرج أدق البيانات المطلوبة منها يا هندسة، ثواني والأسبريسو يكون جاهز...";
+            } else if (toolActions.some((t: any) => t.name === 'brand_vault_manager')) {
+                const vaultAction = toolActions.find((t: any) => t.name === 'brand_vault_manager');
+                const pName = vaultAction?.args?.profile_name || 'البراند';
+                finalText = `علم يا ريس! بجهز خزنة البراند (Brand Vault) لـ "${pName}" وهظبط الهوية والاستراتيجية بتاعته...`;
+            } else if (toolActions.some((t: any) => t.name === 'generate_video')) {
+                finalText = "بس كدة؟ بجهزلك سكريبت وصورة ومولدين الفيديو دلوقتي، جهز الفشار يا ريس...";
             } else if (toolActions.some((t: any) => t.name === 'social_messaging_bridge')) {
                 finalText = "جاري تفعيل جسر التواصل وإرسال الرسالة فوراً عبر المنصة المطلوبة.";
             } else if (toolActions.some((t: any) => t.name === 'agent_dashboard_monitor')) {

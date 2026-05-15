@@ -5,31 +5,29 @@ export const VideoDisplay = ({ card }: { card: any }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Using a placeholder video API or realistic layout since we don't have real Text-to-Video API keys yet
-    const videoUrl = "https://cdn.pixabay.com/video/2023/10/22/186026-876800755_tiny.mp4"; // Sample abstract video
+    // Use generated video URL or fallback
+    const videoUrl = card.url || card.videoUrl || "https://cdn.pixabay.com/video/2023/10/22/186026-876800755_tiny.mp4";
 
     return (
-        <div className="mt-4 rounded-[22px] p-2 w-full md:w-[320px] bg-[#1a1a1a]/95 border border-white/20 shadow-xl overflow-hidden relative">
+        <div className="mt-4 rounded-[22px] p-2 w-full md:max-w-md bg-[#1a1a1a]/95 border border-white/20 shadow-xl overflow-hidden relative">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 to-orange-500 z-10"></div>
             
-            <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center group">
+            <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center group" onClick={(e) => e.stopPropagation()}>
                 {isLoading && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-20">
                         <Loader2 className="w-6 h-6 text-pink-500 animate-spin mb-2" />
-                        <span className="text-[10px] text-pink-400 font-bold tracking-widest animate-pulse">GENERATING SCENES...</span>
+                        <span className="text-[10px] text-pink-400 font-bold tracking-widest animate-pulse">LOADING VIDEO...</span>
                     </div>
                 )}
                 
                 <video 
-                    src={videoUrl} 
-                    className={`w-full h-full object-cover transition-opacity duration-1000 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                    autoPlay
-                    loop
-                    muted
+                    src={videoUrl || undefined} 
+                    className={`w-full h-full object-contain transition-opacity duration-1000 ${isLoading ? 'opacity-0' : 'opacity-100'} cursor-pointer`}
+                    autoPlay={false}
+                    controls
                     playsInline
                     onCanPlay={() => {
-                        // Simulate generation delay
-                        setTimeout(() => setIsLoading(false), 2500);
+                        setIsLoading(false);
                     }}
                 />
             </div>

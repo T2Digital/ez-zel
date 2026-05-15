@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Brain, Trash2, X, Activity, Plus, Save, Database, Shield, FileText, Cloud, Download, Upload } from 'lucide-react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { Brain, Trash2, X, Activity, Plus, Save, Database, Shield, FileText, Cloud, Download, Upload, Network } from 'lucide-react';
 import { useAppStore } from '../services/store';
 import { shadowDB } from '../services/dbService';
 import { memorizeFact } from '../services/geminiService';
 
 export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { user, setUser } = useAppStore();
-    const [activeTab, setActiveTab] = useState<'facts' | 'rules' | 'context' | 'backup'>('facts');
+    const [activeTab, setActiveTab] = useState<'facts' | 'graph' | 'rules' | 'context' | 'backup'>('graph');
     const fileInputRef = useRef<HTMLInputElement>(null);
     
-    // Facts State
+    // Facts & Graph State
     const [memories, setMemories] = useState<any[]>([]);
     const [loadingFacts, setLoadingFacts] = useState(true);
     const [newFact, setNewFact] = useState('');
@@ -24,16 +25,11 @@ export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
     const loadData = async () => {
         if (user?.email) {
-            // Load facts
             const mems = await shadowDB.getMemory(user.email);
             setMemories(mems.filter(m => m.fact).reverse());
-            
-            // Load Context
             setContext(user.longTermMemory || '');
         }
         setLoadingFacts(false);
-        
-        // Load Rules
         const globalRules = await shadowDB.getGlobalRules();
         setRules(globalRules || '');
     };
@@ -126,9 +122,155 @@ export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         reader.readAsText(file);
     };
 
+    const renderGraph = () => {
+        return (
+            <div className="relative w-full h-full bg-[#030008] overflow-hidden flex items-center justify-center p-4">
+                {/* Simulated Neural Graph Background Grid - Space Alien Theme */}
+                <div className="absolute inset-0 opacity-40 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/40 via-purple-900/10 to-[#030008]"></div>
+                
+                {/* Floating Stardust / Alien Particles */}
+                <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] animate-[pulse_8s_infinite]"></div>
+
+                <div className="w-full h-full relative border border-cyan-500/20 rounded-xl bg-[#030008]/60 overflow-hidden shadow-[inset_0_0_80px_rgba(30,58,138,0.5)]">
+                    <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none">
+                        <defs>
+                            <pattern id="hexGrid" width="60" height="103.923" patternUnits="userSpaceOnUse" patternTransform="scale(0.5)">
+                                <path fill="none" stroke="rgba(6,182,212,0.3)" strokeWidth="1" d="M30 0l25.98 15v30L30 60 4.02 45V15z"/>
+                                <path fill="none" stroke="rgba(6,182,212,0.15)" strokeWidth="1" d="M30 103.923l25.98-15v-30L30 43.923l-25.98 15v30z M60 51.962l25.98-15v-30L60 6.962l-25.98 15v30z M0 51.962L25.98 36.962v-30L0 6.962l-25.98 15v30z"/>
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#hexGrid)" />
+                    </svg>
+                    
+                    {memories.length === 0 ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-cyan-400/50 font-mono text-sm tracking-[0.3em] uppercase">
+                            <Activity className="w-12 h-12 mb-4 opacity-50 animate-pulse" />
+                            No alien neural signatures detected
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0">
+                            <TransformWrapper
+                                initialScale={1}
+                                minScale={0.1}
+                                maxScale={4}
+                                centerOnInit={true}
+                                limitToBounds={false}
+                                panning={{ disabled: false }}
+                                wheel={{ step: 0.1 }}
+                            >
+                                <TransformComponent wrapperStyle={{ width: '100%', height: '100%', cursor: 'grab' }} contentStyle={{ width: '1500px', height: '1000px' }}>
+                                    <div className="relative w-[1500px] h-[1000px] mx-auto my-auto">
+                                <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+                                    <defs>
+                                        <filter id="neonGlowCore" x="-50%" y="-50%" width="200%" height="200%">
+                                            <feGaussianBlur stdDeviation="8" result="blur" />
+                                            <feMerge>
+                                                <feMergeNode in="blur" />
+                                                <feMergeNode in="SourceGraphic" />
+                                            </feMerge>
+                                        </filter>
+                                        <filter id="neonGlowLine" x="-20%" y="-20%" width="140%" height="140%">
+                                            <feGaussianBlur stdDeviation="3" result="blur" />
+                                            <feMerge>
+                                                <feMergeNode in="blur" />
+                                                <feMergeNode in="blur" />
+                                                <feMergeNode in="SourceGraphic" />
+                                            </feMerge>
+                                        </filter>
+                                        <linearGradient id="neonGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
+                                            <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.8" />
+                                            <stop offset="100%" stopColor="#ec4899" stopOpacity="0.8" />
+                                        </linearGradient>
+                                    </defs>
+                                    
+                                    {/* Draw simulated alien connections */}
+                                    {memories.slice(0, 20).map((m, i) => {
+                                        if (i === memories.length - 1) return null;
+                                        // Random organic paths
+                                        const x1 = 200 + ((i % 6) * 220) + (Math.sin(i)*50);
+                                        const y1 = 150 + (Math.floor(i / 6) * 220) + (Math.cos(i)*50);
+                                        const x2 = 200 + (((i+1) % 6) * 220) + (Math.sin(i+1)*50);
+                                        const y2 = 150 + (Math.floor((i+1) / 6) * 220) + (Math.cos(i+1)*50);
+                                        
+                                        const cx = (x1 + x2) / 2 + (Math.random() * 100 - 50);
+                                        const cy = (y1 + y2) / 2 + (Math.random() * 100 - 50);
+                                        
+                                        return (
+                                            <g key={`connection-${i}`}>
+                                                {/* Background faint line */}
+                                                <path d={`M ${x1+70} ${y1+35} Q ${cx} ${cy} ${x2+70} ${y2+35}`} stroke="rgba(139,92,246,0.15)" strokeWidth="2" fill="none" />
+                                                {/* Glowing animated pulse line */}
+                                                <path d={`M ${x1+70} ${y1+35} Q ${cx} ${cy} ${x2+70} ${y2+35}`} stroke="url(#neonGradient)" strokeWidth="2" fill="none" filter="url(#neonGlowLine)" strokeDasharray="10 20" className="animate-[dash_2s_linear_infinite]" />
+                                            </g>
+                                        )
+                                    })}
+
+                                    {/* Central Master Node Connections */}
+                                    {memories.slice(0, 20).map((m, i) => {
+                                        const x1 = 200 + ((i % 6) * 220) + (Math.sin(i)*50);
+                                        const y1 = 150 + (Math.floor(i / 6) * 220) + (Math.cos(i)*50);
+                                        return (
+                                            <path key={`mline-${i}`} d={`M ${x1+70} ${y1+35} C ${x1+70} 500, 750 ${y1+35}, 750 500`} stroke="rgba(6,182,212,0.3)" strokeWidth="1.5" fill="none" filter="url(#neonGlowLine)" strokeDasharray="5 15" className="animate-[dash_3s_linear_infinite_reverse]" />
+                                        );
+                                    })}
+                                </svg>
+
+                                {/* Center Master Node: The Alien Brain */}
+                                <div className="absolute rounded-full border-4 border-cyan-400 bg-cyan-900/40 shadow-[0_0_80px_rgba(6,182,212,0.8)] flex flex-col items-center justify-center cursor-default z-30 backdrop-blur-xl animate-[pulse_4s_ease-in-out_infinite]" style={{ left: 670, top: 420, width: 160, height: 160 }}>
+                                    <div className="absolute inset-0 rounded-full border border-cyan-300 opacity-50 animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+                                    <Brain className="w-12 h-12 text-cyan-300 mb-2 filter drop-shadow-[0_0_10px_rgba(103,232,249,0.8)]" />
+                                    <div className="text-cyan-100 font-black text-center text-sm tracking-widest uppercase filter drop-shadow-[0_0_5px_rgba(6,182,212,1)]">
+                                        Core Syntax
+                                    </div>
+                                    <div className="text-[9px] text-cyan-300/80 font-mono mt-1">NEXUS ACTIVE</div>
+                                </div>
+
+                                {/* Graph Nodes: The Alien Data Clusters */}
+                                {memories.slice(0, 20).map((m, i) => {
+                                    const left = 200 + ((i % 6) * 220) + (Math.sin(i)*50);
+                                    const top = 150 + (Math.floor(i / 6) * 220) + (Math.cos(i)*50);
+                                    const isRecent = i < 3;
+                                    const floatDelay = `${(i % 5) * 0.5}s`;
+                                    
+                                    return (
+                                        <div key={m.id} className="absolute group z-20 cursor-pointer w-[140px] flex flex-col items-center" style={{ left, top, animation: `float_${(i%3)+4}s_ease-in-out_infinite`, animationDelay: floatDelay }}>
+                                            <div className={`relative w-8 h-8 rounded-full border-2 ${isRecent ? 'border-pink-500 bg-pink-500/20 shadow-[0_0_30px_rgba(236,72,153,0.8)]' : 'border-purple-500 bg-purple-900/40 shadow-[0_0_20px_rgba(168,85,247,0.5)]'} flex items-center justify-center backdrop-blur-md`}>
+                                                <div className={`w-3 h-3 rounded-full ${isRecent ? 'bg-pink-400 animate-pulse outline outline-2 outline-offset-2 outline-pink-500/50' : 'bg-purple-400'}`}></div>
+                                                {/* Orbiting data speck */}
+                                                {isRecent && <div className="absolute w-full h-full animate-[spin_3s_linear_infinite]"><div className="w-1.5 h-1.5 bg-cyan-300 rounded-full absolute top-[-3px] left-1/2 -translate-x-1/2 shadow-[0_0_10px_rgba(103,232,249,1)]"></div></div>}
+                                            </div>
+                                            
+                                            <div className="mt-3 relative">
+                                                {/* Cyberpunk styled text box */}
+                                                <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/90 to-transparent backdrop-blur-xl border-t-2 border-l border-r border-[#ffffff10] rounded-t-lg -z-10 group-hover:border-t-cyan-400/80 transition-colors duration-300"></div>
+                                                <div className="p-3 text-center text-[11px] font-bold text-white/90 shadow-2xl opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all group-hover:-translate-y-1 group-hover:text-cyan-100 flex flex-col gap-1 items-center">
+                                                    <span className="line-clamp-3 leading-relaxed">{m.fact}</span>
+                                                    <span className="text-[8px] text-fuchsia-400/60 font-mono tracking-widest mt-1 opacity-0 group-hover:opacity-100 transition-opacity">DATA_{m.id}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                    </div>
+                                </TransformComponent>
+                            </TransformWrapper>
+                        </div>
+                    )}
+                    <style dangerouslySetInnerHTML={{__html: `
+                        @keyframes dash { to { stroke-dashoffset: -30; } }
+                        @keyframes float_4s { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+                        @keyframes float_5s { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+                        @keyframes float_6s { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+                    `}} />
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
-            <div className="bg-[#111] border border-fuchsia-500/20 rounded-2xl w-full max-w-2xl h-[85vh] flex flex-col shadow-[0_0_50px_rgba(217,70,239,0.1)] relative overflow-hidden font-['Cairo']" dir="rtl">
+            <div className="bg-[#111] border border-fuchsia-500/20 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-[0_0_50px_rgba(217,70,239,0.1)] relative overflow-hidden font-['Cairo']" dir="rtl">
                 <div className="flex items-center justify-between p-6 border-b border-white/5 bg-[#0a0a0a]">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-fuchsia-500/20 rounded-xl border border-fuchsia-500/30 shadow-[0_0_15px_rgba(217,70,239,0.3)]">
@@ -149,10 +291,16 @@ export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 {/* Tabs */}
                 <div className="flex border-b border-white/5 bg-[#0d0d0d] px-4 overflow-x-auto scrollbar-hide">
                     <button 
+                        onClick={() => setActiveTab('graph')}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'graph' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-white/50 hover:text-white/80'}`}
+                    >
+                        <Network className="w-4 h-4" /> الخريطة الذهنية
+                    </button>
+                    <button 
                         onClick={() => setActiveTab('facts')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === 'facts' ? 'border-fuchsia-500 text-fuchsia-400' : 'border-transparent text-white/50 hover:text-white/80'}`}
                     >
-                        <Database className="w-4 h-4" /> الحقائق المستخرجة
+                        <Database className="w-4 h-4" /> البيانات الخام
                     </button>
                     <button 
                         onClick={() => setActiveTab('rules')}
@@ -175,6 +323,9 @@ export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-0 bg-[#0a0a0a] relative">
+                    {/* GRAPH TAB */}
+                    {activeTab === 'graph' && renderGraph()}
+
                     {/* FACTS TAB */}
                     {activeTab === 'facts' && (
                         <div className="flex flex-col h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
@@ -300,4 +451,5 @@ export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         </div>
     );
 };
+
 

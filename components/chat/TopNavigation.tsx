@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Search, X, Brain, Activity, AlertTriangle, Cloud, RefreshCw, CloudOff, Ear, DollarSign, Shield, Waves, Key, Smartphone, Volume2, VolumeX, Crown, Bot } from 'lucide-react';
+import { Home, Search, X, Brain, Activity, AlertTriangle, Cloud, RefreshCw, CloudOff, Ear, DollarSign, Shield, Waves, Key, Smartphone, Volume2, VolumeX, Crown, Bot, Cpu } from 'lucide-react';
 import { ShadowFace } from '../ShadowFace';
 
 interface TopNavigationProps {
@@ -24,6 +24,7 @@ interface TopNavigationProps {
     setShowVoiceBiometricsManager: (val: boolean) => void;
     setShowLiveAPIMode: (val: boolean) => void;
     setShowMemoryVault: (val: boolean) => void;
+    setShowLocalDeepDive?: (val: boolean) => void;
     setShowPersonalKeys: (val: boolean) => void;
     setShowNativeSettings: (val: boolean) => void;
     setShowAutonomousManager?: (val: boolean) => void;
@@ -39,7 +40,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
     appStatus, isTito, getGreetingSubtitle, isSentinelMode, toggleSentinelMode,
     speechSupported, syncStatus, onOpenAffiliate, isRestrictedMode,
     hasVoiceSignature, setShowVoiceBiometricsManager, setShowLiveAPIMode,
-    setShowMemoryVault, setShowPersonalKeys, setShowNativeSettings, setShowAutonomousManager, runningTasks = 0,
+    setShowMemoryVault, setShowLocalDeepDive, setShowPersonalKeys, setShowNativeSettings, setShowAutonomousManager, runningTasks = 0,
     isMuted, setIsMuted, audioLevel, onFaceClick
 }) => {
     return (
@@ -136,6 +137,12 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                     <button onClick={() => setShowMemoryVault(true)} className="p-2 shrink-0 rounded-full bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/20 text-fuchsia-400 transition-all select-none" title="الذاكرة المعرفية">
                         <Brain className="w-4 h-4" />
                     </button>
+                    
+                    {setShowLocalDeepDive && (
+                        <button onClick={() => setShowLocalDeepDive(true)} className="p-2 shrink-0 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 transition-all select-none" title="الوضع المحلي الأوفلاين">
+                            <Cpu className="w-4 h-4" />
+                        </button>
+                    )}
                     
                     <button onClick={() => setShowPersonalKeys(true)} className="p-2 shrink-0 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all select-none" title="مفاتيحي الخاصة">
                         <Key className="w-4 h-4" />

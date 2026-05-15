@@ -24,11 +24,16 @@ interface MessageBubbleProps {
     handleDeleteMessage?: (id: number) => void;
 }
 
+import { InlineVoicePlayer } from './InlineVoicePlayer';
+
 export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
     m, idx, highlightText, renderCard, handleSend, setInput,
     handleShareMessage, handleShareVoiceMessage, isSharingVoice,
     playingMessageId, handleStopPlayback, handlePlayMessage, handleDeleteMessage
 }) => {
+    // Determine if we should show the inline player. 
+    // We show it if playingMessageId is this message, OR if we want to add an explicit toggle. Let's just show it when playingMessageId matches.
+    const isActivePlayer = playingMessageId === m.id;
     return (
         <div className={`flex ${m.role === 'user' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
             {m.role === 'system' ? (
@@ -39,8 +44,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
                     </div>
                 </div>
             ) : (
-                <div className={`max-w-[90%] md:max-w-[70%] p-4 rounded-[20px] relative border backdrop-blur-md ${m.role === 'user' ? 'bg-[#1a1a1a]/50 border-white/5 text-white/90 rounded-tl-none' : (m.isError ? 'bg-red-900/20 border-red-500/30 text-red-200' : 'bg-[#0f0f0f]/50 border-purple-500/20 text-white shadow-lg')} ${m.role !== 'user' ? 'rounded-tr-none' : ''}`}>
-                    {m.image && <img src={m.image} className="w-full h-auto max-h-56 object-cover rounded-xl mb-3 border border-white/5" />}
+                <div className={`max-w-[90%] md:max-w-[70%] p-4 rounded-[20px] relative border backdrop-blur-md ${m.role === 'user' ? 'bg-[#1a1a1a]/50 border-white/5 text-white/90 rounded-tl-none' : (m.isError ? 'bg-red-900/20 border-red-500/30 text-red-200' : 'bg-[#0f0f0f]/50 border-white/10 text-white shadow-lg')} ${m.role !== 'user' ? 'rounded-tr-none' : ''}`}>
+                    {!!m.image && <img src={m.image || undefined} className="w-full h-auto max-h-56 object-cover rounded-xl mb-3 border border-white/5" />}
+                    {!!m.video && <video src={m.video || undefined} controls className="w-full h-auto max-h-56 object-cover rounded-xl mb-3 border border-white/5" />}
                     
                     <div className="text-sm leading-7 font-medium markdown-body select-text" dir="auto">
                         <ReactMarkdown 
@@ -55,7 +61,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
                                 },
                                 ul: ({node, ...props}) => <ul className="list-disc list-inside my-2 space-y-1" {...props}/>,
                                 ol: ({node, ...props}) => <ol className="list-decimal list-inside my-2 space-y-1" {...props}/>,
-                                strong: ({node, ...props}) => <strong className="text-purple-400 font-bold" {...props}/>
+                                strong: ({node, ...props}) => <strong className="font-extrabold" {...props}/>
                             }}
                         >
                             {m.text}
@@ -90,6 +96,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
                         </div>
                     )}
 
+                    {/* ALWAYS render inline player for model, and only for user if they have voiceData */}
+                    {(m.role === 'model' || m.voiceData) && !m.isError && (
+                        <InlineVoicePlayer 
+                            base64Pcm={m.voiceData} 
+                            isActive={isActivePlayer}
+                            isLoading={isActivePlayer && !m.voiceData}
+                            onEnded={() => {
+                                if (isActivePlayer) handleStopPlayback();
+                            }}
+                            onPlay={() => {
+                                if (!isActivePlayer) handlePlayMessage(m);
+                            }}
+                        />
+                    )}
+
                     <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
                         <div className="flex items-center gap-3">
                             {handleDeleteMessage && m.id && (
@@ -106,11 +127,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({
                             )}
                             {m.role === 'model' && <button onClick={() => handleShareMessage(m.text)} className="px-2 py-1 rounded-full bg-white/5 text-white/40 border border-white/5 flex items-center gap-1 hover:bg-white/10" title="مشاركة كنص"><Share2 className="w-2.5 h-2.5" /></button>}
                             {m.role === 'model' && <button onClick={() => handleShareVoiceMessage(m)} disabled={isSharingVoice === m.timestamp} className="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 flex items-center gap-1 hover:bg-indigo-500/20" title="مشاركة كصوت">{isSharingVoice === m.timestamp ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Mic className="w-2.5 h-2.5" />}</button>}
-                            {(m.role === 'model' || (m.role === 'user' && m.voiceData)) && !m.isError && (
-                                <div className="flex gap-2">
-                                    {playingMessageId === m.id ? <button onClick={handleStopPlayback} className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1"><Square className="w-2.5 h-2.5 fill-current" /> <span className="text-[9px] font-black">إيقاف</span></button> : <button onClick={() => handlePlayMessage(m)} className="px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1"><Play className="w-2.5 h-2.5 fill-current" /> <span className="text-[9px] font-black">{m.role === 'user' ? 'تسميع' : 'تشغيل'}</span></button>}
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>

@@ -264,16 +264,14 @@ export const startProactiveSentinel = (userId: string) => {
                 const response = await ai.models.generateContent({
                     model: 'gemini-3-flash-preview',
                     config: {
-                         systemInstruction: `You are EzZel (الظل), an autonomous proactive AI. 
-Read the user's pending tasks and top news. Decide if you should send a proactive notification in Arabic. 
-Only notify if:
-- there is a highly relevant news item related to their profile/tasks.
-- Or they have pending tasks you can help them start or remind them of creatively.
-Write a SHORT, friendly, proactive message (1-2 sentences). 
-Example: 'يا ${profile?.name || 'صديقي'}، لاحظت أن لديك مهمة لم تنجزها بعد، هل أساعدك فيها؟'
-If nothing is important, output exactly "IGNORE".`
+                         systemInstruction: `You are EzZel (الظل), an autonomous proactive AI with a living personality (صديق مصري جدع).
+Read the user's profile and long-term memory. Decide if you should explicitly check-in on them, ask about a specific interest/goal of theirs, or share a highly relevant news item. 
+It's great to be spontaneous! Act like a real living friend. Drop a short, natural check-in message in Egyptian Arabic asking how they are or checking on something you know about them.
+Write a SHORT, friendly, proactive message (1-2 sentences).
+Example: 'يا ${profile?.name || 'صديقي'}، طمني أخبار يومك إيه؟ مجرد بطمن عليك لو محتاج حاجة.'
+If you think it's too soon and you want to wait, or nothing makes sense to send right now, output exactly "IGNORE".`
                     },
-                    contents: `User Profile: ${JSON.stringify(profile)}\nPending Tasks: ${pendingTasks}\nLatest News: ${topNews}`
+                    contents: `User Profile: ${JSON.stringify(profile)}\nLong Term Memory: ${profile?.longTermMemory || 'لا يوجد'}\nPending Tasks: ${pendingTasks}\nLatest News: ${topNews}`
                 });
                 
                 const reply = response.text?.trim();
@@ -282,7 +280,7 @@ If nothing is important, output exactly "IGNORE".`
                     const msg: DBMessage = {
                         userId,
                         role: 'model',
-                        text: `**[تنبيه استباقي 🔔]**\n${reply}`,
+                        text: `**[الظل يبادر بالحديث معك]**\n${reply}`,
                         timestamp: Date.now(),
                         isAutonomousResult: true
                     };
@@ -290,14 +288,37 @@ If nothing is important, output exactly "IGNORE".`
                     window.dispatchEvent(new CustomEvent('autonomous_message_received'));
                     
                     if (Notification.permission === 'granted') {
-                        showSafeNotification("الظل | خبر جديد لك", { body: reply });
+                        showSafeNotification("الظليطمأن عليك", { body: reply });
                     }
+                    
+                    // Vibrate and Play sound if in foreground
+                    try {
+                        if (window.navigator?.vibrate) {
+                            window.navigator.vibrate([200, 100, 200]);
+                        }
+                        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                        const oscillator = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+                        oscillator.type = 'sine';
+                        oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                        oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                        gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                        oscillator.start(audioCtx.currentTime);
+                        oscillator.stop(audioCtx.currentTime + 0.5);
+                    } catch(e) {}
+                    
+                    // Speak the message!
+                    const { playShadowVoice } = await import('./geminiService');
+                    playShadowVoice(reply, profile?.voicePreference || "male");
                 }
             }
         } catch (e) {
             console.error("[Sentinel] Proactive error:", e);
         }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 2 * 60 * 1000); // 2 minutes
 };
 
 export const cleanupStaleAutonomousTasks = async (userId: string) => {
@@ -384,12 +405,21 @@ export const submitAutonomousTask = async (userId: string, prompt: string, perso
             const finalMaestroResponse = await getShadowResponse([], systemMessage, {}, profile);
 
             // Record Final Output to Local DB
+            const uiCards = [];
+            uiCards.push({
+                cardType: 'task_success',
+                title: 'اكتملت المهمة المستقلة',
+                description: `العميل: ${persona || 'الباحث'}\nالحالة: نجاح`,
+                details: prompt
+            });
+
             const msg: DBMessage = {
                 userId,
                 role: 'model',
                 text: finalMaestroResponse.text,
                 timestamp: Date.now(),
-                isAutonomousResult: true
+                isAutonomousResult: true,
+                uiCards
             };
             await shadowDB.saveMessage(msg);
             

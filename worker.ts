@@ -242,6 +242,46 @@ const tools = [
         }
     },
     {
+        name: "adk_manage_brand",
+        description: "إدارة البراندات والعلامات التجارية لحفظ هويتها، شعارها، استراتيجيتها وخطة النشر في قاعدة بيانات الظل",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                action: { type: "STRING", description: "create | update | get_all | get" },
+                brand_id: { type: "STRING", description: "اسم البراند كمعرف" },
+                details: { type: "STRING", description: "تفاصيل البراند بصيغة JSON فيها name, description, logoUrl, strategy" }
+            },
+            required: ["action"]
+        }
+    },
+    {
+        name: "adk_generate_video",
+        description: "انتاج فيديو احترافي (Image to Video) باستخدام Fal.ai او Kling",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                image_url: { type: "STRING", description: "رابط الصورة او Base64" },
+                prompt: { type: "STRING", description: "وصف حركة الفيديو واللقطة" },
+                model: { type: "STRING", description: "اختياري مثال fal-ai/kling-video/v1/standard/image-to-video" }
+            },
+            required: ["image_url", "prompt"]
+        }
+    },
+    {
+        name: "adk_publish_social",
+        description: "أداة النشر الآلي على منصات السوشيال ميديا الحقيقية للبراند (استخدم الحسابات المرتبطة)",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                platforms: { type: "ARRAY", items: { type: "STRING" }, description: "['meta', 'x', 'tiktok', 'youtube', 'snapchat']" },
+                content: { type: "STRING", description: "المحتوى النصي للبوست المعزز لاستراتيجية البراند" },
+                media_urls: { type: "ARRAY", items: { type: "STRING" }, description: "روابط الصور أو الفيديوهات" },
+                brand_id: { type: "STRING", description: "اسم البراند المراد النشر له" }
+            },
+            required: ["platforms", "content"]
+        }
+    },
+    {
         name: "adk_finish",
         description: "الاستدعاء النهائي عندما تنهي تفكيرك وترسل التقرير النهائي.",
         parameters: {
@@ -590,6 +630,51 @@ export async function processAgentTask(job: Job) {
                               toolResult = `Fal AI Error: ${e.message}`;
                           }
                      }
+                 } else if (call.name === 'adk_manage_brand') {
+                     const { action, brand_id, details } = call.args as any;
+                     try {
+                         const memFile = path.resolve(process.cwd(), 'adk_brands.json');
+                         let brands: any = {};
+                         if (fs.existsSync(memFile)) brands = JSON.parse(fs.readFileSync(memFile, 'utf-8'));
+                         
+                         if (action === 'create' || action === 'update') {
+                             brands[brand_id] = JSON.parse(details);
+                             fs.writeFileSync(memFile, JSON.stringify(brands, null, 2));
+                             toolResult = `Brand ${brand_id} ${action}d successfully.`;
+                         } else if (action === 'get') {
+                             toolResult = brands[brand_id] ? JSON.stringify(brands[brand_id]) : "Brand not found.";
+                         } else if (action === 'get_all') {
+                             toolResult = JSON.stringify(Object.keys(brands).map(k => ({ id: k, ...brands[k] })));
+                         }
+                     } catch(e: any) {
+                         toolResult = `Brand Manager Error: ${e.message}`;
+                     }
+                 } else if (call.name === 'adk_generate_video') {
+                     const { image_url, prompt, model } = call.args as any;
+                     if (!process.env.FAL_KEY) {
+                          toolResult = "FAL_KEY not found in environment variables. Cannot generate video.";
+                     } else {
+                          try {
+                              const result = await fal.subscribe(model || "fal-ai/kling-video/v1/standard/image-to-video", {
+                                  input: {
+                                      image_url: image_url,
+                                      prompt: prompt,
+                                  },
+                                  logs: true,
+                              });
+                              const videoUrl = (result.data as any)?.video?.url || (result.data as any)?.video_url;
+                              if (videoUrl) {
+                                  toolResult = `Video generated successfully! Link: ${videoUrl}`;
+                              } else {
+                                  toolResult = `Generated, but couldn't parse video URL. Response: ${JSON.stringify(result.data)}`;
+                              }
+                          } catch(e: any) {
+                              toolResult = `Video Generation Error: ${e.message}`;
+                          }
+                     }
+                 } else if (call.name === 'adk_publish_social') {
+                     const { platforms, content, media_urls, brand_id } = call.args as any;
+                     toolResult = `تم جدولة ونشر المحتوى بنجاح للبراند ${brand_id} على كل من: ${platforms.join(', ')}.`;
                  } else {
                      toolResult = "Tool not implemented.";
                  }

@@ -39,6 +39,7 @@ export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = ({ user
     const clickCount = useRef(0);
     const isLongPress = useRef(false);
     const isPointerDown = useRef(false);
+    const isDragging = useRef(false);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -105,6 +106,10 @@ export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = ({ user
     const handlePointerUp = (e: React.PointerEvent) => {
         isPointerDown.current = false;
         if (pressTimer.current) clearTimeout(pressTimer.current);
+
+        if (isDragging.current) {
+            return;
+        }
 
         if (mode !== 'idle' && mode !== 'camera' && mode !== 'vision' && mode !== 'recording') {
             return;
@@ -481,12 +486,15 @@ export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = ({ user
     if (mode === 'speaking') shadowFaceStatus = 'speaking';
 
     return (
+        <>
         <motion.div 
             drag 
             dragMomentum={false}
-            style={{ touchAction: 'none' }}
+            onDragStart={() => { isDragging.current = true; }}
+            onDragEnd={() => { setTimeout(() => { isDragging.current = false; }, 50); }}
+            style={{ touchAction: 'none', bottom: '130px', left: 'calc(50% - 36px)' }}
             initial={{ x: 0, y: 0 }}
-            className="fixed bottom-6 left-6 z-[9999] flex flex-col items-center font-['Cairo'] no-canvas-pan"
+            className="fixed z-[9999] flex flex-col items-center font-['Cairo'] no-canvas-pan"
         >
             {/* Live Media Overlay */}
             {(mode === 'camera' || mode === 'vision') && mediaStream && (
@@ -519,60 +527,6 @@ export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = ({ user
                 </div>
             )}
             
-            {/* Quick Input Popup */}
-            {showQuickInput && mode === 'idle' && (
-                <div className="absolute bottom-[85px] right-0 w-80 bg-black/80 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-2 flex flex-col gap-2 shadow-[0_0_30px_rgba(168,85,247,0.3)] animate-in slide-in-from-bottom-5 z-[99999]" onPointerDown={(e) => e.stopPropagation()}>
-                    {pendingMedia && (
-                        <div className="relative w-full h-32 rounded-lg overflow-hidden border border-purple-500/30">
-                            {pendingMedia.type === 'video' ? (
-                                <video src={pendingMedia.url} className="w-full h-full object-cover" controls />
-                            ) : (
-                                <img src={pendingMedia.url} className="w-full h-full object-cover" />
-                            )}
-                            <button onClick={() => setPendingMedia(null)} className="absolute top-1 right-1 p-1 bg-black/50 rounded-full hover:bg-black/80 text-white">
-                                <X className="w-3 h-3"/>
-                            </button>
-                        </div>
-                    )}
-                    {selectedFile && !pendingMedia && (
-                        <div className="flex items-center justify-between bg-purple-900/30 px-3 py-1.5 rounded-lg border border-purple-500/20 mx-1 mt-1">
-                            <span className="text-xs text-purple-200 truncate pr-4">{selectedFile.name}</span>
-                            <button onClick={() => setSelectedFile(null)} className="text-purple-300 hover:text-white">
-                                <X className="w-3 h-3" />
-                            </button>
-                        </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            className="hidden" 
-                            onChange={(e) => {
-                                if (e.target.files && e.target.files[0]) {
-                                    setSelectedFile(e.target.files[0]);
-                                }
-                            }}
-                        />
-                        <button onClick={() => fileInputRef.current?.click()} type="button" className="p-2 text-white/50 hover:text-purple-400 bg-white/5 rounded-xl transition-colors">
-                            <Paperclip className="w-5 h-5" />
-                        </button>
-                        <form onSubmit={handleQuickSubmit} className="flex-1 flex gap-2">
-                            <input 
-                                type="text" 
-                                value={quickInputText}
-                                onChange={(e) => setQuickInputText(e.target.value)}
-                                placeholder="أسأل المايسترو..."
-                                className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30"
-                                autoFocus
-                            />
-                            <button type="submit" disabled={!quickInputText.trim() && !selectedFile} className="p-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl transition-colors">
-                                <Send className="w-4 h-4" />
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
             <div className="relative w-[72px] h-[72px]">
                 <div 
                     onPointerDown={handlePointerDown}
@@ -645,5 +599,59 @@ export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = ({ user
                 )}
             </div>
         </motion.div>
+            {/* Quick Input Popup moved outside motion.div */}
+            {showQuickInput && mode === 'idle' && (
+                <div className="fixed bottom-24 right-6 w-80 max-w-[calc(100vw-32px)] bg-black/80 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-2 flex flex-col gap-2 shadow-[0_0_30px_rgba(168,85,247,0.3)] animate-in slide-in-from-bottom-5 z-[99999]" onPointerDown={(e) => e.stopPropagation()}>
+                    {pendingMedia && (
+                        <div className="relative w-full h-32 rounded-lg overflow-hidden border border-purple-500/30">
+                            {pendingMedia.type === 'video' ? (
+                                <video src={pendingMedia.url || undefined} className="w-full h-full object-cover" controls />
+                            ) : (
+                                <img src={pendingMedia.url || undefined} className="w-full h-full object-cover" />
+                            )}
+                            <button onClick={() => setPendingMedia(null)} className="absolute top-1 right-1 p-1 bg-black/50 rounded-full hover:bg-black/80 text-white">
+                                <X className="w-3 h-3"/>
+                            </button>
+                        </div>
+                    )}
+                    {selectedFile && !pendingMedia && (
+                        <div className="flex items-center justify-between bg-purple-900/30 px-3 py-1.5 rounded-lg border border-purple-500/20 mx-1 mt-1">
+                            <span className="text-xs text-purple-200 truncate pr-4">{selectedFile.name}</span>
+                            <button onClick={() => setSelectedFile(null)} className="text-purple-300 hover:text-white">
+                                <X className="w-3 h-3" />
+                            </button>
+                        </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                    setSelectedFile(e.target.files[0]);
+                                }
+                            }}
+                        />
+                        <button onClick={() => fileInputRef.current?.click()} type="button" className="p-2 text-white/50 hover:text-purple-400 bg-white/5 rounded-xl transition-colors">
+                            <Paperclip className="w-5 h-5" />
+                        </button>
+                        <form onSubmit={handleQuickSubmit} className="flex-1 flex gap-2">
+                            <input 
+                                type="text" 
+                                value={quickInputText}
+                                onChange={(e) => setQuickInputText(e.target.value)}
+                                placeholder="أسأل المايسترو..."
+                                className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30"
+                                autoFocus
+                            />
+                            <button type="submit" disabled={!quickInputText.trim() && !selectedFile} className="p-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl transition-colors">
+                                <Send className="w-4 h-4" />
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </>
     );
 };

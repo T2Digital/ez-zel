@@ -232,7 +232,7 @@ const Payment: React.FC<Props> = ({ planId, billingCycle, onSuccess, onBack }) =
                 </button>
             ) : (
                 <div className="relative mb-4 group">
-                    <img src={proofImage} className="w-full h-40 object-cover rounded-[20px] border border-emerald-500" />
+                    <img src={proofImage || undefined} className="w-full h-40 object-cover rounded-[20px] border border-emerald-500" />
                     <div className="absolute top-2 right-2">
                          <button onClick={() => setProofImage(null)} className="p-2 bg-red-600 text-white rounded-full shadow-lg hover:scale-110 transition-transform">
                              <X className="w-5 h-5" />

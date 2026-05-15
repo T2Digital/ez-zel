@@ -69,7 +69,6 @@ export const renderChatCard = (
       if (card.cardType === 'autonomous_agent') {
           return (
               <div key={i} className="mt-4 bg-[#111] border border-fuchsia-500/30 rounded-[22px] p-5 shadow-[0_0_30px_rgba(217,70,239,0.15)] relative overflow-hidden w-full md:w-[450px]">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-fuchsia-500 animate-pulse"></div>
                   <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                           <div className="p-2 bg-fuchsia-500/20 rounded-full animate-spin-slow">
@@ -97,7 +96,6 @@ export const renderChatCard = (
       if (card.cardType === 'project_manager') {
           return (
               <div key={i} className="mt-4 rounded-[22px] p-5 w-full md:w-[450px] bg-gradient-to-br from-indigo-900/40 to-black border border-indigo-500/30 shadow-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
                   <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
                           <div className="p-3 bg-indigo-500/20 rounded-xl"><Briefcase className="w-6 h-6 text-indigo-400" /></div>
@@ -125,6 +123,52 @@ export const renderChatCard = (
                           <div className="text-[10px] text-center text-indigo-400 pt-1 font-bold">+ {card.data.tasks.length - 4} مهام أخرى المخفية</div>
                       )}
                   </div>
+              </div>
+          );
+      }
+      if (card.cardType === 'brand_vault') {
+          return (
+              <div key={i} className="mt-4 rounded-[22px] p-5 w-full md:w-[450px] bg-gradient-to-br from-purple-900/40 to-black border border-purple-500/30 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 to-purple-500"></div>
+                  <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                          <div className="p-3 bg-purple-500/20 rounded-xl"><Briefcase className="w-6 h-6 text-purple-400" /></div>
+                          <div>
+                              <h3 className="font-black text-white text-md">{card.data.profile_name || "براند جديد"}</h3>
+                              <p className="text-xs text-purple-300 mt-0.5 font-mono">{card.data.action === 'create' ? 'Brand Vault Created' : 'Brand Vault Updated'}</p>
+                          </div>
+                      </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                      {card.data.visual_guidelines && (
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+                              <div className="text-[10px] text-purple-400 font-bold mb-1 uppercase tracking-wider">Visuals</div>
+                              <div className="text-xs text-white/80 line-clamp-2">{card.data.visual_guidelines}</div>
+                          </div>
+                      )}
+                      {card.data.tone_of_voice && (
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+                              <div className="text-[10px] text-purple-400 font-bold mb-1 uppercase tracking-wider">Tone of Voice</div>
+                              <div className="text-xs text-white/80 line-clamp-2">{card.data.tone_of_voice}</div>
+                          </div>
+                      )}
+                  </div>
+                  {(card.data.strategy || card.data.competitors) && (
+                      <div className="bg-white/5 p-3 rounded-xl border border-white/10 mb-2">
+                         <div className="text-[10px] text-purple-400 font-bold mb-1 uppercase tracking-wider">Strategy & Positioning</div>
+                         <div className="text-xs text-white/80 line-clamp-2">{card.data.strategy} {card.data.competitors ? `| Competitors: ${card.data.competitors}` : ''}</div>
+                      </div>
+                  )}
+                  {card.data.knowledge_base_links && card.data.knowledge_base_links.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-3">
+                          {card.data.knowledge_base_links.map((link: string, idx: number) => (
+                              <a key={idx} href={link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[10px] bg-purple-500/20 text-purple-200 px-2 py-1 rounded border border-purple-500/30 hover:bg-purple-500/40">
+                                  <ExternalLink className="w-3 h-3" />
+                                  Link {idx + 1}
+                              </a>
+                          ))}
+                      </div>
+                  )}
               </div>
           );
       }
@@ -257,7 +301,6 @@ export const renderChatCard = (
       if (card.cardType === 'mobile_agent_action') {
           return (
               <div key={i} className="mt-3 bg-indigo-900/20 border border-indigo-500/30 rounded-[22px] p-4 overflow-hidden relative w-full md:w-[320px]">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 animate-pulse"></div>
                   <div className="flex items-start gap-3">
                       <div className="p-2 bg-indigo-500/20 rounded-xl shrink-0">
                           <Smartphone className="w-5 h-5 text-indigo-400" />
@@ -274,11 +317,14 @@ export const renderChatCard = (
           );
       }
       if (card.cardType === 'workspace_item') {
+          const contentToUse = card.l2_content || card.content;
+          const isImage = (card.itemType === 'image' || (typeof card.title === 'string' && card.title.match(/\.(png|jpe?g|gif|webp|svg)$/i))) && contentToUse && typeof contentToUse === 'string' && (contentToUse.startsWith('http') || contentToUse.startsWith('data:') || contentToUse.startsWith('blob:') || contentToUse.startsWith('/'));
+          const isVideo = (card.itemType === 'video' || (typeof card.title === 'string' && card.title.match(/\.(mp4|webm|ogg|mov)$/i))) && contentToUse && typeof contentToUse === 'string' && (contentToUse.startsWith('http') || contentToUse.startsWith('data:') || contentToUse.startsWith('blob:') || contentToUse.startsWith('/'));
+
           return (
               <div key={i} className="mt-4 rounded-[22px] p-4 w-full md:w-[320px] bg-[#1a1a1a]/95 border border-white/20 shadow-xl overflow-hidden relative">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
                   <div className="flex items-center gap-3 mb-4">
-                      <div className="p-3 bg-white/5 rounded-xl text-emerald-400">
+                      <div className="p-3 bg-white/5 rounded-xl text-emerald-400 shrink-0">
                           {card.itemType === 'folder' ? <FolderOpen className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
                       </div>
                       <div className="flex-1 overflow-hidden">
@@ -286,6 +332,16 @@ export const renderChatCard = (
                           <p className="text-[10px] text-emerald-500/80 mt-0.5 truncate">{card.description}</p>
                       </div>
                   </div>
+                  {isImage && (
+                      <div className="mb-4 rounded-xl overflow-hidden bg-black border border-white/5 flex items-center justify-center">
+                          <img src={contentToUse || undefined} alt={card.title} className="w-full h-auto object-contain max-h-[250px]" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                      </div>
+                  )}
+                  {isVideo && (
+                      <div className="mb-4 rounded-xl overflow-hidden bg-black border border-white/5 flex items-center justify-center">
+                          <video src={contentToUse || undefined} controls className="w-full h-auto object-contain max-h-[250px]" crossOrigin="anonymous" />
+                      </div>
+                  )}
                   {card.itemType === 'file' && (
                       <button onClick={() => setSelectedWorkspaceFile(card)} className="w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-xs">
                           <ExternalLink className="w-3 h-3" /> فتح الملف
@@ -297,7 +353,7 @@ export const renderChatCard = (
       if (card.cardType === 'image_display') {
           return (
               <div key={i} className="mt-4 rounded-[22px] p-2 w-full md:w-[320px] bg-[#1a1a1a]/95 border border-white/20 shadow-xl overflow-hidden relative">
-                  <img src={card.url} alt={card.title} className="w-full h-auto rounded-xl object-contain mb-2 bg-black" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                  <img src={card.url || undefined} alt={card.title} className="w-full h-auto rounded-xl object-contain mb-2 bg-black" crossOrigin="anonymous" referrerPolicy="no-referrer" />
                   <div className="p-2">
                        <h3 className="font-bold text-sm text-white truncate px-1">{card.title}</h3>
                        <p className="text-[10px] text-white/50 mt-1 px-1">{card.description}</p>
@@ -359,7 +415,6 @@ export const renderChatCard = (
           const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6'];
           return (
               <div key={i} className="mt-4 rounded-[22px] p-4 w-full md:w-[380px] bg-[#000000]/95 border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.15)] overflow-hidden relative group">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-blue-500"></div>
                   <div className="flex items-center gap-3 mb-4">
                       <div className="p-2 bg-emerald-500/20 rounded-xl text-emerald-400">
                           <Activity className="w-5 h-5" />

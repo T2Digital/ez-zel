@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip, Terminal, Tag, BarChart2, MessageCircle, ShoppingCart, GraduationCap, Palette, Film } from 'lucide-react';
+import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip, Terminal, Tag, BarChart2, MessageCircle, ShoppingCart, GraduationCap, Palette, Film, Network } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { shadowDB, UserProfile, DBFeedback, AgentProfile } from '../services/dbService';
 import ChatInterface from './ChatInterface';
+import { ArchitectureMap } from './ArchitectureMap';
 
 interface Props {
     onLogout: () => void;
@@ -22,7 +23,7 @@ interface AgentInfo {
 }
 
 const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavigateTo }) => {
-  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings'>('analytics');
+  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings' | 'architecture'>('analytics');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [feedbacks, setFeedbacks] = useState<DBFeedback[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -244,8 +245,6 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   const pendingRequests = realProfiles.filter(p => p.status === 'pending' && p.paymentProof);
   const activeMembers = filteredProfiles.filter(p => p.status === 'active');
   const marketersList = filteredProfiles.filter(p => p.affiliate && (p.affiliate.isMarketer || (p.affiliate.payoutHistory && p.affiliate.payoutHistory.length > 0) || p.affiliate.referralCode));
-  
-  if (activeView === 'chat') return <div className="fixed inset-0 bg-transparent text-white font-['Cairo'] overflow-hidden"><ChatInterface onBack={() => setActiveView('requests')} onNavigateTo={(s) => { if(s === 'affiliate' && onNavigateTo) onNavigateTo('affiliate'); if(s === 'admin') setActiveView('analytics'); }} /></div>;
 
   return (
     <div className="min-h-screen bg-transparent text-white flex flex-col font-['Cairo'] pb-48">
@@ -420,6 +419,18 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                     {isSavingRules ? <Activity className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                     {isSavingRules ? 'جاري التعميم...' : 'حفظ ونشر التعديلات'}
                 </button>
+            </div>
+        )}
+
+        {/* ARCHITECTURE MAP */}
+        {activeView === 'architecture' && (
+            <div className="flex-1 flex flex-col gap-4 h-full relative">
+                <div className="bg-cyan-500/10 border border-cyan-500/20 p-4 rounded-2xl flex items-center gap-3 z-10 shrink-0">
+                    <Network className="w-6 h-6 text-cyan-500 animate-pulse" />
+                    <div><h3 className="font-bold text-cyan-400">خريطة المعمارية والبرمجة الحية</h3><p className="text-[10px] text-cyan-400/50">شخصيات الظل، الإمكانيات، المراجع، والذاكرة الدائمة</p></div>
+                </div>
+                
+                <ArchitectureMap />
             </div>
         )}
 
@@ -742,23 +753,26 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
         )}
       </div>
 
-      <nav className="fixed bottom-0 left-0 w-full bg-black/95 border-t border-white/10 pb-6 pt-5 z-[100] rounded-t-[40px]">
-        <div className="flex items-center justify-start md:justify-center max-w-full md:max-w-3xl mx-auto overflow-x-auto gap-4 px-6 scrollbar-none">
+      <nav className="fixed bottom-[32px] left-0 w-full bg-black/95 border-t border-white/10 z-[100] rounded-t-[40px]">
+        <div className="flex items-center justify-start md:justify-center max-w-full md:max-w-4xl mx-auto overflow-x-auto gap-4 px-6 pt-5 pb-6 scrollbar-none relative z-[105]">
             <button onClick={() => setActiveView('analytics')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'analytics' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><BarChart2 className="w-5 h-5" /><span className="text-[8px] font-bold">تحليل</span></button>
             <button onClick={() => setActiveView('members')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
             <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
             <button onClick={() => { if(onNavigateTo) onNavigateTo('affiliate'); }} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all text-white/30 hover:text-white/60`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">عمولاتي</span></button>
             <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
-            <button onClick={() => setActiveView('chat')} className="flex-shrink-0 min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black -top-6 relative shadow-lg hover:scale-110 transition-transform"><Bot className="w-6 h-6" /></button>
+            
+            <button onClick={() => { if(onNavigateTo) onNavigateTo('chat'); }} className="flex-shrink-0 min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(245,158,11,0.5)] hover:scale-110 transition-transform"><Bot className="w-6 h-6" /></button>
+
             <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'settings' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Settings className="w-5 h-5" /><span className="text-[8px] font-bold">المفاتيح</span></button>
             <button onClick={() => setActiveView('feedback')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'feedback' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><MessageCircle className="w-5 h-5" /><span className="text-[8px] font-bold">الآراء</span></button>
             <button onClick={() => setActiveView('coupons')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'coupons' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Tag className="w-5 h-5" /><span className="text-[8px] font-bold">كوبونات</span></button>
             <button onClick={() => setActiveView('broadcast')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'broadcast' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Megaphone className="w-5 h-5" /><span className="text-[8px] font-bold">النبض</span></button>
             <button onClick={() => setActiveView('core')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'core' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Cpu className="w-5 h-5" /><span className="text-[8px] font-bold">النواة</span></button>
+            <button onClick={() => setActiveView('architecture')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'architecture' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Network className="w-5 h-5" /><span className="text-[8px] font-bold">المعمارية</span></button>
         </div>
       </nav>
 
-      {selectedProof && <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4" onClick={() => setSelectedProof(null)}><img src={selectedProof} className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl" /><button className="absolute top-6 right-6 p-3 bg-red-600 rounded-full text-white"><X className="w-6 h-6" /></button></div>}
+      {selectedProof && <div className="fixed inset-0 z-[300] bg-black/95 flex items-center justify-center p-4" onClick={() => setSelectedProof(null)}><img src={selectedProof || undefined} className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl" /><button className="absolute top-6 right-6 p-3 bg-red-600 rounded-full text-white"><X className="w-6 h-6" /></button></div>}
     </div>
   );
 };

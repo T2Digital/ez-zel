@@ -192,10 +192,21 @@ export const WorkspaceFileViewer: React.FC<WorkspaceFileViewerProps> = ({
                             const renderContent = () => {
                                 if (!rawContent) return null;
 
-                                if (file.type === 'image') {
+                                const isImage = file.type === 'image' || (typeof file.name === 'string' && file.name.match(/\.(png|jpe?g|gif|webp|svg)$/i));
+                                const isVideo = file.type === 'video' || (typeof file.name === 'string' && file.name.match(/\.(mp4|webm|ogg|mov)$/i));
+                                
+                                if (isVideo && workspaceTab !== 'l0' && workspaceTab !== 'l1') {
                                     return (
                                         <div className="flex flex-col items-center justify-center space-y-4">
-                                            <img src={rawContent} alt={file.name} className="max-w-full max-h-[60vh] h-auto rounded-xl shadow-2xl object-contain border border-white/10" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                                            <video src={(file.l2_content || file.content) || undefined} controls autoPlay className="max-w-full max-h-[60vh] h-auto rounded-xl shadow-2xl object-contain border border-white/10" crossOrigin="anonymous" />
+                                        </div>
+                                    );
+                                }
+
+                                if (isImage && workspaceTab !== 'l0' && workspaceTab !== 'l1') {
+                                    return (
+                                        <div className="flex flex-col items-center justify-center space-y-4">
+                                            <img src={(file.l2_content || file.content) || undefined} alt={file.name} className="max-w-full max-h-[60vh] h-auto rounded-xl shadow-2xl object-contain border border-white/10" crossOrigin="anonymous" referrerPolicy="no-referrer" />
                                         </div>
                                     );
                                 }
@@ -207,7 +218,7 @@ export const WorkspaceFileViewer: React.FC<WorkspaceFileViewerProps> = ({
                                                 <Volume2 className="w-12 h-12 text-violet-400" />
                                             </div>
                                             <h3 className="text-xl font-bold text-white">{file.name}</h3>
-                                            <audio src={rawContent} controls className="w-full max-w-md filter drop-shadow-lg" autoPlay />
+                                            <audio src={rawContent || undefined} controls className="w-full max-w-md filter drop-shadow-lg" autoPlay />
                                         </div>
                                     );
                                 }
@@ -258,7 +269,7 @@ export const WorkspaceFileViewer: React.FC<WorkspaceFileViewerProps> = ({
                                     const renderedBody = chunks.map((part: string, i: number) => {
                                         const match = part.match(/!\[(.*?)\]\((.*?)\)/);
                                         if (match) {
-                                            return <img key={i} src={match[2]} alt={match[1]} className="max-w-full h-auto rounded-lg my-4 border border-white/10 shadow-lg object-contain bg-black/50 select-none" crossOrigin="anonymous" referrerPolicy="no-referrer" />;
+                                            return <img key={i} src={match[2] || undefined} alt={match[1]} className="max-w-full h-auto rounded-lg my-4 border border-white/10 shadow-lg object-contain bg-black/50 select-none" crossOrigin="anonymous" referrerPolicy="no-referrer" />;
                                         }
                                         return <span key={i} className="select-text">{part}</span>;
                                     });
@@ -282,7 +293,7 @@ export const WorkspaceFileViewer: React.FC<WorkspaceFileViewerProps> = ({
                                     {parts.map((part: string, i: number) => {
                                         const match = part.match(/!\[(.*?)\]\((.*?)\)/);
                                         if (match) {
-                                            return <img key={i} src={match[2]} alt={match[1]} className="max-w-full h-auto rounded-lg my-4 border border-white/10 shadow-lg object-contain bg-black/50 select-none" crossOrigin="anonymous" referrerPolicy="no-referrer" />;
+                                            return <img key={i} src={match[2] || undefined} alt={match[1]} className="max-w-full h-auto rounded-lg my-4 border border-white/10 shadow-lg object-contain bg-black/50 select-none" crossOrigin="anonymous" referrerPolicy="no-referrer" />;
                                         }
                                         return <span key={i} className="select-text">{part}</span>;
                                     })}

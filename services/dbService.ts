@@ -12,6 +12,7 @@ export interface DBMessage {
   voiceData?: string; 
   groundingLinks?: { title?: string; uri?: string }[];
   image?: string; 
+  video?: string;
   uiCards?: any[]; // CHANGED: Array to support multitasking cards
   isHidden?: boolean;
   synced?: boolean;
@@ -82,6 +83,14 @@ export interface UserProfile {
         binanceApiKey?: string;
         binanceSecretKey?: string;
         metaAccessToken?: string;
+        metaAppId?: string;
+        metaAppSecret?: string;
+        xApiKey?: string;
+        xApiSecret?: string;
+        tiktokKey?: string;
+        tiktokSecret?: string;
+        youtubeKey?: string;
+        snapchatKey?: string;
         openaiApiKey?: string;
         anthropicApiKey?: string;
         geminiApiKey?: string;
