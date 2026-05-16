@@ -222,6 +222,11 @@ export const InlineVoicePlayer: React.FC<InlineVoicePlayerProps> = ({ base64Pcm,
 
     const currentTime = audioRef.current?.currentTime || 0;
 
+    const handleInteraction = (e: React.MouseEvent | React.TouchEvent) => {
+        e.preventDefault();
+        togglePlay();
+    };
+
     return (
         <div className="flex flex-col gap-2 mt-3 bg-black/40 border border-white/10 rounded-xl p-3 shadow-inner" dir="ltr">
             {audioUrl && (
@@ -236,7 +241,12 @@ export const InlineVoicePlayer: React.FC<InlineVoicePlayerProps> = ({ base64Pcm,
             )}
             
             <div className="flex items-center gap-3">
-                <button onClick={togglePlay} disabled={isLoading} className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center hover:bg-blue-500/30 transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] shrink-0 disabled:opacity-50">
+                <button 
+                    onClick={handleInteraction} 
+                    onTouchEnd={(e) => { e.preventDefault(); togglePlay(); }}
+                    disabled={isLoading} 
+                    className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center hover:bg-blue-500/30 transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] shrink-0 disabled:opacity-50"
+                >
                     {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />)}
                 </button>
                 

@@ -414,47 +414,9 @@ const App: React.FC = () => {
     };
   }, [user?.email, user?.phone, isAuthReady]);
 
-  // --- ADMIN NOTIFIER ---
-  useEffect(() => {
-    if (user && user.email === "admin@shadow.com") {
-      const interval = setInterval(async () => {
-        const lastCheck = (await shadowDB.getConfig("last_admin_check")) || 0;
-        const allProfiles = await shadowDB.getAllProfiles();
-        const newPending = allProfiles.filter(
-          (p) =>
-            p.status === "pending" && p.paymentProof && p.joinedAt > lastCheck,
-        );
-        const allFeedback = await shadowDB.getAllFeedback();
-        const newFeedback = allFeedback.filter((f) => f.timestamp > lastCheck);
-
-        if (newPending.length > 0 || newFeedback.length > 0) {
-          let msgText = "🔴 **تقرير عمليات (New Alert)**:\n";
-          if (newPending.length > 0)
-            msgText += `\n📌 **طلبات اشتراك جديدة (${newPending.length})**`;
-          if (newFeedback.length > 0)
-            msgText += `\n💬 **رسائل رأي جديدة (${newFeedback.length})**`;
-
-          const adminMsg: DBMessage = {
-            userId: "admin@shadow.com",
-            role: "system",
-            text: msgText,
-            timestamp: Date.now(),
-          };
-          await shadowDB.saveMessage(adminMsg, true);
-          setLatestSystemMessage(adminMsg);
-          await shadowDB.setConfig("last_admin_check", Date.now());
-          const audio = document.getElementById(
-            "notification-sound",
-          ) as HTMLAudioElement;
-          if (audio) {
-            audio.play().catch((e) => {});
-          }
-          speakNative("تنبيه إداري جديد", user?.voicePreference || "male");
-        }
-      }, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
+  // --- ADMIN NOTIFIER (DISABLED TO SAVE QUOTA) ---
+  // The polling interval was causing excessive reads ('getAllProfiles' / 'getAllFeedback' every 60s).
+  // Admins will now get notification data directly within the AdminPanel via onSnapshot.
 
   useEffect(() => {
     let interval: any;

@@ -70,15 +70,16 @@ export const BrandManagerModal: React.FC<{ user: UserProfile, onClose: () => voi
                 name: formName,
                 type: 'brand',
                 content: JSON.stringify(data),
-                metadata: { brandId },
-                l0_summary: `${formTone || ''} ${formStrategy || ''}`.substring(0, 100)
+                l1_metadata: JSON.stringify({ brandId }),
+                l0_summary: `${formTone || ''} ${formStrategy || ''}`.substring(0, 100),
+                createdAt: Date.now()
             });
         }
         await loadBrands();
         handleNewBrand();
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = async (id: any) => {
         await shadowDB.deleteFSItem(id);
         if (selectedBrand?.id === id) handleNewBrand();
         await loadBrands();

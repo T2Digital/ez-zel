@@ -28,6 +28,7 @@ interface TopNavigationProps {
     setShowPersonalKeys: (val: boolean) => void;
     setShowNativeSettings: (val: boolean) => void;
     setShowAutonomousManager?: (val: boolean) => void;
+    setShowShadowMesh?: (val: boolean) => void;
     runningTasks?: number;
     isMuted: boolean;
     setIsMuted: (val: boolean) => void;
@@ -40,7 +41,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
     appStatus, isTito, getGreetingSubtitle, isSentinelMode, toggleSentinelMode,
     speechSupported, syncStatus, onOpenAffiliate, isRestrictedMode,
     hasVoiceSignature, setShowVoiceBiometricsManager, setShowLiveAPIMode,
-    setShowMemoryVault, setShowLocalDeepDive, setShowPersonalKeys, setShowNativeSettings, setShowAutonomousManager, runningTasks = 0,
+    setShowMemoryVault, setShowLocalDeepDive, setShowPersonalKeys, setShowNativeSettings, setShowAutonomousManager, setShowShadowMesh, runningTasks = 0,
     isMuted, setIsMuted, audioLevel, onFaceClick
 }) => {
     return (
@@ -144,9 +145,19 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                         </button>
                     )}
                     
-                    <button onClick={() => setShowPersonalKeys(true)} className="p-2 shrink-0 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all select-none" title="مفاتيحي الخاصة">
-                        <Key className="w-4 h-4" />
-                    </button>
+                    {setShowShadowMesh && (
+                        <button onClick={() => setShowShadowMesh(true)} className="p-2 shrink-0 rounded-full bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 transition-all select-none" title="الترابط الشبكي بين الظلال">
+                            <span className="flex items-center justify-center">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="9" y="2" width="6" height="6" rx="1"></rect><path d="M5 16v-3a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v3"></path><path d="M12 12V8"></path></svg>
+                            </span>
+                        </button>
+                    )}
+
+                    {isAdmin && (
+                        <button onClick={() => setShowPersonalKeys(true)} className="p-2 shrink-0 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all select-none" title="مفاتيحي الخاصة">
+                            <Key className="w-4 h-4" />
+                        </button>
+                    )}
                     
                     <button onClick={() => setShowNativeSettings(true)} className="p-2 shrink-0 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 transition-all select-none" title="إعدادات النظام العميق">
                         <Smartphone className="w-4 h-4" />

@@ -12,6 +12,9 @@ import { WorkspaceModal } from './dashboard/WorkspaceModal';
 import { BrandManagerModal } from './dashboard/BrandManagerModal';
 import { ShadowWalletModal } from './dashboard/ShadowWalletModal';
 import { LiveSessionModal } from './dashboard/LiveSessionModal';
+import { BrainRouterModal } from './dashboard/BrainRouterModal';
+import { ProactiveReportsModal } from './dashboard/ProactiveReportsModal';
+import { Network, ActivitySquare } from 'lucide-react';
 
 // --- ORBITAL UI COMPONENTS ---
 const OrbitalStyles = () => (
@@ -111,6 +114,22 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const [showBrandsModal, setShowBrandsModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showLiveModal, setShowLiveModal] = useState(false);
+  const [showBrainRouter, setShowBrainRouter] = useState(false);
+  const [showProactiveReports, setShowProactiveReports] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Identity Resolver
   const getIdentity = () => {
@@ -125,8 +144,9 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   // ORBITAL DRAG & DROP STATE
   const [orbitMap, setOrbitMap] = useState<Record<string, number>>({
       'tasks': 0, 'memory': 0, 'sync': 0, 'vault': 0,
+      'brains': 0, 'reports': 0,
       'identity': 1, 'affiliate': 1, 'upgrade': 1,
-      'voice': 2, 'override': 2, 'workspace': 2, 'logout': 2
+      'voice': 2, 'override': 2, 'workspace': 2, 'logout': 2, 'nexus': 1, 'brands': 0, 'wallet': 0, 'live': 1
   });
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -324,7 +344,9 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       { id: 'identity', icon: identity.icon, label: identity.label, colorClass: identity.color, bgClass: identity.bg, borderClass: identity.border, onClick: () => setShowVault(true) },
       { id: 'affiliate', icon: user.phone === 'GUEST' ? Megaphone : DollarSign, label: user.phone === 'GUEST' ? "سوق للظل واربح" : "بيزنس العيلة (تسويق)", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: user.phone === 'GUEST' ? onStartAffiliate : onOpenAffiliate },
       ...((user.tier === 'sovereign' || user.phone === 'TITO') ? [
-          { id: 'nexus', icon: Cpu, label: "نكسوس (التحكم المنزلي IoT)", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setPendingSecureAction('nexus') }
+          { id: 'nexus', icon: Cpu, label: "نكسوس (التحكم المنزلي IoT)", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setPendingSecureAction('nexus') },
+          { id: 'brains', icon: Network, label: "محرك العقول الشامل", colorClass: "text-indigo-400", bgClass: "bg-indigo-500/10", borderClass: "border-indigo-500/30", onClick: () => setShowBrainRouter(true) },
+          { id: 'reports', icon: ActivitySquare, label: "الوعي الزمني (التقارير)", colorClass: "text-green-400", bgClass: "bg-green-500/10", borderClass: "border-green-500/30", onClick: () => setShowProactiveReports(true) }
       ] : [
           { id: 'upgrade', icon: Crown, label: "انضم للنخبة (ترقية)", colorClass: "text-white", bgClass: "bg-white/10", borderClass: "border-white/30", onClick: onUpgrade }
       ]),
@@ -354,8 +376,8 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
             
             {/* Draw Ring Lines */}
             {ORBIT_RADII.map((r, i) => (
-                <div key={i} className="absolute inset-0 rounded-full border-[1.5px] border-white/40 opacity-100 m-auto pointer-events-none transition-all duration-300" 
-                     style={{ width: `${r * 2}px`, height: `${r * 2}px`, boxShadow: draggingId ? `0 0 50px rgba(100, 200, 255, 0.3)` : '0 0 30px rgba(255, 255, 255, 0.05), inset 0 0 20px rgba(255,255,255,0.05)' }}>
+                <div key={i} className={`absolute inset-0 rounded-full border-[1.5px] opacity-100 m-auto pointer-events-none transition-all duration-300 ${isOffline ? 'border-cyan-500/40' : 'border-white/40'}`} 
+                     style={{ width: `${r * 2}px`, height: `${r * 2}px`, boxShadow: draggingId ? `0 0 50px rgba(100, 200, 255, 0.3)` : (isOffline ? '0 0 30px rgba(6, 182, 212, 0.1), inset 0 0 20px rgba(6, 182, 212, 0.1)' : '0 0 30px rgba(255, 255, 255, 0.05), inset 0 0 20px rgba(255,255,255,0.05)') }}>
                 </div>
             ))}
 
@@ -394,18 +416,29 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
                 });
             })}
 
+            {/* --- OFFLINE BANNER --- */}
+            {isOffline && (
+                <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-cyan-900/40 border border-cyan-500/50 backdrop-blur-md px-8 py-3 rounded-full flex items-center gap-3 z-[100] animate-in slide-in-from-top-10 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></div>
+                    <span className="text-cyan-100 font-bold text-sm tracking-widest">إتصال بشبكة العقد (Offline Edge AI Mode)</span>
+                </div>
+            )}
+
             {/* --- THE CORE (SUN) --- */}
             <div 
                 onClick={onOpenChat}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 lg:w-64 lg:h-64 rounded-full bg-gradient-to-br from-purple-600/40 to-black border border-purple-500/50 flex flex-col items-center justify-center cursor-pointer group pointer-events-auto z-50 hover:bg-purple-900/60 transition-all font-cairo shadow-2xl"
+                className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 lg:w-64 lg:h-64 rounded-full ${isOffline ? 'bg-gradient-to-br from-cyan-600/40 to-black border-cyan-500/50 hover:bg-cyan-900/60' : 'bg-gradient-to-br from-purple-600/40 to-black border-purple-500/50 hover:bg-purple-900/60'} border flex flex-col items-center justify-center cursor-pointer group pointer-events-auto z-50 transition-all font-cairo shadow-2xl`}
                 style={{ animation: 'core-pulse 4s ease-in-out infinite' }}
             >
-                <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping opacity-20"></div>
-                <Brain className="w-16 h-16 lg:w-24 lg:h-24 text-white fill-purple-300/30 relative z-10 mb-2 group-hover:scale-110 transition-transform duration-500" />
+                <div className={`absolute inset-0 rounded-full ${isOffline ? 'bg-cyan-500/20' : 'bg-purple-500/20'} animate-ping opacity-20`}></div>
+                <Brain className={`w-16 h-16 lg:w-24 lg:h-24 text-white relative z-10 mb-2 ${isOffline ? 'fill-cyan-300/30' : 'fill-purple-300/30'} group-hover:scale-110 transition-transform duration-500`} />
                 <span className="text-white text-lg lg:text-3xl font-black tracking-widest uppercase relative z-10 drop-shadow-[0_2px_10px_rgba(255,255,255,0.5)]">الظل الرقمي</span>
-                <span className="text-xs lg:text-base text-purple-200 font-bold uppercase relative z-10 tracking-[0.3em] mt-1 shadow-black drop-shadow-md">
-                    {user.phone === 'GUEST' ? 'تجربة محدودة' : 'الدخول للاجتماع'}
-                </span>
+                {isOffline && <span className="text-cyan-400 text-[10px] lg:text-xs mt-1 font-bold tracking-[0.3em]">LOCAL NODE</span>}
+                {!isOffline && (
+                    <span className="text-xs lg:text-base text-purple-200 font-bold uppercase relative z-10 tracking-[0.3em] mt-1 shadow-black drop-shadow-md">
+                        {user.phone === 'GUEST' ? 'تجربة محدودة' : 'الدخول للاجتماع'}
+                    </span>
+                )}
             </div>
 
         </div>
@@ -541,6 +574,14 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
 
         {showLiveModal && (
             <LiveSessionModal user={user} onClose={() => setShowLiveModal(false)} />
+        )}
+
+        {showBrainRouter && (
+            <BrainRouterModal onClose={() => setShowBrainRouter(false)} />
+        )}
+
+        {showProactiveReports && (
+            <ProactiveReportsModal onClose={() => setShowProactiveReports(false)} />
         )}
 
     </div>

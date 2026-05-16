@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2, Target, Volume2 } from 'lucide-react';
+import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2, Target, Volume2, MessageSquare } from 'lucide-react';
 import { shadowDB, DBFSItem } from '../services/dbService';
 import { playShadowVoice, generateMp3FromShadowVoice } from '../services/geminiService';
 import SpaceCanvas from './SpaceCanvas';
@@ -13,8 +13,8 @@ interface Props {
 
 const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) => {
   const [items, setItems] = useState<DBFSItem[]>([]);
-  const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
-  const [breadcrumbs, setBreadcrumbs] = useState<{ id: number | null, name: string }[]>([{ id: null, name: 'الورك سبيس' }]);
+  const [currentFolderId, setCurrentFolderId] = useState<number | string | null>(null);
+  const [breadcrumbs, setBreadcrumbs] = useState<{ id: number | string | null, name: string }[]>([{ id: null, name: 'الورك سبيس' }]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<DBFSItem | null>(null);
   const [workspaceTab, setWorkspaceTab] = useState<'l0' | 'l1' | 'l2'>('l2');
@@ -29,38 +29,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const sceneRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
 
-  const itemPositions = useMemo(() => {
-     const posMap = new Map<number, {x: number, y: number, z: number}>();
-     
-     // Staggered Layer grid layout
-     const itemsPerLayer = 9;
-     const gridCols = 3;
-     const spacingX = 400;
-     const spacingY = 400;
-     const layerSpacingZ = 1500; // Increased spacing
-
-     items.forEach((item, i) => {
-         const layerIndex = Math.floor(i / itemsPerLayer);
-         const indexInLayer = i % itemsPerLayer;
-         
-         const col = indexInLayer % gridCols;
-         const row = Math.floor(indexInLayer / gridCols);
-         
-         // Stagger each layer slightly so items behind aren't completely hidden
-         const staggerOffsetX = layerIndex * 150;
-         const staggerOffsetY = layerIndex * 100;
-
-         const x = (col - (gridCols - 1) / 2) * spacingX + staggerOffsetX;
-         const y = (row - (gridCols - 1) / 2) * spacingY + staggerOffsetY;
-         const z = - (layerIndex * layerSpacingZ);
-
-         posMap.set(item.id!, { x, y, z });
-     });
-     return posMap;
-  }, [items]);
-
   useEffect(() => {
-    loadItems();
     // Reset camera on navigation
     targetCameraRef.current = { x: 0, y: 0, z: -500 };
   }, [currentFolderId, userId]);
@@ -103,9 +72,34 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   }, []);
 
   const loadItems = async () => {
-    const data = await shadowDB.getFSItemsByParent(userId, currentFolderId);
-    setItems(data);
+    console.log("[WorkspaceExplorer] Loading items for userId:", userId, "parentId:", currentFolderId);
+    
+    let data = await shadowDB.getFSItemsByParent(userId, currentFolderId);
+    
+    // Fallback: If no files are found at the root, trying pulling exactly what's natively available and force it to root 
+    // to avoid phantom files if IndexedDB got disconnected from parent keys.
+    if (data.length === 0 && currentFolderId === null) {
+      console.log("[WorkspaceExplorer] Default folder is empty locally. Checking global items...");
+      const allData = await shadowDB.getFSItemsByUserId(userId);
+      if (allData.length > 0) {
+        console.log("[WorkspaceExplorer] Found lost/unlinked items, surfacing them to root!");
+        data = allData.map(i => ({...i, parentId: null}));
+      }
+    }
+    
+    // Force rerender
+    setItems([...data]);
   };
+
+  useEffect(() => {
+    loadItems();
+    
+    const handleUpdate = () => {
+        setTimeout(loadItems, 100); // give tx time to settle
+    };
+    window.addEventListener('shadow_fs_update', handleUpdate);
+    return () => window.removeEventListener('shadow_fs_update', handleUpdate);
+  }, [currentFolderId, userId]);
 
   const navigateTo = async (folder: DBFSItem | null) => {
     if (folder === null) {
@@ -151,7 +145,19 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   const lastTapTime = useRef<number>(0);
   const initialPointerPos = useRef({ x: 0, y: 0 });
 
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item: DBFSItem } | null>(null);
+  const longPressTimer = useRef<any>(null);
+  const pointerIsDown = useRef(false);
+
   const handlePointerDown = (e: React.PointerEvent) => {
+    // If context menu is open, clicking anywhere closes it
+    if (contextMenu) {
+        setContextMenu(null);
+    }
+    
+    // We only want to handle regular panning/interaction on the container, not triggering long press on empty space
+    // Let's rely on item's onPointerDown to start the timer, but we also handle container pointer down.
+    pointerIsDown.current = true;
     const newRipple = { id: Date.now(), x: e.clientX, y: e.clientY };
     setRipples(prev => [...prev, newRipple]);
     setTimeout(() => {
@@ -198,9 +204,13 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
         
         const totalDx = e.clientX - initialPointerPos.current.x;
         const totalDy = e.clientY - initialPointerPos.current.y;
-        if (Math.hypot(totalDx, totalDy) > 20) {
-            dragThresholdExceeded.current = true;
+    if (Math.hypot(totalDx, totalDy) > 20) {
+        dragThresholdExceeded.current = true;
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
         }
+    }
         
         const scale = 800 / Math.max(100, 800 - targetCameraRef.current.z);
         // Remove aggressive dampening, make the drag feel 1:1 and fast
@@ -244,6 +254,12 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    pointerIsDown.current = false;
+    if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+    }
+    
     activePointers.current.delete(e.pointerId);
     if (activePointers.current.size < 2) {
         initialPinchDist.current = null;
@@ -307,11 +323,28 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
             />
           </div>
         </div>
-        <button className="p-3 bg-purple-600 rounded-2xl hover:scale-105 active:scale-95 transition-all pointer-events-auto shadow-[0_0_20px_rgba(147,51,234,0.4)]">
+        <button 
+          onClick={async () => {
+             const name = prompt('اسم المجلد الجديد:');
+             if (name) {
+                 await shadowDB.saveFSItem({
+                     userId: userId,
+                     parentId: currentFolderId,
+                     name,
+                     type: 'folder',
+                     createdAt: Date.now()
+                 });
+                 // Re-load will be handled by the update event listener or we can trigger it directly
+                 loadItems();
+             }
+          }}
+          className="p-3 bg-purple-600 rounded-2xl hover:scale-105 active:scale-95 transition-all pointer-events-auto shadow-[0_0_20px_rgba(147,51,234,0.4)]"
+        >
           <Plus className="w-5 h-5 text-white" />
         </button>
       </div>
 
+      
       {/* Breadcrumbs - UI LAYER */}
       <div className="absolute top-24 left-0 right-0 z-40 px-6 py-2 flex items-center gap-2 overflow-x-auto scrollbar-hide pointer-events-none">
         <div className="glass px-4 py-2 rounded-2xl flex items-center gap-2 pointer-events-auto border border-white/10">
@@ -355,9 +388,28 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
              willChange: 'transform'
            }}
         >
-          {filteredItems.map((item) => {
-            const pos = itemPositions.get(item.id!);
-            if (!pos) return null;
+          {filteredItems.map((item, i) => {
+            // Staggered Layer grid layout
+            const itemsPerLayer = 9;
+            const gridCols = 3;
+            const spacingX = 400;
+            const spacingY = 400;
+            const layerSpacingZ = 1500;
+            
+            const layerIndex = Math.floor(i / itemsPerLayer);
+            const indexInLayer = i % itemsPerLayer;
+            
+            const col = indexInLayer % gridCols;
+            const row = Math.floor(indexInLayer / gridCols);
+            
+            const staggerOffsetX = layerIndex * 150;
+            const staggerOffsetY = layerIndex * 100;
+
+            const x = (col - (gridCols - 1) / 2) * spacingX + staggerOffsetX;
+            const y = (row - (gridCols - 1) / 2) * spacingY + staggerOffsetY;
+            const z = - (layerIndex * layerSpacingZ);
+            
+            const pos = { x, y, z };
             
             // Render logic based on data type
             const isImage = item.type === 'image' || (typeof item.name === 'string' && item.name.match(/\.(png|jpe?g|gif|webp|svg)$/i));
@@ -366,9 +418,18 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
             return (
               <div 
                 key={item.id} 
+                onPointerDown={(e) => {
+                  if (e.pointerType === 'mouse' && e.button !== 0) return;
+                  if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                  longPressTimer.current = setTimeout(() => {
+                    if (!dragThresholdExceeded.current && pointerIsDown.current) {
+                        setContextMenu({ x: e.clientX, y: e.clientY, item });
+                    }
+                  }, 600);
+                }}
                 onClick={(e) => { 
                     e.stopPropagation(); 
-                    if (!dragThresholdExceeded.current) {
+                    if (!dragThresholdExceeded.current && !contextMenu) {
                         navigateTo(item); 
                     }
                 }}
@@ -410,6 +471,62 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
           )}
         </div>
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+          <div 
+            className="fixed z-[100] bg-[#111]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-2 min-w-[200px] shadow-2xl animate-in zoom-in-95"
+            style={{ 
+                left: Math.min(contextMenu.x, window.innerWidth - 220), 
+                top: Math.min(contextMenu.y, window.innerHeight - 200) 
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+             <div className="p-2 border-b border-white/10 mb-2">
+                 <p className="text-xs font-bold text-white truncate px-2">{contextMenu.item.name}</p>
+             </div>
+             <button 
+                onClick={async () => {
+                    if (confirm('هل متأكد من الحذف؟')) {
+                        await shadowDB.deleteFSItem(contextMenu.item.id!);
+                        loadItems();
+                    }
+                    setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all font-bold text-sm text-right"
+             >
+                 <Trash2 className="w-4 h-4 ml-auto" />
+                 حذف الملف
+             </button>
+             <button 
+                onClick={async () => {
+                    await shadowDB.saveMessage({
+                        userId: userId,
+                        role: 'user',
+                        text: `أرسلت لك ملف من الورك سبيس: [${contextMenu.item.name}].`,
+                        timestamp: Date.now()
+                    }, true);
+                    alert("تم الإرسال للظل بنجاح!");
+                    setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 transition-all font-bold text-sm text-right"
+             >
+                 <MessageSquare className="w-4 h-4 ml-auto" />
+                 إرسال للظل فى الشات
+             </button>
+             <button 
+                onClick={() => {
+                    alert("سيتم دعم نقل الملفات بين المجلدات في التحديث القادم.");
+                    setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 text-white/70 hover:text-white transition-all font-bold text-sm text-right"
+             >
+                 <Folder className="w-4 h-4 ml-auto" />
+                 نقل إلى مجلد
+             </button>
+          </div>
+      )}
 
       {/* File Viewer Modal */}
       {selectedFile && (

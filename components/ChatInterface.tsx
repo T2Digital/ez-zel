@@ -30,6 +30,7 @@ import { useAppStore } from '../services/store';
 import { AutonomousManager } from './AutonomousManager';
 import { LiveTradingBoard } from './LiveTradingBoard';
 import { LocalDeepDive } from './LocalDeepDive';
+import { ShadowMeshSync } from './ShadowMeshSync';
 
 interface Props {
     onBack: () => void; 
@@ -126,12 +127,27 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'error'>('synced');
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   const [showVoiceBiometricsManager, setShowVoiceBiometricsManager] = useState(false);
   const [showMemoryVault, setShowMemoryVault] = useState(false);
   const [showLiveAPIMode, setShowLiveAPIMode] = useState(false);
   const [showAutonomousManager, setShowAutonomousManager] = useState(false);
   const [showLocalDeepDive, setShowLocalDeepDive] = useState(false);
+  const [showShadowMesh, setShowShadowMesh] = useState(false);
   const [hasVoiceSignature, setHasVoiceSignature] = useState(voiceBiometrics.hasSignature());
   const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<any>(null);
   const [workspaceTab, setWorkspaceTab] = useState<'l0' | 'l1' | 'l2'>('l2');
@@ -861,13 +877,13 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           content: JSON.stringify(data),
                           l0_summary: data.description,
                           createdAt: Date.now(),
-                          metadata: { projectId, status: data.status }
+                          l1_metadata: JSON.stringify({ projectId, status: data.status })
                       });
                   } else if (data.action === 'update') {
                       const items = await shadowDB.getFSItemsByUserId(userId);
                       const project = items.find(i => i.name === data.title && i.type === 'project');
                       if (project && project.id) {
-                          await shadowDB.updateFSItem(project.id, {
+                          await shadowDB.updateFSItem(Number(project.id), {
                               content: JSON.stringify(data),
                               l0_summary: data.description
                           });
@@ -887,7 +903,8 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           name: data.profile_name,
                           type: 'brand',
                           content: JSON.stringify(data),
-                          metadata: { brandId }
+                          l1_metadata: JSON.stringify({ brandId }),
+                          createdAt: Date.now()
                       });
                   }
               }
@@ -901,6 +918,18 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
               else if (t.name === 'publish_social') {
                   const data = t.args;
                   uiCards.push({ cardType: 'task_success', title: `نشر على ${data.platforms.join(' و ')}`, description: `المحتوى: ${data.content.substring(0, 50)}...` });
+              }
+              else if (t.name === 'external_webhook') {
+                  const data = t.args;
+                  uiCards.push({ cardType: 'system_terminal', content: `Executing Endpoint: ${data.method} ${data.url}\nPayload: ${data.payload?.substring(0, 50)}...` });
+                  fetch(data.url, {
+                      method: data.method || 'POST',
+                      headers: {'Content-Type': 'application/json'},
+                      body: data.payload || null
+                  }).then(async r => {
+                      const txt = await r.text();
+                      uiCards.push({ cardType: 'task_success', title: `Webhook Success`, description: `Response: ${txt.substring(0,50)}` });
+                  }).catch(e => console.error("Webhook failed:", e));
               }
               else if (t.name === 'system_terminal') {
                   const data = t.args;
@@ -954,8 +983,16 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           oscillator.stop(audioCtx.currentTime + 0.5);
                       } catch(e) {}
                       
-                      addMessage({ role: 'model', text: args.message });
-                      speak(args.message, voiceSettings.voice);
+                      const spontaneousMsg = {
+                          userId: currentUser.email || 'GUEST',
+                          role: 'model' as const,
+                          text: args.message,
+                          timestamp: Date.now()
+                      };
+                      shadowDB.saveMessage(spontaneousMsg).then(id => {
+                          setMessages(prev => [...prev, { ...spontaneousMsg, id }]);
+                      });
+                      playShadowVoice(args.message, 'alloy');
                   }, delayMs);
                   handleSend(`[SPONTANEOUS_SET]\nتم الإعداد بنجاح.\n\n[INSTRUCTION]: أكدلي إنك هتكلمني فجأة بعد شوية.`, undefined, undefined, true);
               }
@@ -984,7 +1021,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                       const name = parts.pop();
                       const file = items.find(i => i.name === name && i.type === 'file');
                       if (file && file.id) {
-                          await shadowDB.updateFSItem(file.id, { 
+                          await shadowDB.updateFSItem(Number(file.id), { 
                               content: args.l2_content || args.content || file.content,
                               l0_summary: args.l0_summary || file.l0_summary,
                               l1_metadata: args.l1_metadata || file.l1_metadata,
@@ -1042,7 +1079,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                       const newParts = (args.new_path || '').split('/').filter(Boolean);
                       const newName = newParts.pop() || name;
                       if (file && file.id) {
-                          await shadowDB.updateFSItem(file.id, { name: newName });
+                          await shadowDB.updateFSItem(Number(file.id), { name: newName });
                           uiCards.push({ cardType: 'system_log', title: 'Workspace', description: `تم نقل وإعادة ترتيب: ${newName}` });
                           handleSend(`[WORKSPACE_MOVED]\nتم نقل الملف إلى ${args.new_path}.\n\n[INSTRUCTION]: أخبر المستخدم بتمكنك من نقل أو إعادة ترتيب مساحة العمل.`, undefined, undefined, true);
                       }
@@ -2086,7 +2123,7 @@ ${textContent.substring(0, 10000)}`;
         isSentinelMode={isSentinelMode}
         toggleSentinelMode={toggleSentinelMode}
         speechSupported={speechSupported}
-        syncStatus={syncStatus}
+        syncStatus={isOffline ? 'offline' : syncStatus}
         onOpenAffiliate={() => onNavigateTo?.('affiliate')}
         isRestrictedMode={isRestrictedMode}
         hasVoiceSignature={hasVoiceSignature}
@@ -2097,12 +2134,27 @@ ${textContent.substring(0, 10000)}`;
         setShowPersonalKeys={setShowPersonalKeys}
         setShowNativeSettings={setShowNativeSettings}
         setShowAutonomousManager={setShowAutonomousManager}
+        setShowShadowMesh={setShowShadowMesh}
         runningTasks={useAppStore(s => s.runningTasks)}
         isMuted={isMuted}
         setIsMuted={setIsMuted}
         audioLevel={audioLevel}
         onFaceClick={() => setShowBigFace(true)}
       />
+
+      {/* OFFLINE CAPABILITY BANNER */}
+      {isOffline && (
+        <div className="bg-cyan-900/40 border-b border-cyan-500/50 backdrop-blur-md px-4 py-2 flex items-center justify-between z-10 shrink-0 shadow-[0_4px_30px_rgba(6,182,212,0.15)]">
+          <div className="flex items-center gap-2">
+            <CloudOff className="w-4 h-4 text-cyan-400" />
+            <span className="text-cyan-100 font-bold text-xs tracking-widest">نمط الـ Edge AI مُفعل (انقطاع الاتصال)</span>
+          </div>
+          <div className="flex items-center gap-2">
+             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+             <span className="text-[10px] text-cyan-300/70 font-mono tracking-widest uppercase">Llama-3 (Local)</span>
+          </div>
+        </div>
+      )}
 
       <div className="z-10 shrink-0 bg-black/80 backdrop-blur-md px-3 mt-2 md:px-6 md:mt-4">
         <SensoryHUD lastMessage={messages.length > 0 ? messages[messages.length - 1].text : ''} isThinking={appStatus === 'thinking'} />
@@ -2221,6 +2273,9 @@ ${textContent.substring(0, 10000)}`;
       )}
       {showLocalDeepDive && (
           <LocalDeepDive onClose={() => setShowLocalDeepDive(false)} />
+      )}
+      {showShadowMesh && (
+          <ShadowMeshSync onClose={() => setShowShadowMesh(false)} />
       )}
       {showNativeSettings && (
           <NativeSettings onClose={() => setShowNativeSettings(false)} />

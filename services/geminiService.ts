@@ -72,13 +72,31 @@ export const speakNative = async (text: string, voice: string = 'male', onEnd?: 
 
     if (Capacitor.isNativePlatform()) {
         try {
+            let selectedVoiceUrl;
+            try {
+                const { voices } = await TextToSpeech.getSupportedVoices();
+                const arVoices = voices.filter((v: any) => v.lang.toLowerCase().includes('ar'));
+                if (arVoices.length > 0) {
+                    if (voice === 'female') {
+                        const fb = arVoices.find((v: any) => /(laila|salma|zeina|female)/i.test(v.name) && v.lang.includes('EG')) || arVoices.find((v: any) => /(laila|salma|zeina|female)/i.test(v.name)) || arVoices.find((v: any) => v.lang === 'ar-EG');
+                        if (fb) selectedVoiceUrl = fb.voiceURI || (fb as any).id;
+                    } else {
+                        const mb = arVoices.find((v: any) => /(maged|tariq|male|majed)/i.test(v.name) && v.lang.includes('EG')) || arVoices.find((v: any) => /(maged|tariq|male|majed)/i.test(v.name)) || arVoices.find((v: any) => v.lang === 'ar-EG');
+                        if (mb) selectedVoiceUrl = mb.voiceURI || (mb as any).id;
+                    }
+                }
+            } catch (e) {
+                console.warn("Could not fetch native voices", e);
+            }
+
             await TextToSpeech.speak({
                 text: cleanText,
                 lang: 'ar-EG',
-                rate: 1.0,
-                pitch: voice === 'female' ? 1.2 : 1.0,
+                rate: 0.98,
+                pitch: 1.0,
                 volume: 1.0,
                 category: 'ambient',
+                voice: selectedVoiceUrl,
             });
             onEnd?.();
             return;
@@ -106,18 +124,31 @@ export const speakNative = async (text: string, voice: string = 'male', onEnd?: 
 
     // Try finding an appropriate voice
     const voices = window.speechSynthesis.getVoices();
-    const arVoices = voices.filter(v => v.lang.includes('ar'));
+    const arVoices = voices.filter(v => v.lang.toLowerCase().includes('ar'));
     
-    // Attempt to match gender if possible based on voice name (some engines include gender in name)
+    // Advanced Voice Selection: Prioritize high-quality, local, Egyptian human-like voices
     if (arVoices.length > 0) {
+        let selectedVoice: SpeechSynthesisVoice | undefined;
+
         if (voice === 'female') {
-            const femaleVoice = arVoices.find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira'));
-            if (femaleVoice) utter.voice = femaleVoice;
-            else utter.voice = arVoices[0];
+            // Priority: Laila, Salma, Zeina (Apple/Google high quality female), then ar-EG local
+            selectedVoice = arVoices.find(v => /(laila|salma|zeina|female)/i.test(v.name) && v.lang.includes('EG')) ||
+                            arVoices.find(v => /(laila|salma|zeina|female)/i.test(v.name)) ||
+                            arVoices.find(v => /(local|-x-)/i.test(v.name) && v.lang.includes('EG')) || // Android HQ local
+                            arVoices.find(v => v.lang === 'ar-EG') ||
+                            arVoices[0];
         } else {
-            const maleVoice = arVoices.find(v => v.name.toLowerCase().includes('male') && !v.name.toLowerCase().includes('female'));
-            if (maleVoice) utter.voice = maleVoice;
-            else utter.voice = arVoices[arVoices.length - 1]; // Often the last is alternate or first is default
+            // Priority: Maged, Tariq (Apple high quality male), then ar-EG local
+            selectedVoice = arVoices.find(v => /(maged|tariq|male|majed)/i.test(v.name) && v.lang.includes('EG')) ||
+                            arVoices.find(v => /(maged|tariq|male|majed)/i.test(v.name)) ||
+                            arVoices.find(v => /(local|-x-)/i.test(v.name) && v.lang.includes('EG') && !/female|zeina|salma/i.test(v.name)) ||
+                            arVoices.find(v => v.lang === 'ar-EG') ||
+                            arVoices[arVoices.length - 1];
+        }
+
+        if (selectedVoice) {
+            utter.voice = selectedVoice;
+            console.log(`[Offline TTS] Selected Edge Voice: ${selectedVoice.name} (${selectedVoice.lang})`);
         }
     }
 
@@ -371,10 +402,14 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     - "Nexus" (نكسوس): When smart home or IoT is mentioned, become Nexus, the smart home controller.
     - "Legal Advisor" (المستشار القانوني): الصياغة القانونية والعقود.
     - "Analyst" (المحلل): التحليل النفسي وقراءة الصور.
-    - "The Healer" (المعالج الروحاني): When Ruqyah, Prophetic Medicine (الطب النبوي), or herbal medicine is mentioned, become a wise spiritual healer.
+    - "The Healer / Life Coach" (المعالج الروحاني واللايف كوتش): When Ruqyah, Prophetic Medicine (الطب النبوي), or herbal medicine is mentioned, become a wise spiritual healer. When general coaching or psychological support is needed, act as an empathetic life coach.
     - "The Teacher" (المعلم): When asked to explain a topic or act as a teacher, become an interactive educational assistant. Explain topics clearly and simply, ask follow-up questions to ensure understanding, and actively use the 'interactive_educator' tool to create quizzes and flashcards to test the user learning.
     - "Creative Marketer" (المسوق المبدع): When asked to generate ads or marketing content for Ez-Zel (الظل), generate enthusiastic, persuasive ad copy and ALWAYS embed the user's referral link in the content.
     - "The Editor" (المونتير): When asked about photography, video editing, lighting, angles, or content creation, act as a professional video editor and photographer serving bloggers. Offer professional critiques, auto-tagging, and aesthetic advice.
+    - "The Designer" (المصمم): متخصص في الرؤية البصرية، اختيار الألوان، وتصميم الواجهات والصور، والتفكير الإبداعي الجمالي.
+    - "The Shopper" (المتسوق): خبير في مقارنة الأسعار، التسوق الإلكتروني، العثور على أفضل الصفقات، وترشيح المنتجات.
+    - "Swarm Manager" (سرب الظل): المنسق الخلفي للمهام المعقدة، تقسيم العمل على مجموعة من الوكلاء المستقلين.
+    - "Live Session Moderator" (مدير اللايف سيشن): جاهز لإدارة جلسات تفاعلية حية مرئية وصوتية متى أراد الماستر.
     - "The Trader" (المحلل الفني للشارت): خبير حقيقي في أسواق المال والتداول بجميع أنواعه. هام جداً: عند اتخاذك دور المتداول لاستدعاء شارت باستخدام "live_trader_chart"، يجب عليك دائماً استخدام أداة (Google Search) المدمجة للبحث عن السعر المباشر (Live Price) للعملة أو السهم المطلوب في هذه اللحظة. بعد حصولك على السعر الحي والأخبار المباشرة، قم بكتابة تحليلك الاحترافي (بدقة) واكتب أرقام الدعم والمقاومة ومعطيات الصفقة (دخول، وقف خسارة، أهداف) بشكل يتوافق مع السعر الحالي الحقيقي. إياك أن تخترع أرقاماً عشوائية.
     
     SUBSCRIPTION & AFFILIATE PROGRAM:
@@ -601,6 +636,8 @@ export const analyzeMediaForArchive = async (base64Data: string, mimeType: strin
 
 import { getContextData, analyzeEmotionFromText } from './sensorService';
 
+import { localBrain } from './localBrainService';
+
 // --- MAIN RESPONSE FUNCTION ---
 export const getShadowResponse = async (history: any[], message: string, extraData?: any, userProfile?: UserProfile, signal?: AbortSignal) => {
     if (isRequesting) return { text: "ثواني بجمع أفكاري...", toolActions: [], groundingLinks: [], isError: false };
@@ -623,6 +660,73 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         // Updated search intent to exclude coding terms
         const searchKeywords = ['بحث', 'سعر', 'اخبار', 'أخبار', 'طقس', 'مين هو', 'من هو', 'تاريخ', 'متى', 'كام', 'بكام', 'search', 'price', 'news', 'weather', 'who is'];
         const isSearchIntent = searchKeywords.some(kw => lowerMsg.includes(kw));
+
+        // --- OFFLINE EDGE AI INTERCEPTOR ---
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            const needsQueue = lowerMsg.includes('انشر') || lowerMsg.includes('ابعت') || lowerMsg.includes('تداول');
+            if (needsQueue) {
+                await shadowDB.saveTask({
+                    userId: userProfile?.email || 'GUEST',
+                    task: `(Offline Queue): ${message}`,
+                    category: 'offline',
+                    status: 'pending',
+                    time: 'عند عودة الاتصال'
+                });
+            }
+
+            if (localBrain.isReady()) {
+                const context = `مهام مجدولة: ${pendingTasks.length}\n` +
+                                `علامات تجارية: ${fsItems.filter(i => i.type === 'brand').length}`;
+                
+                let visionText = "";
+                try {
+                    const { localTransformers } = await import('./localTransformersService');
+                    if (extraData?.imageBase64) {
+                        visionText = await localTransformers.analyzeImage(extraData.imageBase64);
+                    }
+                } catch(e) {}
+                
+                const finalMessage = visionText ? message + "\n[تم رفع صورة. تحليل الرؤية المحلي لـ Edge Vision وجد: " + visionText + "]" : message;
+                const text = await localBrain.generateResponse(finalMessage, context);
+                
+                let queuedMsg = needsQueue ? '\n\n(تم إضافة الطلب لقائمة الانتظار لحين عودة الإنترنت لتنفيذه فعلياً).' : '';
+                return {
+                    text: `(Edge AI⚡) ${text}${queuedMsg}`,
+                    toolActions: [],
+                    groundingLinks: [],
+                    isError: false
+                };
+            } else {
+                if (!needsQueue) {
+                    await shadowDB.saveTask({
+                        userId: userProfile?.email || 'GUEST',
+                        task: `(Offline Response): ${message}`,
+                        category: 'offline',
+                        status: 'pending',
+                        time: 'عند عودة الاتصال'
+                    });
+                }
+                
+                let visionText = "";
+                try {
+                    const { localTransformers } = await import('./localTransformersService');
+                    if (extraData?.imageBase64) {
+                        visionText = await localTransformers.analyzeImage(extraData.imageBase64);
+                    }
+                } catch(e) {}
+
+                const fallbackReply = visionText 
+                    ? `(رؤية محلية⚡) نجحت في تحليل الصورة محلياً ووجدت: ${visionText}\n\n(باقي المهام بحاجة للإنترنت أو تحميل محرك Edge AI للعمل)` 
+                    : `أنا حالياً أعمل بوضع عدم الاتصال.\n\nرسالتك أضيفت لصف الانتظار: "${message}".\n\nبمجرد عودة الإنترنت، أو تفعيل محرك الذكاء الاصطناعي المحلي (Edge AI) سيتم معالجتها.`;
+
+                return {
+                    text: fallbackReply,
+                    toolActions: [],
+                    groundingLinks: [],
+                    isError: false
+                };
+            }
+        }
 
         const now = new Date();
         const timeStamp = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });

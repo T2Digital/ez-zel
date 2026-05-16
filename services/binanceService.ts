@@ -51,7 +51,6 @@ export const getTopTrendingCoin = async (): Promise<{ symbol: string, priceChang
         // Fallback to BTC if market is dead
         return { symbol: 'BTCUSDT', priceChangePercent: 0, volume: 1000000000 };
     } catch (e) {
-        console.error("Failed to get trending coins", e);
         return { symbol: 'BTCUSDT', priceChangePercent: 0, volume: 0 };
     }
 };

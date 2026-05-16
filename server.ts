@@ -74,7 +74,11 @@ function spawnWorker() {
         return;
     }
     console.log("[SYSTEM] Forking Sidecar Worker microservice...");
-    workerProcess = spawn("npx", ["tsx", "--watch", "worker.ts"] , { stdio: "inherit" });
+    if (process.env.NODE_ENV === "production") {
+        workerProcess = spawn("node", [path.join(process.cwd(), "dist", "worker.cjs")] , { stdio: "inherit" });
+    } else {
+        workerProcess = spawn("npx", ["tsx", "--watch", "worker.ts"] , { stdio: "inherit" });
+    }
     workerProcess.on('error', (err) => { console.error("Worker failed to start:", err); });
     workerProcess.on('exit', (code) => {
         console.log(`[SYSTEM] Worker exited with code ${code}. Respawning in 3 seconds...`);
@@ -173,7 +177,7 @@ async function startServer() {
     // Note: express v5 handles '*all' differently if you use that!
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

@@ -257,7 +257,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       </div>
 
       <div className="flex-1 p-6 space-y-8 relative z-10">
-        {activeView !== 'core' && activeView !== 'broadcast' && (
+        {activeView !== 'core' && activeView !== 'broadcast' && activeView !== 'architecture' && (
             <div className="grid grid-cols-4 md:grid-cols-8 gap-3 relative z-10">
                 {councilAgents.map(agent => {
                     const colorMap: Record<string, string> = {
@@ -424,13 +424,15 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
 
         {/* ARCHITECTURE MAP */}
         {activeView === 'architecture' && (
-            <div className="flex-1 flex flex-col gap-4 h-full relative">
+            <div className="flex-1 flex flex-col gap-4 h-[75vh] relative">
                 <div className="bg-cyan-500/10 border border-cyan-500/20 p-4 rounded-2xl flex items-center gap-3 z-10 shrink-0">
                     <Network className="w-6 h-6 text-cyan-500 animate-pulse" />
                     <div><h3 className="font-bold text-cyan-400">خريطة المعمارية والبرمجة الحية</h3><p className="text-[10px] text-cyan-400/50">شخصيات الظل، الإمكانيات، المراجع، والذاكرة الدائمة</p></div>
                 </div>
                 
-                <ArchitectureMap />
+                <div className="flex-1 w-full h-full relative">
+                    <ArchitectureMap />
+                </div>
             </div>
         )}
 

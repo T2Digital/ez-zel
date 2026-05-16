@@ -145,11 +145,11 @@ export interface DBFact {
 }
 
 export interface DBFSItem {
-  id?: number;
+  id?: number | string;
   userId: string; 
-  parentId: number | null;
+  parentId: number | string | null;
   name: string;
-  type: 'folder' | 'table' | 'calendar' | 'project' | 'file' | 'image' | 'video' | 'audio' | 'doc';
+  type: 'folder' | 'table' | 'calendar' | 'project' | 'file' | 'image' | 'video' | 'audio' | 'doc' | 'brand';
   content?: string;
   l0_summary?: string;
   l1_metadata?: string;
@@ -251,22 +251,36 @@ const sanitizeForFirestore = (data: any): any => {
 };
 
 class ShadowDB {
-  async deleteFSItem(id: number) {
+  async deleteFSItem(id: number | string, userId?: string) {
       if (!db) throw new Error('DB not initialized');
+      const dbLocal = await this.init();
       return new Promise<void>((resolve) => {
-          const tx = db.transaction('filesystem', 'readwrite');
-          tx.objectStore('filesystem').delete(id);
-          tx.oncomplete = () => resolve();
+          const tx = dbLocal.transaction('fs', 'readwrite');
+          tx.objectStore('fs').delete(id);
+          tx.oncomplete = async () => {
+              if (userId && db) {
+                  deleteDoc(doc(db, `users/${userId}/filesystem`, id.toString())).catch(e => console.error(e));
+              }
+              resolve();
+          };
       });
   }
 
-  async saveFSItem(item: DBFSItem): Promise<number> {
-      if (!db) throw new Error('DB not initialized');
+  async saveFSItem(item: DBFSItem, skipCloud = false): Promise<number> {
+      if (item.userId) item.userId = item.userId.toLowerCase();
+      const dbLocal = await this.init();
       return new Promise((resolve) => {
-          const tx = db.transaction('filesystem', 'readwrite');
-          const itemWithId = { ...item, id: item.id || Date.now() + Math.floor(Math.random() * 1000) };
-          const req = tx.objectStore('filesystem').put(itemWithId);
+          const tx = dbLocal.transaction('fs', 'readwrite');
+          const itemWithId = { ...item, id: item.id || Date.now() + Math.floor(Math.random() * 1000), synced: true };
+          if (!skipCloud && itemWithId.userId && itemWithId.userId !== 'GUEST') {
+              this.pushToCloud('filesystem', itemWithId, 'filesystem', itemWithId.userId);
+          }
+          const req = tx.objectStore('fs').put(itemWithId);
           req.onsuccess = () => resolve(itemWithId.id as number);
+          req.onerror = (e) => {
+              console.error("IDB saveFSItem error for item:", itemWithId, e);
+              resolve(itemWithId.id as number); // allow it to continue even if local save fails
+          };
       });
   }
 
@@ -425,11 +439,34 @@ class ShadowDB {
       
       try {
           this._isDownloadingCloudData = true;
+
+          const dbLocal = await this.init();
+          const pFsCount = new Promise<number>((resolve) => {
+              const req = dbLocal.transaction('fs', 'readonly').objectStore('fs').index('userId').count(cleanEmail);
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => resolve(0);
+          });
+          const pHistCount = new Promise<number>((resolve) => {
+              const req = dbLocal.transaction('history', 'readonly').objectStore('history').index('userId').count(cleanEmail);
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => resolve(0);
+          });
+          const fsCount = await pFsCount;
+          const histCount = await pHistCount;
+          
+          if (fsCount > 0 && histCount > 0) {
+              console.log('[Shadow Core] Local data exists (fsCount:', fsCount, ', histCount:', histCount, '), skipping deep cloud download.');
+              return;
+          }
+
           console.log('[Shadow Core] Downloading cloud data for', cleanEmail);
           
           const collectionsList = ['history', 'tasks', 'memory', 'filesystem'];
           for (const col of collectionsList) {
-             const q = query(collection(db, 'users/' + cleanEmail + '/' + col));
+             let q = query(collection(db, 'users/' + cleanEmail + '/' + col));
+             if (col === 'history') {
+                 q = query(collection(db, `users/${cleanEmail}/history`), orderBy('timestamp', 'desc'), limit(150));
+             }
              let snap;
              try {
                  snap = await getDocs(q);
@@ -1058,19 +1095,27 @@ class ShadowDB {
       return new Promise((resolve, reject) => { request.onsuccess = () => resolve(true); request.onerror = () => reject(request.error); });
   }
 
-  async getAllProfiles(): Promise<UserProfile[]> {
+  async getAllProfiles(forceSync: boolean = false): Promise<UserProfile[]> {
       const dbLocal = await this.init();
       const request = dbLocal.transaction('profiles', 'readonly').objectStore('profiles').getAll();
       
       const localProfiles = await new Promise<UserProfile[]>((resolve) => { request.onsuccess = () => resolve(request.result || []); request.onerror = () => resolve([]); });
 
-      if (db) {
+      // Only fetch all from Firestore if forced, or if local cache is completely empty and we are online.
+      // This prevents massive Quota issues from components repeatedly doing full table scans.
+      if (db && (forceSync || localProfiles.length === 0)) {
           try {
               const snap = await getDocs(collection(db, "users"));
               const cloudProfiles: UserProfile[] = [];
-              snap.forEach((doc) => cloudProfiles.push({ ...doc.data(), email: doc.id } as UserProfile));
+              snap.forEach((doc) => {
+                  const p = { ...doc.data(), email: doc.id } as UserProfile;
+                  cloudProfiles.push(p);
+                  this.saveProfile(p, false); // cache it
+              });
               return cloudProfiles;
-          } catch(e) {}
+          } catch(e) {
+              console.warn("[Shadow Core] Failed to fetch all profiles", e);
+          }
       }
       return localProfiles;
   }
@@ -1179,34 +1224,94 @@ class ShadowDB {
   async getSyncStats(): Promise<number> { return db ? 100 : 0; }
   async migrateGuestMessages(messages: DBMessage[]) { return; }
 
-  async getFSItemsByParent(userId: string, parentId: number | null): Promise<DBFSItem[]> {
-      const db = await this.init();
-      const request = db.transaction('fs', 'readonly').objectStore('fs').index('userId').getAll(userId);
-      return new Promise((resolve) => { request.onsuccess = () => { const all = request.result as DBFSItem[]; resolve(all.filter(i => i.parentId === parentId)); }; request.onerror = () => resolve([]); });
+  async getFSItemsByParent(userId: string, parentId: number | string | null): Promise<DBFSItem[]> {
+      const dbLocal = await this.init();
+      const request = dbLocal.transaction('fs', 'readonly').objectStore('fs').getAll();
+      return new Promise((resolve) => { 
+          request.onsuccess = async () => { 
+              const all = request.result as DBFSItem[]; 
+              let filtered = all.filter(i => {
+                  const uidMatch = !i.userId || (i.userId || '').toLowerCase() === userId.toLowerCase() || (i.userId || '').toLowerCase() === 'guest';
+                  const normalizedItemParent = (i.parentId === 'null' || i.parentId === 'undefined' || i.parentId === undefined) ? null : i.parentId;
+                  const normalizedArgParent = (parentId === 'null' || parentId === 'undefined' || parentId === undefined) ? null : parentId;
+                  const parentMatch = normalizedItemParent == normalizedArgParent;
+                  return uidMatch && parentMatch;
+              });
+              
+              if (filtered.length === 0 && db) {
+                 try {
+                     const snap = await getDocs(query(collection(db, `users/${userId.toLowerCase()}/filesystem`)));
+                     const onlineData: DBFSItem[] = [];
+                     snap.forEach(d_doc => {
+                         const d = d_doc.data() as DBFSItem;
+                         const parsedId = Number(d_doc.id);
+                         d.id = d.id || (!isNaN(parsedId) ? parsedId : d_doc.id as any);
+                         onlineData.push(d);
+                         this.saveFSItem(d, true); // save locally
+                     });
+                     filtered = onlineData.filter(i => {
+                         const normalizedItemParent = (i.parentId === 'null' || i.parentId === 'undefined' || i.parentId === undefined) ? null : i.parentId;
+                         const normalizedArgParent = (parentId === 'null' || parentId === 'undefined' || parentId === undefined) ? null : parentId;
+                         return normalizedItemParent == normalizedArgParent;
+                     });
+                 } catch(e) { console.error("FS Fallback error:", e); }
+              }
+              resolve(filtered); 
+          }; 
+          request.onerror = (e) => { console.error("IDB getFSItemsByParent error:", e); resolve([]); }; 
+      });
   }
   async getFSItemsByUserId(userId: string): Promise<DBFSItem[]> {
-      const db = await this.init();
-      const request = db.transaction('fs', 'readonly').objectStore('fs').index('userId').getAll(userId);
-      return new Promise((resolve) => { request.onsuccess = () => resolve(request.result as DBFSItem[]); request.onerror = () => resolve([]); });
+      const dbLocal = await this.init();
+      const request = dbLocal.transaction('fs', 'readonly').objectStore('fs').getAll();
+      return new Promise((resolve) => { 
+          request.onsuccess = async () => {
+              const all = request.result as DBFSItem[];
+              let filtered = all.filter(i => !i.userId || (i.userId || '').toLowerCase() === userId.toLowerCase() || (i.userId || '').toLowerCase() === 'guest');
+              
+              if (filtered.length === 0 && db) {
+                 try {
+                     const snap = await getDocs(query(collection(db, `users/${userId.toLowerCase()}/filesystem`)));
+                     const onlineData: DBFSItem[] = [];
+                     snap.forEach(d_doc => {
+                         const d = d_doc.data() as DBFSItem;
+                         const parsedId = Number(d_doc.id);
+                         d.id = d.id || (!isNaN(parsedId) ? parsedId : d_doc.id as any);
+                         onlineData.push(d);
+                         this.saveFSItem(d, true); // save locally
+                     });
+                     filtered = onlineData;
+                 } catch(e) { console.error("FS Fallback error:", e); }
+              }
+              resolve(filtered);
+          };
+          request.onerror = (e) => { console.error("IDB getFSItemsByUserId error:", e); resolve([]); };
+      });
   }
-  async createFSItem(item: DBFSItem): Promise<number> {
+  async createFSItem(item: DBFSItem, skipCloud = false): Promise<number> {
       if (item.userId) item.userId = item.userId.toLowerCase();
-      const db = await this.init();
-      const itemWithId = { ...item, id: item.id || Date.now() + Math.floor(Math.random() * 1000), synced: false };
-      const request = db.transaction('fs', 'readwrite').objectStore('fs').add(itemWithId);
+      const dbLocal = await this.init();
+      const itemWithId = { ...item, id: item.id || Date.now() + Math.floor(Math.random() * 1000), synced: true };
+      const request = dbLocal.transaction('fs', 'readwrite').objectStore('fs').add(itemWithId);
+      if (!skipCloud && itemWithId.userId !== 'GUEST') {
+          this.pushToCloud('filesystem', itemWithId, 'filesystem', itemWithId.userId);
+      }
       return new Promise((resolve) => { request.onsuccess = () => resolve(request.result as number); });
   }
   async updateFSItem(id: number, updates: Partial<DBFSItem>) {
-      const db = await this.init();
-      const tx = db.transaction('fs', 'readwrite');
+      const dbLocal = await this.init();
+      const tx = dbLocal.transaction('fs', 'readwrite');
       const store = tx.objectStore('fs');
       return new Promise<void>((resolve) => {
           const req = store.get(id);
           req.onsuccess = () => {
               const data = req.result;
               if (data) {
-                  const updatedData = { ...data, ...updates, synced: false };
+                  const updatedData = { ...data, ...updates, synced: true };
                   store.put(updatedData);
+                  if (updatedData.userId !== 'GUEST') {
+                      this.pushToCloud('filesystem', updatedData, 'filesystem', updatedData.userId);
+                  }
               }
               resolve();
           };
