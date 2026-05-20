@@ -12,7 +12,7 @@ interface FloatingShadowAvatarProps {
     hide?: boolean;
 }
 
-export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = ({ user, onNavigateChat, hide }) => {
+export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = React.memo(({ user, onNavigateChat, hide }) => {
     const [tapCount, setTapCount] = useState(0);
     const [isAnimating, setIsAnimating] = useState(false);
     const [mode, setMode] = useState<'idle' | 'recording' | 'vision' | 'camera' | 'thinking' | 'speaking'>('idle');
@@ -654,4 +654,4 @@ export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = ({ user
             )}
         </>
     );
-};
+});

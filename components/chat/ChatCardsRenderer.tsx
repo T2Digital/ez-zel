@@ -8,6 +8,90 @@ import { TradingViewChart } from './TradingViewChart';
 import { AutonomousDashboard } from './AutonomousDashboard';
 import { VideoDisplay } from './VideoDisplay';
 import { PredictiveAnalyticsBoard } from './PredictiveAnalyticsBoard';
+import { ExpenseTrackerCard } from './ExpenseTrackerCard';
+import { MuslimCompanionCard } from './MuslimCompanionCard';
+import { ContentMachineCard } from './ContentMachineCard';
+import { PodcastStudioCard } from './PodcastStudioCard';
+import { CommandCenterCard } from './CommandCenterCard';
+import { MemoryConstellationCard } from './MemoryConstellationCard';
+import { CyberDefenseMapCard } from './CyberDefenseMapCard';
+import { TrendHunterCard } from './TrendHunterCard';
+import { BoardroomMeetingCard } from './BoardroomMeetingCard';
+import { RevenueMatrixCard } from './RevenueMatrixCard';
+import { OfflineGhostModeCard } from './OfflineGhostModeCard';
+import { LeadGeneratorCard } from './LeadGeneratorCard';
+
+const QuranPlayerCard = ({ card }: { card: any }) => {
+    const audioRef = React.useRef<HTMLAudioElement>(null);
+    const hasAutoplayedRef = React.useRef(false);
+
+    React.useEffect(() => {
+        const handleVoiceEnded = () => {
+            // Only autoplay if this card was created recently (< 2 minutes old)
+            // and we haven't already autoplayed it.
+            const isRecent = card.timestamp && (Date.now() - card.timestamp < 120000);
+            if (audioRef.current && !hasAutoplayedRef.current && isRecent) {
+                hasAutoplayedRef.current = true;
+                audioRef.current.play().catch(e => console.log('Autoplay prevented', e));
+            }
+        };
+        window.addEventListener('shadow_voice_ended', handleVoiceEnded);
+        return () => window.removeEventListener('shadow_voice_ended', handleVoiceEnded);
+    }, [card.timestamp]);
+
+    const surahNumStr = String(card.surah_number).padStart(3, '0');
+    const reciterMap: Record<string, string> = {
+        'mishary': 'https://server8.mp3quran.net/afs/',
+        'abdulbasit': 'https://server7.mp3quran.net/basit/',
+        'maher': 'https://server12.mp3quran.net/maher/',
+        'sudais': 'https://server11.mp3quran.net/sds/',
+        'shuraim': 'https://server7.mp3quran.net/shrm/',
+        'husary': 'https://server13.mp3quran.net/husr/',
+        'mustafa': 'https://server8.mp3quran.net/mustafa/',
+        'minshawi': 'https://server10.mp3quran.net/minsh/',
+        'jalil': 'https://server10.mp3quran.net/jleel/',
+        'fares': 'https://server8.mp3quran.net/frs_a/'
+    };
+    const reciterNameMap: Record<string, string> = {
+        'mishary': 'مشاري العفاسي',
+        'abdulbasit': 'عبدالباسط عبدالصمد',
+        'maher': 'ماهر المعيقلي',
+        'sudais': 'عبدالرحمن السديس',
+        'shuraim': 'سعود الشريم',
+        'husary': 'محمود خليل الحصري',
+        'mustafa': 'مصطفى إسماعيل',
+        'minshawi': 'محمد صديق المنشاوي',
+        'jalil': 'خالد الجليل',
+        'fares': 'فارس عباد'
+    };
+    
+    const baseUrl = reciterMap[card.reciter] || reciterMap['mishary'];
+    const audioUrl = `${baseUrl}${surahNumStr}.mp3`;
+    const surahNameDisplay = card.surah_name ? `سورة ${card.surah_name}` : `سورة رقم ${card.surah_number}`;
+    
+    return (
+        <div className="mt-4 rounded-[22px] p-5 w-full md:w-[350px] bg-gradient-to-br from-[#022c22]/80 to-[#064e3b]/80 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] relative overflow-hidden backdrop-blur-md hover:shadow-[0_0_40px_rgba(16,185,129,0.25)] transition-all">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-3xl rounded-tr-[22px] pointer-events-none"></div>
+            <div className="flex justify-between items-start mb-4 relative z-10">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-[#064e3b] flex items-center justify-center border-2 border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.3)] shrink-0 p-1">
+                        <div className="w-full h-full rounded-full border border-emerald-500/50 flex items-center justify-center">
+                            <span className="text-xl font-bold text-emerald-300 font-['Amiri']">{card.surah_number}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="font-extrabold text-white text-lg font-['Amiri'] tracking-wide">{surahNameDisplay}</h3>
+                        <p className="text-xs text-emerald-200 mt-1 opacity-90">{reciterNameMap[card.reciter] || 'مشاري العفاسي'}</p>
+                    </div>
+                </div>
+            </div>
+            <div className="relative z-10 w-full bg-black/40 rounded-[20px] p-1 border border-white/5">
+                <audio ref={audioRef} controls src={audioUrl} className="w-full h-12 rounded-[16px] outline-none" style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2)' }} crossOrigin="anonymous" />
+            </div>
+        </div>
+    );
+};
 
 export const renderChatCard = (
     card: any, 
@@ -459,6 +543,45 @@ export const renderChatCard = (
                   )}
               </div>
           );
+      }
+      if (card.cardType === 'quran_player') {
+          return <QuranPlayerCard key={i} card={card} />;
+      }
+      if (card.cardType === 'expense_tracker') {
+          return <ExpenseTrackerCard key={i} card={card} />;
+      }
+      if (card.cardType === 'muslim_companion') {
+          return <MuslimCompanionCard key={i} card={card} />;
+      }
+      if (card.cardType === 'content_machine') {
+          return <ContentMachineCard key={i} card={card} />;
+      }
+      if (card.cardType === 'podcast_studio') {
+          return <PodcastStudioCard key={i} card={card} />;
+      }
+      if (card.cardType === 'global_command_center') {
+          return <CommandCenterCard key={i} card={card} />;
+      }
+      if (card.cardType === 'memory_constellation') {
+          return <MemoryConstellationCard key={i} card={card} />;
+      }
+      if (card.cardType === 'cyber_defense_map') {
+          return <CyberDefenseMapCard key={i} card={card} />;
+      }
+      if (card.cardType === 'trend_hunter_ai') {
+          return <TrendHunterCard key={i} card={card} />;
+      }
+      if (card.cardType === 'boardroom_meeting') {
+          return <BoardroomMeetingCard key={i} card={card} />;
+      }
+      if (card.cardType === 'revenue_matrix') {
+          return <RevenueMatrixCard key={i} card={card} />;
+      }
+      if (card.cardType === 'offline_ghost_mode') {
+          return <OfflineGhostModeCard key={i} card={card} />;
+      }
+      if (card.cardType === 'lead_generator_hunter') {
+          return <LeadGeneratorCard key={i} card={card} />;
       }
       if (card.cardType === 'system_log') {
           return (

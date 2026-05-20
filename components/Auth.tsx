@@ -42,7 +42,7 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
 
     try {
         // --- MASTER ADMIN FIREBASE CHECK ---
-        if (email.toLowerCase() === 'admin@shadow.com') {
+        if ((email || '').toLowerCase() === 'admin@shadow.com') {
              // Firebase requires at least 6 characters for a password
              const firebasePassword = password === 'admin' ? 'admin123' : password;
 

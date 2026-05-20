@@ -896,7 +896,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                   
                   const userId = currentUser.email || 'GUEST';
                   if (data.action === 'create' || data.action === 'update') {
-                      const brandId = data.profile_name.toLowerCase().replace(/\s+/g, '_');
+                      const brandId = (data.profile_name || 'unknown_brand').toLowerCase().replace(/\s+/g, '_');
                       await shadowDB.createFSItem({
                           userId,
                           parentId: null,
@@ -1083,6 +1083,15 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                           uiCards.push({ cardType: 'system_log', title: 'Workspace', description: `تم نقل وإعادة ترتيب: ${newName}` });
                           handleSend(`[WORKSPACE_MOVED]\nتم نقل الملف إلى ${args.new_path}.\n\n[INSTRUCTION]: أخبر المستخدم بتمكنك من نقل أو إعادة ترتيب مساحة العمل.`, undefined, undefined, true);
                       }
+                  } else if (args.action === 'rename_item') {
+                      const items = await shadowDB.getFSItemsByUserId(userId);
+                      const ObjectToRename = (args.path || '').split('/').filter(Boolean).pop();
+                      const file = items.find(i => i.name === ObjectToRename);
+                      if (file && file.id && args.new_name) {
+                          await shadowDB.updateFSItem(Number(file.id), { name: args.new_name });
+                          uiCards.push({ cardType: 'system_log', title: 'Workspace', description: `تم تغيير اسم: ${ObjectToRename} إلى ${args.new_name}` });
+                          handleSend(`[WORKSPACE_RENAMED]\nتم تغيير الاسم بنجاح إلى ${args.new_name}.\n\n[INSTRUCTION]: أخبر المستخدم بتمكنك من تغيير اسم الملف/المجلد بنجاح.`, undefined, undefined, true);
+                      }
                   }
               }
               else if (t.name === 'update_core_rules') {
@@ -1243,9 +1252,9 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                   uiCards.push({ cardType: 'task_success', title: 'تم تحليل الصورة', description: args.image_description });
               }
               else if (t.name === 'app_control') {
-                 const args = t.args;
+                 const args = t.args || {};
                  let url = args.detail || '';
-                 let label = args.target.toLowerCase();
+                 let label = (args.target || 'unknown').toLowerCase();
                  let iconType = 'generic';
 
                  if (args.action_type === 'navigate_internal') {
@@ -1343,6 +1352,117 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
                          });
                      }
                  }
+              }
+              else if (t.name === 'update_personality_preferences') {
+                  const args = t.args;
+                  if (currentUser.email && currentUser.email !== 'GUEST') {
+                      if (args.formalityLevel) currentUser.formalityLevel = args.formalityLevel;
+                      if (args.interfaceColor) currentUser.interfaceColor = args.interfaceColor;
+                      if (args.emojiUsage) currentUser.emojiUsage = args.emojiUsage;
+                      if (args.personalityTraits) currentUser.personalityTraits = args.personalityTraits;
+                      shadowDB.saveProfile(currentUser).catch(e => console.error(e));
+                  }
+                  uiCards.push({ cardType: 'task_success', title: 'تم التحديث!', description: `تم تحديث شخصية وأسلوب الظل بنجاح بناءً على تفضيلاتك.` });
+              }
+              else if (t.name === 'expense_tracker') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'expense_tracker',
+                      action: args.action,
+                      amount: args.amount,
+                      category: args.category,
+                      note: args.note,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'muslim_companion') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'muslim_companion',
+                      action: args.action,
+                      ayah_text: args.ayah_text,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'content_machine_orchestrator') {
+                  uiCards.push({
+                      cardType: 'content_machine',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'shadow_podcast_studio') {
+                  uiCards.push({
+                      cardType: 'podcast_studio',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'global_command_center') {
+                  uiCards.push({
+                      cardType: 'global_command_center',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'memory_constellation') {
+                  uiCards.push({
+                      cardType: 'memory_constellation',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'cyber_defense_map') {
+                  uiCards.push({
+                      cardType: 'cyber_defense_map',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'trend_hunter_ai') {
+                  uiCards.push({
+                      cardType: 'trend_hunter_ai',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'boardroom_meeting') {
+                  uiCards.push({
+                      cardType: 'boardroom_meeting',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'revenue_matrix') {
+                  uiCards.push({
+                      cardType: 'revenue_matrix',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'offline_ghost_mode') {
+                  uiCards.push({
+                      cardType: 'offline_ghost_mode',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'lead_generator_hunter') {
+                  uiCards.push({
+                      cardType: 'lead_generator_hunter',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
+              else if (t.name === 'play_quran') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'quran_player',
+                      surah_number: args.surah_number || 1,
+                      surah_name: args.surah_name,
+                      reciter: args.reciter || 'mishary',
+                      timestamp: Date.now()
+                  });
               }
               else if (t.name === 'change_voice') {
                   const args = t.args;
@@ -1743,21 +1863,6 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
 
       let voiceDataToSave: string | undefined = undefined;
 
-      // Fetch audio BEFORE showing the message if not muted
-      if (!isMuted && !result.isError && finalResponseText) {
-          const voicePayload = await generateMp3FromShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male');
-          if (voicePayload) {
-              try {
-                  const { uploadToFreeHost } = await import('../services/uploadService');
-                  const ext = voicePayload.file.name.split('.').pop() || 'mp3';
-                  const uploadedUrl = await uploadToFreeHost(voicePayload.file, ext);
-                  voiceDataToSave = uploadedUrl || voicePayload.base64;
-              } catch (e) {
-                  voiceDataToSave = voicePayload.base64;
-              }
-          }
-      }
-
       const modelMsg: ExtendedMessage = { 
           userId: currentUser.email || 'GUEST', 
           role: 'model', 
@@ -1786,16 +1891,33 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
           setPlayingMessageId(modelId);
           setAppStatus('speaking');
           
-          // Force resume audio context before speaking to satisfy browser autoplay policies
           resumeAudioContext();
+          
+          generateMp3FromShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male')
+            .then(pendingVoicePayload => {
+                if (pendingVoicePayload) {
+                    const localBase64 = pendingVoicePayload.base64;
+                    setMessages(prev => prev.map(m => m.id === modelId ? { ...m, voiceData: localBase64 } : m));
+                    shadowDB.updateMessage(modelId, { voiceData: localBase64 }).catch(e => {});
 
-          if (!voiceDataToSave) {
-              playShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male', undefined, () => { 
-                  setPlayingMessageId(null);
-                  setAppStatus('idle'); 
-                  if (isSentinelMode) resumeSentinel();
-              });
-          }
+                    playShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male', localBase64, () => { 
+                        setPlayingMessageId(null);
+                        setAppStatus('idle'); 
+                        if (isSentinelMode) resumeSentinel();
+                    });
+                } else {
+                    playShadowVoice(finalResponseText, currentUser.voicePreference === 'female' ? 'female' : 'male', undefined, () => { 
+                        setPlayingMessageId(null);
+                        setAppStatus('idle'); 
+                        if (isSentinelMode) resumeSentinel();
+                    });
+                }
+            })
+            .catch(e => {
+                 setPlayingMessageId(null);
+                 setAppStatus('idle');
+                 if (isSentinelMode) resumeSentinel();
+            });
       } else {
           setAppStatus('idle');
           if (isSentinelMode) resumeSentinel();
@@ -1908,23 +2030,19 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
               const voicePayload = await generateMp3FromShadowVoice(msg.text, currentUser.voicePreference || 'male');
               if (voicePayload) {
                   finalVoiceData = voicePayload.base64;
-                  try {
-                      const { uploadToFreeHost } = await import('../services/uploadService');
-                      const ext = voicePayload.file.name.split('.').pop() || 'mp3';
-                      const uploadedUrl = await uploadToFreeHost(voicePayload.file, ext);
-                      if (uploadedUrl) finalVoiceData = uploadedUrl;
-                  } catch (e) {
-                      console.error("Voice upload failed:", e);
-                  }
-                  
-                  if (finalVoiceData) {
-                      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, voiceData: finalVoiceData } : m));
-                      if (msg.id) shadowDB.updateMessage(msg.id, { voiceData: finalVoiceData }).catch(e => console.error("Failed saving voice to db", e));
-                  }
+                  setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, voiceData: finalVoiceData } : m));
+                  if (msg.id) shadowDB.updateMessage(msg.id, { voiceData: finalVoiceData }).catch(e => console.error("Failed saving voice to db", e));
               }
           }
           if (finalVoiceData) {
               setPlayingMessageId(msg.id!);
+              if (!msg.voiceData) {
+                  playShadowVoice(msg.text, currentUser.voicePreference === 'female' ? 'female' : 'male', finalVoiceData, () => {
+                      setPlayingMessageId(null);
+                      if (appStatus !== 'thinking') setAppStatus('idle');
+                      if (isSentinelMode) resumeSentinel();
+                  });
+              }
           } else {
               playShadowVoice(msg.text, currentUser.voicePreference === 'female' ? 'female' : 'male', undefined, () => {
                   setPlayingMessageId(null);
@@ -2082,11 +2200,17 @@ ${textContent.substring(0, 10000)}`;
     if ((m as any).isHidden) return false;
     if (!m.text && (!m.uiCards || m.uiCards.length === 0)) return false;
     if (!isSearchActive || !searchQuery.trim()) return true;
-    return m.text.toLowerCase().includes(searchQuery.toLowerCase());
+    return (m.text || '').toLowerCase().includes((searchQuery || '').toLowerCase());
   });
 
+  const colorVarStyle = currentUser.interfaceColor ? ({
+    '--theme-color': currentUser.interfaceColor,
+    '--theme-color-10': `${currentUser.interfaceColor}1a`,
+    '--theme-color-50': `${currentUser.interfaceColor}80`
+  } as React.CSSProperties) : {};
+
   return (
-    <div className="flex flex-col h-full w-full bg-transparent text-white font-['Cairo'] overflow-hidden relative">
+    <div className="flex flex-col h-full w-full bg-transparent text-white font-['Cairo'] overflow-hidden relative" style={colorVarStyle}>
       <div className="relative z-10 flex flex-col h-full w-full">
           {showCapabilities && <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={onUpgrade} onAffiliate={() => onNavigateTo?.('affiliate')} />}
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="*/*" />

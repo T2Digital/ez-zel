@@ -68,6 +68,10 @@ export interface UserProfile {
     shadowName?: string;
     shadowId?: string; // Unique, easily shareable ID for shadow-to-shadow comms
     voicePreference?: 'male' | 'female';
+    formalityLevel?: 'formal' | 'friendly' | 'sarcastic' | 'balanced';
+    interfaceColor?: string;
+    emojiUsage?: 'heavy' | 'moderate' | 'minimal' | 'none';
+    personalityTraits?: string[];
     paymentProof?: string;
     tier: 'lite' | 'guardian' | 'sovereign';
     status: 'active' | 'pending' | 'blocked';
@@ -258,6 +262,7 @@ class ShadowDB {
           const tx = dbLocal.transaction('fs', 'readwrite');
           tx.objectStore('fs').delete(id);
           tx.oncomplete = async () => {
+              if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('shadow_fs_update'));
               if (userId && db) {
                   deleteDoc(doc(db, `users/${userId}/filesystem`, id.toString())).catch(e => console.error(e));
               }
@@ -266,7 +271,7 @@ class ShadowDB {
       });
   }
 
-  async saveFSItem(item: DBFSItem, skipCloud = false): Promise<number> {
+  async saveFSItem(item: DBFSItem, skipCloud = false, skipEvent = false): Promise<number> {
       if (item.userId) item.userId = item.userId.toLowerCase();
       const dbLocal = await this.init();
       return new Promise((resolve) => {
@@ -276,7 +281,10 @@ class ShadowDB {
               this.pushToCloud('filesystem', itemWithId, 'filesystem', itemWithId.userId);
           }
           const req = tx.objectStore('fs').put(itemWithId);
-          req.onsuccess = () => resolve(itemWithId.id as number);
+          req.onsuccess = () => {
+              if (!skipEvent && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('shadow_fs_update'));
+              resolve(itemWithId.id as number);
+          };
           req.onerror = (e) => {
               console.error("IDB saveFSItem error for item:", itemWithId, e);
               resolve(itemWithId.id as number); // allow it to continue even if local save fails
@@ -294,7 +302,7 @@ class ShadowDB {
   }
 
   private dbName = 'ShadowCore_V20_Email'; 
-  private version = 22; // Incremented version for schema change
+  private version = 23; // Incremented version for audio_cache
   public unsubscribeListeners: Function[] = [];
   public systemUnsubscribe: Function[] = [];
   public adminUnsubscribe: Function | null = null;
@@ -333,11 +341,11 @@ class ShadowDB {
       request.onerror = (event) => reject((event.target as any).error);
       request.onupgradeneeded = (e: any) => {
         const db = e.target.result;
-        const stores = ['history', 'tasks', 'memory', 'profiles', 'fs', 'contacts', 'feedback', 'config', 'agents', 'coupons', 'plugins', 'graph_nodes', 'graph_edges', 'shadow_messages'];
+        const stores = ['history', 'tasks', 'memory', 'profiles', 'fs', 'contacts', 'feedback', 'config', 'agents', 'coupons', 'plugins', 'graph_nodes', 'graph_edges', 'shadow_messages', 'audio_cache'];
         stores.forEach(s => {
           if (!db.objectStoreNames.contains(s)) {
-            const store = db.createObjectStore(s, { keyPath: s === 'profiles' ? 'email' : (s === 'config' ? 'key' : (s === 'agents' || s === 'coupons' ? 'code' : 'id')), autoIncrement: s === 'feedback' || s === 'history' || s === 'tasks' || s === 'memory' || s === 'plugins' || s === 'graph_nodes' || s === 'graph_edges' || s === 'shadow_messages' || s === 'fs' });
-            if (s !== 'profiles' && s !== 'config' && s !== 'agents' && s !== 'coupons' && !store.indexNames.contains('userId')) store.createIndex('userId', 'userId', { unique: false });
+            const store = db.createObjectStore(s, { keyPath: s === 'profiles' ? 'email' : (s === 'config' ? 'key' : (s === 'agents' || s === 'coupons' || s === 'audio_cache' ? 'id' : 'id')), autoIncrement: s === 'feedback' || s === 'history' || s === 'tasks' || s === 'memory' || s === 'plugins' || s === 'graph_nodes' || s === 'graph_edges' || s === 'shadow_messages' || s === 'fs' });
+            if (s !== 'profiles' && s !== 'config' && s !== 'agents' && s !== 'coupons' && s !== 'audio_cache' && !store.indexNames.contains('userId')) store.createIndex('userId', 'userId', { unique: false });
           }
         });
       };
@@ -431,7 +439,7 @@ class ShadowDB {
 
   private _isDownloadingCloudData = false;
 
-  async downloadUserCloudData(email: string) {
+  async downloadUserCloudData(email: string, force = false) {
       if (!db || !email) return;
       if (this._isDownloadingCloudData) return;
       
@@ -454,7 +462,7 @@ class ShadowDB {
           const fsCount = await pFsCount;
           const histCount = await pHistCount;
           
-          if (fsCount > 0 && histCount > 0) {
+          if (!force && fsCount > 0 && histCount > 0) {
               console.log('[Shadow Core] Local data exists (fsCount:', fsCount, ', histCount:', histCount, '), skipping deep cloud download.');
               return;
           }
@@ -480,11 +488,12 @@ class ShadowDB {
                    if (col === 'history') await this.saveMessage({...item, userId: cleanEmail} as any, true);
                    if (col === 'tasks') await this.saveTask({...item, userId: cleanEmail} as any, true);
                    if (col === 'memory') await this.saveFact({...item, userId: cleanEmail} as any, true);
-                   if (col === 'filesystem') await this.createFSItem({...item, userId: cleanEmail} as any);
+                   if (col === 'filesystem') await this.saveFSItem({...item, userId: cleanEmail} as any, true, true);
                 }
              }
           }
           console.log('[Shadow Core] Cloud data download complete.');
+          if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('shadow_fs_update'));
       } catch (e) {
           console.error('[Shadow Core] Failed to download cloud data', e);
       } finally {
@@ -1137,6 +1146,27 @@ class ShadowDB {
       }
   }
 
+  async getAudioSegment(id: string): Promise<string | null> {
+      try {
+          const dbLocal = await this.init();
+          const tx = dbLocal.transaction('audio_cache', 'readonly');
+          const store = tx.objectStore('audio_cache');
+          return new Promise((resolve) => {
+              const req = store.get(id);
+              req.onsuccess = () => resolve(req.result ? req.result.base64 : null);
+              req.onerror = () => resolve(null);
+          });
+      } catch (e) { return null; }
+  }
+
+  async saveAudioSegment(id: string, base64: string): Promise<void> {
+      try {
+          const dbLocal = await this.init();
+          const tx = dbLocal.transaction('audio_cache', 'readwrite');
+          tx.objectStore('audio_cache').put({ id, base64 });
+      } catch (e) { console.error('Failed saving audio cache', e); }
+  }
+
   async getHistory(userId: string, limit?: number, offset?: number): Promise<DBMessage[]> {
     const db = await this.init();
     const tx = db.transaction('history', 'readonly');
@@ -1247,7 +1277,7 @@ class ShadowDB {
                          const parsedId = Number(d_doc.id);
                          d.id = d.id || (!isNaN(parsedId) ? parsedId : d_doc.id as any);
                          onlineData.push(d);
-                         this.saveFSItem(d, true); // save locally
+                         this.saveFSItem(d, true, true); // save locally
                      });
                      filtered = onlineData.filter(i => {
                          const normalizedItemParent = (i.parentId === 'null' || i.parentId === 'undefined' || i.parentId === undefined) ? null : i.parentId;
@@ -1278,7 +1308,7 @@ class ShadowDB {
                          const parsedId = Number(d_doc.id);
                          d.id = d.id || (!isNaN(parsedId) ? parsedId : d_doc.id as any);
                          onlineData.push(d);
-                         this.saveFSItem(d, true); // save locally
+                         this.saveFSItem(d, true, true); // save locally
                      });
                      filtered = onlineData;
                  } catch(e) { console.error("FS Fallback error:", e); }
@@ -1296,7 +1326,12 @@ class ShadowDB {
       if (!skipCloud && itemWithId.userId !== 'GUEST') {
           this.pushToCloud('filesystem', itemWithId, 'filesystem', itemWithId.userId);
       }
-      return new Promise((resolve) => { request.onsuccess = () => resolve(request.result as number); });
+      return new Promise((resolve) => { 
+          request.onsuccess = () => {
+              if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('shadow_fs_update'));
+              resolve(request.result as number);
+          }; 
+      });
   }
   async updateFSItem(id: number, updates: Partial<DBFSItem>) {
       const dbLocal = await this.init();
@@ -1309,6 +1344,7 @@ class ShadowDB {
               if (data) {
                   const updatedData = { ...data, ...updates, synced: true };
                   store.put(updatedData);
+                  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('shadow_fs_update'));
                   if (updatedData.userId !== 'GUEST') {
                       this.pushToCloud('filesystem', updatedData, 'filesystem', updatedData.userId);
                   }

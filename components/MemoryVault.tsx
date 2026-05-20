@@ -158,6 +158,13 @@ export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                 panning={{ disabled: false }}
                                 wheel={{ step: 0.1 }}
                             >
+                               {({ zoomIn, zoomOut, resetTransform }) => (
+                                 <>
+                                   <div className="absolute top-4 right-4 z-[60] flex flex-col gap-2 bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/10 shadow-lg pointer-events-auto">
+                                     <button onClick={() => zoomIn()} className="p-2 hover:bg-white/10 rounded-lg text-cyan-400 transition-colors tooltip tooltip-left" data-tip="تكبير">+</button>
+                                     <button onClick={() => zoomOut()} className="p-2 hover:bg-white/10 rounded-lg text-cyan-400 transition-colors tooltip tooltip-left" data-tip="تصغير">-</button>
+                                     <button onClick={() => resetTransform()} className="p-2 hover:bg-white/10 rounded-lg text-cyan-400 transition-colors tooltip tooltip-left" data-tip="توسيط">⟲</button>
+                                   </div>
                                 <TransformComponent wrapperStyle={{ width: '100%', height: '100%', cursor: 'grab' }} contentStyle={{ width: '1500px', height: '1000px' }}>
                                     <div className="relative w-[1500px] h-[1000px] mx-auto my-auto">
                                 <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
@@ -254,6 +261,8 @@ export const MemoryVault: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                 })}
                                     </div>
                                 </TransformComponent>
+                                </>
+                               )}
                             </TransformWrapper>
                         </div>
                     )}

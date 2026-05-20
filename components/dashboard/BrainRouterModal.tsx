@@ -24,10 +24,24 @@ export const BrainRouterModal: React.FC<BrainModalProps> = ({ onClose }) => {
 
     const handleLoadLocalModel = async () => {
         setIsLoadingLocal(true);
+        // Load local LLM
         await localBrain.initModel((p, text) => {
             setLocalProgress(p);
             setLocalProgressText(text);
         });
+        
+        // Load Transformer models (Vision, Audio, TTS)
+        try {
+            setLocalProgress(90);
+            setLocalProgressText("جاري استدعاء محركات الرؤية والصوت (Transformers)...");
+            const { localTransformers } = await import('../../services/localTransformersService');
+            await localTransformers.initAll((text) => {
+                setLocalProgressText(text);
+            });
+        } catch(e) {
+            console.error("Transformers fallback error", e);
+        }
+
         setIsLoadingLocal(false);
         setIsLocalReady(true);
     };

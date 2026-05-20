@@ -63,7 +63,7 @@ export const BrandManagerModal: React.FC<{ user: UserProfile, onClose: () => voi
                 l0_summary: `${formTone || ''} ${formStrategy || ''}`.substring(0, 100)
             });
         } else {
-            const brandId = formName.toLowerCase().replace(/\s+/g, '_');
+            const brandId = (formName || '').toLowerCase().replace(/\s+/g, '_');
             await shadowDB.createFSItem({
                 userId,
                 parentId: null,

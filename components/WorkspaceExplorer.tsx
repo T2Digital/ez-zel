@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2, Target, Volume2, MessageSquare } from 'lucide-react';
+import { Folder, FileText, ChevronLeft, Table, Calendar, Briefcase, Plus, Search, MoreVertical, Save, X, Trash2, Image as ImageIcon, Video, MousePointer2, Target, Volume2, MessageSquare, Edit2 } from 'lucide-react';
 import { shadowDB, DBFSItem } from '../services/dbService';
 import { playShadowVoice, generateMp3FromShadowVoice } from '../services/geminiService';
 import SpaceCanvas from './SpaceCanvas';
@@ -120,7 +120,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
     setCurrentFolderId(newPath[newPath.length - 1].id);
   };
 
-  const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredItems = items.filter(i => (i.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()));
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -311,6 +311,9 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
           <button onClick={resetCamera} className="p-2 rounded-full bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/40 hover:text-indigo-200 transition-all border border-indigo-500/30 shadow-md" title="توسيط الكاميرا">
             <Target className="w-5 h-5" />
           </button>
+          <button onClick={() => shadowDB.downloadUserCloudData(userId, true)} className="p-2 rounded-full bg-green-500/20 text-green-400 hover:bg-green-500/40 hover:text-green-200 transition-all border border-green-500/30 shadow-md" title="المزامنة مع السحابة">
+            <Save className="w-5 h-5" />
+          </button>
           <div className="hidden sm:block text-xl font-black text-white/90 drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">الورك سبيس</div>
           <div className="relative flex-1 max-w-md mr-4">
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
@@ -488,8 +491,21 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
              </div>
              <button 
                 onClick={async () => {
+                    const newName = window.prompt("أدخل الاسم الجديد:", contextMenu.item.name);
+                    if (newName && newName.trim() !== "") {
+                        await shadowDB.updateFSItem(Number(contextMenu.item.id), { name: newName.trim() });
+                    }
+                    setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-all font-bold text-sm text-right"
+             >
+                 <Edit2 className="w-4 h-4 ml-auto" />
+                 إعادة التسمية
+             </button>
+             <button 
+                onClick={async () => {
                     if (confirm('هل متأكد من الحذف؟')) {
-                        await shadowDB.deleteFSItem(contextMenu.item.id!);
+                        await shadowDB.deleteFSItem(Number(contextMenu.item.id));
                         loadItems();
                     }
                     setContextMenu(null);
@@ -543,7 +559,7 @@ const WorkspaceExplorer: React.FC<Props> = ({ userId, onItemSelect, onBack }) =>
               }}
               onDelete={async () => {
                   if (selectedFile.id) {
-                     await shadowDB.deleteFSItem(selectedFile.id);
+                     await shadowDB.deleteFSItem(Number(selectedFile.id));
                      setSelectedFile(null);
                      loadItems();
                   }

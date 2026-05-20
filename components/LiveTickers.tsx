@@ -174,4 +174,4 @@ const LiveTickers: React.FC = () => {
     );
 };
 
-export default LiveTickers;
+export default React.memo(LiveTickers);

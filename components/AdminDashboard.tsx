@@ -35,7 +35,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   
   // Exclude system/admin accounts for accurate metrics
   const realProfiles = profiles.filter(p => {
-      const emailLower = p.email.toLowerCase();
+      const emailLower = (p.email || '').toLowerCase();
       return emailLower !== 'tito' && emailLower !== 'guest' && !emailLower.includes('admin');
   });
 
@@ -241,7 +241,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       { id: 'editor', name: 'The Editor', role: 'المونتير', status: 'ONLINE', description: 'مصمم ومونتير فيديو للمدونين وصناع المحتوى.', color: 'cyan', icon: <Film className="w-5 h-5" /> },
   ];
 
-  const filteredProfiles = realProfiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.email.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredProfiles = realProfiles.filter(p => (p.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || (p.email || '').toLowerCase().includes((searchQuery || '').toLowerCase()));
   const pendingRequests = realProfiles.filter(p => p.status === 'pending' && p.paymentProof);
   const activeMembers = filteredProfiles.filter(p => p.status === 'active');
   const marketersList = filteredProfiles.filter(p => p.affiliate && (p.affiliate.isMarketer || (p.affiliate.payoutHistory && p.affiliate.payoutHistory.length > 0) || p.affiliate.referralCode));

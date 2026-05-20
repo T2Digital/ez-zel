@@ -98,6 +98,7 @@ export const speakNative = async (text: string, voice: string = 'male', onEnd?: 
                 category: 'ambient',
                 voice: selectedVoiceUrl,
             });
+            window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
             onEnd?.();
             return;
         } catch (e) {
@@ -106,7 +107,11 @@ export const speakNative = async (text: string, voice: string = 'male', onEnd?: 
         }
     }
 
-    if (!('speechSynthesis' in window)) { onEnd?.(); return; }
+    if (!('speechSynthesis' in window)) { 
+        (window as any).dispatchEvent(new CustomEvent('shadow_voice_ended'));
+        onEnd?.(); 
+        return; 
+    }
     
     // 1. Force Cancel & Resume State
     window.speechSynthesis.cancel();
@@ -157,6 +162,7 @@ export const speakNative = async (text: string, voice: string = 'male', onEnd?: 
         // @ts-ignore
         window.shadowUtterance = null;
         if (resumeInterval) { clearInterval(resumeInterval); resumeInterval = null; }
+        window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
         onEnd?.();
     };
 
@@ -348,10 +354,20 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
 
     const longTermMemoryStr = user?.longTermMemory ? `[LONG-TERM USER PROFILE (Memory)]\n${user.longTermMemory}\nاستخدم هذه التفضيلات والمعلومات دائماً عند تلبية أهداف المستخدم ولا تسأله عنها مرة أخرى.` : ``;
     
-    let personaStr = `ROLE: You are "Ez-Zel" (الظل), but your primary interaction persona is "المايسترو" (The Maestro). You are the intelligent overwatch, the Maestro who orchestrates the requests and delegates them to the specialized sub-agents (المحقق، الباحث، المصمم) internally. You speak with confidence, wisdom, and the authentic Egyptian street-smart tone.`;
+    let personaStr = `ROLE: You are "Ez-Zel" (الظل), an advanced, highly proactive digital personal assistant. You must understand context deeply, remember the user's past preferences seamlessly, and proactively offer suggestions without being asked.
+If the user mentions an interest (e.g. food, tech), suggest relevant options based on history and taste. Your primary interaction persona is "المايسترو" (The Maestro). You orchestrate tasks, delegates them to specialized agents, and manage the user's life flawlessly. You speak with confidence, wisdom, and an authentic Egyptian street-smart tone, while adhering strictly to the user's custom preferences.`;
+
     if (user?.customPrompts?.maestro) {
         personaStr = `ROLE: [USER SYSTEM OVERRIDE ACTIVE] ${user.customPrompts.maestro}`;
     }
+
+    const advancedPersonality = `
+    [USER PERSONALIZATION]
+    - Formality Level: ${user?.formalityLevel || 'balanced'} (Adjust your language strictly to this level)
+    - Emoji Usage: ${user?.emojiUsage || 'moderate'} (Heavy = 5+, Moderate = 2-3, Minimal = 0-1, None = 0)
+    - Voice Preference: ${user?.voicePreference === 'female' ? 'Female (Kore)' : 'Male (Puck)'}
+    - Specific Traits: ${user?.personalityTraits?.join(', ') || 'Egyptian, Smart'}
+    `;
 
     const systemInfo = `
     [SYSTEM FACTUAL KNOWLEDGE & COMMERCE]
@@ -374,6 +390,8 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
     USER_ROLE: ${user?.email === 'admin@shadow.com' ? 'SUPREME_CREATOR_TITO' : 'USER'}
     
     ${longTermMemoryStr}
+    
+    ${advancedPersonality}
     
     ${systemInfo}
     
@@ -644,17 +662,41 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
     isRequesting = true;
     
     try {
-        const [relevantMemories, rules, agents, systemKeys, pendingTasks, fsItems] = await Promise.all([
-            getRelevantMemories(message, userProfile?.email || 'GUEST'), 
+        // FAST path: only get rules, agents, and system keys
+        const [rules, agents, systemKeys] = await Promise.all([
             shadowDB.getGlobalRules(), 
             shadowDB.getAllAgents(),
-            shadowDB.getSystemKeys(),
-            shadowDB.getTasks(userProfile?.email || 'GUEST'),
-            shadowDB.getFSItemsByUserId(userProfile?.email || 'GUEST')
+            shadowDB.getSystemKeys()
         ]);
+        
+        // Execute memory retrieval separately to not block if FS is slow
+        let relevantMemories: string = "";
+        let brandVaultsItems: any[] = [];
+        let pendingTasks: any[] = [];
+        
+        try {
+            const memPromise = getRelevantMemories(message, userProfile?.email || 'GUEST');
+            const tasksPromise = shadowDB.getTasks(userProfile?.email || 'GUEST');
+            const fsPromise = shadowDB.init().then(dbLocal => {
+                // Get FS items incredibly fast from IDB directly without firebase fallback for chat context
+                return new Promise<any[]>((resolve) => {
+                    const req = dbLocal.transaction('fs', 'readonly').objectStore('fs').getAll();
+                    req.onsuccess = () => resolve((req.result as any[]).filter(i => i.type === 'brand' && i.userId === (userProfile?.email?.toLowerCase() || 'guest')));
+                    req.onerror = () => resolve([]);
+                });
+            });
+
+            const [mem, tsk, fs] = await Promise.all([memPromise, tasksPromise, fsPromise]);
+            relevantMemories = mem;
+            pendingTasks = tsk;
+            brandVaultsItems = fs;
+        } catch(e) {
+            console.warn("Non-critical DB fetch failed during prompt preparation", e);
+        }
+
         const systemInstruction = generateSystemPrompt(userProfile, relevantMemories, rules, agents);
         
-        const brandVaults = fsItems.filter(item => item.type === 'brand').map(item => `- Brand: ${item.name}\n  Details: ${item.content || item.l0_summary}`).join('\n\n');
+        const brandVaults = brandVaultsItems.map(item => `- Brand: ${item.name}\n  Details: ${item.content || item.l0_summary}`).join('\n\n');
 
         const lowerMsg = message.toLowerCase();
         // Updated search intent to exclude coding terms
@@ -676,7 +718,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
 
             if (localBrain.isReady()) {
                 const context = `مهام مجدولة: ${pendingTasks.length}\n` +
-                                `علامات تجارية: ${fsItems.filter(i => i.type === 'brand').length}`;
+                                `علامات تجارية: ${brandVaultsItems.length}`;
                 
                 let visionText = "";
                 try {
@@ -948,6 +990,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 if (actionType === 'list_workspace') actionVerb = 'بستعرض';
                 if (actionType === 'delete_file') actionVerb = 'بحذف';
                 if (actionType === 'move_file') actionVerb = 'بنقل وبرتب';
+                if (actionType === 'rename_item') actionVerb = 'بغير اسم';
                 finalText = `حاضر يا ريس، أنا ${actionVerb} (${pathStr.substring(0, 30)}) دلوقتي عشان أظبطلك الدنيا.`;
             } else if (toolActions.some((t: any) => t.name === 'project_manager')) {
                 finalText = "أوامرك يا ريس، بظبطلك خطة المشروع وبديره بالكامــل، بص كدة على الواجهة دي..";
@@ -975,6 +1018,23 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 finalText = "تم إطلاق سرب التداول والمضاربة يا ماستر.. شغالين معاك بصفقات بيع وشراء حقيقية على بينانس 24 ساعة، أي ربح هيجي لك إشعار بيه حالا.";
             } else if (toolActions.some((t: any) => t.name === 'iot_ghost_protocol')) {
                 finalText = "بروتوكول الشبح مفعل.. أنا دلوقتي بستكشف شبكات الـ IoT حواليك وبخترق الأجهزة المستهدفة بصمت كامل..";
+            } else if (toolActions.some((t: any) => t.name === 'play_quran')) {
+                const qAction = toolActions.find((t: any) => t.name === 'play_quran');
+                const sName = qAction?.args?.surah_name || 'المطلوبة';
+                const reciterMap: Record<string, string> = {
+                    'mishary': 'مشاري العفاسي',
+                    'abdulbasit': 'عبدالباسط عبدالصمد',
+                    'maher': 'ماهر المعيقلي',
+                    'sudais': 'عبدالرحمن السديس',
+                    'shuraim': 'سعود الشريم',
+                    'husary': 'محمود خليل الحصري',
+                    'mustafa': 'مصطفى إسماعيل',
+                    'minshawi': 'محمد صديق المنشاوي',
+                    'jalil': 'خالد الجليل',
+                    'fares': 'فارس عباد'
+                };
+                const rName = reciterMap[qAction?.args?.reciter] || 'القارئ';
+                finalText = `حاضر هشغلك حالا سورة "${sName}" بصوت الشيخ "${rName}"`;
             } else {
                 const genericAction = toolActions[0];
                 finalText = `جاري تنفيذ العملية المطلوبة (${genericAction.name}).. ثواني يا ريس`;
@@ -1035,53 +1095,48 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
 export const generateMp3FromShadowVoice = async (text: string, voice: string): Promise<{file: File, base64: string} | null> => {
     let base64 = audioCache.get(text);
     if (!base64) {
+        base64 = await shadowDB.getAudioSegment(text) || undefined;
+    }
+    if (!base64) {
         base64 = await getShadowVoice(text, voice);
-        if (base64) audioCache.set(text, base64);
+        if (base64) {
+            audioCache.set(text, base64);
+            shadowDB.saveAudioSegment(text, base64);
+        }
     }
     if (!base64) return null;
 
-    const byteCharacters = atob(base64);
-    const u8 = new Uint8Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        u8[i] = byteCharacters.charCodeAt(i);
+    let u8: Uint8Array;
+    try {
+        const res = await fetch(`data:application/octet-stream;base64,${base64}`);
+        const buffer = await res.arrayBuffer();
+        u8 = new Uint8Array(buffer);
+    } catch (e) {
+        // Fallback if fetch fails
+        const byteCharacters = atob(base64);
+        u8 = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            u8[i] = byteCharacters.charCodeAt(i);
+        }
     }
     
-    let parsedFile: File;
-    try {
-        const lamejsInstance = (window as any).lamejs;
-        if (!lamejsInstance) throw new Error("lamejs not loaded");
-
-        const samples = new Int16Array(u8.buffer, u8.byteOffset, u8.byteLength / 2);
-        const mp3encoder = new lamejsInstance.Mp3Encoder(1, 24000, 128);
-        const mp3Data = [];
-        
-        const sampleBlockSize = 1152;
-        for (let i = 0; i < samples.length; i += sampleBlockSize) {
-            const sampleChunk = samples.subarray(i, i + sampleBlockSize);
-            const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-            if (mp3buf.length > 0) mp3Data.push(mp3buf);
-        }
-        const mp3buf = mp3encoder.flush();
-        if (mp3buf.length > 0) mp3Data.push(mp3buf);
-        
-        parsedFile = new File([new Blob(mp3Data, { type: 'audio/mpeg' })], 'shadow-voice.mp3', { type: 'audio/mpeg' });
-    } catch(err) {
-        console.error("MP3 conversion failed, falling back to wav", err);
-        const dataBytes = u8.length;
-        const bufferWav = new ArrayBuffer(44 + dataBytes);
-        const view = new DataView(bufferWav);
-        
-        const setUint16 = (pos: number, data: number) => view.setUint16(pos, data, true);
-        const setUint32 = (pos: number, data: number) => view.setUint32(pos, data, true);
-        
-        setUint32(0, 0x46464952); setUint32(4, 36 + dataBytes); setUint32(8, 0x45564157);
-        setUint32(12, 0x20746d66); setUint32(16, 16); setUint16(20, 1); setUint16(22, 1);
-        setUint32(24, 24000); setUint32(28, 24000 * 2); setUint16(32, 2); setUint16(34, 16);
-        setUint32(36, 0x61746164); setUint32(40, dataBytes);
-        new Uint8Array(bufferWav, 44).set(u8);
-        
-        parsedFile = new File([new Blob([bufferWav], { type: 'audio/mp4' })], 'shadow-voice.m4a', { type: 'audio/mp4' });
-    }
+    // FAST PATH: Return WAV format to skip extremely slow lamejs mp3 encoding
+    const dataBytes = u8.length % 2 === 0 ? u8.length : u8.length - 1;
+    const u8Even = new Uint8Array(u8.buffer, 0, dataBytes);
+    const bufferWav = new ArrayBuffer(44 + dataBytes);
+    const view = new DataView(bufferWav);
+    
+    const setUint16 = (pos: number, data: number) => view.setUint16(pos, data, true);
+    const setUint32 = (pos: number, data: number) => view.setUint32(pos, data, true);
+    
+    setUint32(0, 0x46464952); setUint32(4, 36 + dataBytes); setUint32(8, 0x45564157);
+    setUint32(12, 0x20746d66); setUint32(16, 16); setUint16(20, 1); setUint16(22, 1);
+    setUint32(24, 24000); setUint32(28, 24000 * 2); setUint16(32, 2); setUint16(34, 16);
+    setUint32(36, 0x61746164); setUint32(40, dataBytes);
+    new Uint8Array(bufferWav, 44).set(u8Even);
+    
+    const parsedFile = new File([new Blob([bufferWav], { type: 'audio/wav' })], 'shadow-voice.wav', { type: 'audio/wav' });
+    
     return { file: parsedFile, base64 };
 };
 
@@ -1097,7 +1152,9 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
     try {
         let base64 = existing;
         if (!base64 && audioCache.has(text)) base64 = audioCache.get(text);
-        else if (!base64) {
+        if (!base64) base64 = await shadowDB.getAudioSegment(text) || undefined;
+        
+        if (!base64) {
             base64 = await getShadowVoice(text, voice);
             if (base64) {
                 if (audioCache.size >= 50) {
@@ -1105,6 +1162,7 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
                     if (firstKey) audioCache.delete(firstKey);
                 }
                 audioCache.set(text, base64);
+                shadowDB.saveAudioSegment(text, base64);
             }
         }
 
@@ -1146,6 +1204,7 @@ export const playShadowVoice = async (text: string, voice: string, existing?: st
             currentSource = null; 
             cancelAnimationFrame(animationFrame);
             window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
+            window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
             onEnded?.(); 
         };
         
@@ -1176,4 +1235,11 @@ export const getShadowVoice = async (text: string, voice: string) => {
 };
 
 function decode(b: string) { const s = atob(b); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
-async function decodeAudioData(d: Uint8Array, c: AudioContext) { const i16 = new Int16Array(d.buffer); const b = c.createBuffer(1, i16.length, 24000); const cd = b.getChannelData(0); for (let i = 0; i < i16.length; i++) cd[i] = i16[i] / 32768.0; return b; }
+async function decodeAudioData(d: Uint8Array, c: AudioContext) { 
+    const byteLength = d.length % 2 === 0 ? d.length : d.length - 1;
+    const i16 = new Int16Array(d.buffer, 0, byteLength / 2); 
+    const b = c.createBuffer(1, i16.length, 24000); 
+    const cd = b.getChannelData(0); 
+    for (let i = 0; i < i16.length; i++) cd[i] = i16[i] / 32768.0; 
+    return b; 
+}

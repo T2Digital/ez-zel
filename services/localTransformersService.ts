@@ -22,6 +22,20 @@ class LocalTransformersService {
     private isTtsLoading = false;
     private isEmbeddingLoading = false;
 
+    async initAll(onProgress?: (text: string) => void) {
+        if(onProgress) onProgress("Initializing Vision Model...");
+        await this.initVision();
+        if(onProgress) onProgress("Initializing Sentiment Model...");
+        await this.initSentiment();
+        if(onProgress) onProgress("Initializing Audio/Whisper Model...");
+        await this.initAudioAnalysis();
+        if(onProgress) onProgress("Initializing Voice/TTS Model...");
+        await this.initVoiceCloning();
+        if(onProgress) onProgress("Initializing Vector Embeddings Model...");
+        await this.initVectorDB();
+        if(onProgress) onProgress("All local models downloaded and ready!");
+    }
+
     // Fast tiny image classification model
     async initVision() {
         if (this.visionPipeline || this.isVisionLoading) return;

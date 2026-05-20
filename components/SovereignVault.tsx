@@ -281,7 +281,7 @@ const SovereignVault: React.FC<Props> = ({ onVaultReady, user }) => {
 
   // --- CONTENT VIEW ---
   if (view === 'content') {
-      const filteredContacts = contactsList.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phones.some(p => p.includes(searchQuery)));
+      const filteredContacts = contactsList.filter(c => (c.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || c.phones.some(p => p.includes(searchQuery)));
 
       return (
         <div className="fixed inset-0 z-[200] bg-[#050505] text-white font-['Cairo'] flex flex-col animate-in fade-in zoom-in duration-300">

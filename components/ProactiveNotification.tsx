@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Brain, Bell, X, Activity } from 'lucide-react';
 import { useAppStore } from '../services/store';
 
-export const ProactiveNotification: React.FC = () => {
+export const ProactiveNotification: React.FC = React.memo(() => {
     const { user } = useAppStore();
     const [notification, setNotification] = useState<{title: string, message: string} | null>(null);
 
@@ -72,4 +72,4 @@ export const ProactiveNotification: React.FC = () => {
             </div>
         </div>
     );
-};
+});

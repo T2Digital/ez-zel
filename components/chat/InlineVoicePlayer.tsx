@@ -9,18 +9,27 @@ interface InlineVoicePlayerProps {
     onPlay?: () => void;
 }
 
-const pcmBase64ToWavUrl = (base64: string) => {
+const pcmBase64ToWavUrl = async (base64: string) => {
     // If it's already a data or blob URL, return as-is
     if (base64.startsWith('data:') || base64.startsWith('blob:') || base64.startsWith('http://') || base64.startsWith('https://')) return base64;
     
     // Otherwise assume it's raw 16-bit PCM at 24000 Hz from Gemini
     try {
-        const byteCharacters = atob(base64);
-        const u8 = new Uint8Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            u8[i] = byteCharacters.charCodeAt(i);
+        let u8: Uint8Array;
+        try {
+            const res = await fetch(`data:application/octet-stream;base64,${base64}`);
+            const buffer = await res.arrayBuffer();
+            u8 = new Uint8Array(buffer);
+        } catch (e) {
+            const byteCharacters = atob(base64);
+            u8 = new Uint8Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                u8[i] = byteCharacters.charCodeAt(i);
+            }
         }
-        const dataBytes = u8.length;
+        
+        const dataBytes = u8.length % 2 === 0 ? u8.length : u8.length - 1;
+        const u8Even = new Uint8Array(u8.buffer, 0, dataBytes);
         const bufferWav = new ArrayBuffer(44 + dataBytes);
         const view = new DataView(bufferWav);
         
@@ -31,7 +40,7 @@ const pcmBase64ToWavUrl = (base64: string) => {
         setUint32(12, 0x20746d66); setUint32(16, 16); setUint16(20, 1); setUint16(22, 1);
         setUint32(24, 24000); setUint32(28, 24000 * 2); setUint16(32, 2); setUint16(34, 16);
         setUint32(36, 0x61746164); setUint32(40, dataBytes);
-        new Uint8Array(bufferWav, 44).set(u8);
+        new Uint8Array(bufferWav, 44).set(u8Even);
         
         const blob = new Blob([bufferWav], { type: 'audio/wav' });
         return URL.createObjectURL(blob);
@@ -53,14 +62,25 @@ export const InlineVoicePlayer: React.FC<InlineVoicePlayerProps> = ({ base64Pcm,
     const [waves] = useState(() => Array.from({ length: 30 }, () => Math.random() * 0.8 + 0.2));
 
     useEffect(() => {
-        if (!base64Pcm) {
-            setAudioUrl("");
-            return;
-        }
-        const url = pcmBase64ToWavUrl(base64Pcm);
-        setAudioUrl(url);
+        let isMounted = true;
+        let urlResult = "";
+        
+        const loadWav = async () => {
+            if (!base64Pcm) {
+                setAudioUrl("");
+                return;
+            }
+            const url = await pcmBase64ToWavUrl(base64Pcm);
+            if (isMounted) {
+                urlResult = url;
+                setAudioUrl(url);
+            }
+        };
+        loadWav();
+        
         return () => {
-            if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+            isMounted = false;
+            if (urlResult.startsWith('blob:')) URL.revokeObjectURL(urlResult);
         }
     }, [base64Pcm]);
 
@@ -70,13 +90,14 @@ export const InlineVoicePlayer: React.FC<InlineVoicePlayerProps> = ({ base64Pcm,
             audioRef.current.play().then(() => {
                 setIsPlaying(true);
                 startAnalyzing();
+                if (onPlay) onPlay();
             }).catch(e => console.log("Auto-play prevented", e));
         } else if (!isActive && audioRef.current && isPlaying) {
             audioRef.current.pause();
             stopAnalyzing();
             setIsPlaying(false);
         }
-    }, [audioUrl, isActive]);
+    }, [isActive, isPlaying, audioUrl]);
 
     const analyzerRef = useRef<AnalyserNode | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -224,6 +245,7 @@ export const InlineVoicePlayer: React.FC<InlineVoicePlayerProps> = ({ base64Pcm,
 
     const handleInteraction = (e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         togglePlay();
     };
 
@@ -243,9 +265,8 @@ export const InlineVoicePlayer: React.FC<InlineVoicePlayerProps> = ({ base64Pcm,
             <div className="flex items-center gap-3">
                 <button 
                     onClick={handleInteraction} 
-                    onTouchEnd={(e) => { e.preventDefault(); togglePlay(); }}
-                    disabled={isLoading} 
-                    className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center hover:bg-blue-500/30 transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] shrink-0 disabled:opacity-50"
+                    onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); togglePlay(); }}
+                    className={`w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center hover:bg-blue-500/30 transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] shrink-0 ${isLoading ? 'opacity-80' : ''}`}
                 >
                     {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />)}
                 </button>

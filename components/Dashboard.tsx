@@ -14,7 +14,8 @@ import { ShadowWalletModal } from './dashboard/ShadowWalletModal';
 import { LiveSessionModal } from './dashboard/LiveSessionModal';
 import { BrainRouterModal } from './dashboard/BrainRouterModal';
 import { ProactiveReportsModal } from './dashboard/ProactiveReportsModal';
-import { Network, ActivitySquare } from 'lucide-react';
+import { SocialMatrixModal } from './dashboard/SocialMatrixModal';
+import { Network, ActivitySquare, Share2 } from 'lucide-react';
 
 // --- ORBITAL UI COMPONENTS ---
 const OrbitalStyles = () => (
@@ -116,6 +117,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const [showLiveModal, setShowLiveModal] = useState(false);
   const [showBrainRouter, setShowBrainRouter] = useState(false);
   const [showProactiveReports, setShowProactiveReports] = useState(false);
+  const [showSocialModal, setShowSocialModal] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   useEffect(() => {
@@ -144,8 +146,8 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   // ORBITAL DRAG & DROP STATE
   const [orbitMap, setOrbitMap] = useState<Record<string, number>>({
       'tasks': 0, 'memory': 0, 'sync': 0, 'vault': 0,
-      'brains': 0, 'reports': 0,
-      'identity': 1, 'affiliate': 1, 'upgrade': 1,
+      'brains': 0, 'reports': 0, 'contentMachine': 0, 'podcast': 0,
+      'identity': 1, 'affiliate': 1, 'upgrade': 1, 'social': 1,
       'voice': 2, 'override': 2, 'workspace': 2, 'logout': 2, 'nexus': 1, 'brands': 0, 'wallet': 0, 'live': 1
   });
 
@@ -338,6 +340,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
           { id: 'brands', icon: Briefcase, label: "إدارة البراندات", value: undefined, colorClass: "text-pink-500", bgClass: "bg-pink-500/10", borderClass: "border-pink-500/30", onClick: () => setShowBrandsModal(true) },
           { id: 'wallet', icon: Wallet, label: "محفظة السرب ₿", value: "ETH", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowWalletModal(true) },
           { id: 'live', icon: Mic, label: "الجلسة الحية المتصلة 🎙️", colorClass: "text-blue-500", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowLiveModal(true) },
+          { id: 'social', icon: Share2, label: "الشبكة العنكبوتية (Social Matrix)", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowSocialModal(true) },
           { id: 'vault', icon: Shield, label: "مفاتيح API", colorClass: "text-red-500", bgClass: "bg-red-500/10", borderClass: "border-red-500/30", onClick: () => setShowApiVault(true) },
           { id: 'sync', icon: Activity, label: "تزامن النظام", value: liveSync + '%', colorClass: "text-cyan-500", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30" },
       ] : []),
@@ -346,7 +349,9 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       ...((user.tier === 'sovereign' || user.phone === 'TITO') ? [
           { id: 'nexus', icon: Cpu, label: "نكسوس (التحكم المنزلي IoT)", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setPendingSecureAction('nexus') },
           { id: 'brains', icon: Network, label: "محرك العقول الشامل", colorClass: "text-indigo-400", bgClass: "bg-indigo-500/10", borderClass: "border-indigo-500/30", onClick: () => setShowBrainRouter(true) },
-          { id: 'reports', icon: ActivitySquare, label: "الوعي الزمني (التقارير)", colorClass: "text-green-400", bgClass: "bg-green-500/10", borderClass: "border-green-500/30", onClick: () => setShowProactiveReports(true) }
+          { id: 'reports', icon: ActivitySquare, label: "الوعي الزمني (التقارير)", colorClass: "text-green-400", bgClass: "bg-green-500/10", borderClass: "border-green-500/30", onClick: () => setShowProactiveReports(true) },
+          { id: 'contentMachine', icon: Play, label: "ماكينة المحتوى الذكية", colorClass: "text-red-400", bgClass: "bg-red-500/10", borderClass: "border-red-500/30" },
+          { id: 'podcast', icon: Mic, label: "بودكاست الظل و آدم", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30" }
       ] : [
           { id: 'upgrade', icon: Crown, label: "انضم للنخبة (ترقية)", colorClass: "text-white", bgClass: "bg-white/10", borderClass: "border-white/30", onClick: onUpgrade }
       ]),
@@ -582,6 +587,10 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
 
         {showProactiveReports && (
             <ProactiveReportsModal onClose={() => setShowProactiveReports(false)} />
+        )}
+
+        {showSocialModal && (
+            <SocialMatrixModal user={user} onClose={() => setShowSocialModal(false)} />
         )}
 
     </div>
