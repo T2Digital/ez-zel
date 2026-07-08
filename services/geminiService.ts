@@ -1,21 +1,27 @@
-
 import { GoogleGenAI, Type, Modality, FunctionDeclaration, GenerateContentResponse } from "@google/genai";
-import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { Capacitor } from '@capacitor/core';
 import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
 import { processOfflineCommand } from "./offlineEdgeService";
 
-// --- API KEY PREPARATION ---
+import { actionTools } from './toolsConfig';
+import { localBrain } from './localBrainService';
+import { getContextData, analyzeEmotionFromText } from './sensorService';
+let isRequesting = false;
+
+import { getRelevantMemories } from "./ragService";
+
+// Export everything from the new splits so imports in other files don't break immediately
+export * from "./mediaService";
+export * from "./ragService";
+export * from "./speechService";
+
 let _ai: GoogleGenAI | null = null;
 export const getAI = () => {
     if (!_ai) {
-        // Try multiple ways to get the key and trim it to remove accidental quotes/spaces
         let rawKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY;
         const key = rawKey ? rawKey.replace(/^["']|["']$/g, '').trim() : undefined;
-        
         if (!key) {
-            console.error("GEMINI_API_KEY is not defined! Application AI features will fail. Please add it to your environment variables.");
              _ai = new GoogleGenAI({ apiKey: "MISSING_KEY_ERROR_WILL_BE_THROWN_ON_USE", apiVersion: 'v1beta' });
              return _ai;
         }
@@ -25,250 +31,7 @@ export const getAI = () => {
 };
 
 // --- AUDIO CONTEXT MANAGEMENT ---
-let audioCtx: AudioContext | null = null;
-let currentSource: AudioBufferSourceNode | null = null;
-let isRequesting = false;
-export const audioCache = new Map<string, string>();
 
-// GLOBAL STATE FOR TTS
-// @ts-ignore
-window.shadowUtterance = null;
-let resumeInterval: any = null;
-
-export function resumeAudioContext() {
-    try {
-        if (!audioCtx) {
-            const CtxClass = (window.AudioContext || (window as any).webkitAudioContext);
-            if (CtxClass) audioCtx = new CtxClass({ sampleRate: 24000 });
-        }
-        if (audioCtx && (audioCtx.state === 'suspended' || (audioCtx.state as string) === 'interrupted')) {
-            audioCtx.resume().catch(() => {});
-        }
-        if ('speechSynthesis' in window && window.speechSynthesis.paused) {
-            window.speechSynthesis.resume();
-        }
-        return audioCtx;
-    } catch (e) { return null; }
-}
-
-export const stopVoice = async () => { 
-    if (currentSource) { try { currentSource.stop(); } catch {} currentSource = null; } 
-    if (resumeInterval) { clearInterval(resumeInterval); resumeInterval = null; }
-    
-    if (Capacitor.isNativePlatform()) {
-        try { await TextToSpeech.stop(); } catch {}
-    } else if ('speechSynthesis' in window) { 
-        window.speechSynthesis.cancel(); 
-    }
-    
-    // @ts-ignore
-    window.shadowUtterance = null;
-};
-
-// --- ROBUST NATIVE TTS ENGINE ---
-export const speakNative = async (text: string, voice: string = 'male', onEnd?: () => void) => {
-    const cleanText = text.replace(/[*_#\-`]/g, ' ').replace(/http\S+/g, '').trim();
-    if (!cleanText || cleanText.length < 1) { onEnd?.(); return; }
-
-    if (Capacitor.isNativePlatform()) {
-        try {
-            let selectedVoiceUrl;
-            try {
-                const { voices } = await TextToSpeech.getSupportedVoices();
-                const arVoices = voices.filter((v: any) => v.lang.toLowerCase().includes('ar'));
-                if (arVoices.length > 0) {
-                    if (voice === 'female') {
-                        const fb = arVoices.find((v: any) => /(laila|salma|zeina|female)/i.test(v.name) && v.lang.includes('EG')) || arVoices.find((v: any) => /(laila|salma|zeina|female)/i.test(v.name)) || arVoices.find((v: any) => v.lang === 'ar-EG');
-                        if (fb) selectedVoiceUrl = fb.voiceURI || (fb as any).id;
-                    } else {
-                        const mb = arVoices.find((v: any) => /(maged|tariq|male|majed)/i.test(v.name) && v.lang.includes('EG')) || arVoices.find((v: any) => /(maged|tariq|male|majed)/i.test(v.name)) || arVoices.find((v: any) => v.lang === 'ar-EG');
-                        if (mb) selectedVoiceUrl = mb.voiceURI || (mb as any).id;
-                    }
-                }
-            } catch (e) {
-                console.warn("Could not fetch native voices", e);
-            }
-
-            await TextToSpeech.speak({
-                text: cleanText,
-                lang: 'ar-EG',
-                rate: 0.98,
-                pitch: 1.0,
-                volume: 1.0,
-                category: 'ambient',
-                voice: selectedVoiceUrl,
-            });
-            window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
-            onEnd?.();
-            return;
-        } catch (e) {
-            console.warn("Capacitor TTS Failed:", e);
-            // fallback to web if possible
-        }
-    }
-
-    if (!('speechSynthesis' in window)) { 
-        (window as any).dispatchEvent(new CustomEvent('shadow_voice_ended'));
-        onEnd?.(); 
-        return; 
-    }
-    
-    // 1. Force Cancel & Resume State
-    window.speechSynthesis.cancel();
-    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-
-    // 3. Create Utterance
-    const utter = new SpeechSynthesisUtterance(cleanText);
-    // @ts-ignore
-    window.shadowUtterance = utter; // Global ref to prevent GC
-
-    utter.rate = 1.0; 
-    utter.pitch = voice === 'female' ? 1.2 : 1.0; // Slightly higher pitch for female as fallback
-    utter.lang = 'ar-EG'; 
-    utter.volume = 1.0;
-
-    // Try finding an appropriate voice
-    const voices = window.speechSynthesis.getVoices();
-    const arVoices = voices.filter(v => v.lang.toLowerCase().includes('ar'));
-    
-    // Advanced Voice Selection: Prioritize high-quality, local, Egyptian human-like voices
-    if (arVoices.length > 0) {
-        let selectedVoice: SpeechSynthesisVoice | undefined;
-
-        if (voice === 'female') {
-            // Priority: Laila, Salma, Zeina (Apple/Google high quality female), then ar-EG local
-            selectedVoice = arVoices.find(v => /(laila|salma|zeina|female)/i.test(v.name) && v.lang.includes('EG')) ||
-                            arVoices.find(v => /(laila|salma|zeina|female)/i.test(v.name)) ||
-                            arVoices.find(v => /(local|-x-)/i.test(v.name) && v.lang.includes('EG')) || // Android HQ local
-                            arVoices.find(v => v.lang === 'ar-EG') ||
-                            arVoices[0];
-        } else {
-            // Priority: Maged, Tariq (Apple high quality male), then ar-EG local
-            selectedVoice = arVoices.find(v => /(maged|tariq|male|majed)/i.test(v.name) && v.lang.includes('EG')) ||
-                            arVoices.find(v => /(maged|tariq|male|majed)/i.test(v.name)) ||
-                            arVoices.find(v => /(local|-x-)/i.test(v.name) && v.lang.includes('EG') && !/female|zeina|salma/i.test(v.name)) ||
-                            arVoices.find(v => v.lang === 'ar-EG') ||
-                            arVoices[arVoices.length - 1];
-        }
-
-        if (selectedVoice) {
-            utter.voice = selectedVoice;
-            console.log(`[Offline TTS] Selected Edge Voice: ${selectedVoice.name} (${selectedVoice.lang})`);
-        }
-    }
-
-    // 4. Handlers
-    utter.onend = () => {
-        // @ts-ignore
-        window.shadowUtterance = null;
-        if (resumeInterval) { clearInterval(resumeInterval); resumeInterval = null; }
-        window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
-        onEnd?.();
-    };
-
-    utter.onerror = (e) => {
-        // Ignore interruption errors which happen when we cancel
-        if (e.error !== 'interrupted' && e.error !== 'canceled') {
-            console.warn("TTS Error:", e);
-        }
-        // @ts-ignore
-        window.shadowUtterance = null;
-        if (resumeInterval) { clearInterval(resumeInterval); resumeInterval = null; }
-        
-        // Only trigger onEnd if it wasn't cancelled intentionally
-        if (e.error !== 'canceled' && e.error !== 'interrupted') onEnd?.();
-    };
-
-    // 5. Execution Logic
-    let spoken = false;
-    const executeSpeak = () => {
-        if (spoken) return;
-        spoken = true;
-
-        const voices = window.speechSynthesis.getVoices();
-        // Try to find a good Arabic voice (Google preferred for quality)
-        const preferred = voices.find(v => v.lang.includes('ar') && v.name.includes('Google')) || 
-                          voices.find(v => v.lang.includes('ar'));
-        
-        if (preferred) utter.voice = preferred;
-
-        // Double check pause state
-        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-        
-        window.speechSynthesis.speak(utter);
-        
-        // Chrome Long Text Fix: Periodically pause/resume to keep the engine alive
-        if (cleanText.length > 80) {
-            if (resumeInterval) clearInterval(resumeInterval);
-            resumeInterval = setInterval(() => {
-                if (!window.speechSynthesis.speaking) {
-                    clearInterval(resumeInterval);
-                    resumeInterval = null;
-                } else {
-                    window.speechSynthesis.pause();
-                    window.speechSynthesis.resume();
-                }
-            }, 10000); // 10s keep-alive
-        }
-    };
-
-    // 6. Voice Loading Strategy
-    // Chrome loads voices asynchronously. We must wait if the list is empty.
-    if (window.speechSynthesis.getVoices().length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => {
-            executeSpeak();
-            window.speechSynthesis.onvoiceschanged = null;
-        };
-        // Fallback: If event never fires (some mobile browsers), speak anyway after 1s
-        setTimeout(executeSpeak, 1000);
-    } else {
-        // Slight delay to ensure the previous 'cancel()' has propagated
-        setTimeout(executeSpeak, 50);
-    }
-};
-
-// --- TOOLS DEFINITION ---
-import { actionTools } from './toolsConfig';
-
-export const generateImageNative = async (prompt: string, userKey?: string): Promise<string> => {
-    try {
-        let key = userKey || (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.GEMINI_API_KEY;
-        const ai = new GoogleGenAI({ apiKey: key || 'dummy', apiVersion: 'v1beta' });
-        
-        try {
-            const r2 = await ai.models.generateImages({ model: "imagen-3.0-generate-002", prompt });
-            if (r2.generatedImages && r2.generatedImages.length > 0) {
-                const img = r2.generatedImages[0];
-                return `data:${img.image.mimeType};base64,${img.image.imageBytes}`;
-            }
-        } catch (e) {
-            console.log("Failed to generate with imagen-3.0-generate-002, trying fallback", e);
-            const r = await ai.models.generateImages({ model: "gemini-3.1-flash-image-preview", prompt });
-            if (r.generatedImages && r.generatedImages.length > 0) {
-                const img = r.generatedImages[0];
-                return `data:${img.image.mimeType};base64,${img.image.imageBytes}`;
-            }
-        }
-    } catch (finalError) {
-        console.error("Gemini image generation failed, falling back to pollinations:", finalError);
-    }
-    
-    // Final fallback
-    return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux`;
-};
-
-export const startVideoGenerationNative = async (prompt: string, userKey?: string): Promise<any> => {
-    let key = userKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
-    if (!key) {
-        throw new Error("API Key is required for Veo 3 / Veo 2 generation.");
-    }
-    const ai = new GoogleGenAI({ apiKey: key, apiVersion: 'v1beta' });
-    const op = await ai.models.generateVideos({
-        model: "veo-2.0-generate-001",
-        prompt
-    });
-    return op;
-};
 
 export const getAvailableTools = async (userProfile?: UserProfile, activePersona?: string): Promise<FunctionDeclaration[]> => {
 
@@ -278,7 +41,7 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
     if (activePersona) {
         const personaToolsMap: Record<string, string[]> = {
             'trader': ['crypto_trader', 'live_trader_chart', 'data_analyst', 'run_autonomous_agent'],
-            'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin', 'run_autonomous_agent'],
+            'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin', 'run_autonomous_agent', 'zip_project_manager', 'live_app_integrator', 'external_webhook', 'read_system_source_code'],
             'manager': ['project_manager', 'activate_user_account', 'workspace_manager', 'run_autonomous_agent'],
             'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator', 'run_autonomous_agent', 'brand_vault_manager', 'generate_video', 'publish_social'],
             'educator': ['interactive_educator', 'data_analyst', 'memory_archivist', 'link_reader', 'run_autonomous_agent'],
@@ -485,49 +248,6 @@ const MODEL_CHAIN = [
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // --- VECTOR MEMORY (SEMANTIC SEARCH) ---
-export const generateEmbedding = async (text: string): Promise<number[]> => {
-    if (!text || !text.trim()) return [];
-    try {
-        const result = await getAI().models.embedContent({
-            model: 'gemini-embedding-2-preview',
-            contents: text
-        });
-        return result.embeddings?.[0]?.values || [];
-    } catch (e: any) {
-        console.warn("[Shadow Core] Embedding error:", e?.message || e);
-        return [];
-    }
-};
-
-const cosineSimilarity = (vecA: number[], vecB: number[]) => {
-    if (!vecA || !vecB || vecA.length === 0 || vecB.length === 0) return 0;
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < vecA.length; i++) {
-        dotProduct += vecA[i] * vecB[i];
-        normA += vecA[i] * vecA[i];
-        normB += vecB[i] * vecB[i];
-    }
-    if (normA === 0 || normB === 0) return 0;
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-};
-
-export const memorizeFact = async (userId: string, factText: string) => {
-    const memEmbedding = await generateEmbedding(factText);
-    const factObj = {
-        userId,
-        fact: factText,
-        timestamp: Date.now(),
-        embedding: memEmbedding.length > 0 ? memEmbedding : undefined 
-    };
-    const id = await shadowDB.saveFact(factObj);
-    
-    if (memEmbedding.length > 0) {
-        // True Local Vector Search: We only store locally, no more Pinecone syncing
-        console.log("[Vector DB] Fact embedded locally 100%");
-    }
-};
 
 export const autonomousLearningRoutine = async (userId: string, history: any[], userProfile: UserProfile | undefined) => {
     if (!userProfile || history.length < 3) return;
@@ -582,81 +302,7 @@ ${recentHistory}`;
     }
 };
 
-export const getRelevantMemories = async (query: string, userId: string): Promise<string> => {
-    // Generate embedding for current query
-    const queryEmbedding = await generateEmbedding(query);
-    if (queryEmbedding.length === 0) {
-        // Fallback to local DB if embedding generation fails
-        const allMemories = await shadowDB.getMemory(userId);
-        return allMemories.slice(-5).map(m => m.fact).join(" | ");
-    }
 
-    // Try Pinecone First (Sci-Fi Level Vector DB)
-    // const pineconeResults = await queryPinecone(queryEmbedding, userId, 5);
-    // if (pineconeResults.length > 0) {
-    //     console.log("Vector DB (Pinecone) responded with:", pineconeResults.length, "facts");
-    //     return pineconeResults.join(" | ");
-    // }
-
-    // Fallback to IndexedDB local Cosine Similarity
-    const allMemories = await shadowDB.getMemory(userId);
-    if (allMemories.length === 0) return "";
-
-    const scoredMemories = [];
-    for (const mem of allMemories) {
-        let memEmbedding = mem.embedding;
-        // Lazy generation for old facts
-        if (!memEmbedding || memEmbedding.length === 0) {
-            memEmbedding = await generateEmbedding(mem.fact);
-            if (memEmbedding.length > 0) {
-                mem.embedding = memEmbedding;
-                await shadowDB.saveFact(mem);
-                console.log("[Vector DB] Backfilled missing embedding for fact locally.");
-            }
-        }
-        const score = cosineSimilarity(queryEmbedding, memEmbedding || []);
-        scoredMemories.push({ fact: mem.fact, score });
-    }
-
-    scoredMemories.sort((a, b) => b.score - a.score);
-    return scoredMemories.slice(0, 5).map(m => m.fact).join(" | ");
-};
-
-export const analyzeMediaForArchive = async (base64Data: string, mimeType: string): Promise<{ title: string, summary: string, keywords: string[] }> => {
-    try {
-        const ai = getAI();
-        const b64Str = base64Data.split(',')[1] || base64Data;
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: [
-                {
-                    role: 'user',
-                    parts: [
-                        { text: "أنت مساعد ذكي متخصص في أرشفة الملفات. قم بتحليل هذه الصورة/الفيديو بدقة واستخرج اسم مختصر معبر (لا تضع الامتداد)، ووصف قصير جداً، و3 إلى 5 كلمات مفتاحية (keywords). اجعل ردك بصيغة JSON فقط كالتالي:\n{\n  \"title\": \"اسم الملف\",\n  \"summary\": \"ملخص للمحتوى\",\n  \"keywords\": [\"كلمة1\", \"كلمة2\"]\n}" },
-                        { inlineData: { data: b64Str, mimeType: mimeType } }
-                    ]
-                }
-            ],
-            config: {
-                responseMimeType: "application/json",
-            }
-        });
-        
-        const text = response.text;
-        if(text) {
-             return JSON.parse(text);
-        }
-    } catch(err) {
-        console.error("Failed to analyze media for archive:", err);
-    }
-    return { title: 'ميديا_مجهولة', summary: 'صورة/فيديو تم التقاطه من مساحة العمل', keywords: ['كاميرا', 'الظل'] };
-};
-
-import { getContextData, analyzeEmotionFromText } from './sensorService';
-
-import { localBrain } from './localBrainService';
-
-// --- MAIN RESPONSE FUNCTION ---
 export const getShadowResponse = async (history: any[], message: string, extraData?: any, userProfile?: UserProfile, signal?: AbortSignal) => {
     if (isRequesting) return { text: "ثواني بجمع أفكاري...", toolActions: [], groundingLinks: [], isError: false };
     isRequesting = true;
@@ -899,6 +545,46 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
 
         if (!response) {
             console.error("All models failed. Last error:", lastError);
+            
+            // Fallback to DashScope Qwen 3.7 Plus proxy
+            try {
+                console.log("[getShadowResponse] Falling back to DashScope Qwen 3.7 Plus proxy...");
+                const formattedMessages = [
+                    { role: "system", content: systemInstruction },
+                    ...cleanHistory.slice(-6).map(m => ({
+                        role: m.role === 'model' ? 'assistant' : 'user',
+                        content: typeof m.parts[0]?.text === 'string' ? m.parts[0].text : JSON.stringify(m.parts[0])
+                    })),
+                    { role: "user", content: finalUserMessage }
+                ];
+                
+                const dashResponse = await fetch("/api/dashscope/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model: "qwen3.7-plus",
+                        messages: formattedMessages
+                    })
+                });
+                
+                if (dashResponse.ok) {
+                    const dashData = await dashResponse.json();
+                    const dashText = dashData.choices?.[0]?.message?.content || "";
+                    if (dashText) {
+                        return {
+                            text: dashText,
+                            toolActions: [],
+                            groundingLinks: [],
+                            isError: false
+                        };
+                    }
+                } else {
+                    console.warn("[getShadowResponse] DashScope proxy fallback failed:", dashResponse.status);
+                }
+            } catch (dashErr: any) {
+                console.error("[getShadowResponse] DashScope proxy fallback failed error:", dashErr.message);
+            }
+
             return { 
                 text: `معلش يا ريس، السيرفرات عليها ضغط شديد جداً دلوقتي. ممكن تديني دقيقة راحة ونجرب تاني؟ (${allErrors.join(' | ')})`, 
                 toolActions: [],
@@ -1092,154 +778,4 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
     } finally { isRequesting = false; }
 };
 
-export const generateMp3FromShadowVoice = async (text: string, voice: string): Promise<{file: File, base64: string} | null> => {
-    let base64 = audioCache.get(text);
-    if (!base64) {
-        base64 = await shadowDB.getAudioSegment(text) || undefined;
-    }
-    if (!base64) {
-        base64 = await getShadowVoice(text, voice);
-        if (base64) {
-            audioCache.set(text, base64);
-            shadowDB.saveAudioSegment(text, base64);
-        }
-    }
-    if (!base64) return null;
 
-    let u8: Uint8Array;
-    try {
-        const res = await fetch(`data:application/octet-stream;base64,${base64}`);
-        const buffer = await res.arrayBuffer();
-        u8 = new Uint8Array(buffer);
-    } catch (e) {
-        // Fallback if fetch fails
-        const byteCharacters = atob(base64);
-        u8 = new Uint8Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            u8[i] = byteCharacters.charCodeAt(i);
-        }
-    }
-    
-    // FAST PATH: Return WAV format to skip extremely slow lamejs mp3 encoding
-    const dataBytes = u8.length % 2 === 0 ? u8.length : u8.length - 1;
-    const u8Even = new Uint8Array(u8.buffer, 0, dataBytes);
-    const bufferWav = new ArrayBuffer(44 + dataBytes);
-    const view = new DataView(bufferWav);
-    
-    const setUint16 = (pos: number, data: number) => view.setUint16(pos, data, true);
-    const setUint32 = (pos: number, data: number) => view.setUint32(pos, data, true);
-    
-    setUint32(0, 0x46464952); setUint32(4, 36 + dataBytes); setUint32(8, 0x45564157);
-    setUint32(12, 0x20746d66); setUint32(16, 16); setUint16(20, 1); setUint16(22, 1);
-    setUint32(24, 24000); setUint32(28, 24000 * 2); setUint16(32, 2); setUint16(34, 16);
-    setUint32(36, 0x61746164); setUint32(40, dataBytes);
-    new Uint8Array(bufferWav, 44).set(u8Even);
-    
-    const parsedFile = new File([new Blob([bufferWav], { type: 'audio/wav' })], 'shadow-voice.wav', { type: 'audio/wav' });
-    
-    return { file: parsedFile, base64 };
-};
-
-export const playShadowVoice = async (text: string, voice: string, existing?: string, onEnded?: () => void) => {
-    stopVoice();
-    const ctx = resumeAudioContext();
-    
-    if (!ctx) { 
-        speakNative(text, voice, onEnded);
-        return; 
-    }
-
-    try {
-        let base64 = existing;
-        if (!base64 && audioCache.has(text)) base64 = audioCache.get(text);
-        if (!base64) base64 = await shadowDB.getAudioSegment(text) || undefined;
-        
-        if (!base64) {
-            base64 = await getShadowVoice(text, voice);
-            if (base64) {
-                if (audioCache.size >= 50) {
-                    const firstKey = audioCache.keys().next().value;
-                    if (firstKey) audioCache.delete(firstKey);
-                }
-                audioCache.set(text, base64);
-                shadowDB.saveAudioSegment(text, base64);
-            }
-        }
-
-        if (!base64) { 
-            speakNative(text, voice, onEnded);
-            return; 
-        }
-        
-        const buffer = await decodeAudioData(decode(base64), ctx);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        
-        // Add Analyser for lip-sync and face reactivity
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-        
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        let animationFrame: number;
-        
-        const updateAudioLevel = () => {
-            if (!currentSource) return;
-            analyser.getByteFrequencyData(dataArray);
-            
-            // Calculate average level
-            let sum = 0;
-            for(let i = 0; i < dataArray.length; i++) {
-                sum += dataArray[i];
-            }
-            const average = sum / dataArray.length;
-            const normalizedLevel = Math.min(1, average / 128); // 0 to 1
-            
-            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: normalizedLevel } }));
-            animationFrame = requestAnimationFrame(updateAudioLevel);
-        };
-        
-        source.onended = () => { 
-            currentSource = null; 
-            cancelAnimationFrame(animationFrame);
-            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
-            window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
-            onEnded?.(); 
-        };
-        
-        source.start(0);
-        currentSource = source;
-        updateAudioLevel();
-    } catch (e) { 
-        console.error("Voice Playback Error:", e); 
-        speakNative(text, voice, onEnded);
-    }
-};
-
-export const getShadowVoice = async (text: string, voice: string) => {
-    try {
-        const res = await getAI().models.generateContent({
-            model: "gemini-3.1-flash-tts-preview",
-            contents: [{ parts: [{ text }] }],
-            config: { 
-                responseModalities: [Modality.AUDIO], 
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Kore' : 'Puck' } } } 
-            }
-        });
-        return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-    } catch (e: any) { 
-        console.warn(`[Gemini TTS] Voice generation failed (likely quota). Falling back to native UI voice. Details: ${e?.message || e}`);
-        return null; 
-    }
-};
-
-function decode(b: string) { const s = atob(b); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
-async function decodeAudioData(d: Uint8Array, c: AudioContext) { 
-    const byteLength = d.length % 2 === 0 ? d.length : d.length - 1;
-    const i16 = new Int16Array(d.buffer, 0, byteLength / 2); 
-    const b = c.createBuffer(1, i16.length, 24000); 
-    const cd = b.getChannelData(0); 
-    for (let i = 0; i < i16.length; i++) cd[i] = i16[i] / 32768.0; 
-    return b; 
-}

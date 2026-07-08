@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Brain, Target, Zap, Activity, Clock, Database, CheckCircle2, Globe, BookOpen, Lightbulb, Play, Pause, DollarSign, MessageSquare, LogOut, ChevronRight, Fingerprint, Crown, User, Briefcase, Cpu, Link as LinkIcon, Save, X, Trash2, Megaphone, ExternalLink, Info, Shield, Terminal, FolderOpen, Wallet, Mic } from 'lucide-react';
+import { Brain, Target, Zap, Activity, Clock, Database, CheckCircle2, Globe, BookOpen, Lightbulb, Play, Pause, DollarSign, MessageSquare, LogOut, ChevronRight, Fingerprint, Crown, User, Briefcase, Cpu, Link as LinkIcon, Save, X, Trash2, Megaphone, ExternalLink, Info, Shield, Terminal, FolderOpen, Wallet, Mic, Music } from 'lucide-react';
 import { shadowDB, DBTask, DBFact, UserProfile } from '../services/dbService';
 import { playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import SovereignVault from './SovereignVault';
@@ -15,7 +15,11 @@ import { LiveSessionModal } from './dashboard/LiveSessionModal';
 import { BrainRouterModal } from './dashboard/BrainRouterModal';
 import { ProactiveReportsModal } from './dashboard/ProactiveReportsModal';
 import { SocialMatrixModal } from './dashboard/SocialMatrixModal';
-import { Network, ActivitySquare, Share2 } from 'lucide-react';
+import { ContactsManagerModal } from './dashboard/ContactsManagerModal';
+import { TafraDashboard } from './TafraDashboard';
+import { Network, ActivitySquare, Share2, Orbit, Users, Phone } from 'lucide-react';
+import { ResearchCenterModal, AdvisoryBoardModal, HologramModal } from './dashboard/MissingFeaturesModals';
+import { MusicVaultModal } from './dashboard/MusicVaultModal';
 
 // --- ORBITAL UI COMPONENTS ---
 const OrbitalStyles = () => (
@@ -118,6 +122,12 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const [showBrainRouter, setShowBrainRouter] = useState(false);
   const [showProactiveReports, setShowProactiveReports] = useState(false);
   const [showSocialModal, setShowSocialModal] = useState(false);
+  const [showHologram, setShowHologram] = useState(false);
+  const [showResearch, setShowResearch] = useState(false);
+  const [showAdvisory, setShowAdvisory] = useState(false);
+  const [showContacts, setShowContacts] = useState(false);
+  const [showTafraDashboard, setShowTafraDashboard] = useState(false);
+  const [showMusicVault, setShowMusicVault] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   useEffect(() => {
@@ -145,10 +155,11 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
 
   // ORBITAL DRAG & DROP STATE
   const [orbitMap, setOrbitMap] = useState<Record<string, number>>({
-      'tasks': 0, 'memory': 0, 'sync': 0, 'vault': 0,
+      'tasks': 0, 'memory': 0, 'sync': 0, 'vault': 0, 'contacts': 0, 'music_vault': 0,
       'brains': 0, 'reports': 0, 'contentMachine': 0, 'podcast': 0,
       'identity': 1, 'affiliate': 1, 'upgrade': 1, 'social': 1,
-      'voice': 2, 'override': 2, 'workspace': 2, 'logout': 2, 'nexus': 1, 'brands': 0, 'wallet': 0, 'live': 1
+      'voice': 2, 'override': 2, 'workspace': 2, 'logout': 2, 'nexus': 1, 'brands': 0, 'wallet': 0, 'live': 1,
+      'hologram': 0, 'research': 1, 'advisory': 1
   });
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -337,13 +348,19 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       ...(user.phone !== 'GUEST' ? [
           { id: 'tasks', icon: Target, label: "المهام الشغالة", value: tasks.filter(t => t.status === 'pending').length, colorClass: "text-amber-500", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: () => setShowTasksModal(true) },
           { id: 'memory', icon: Database, label: "الذاكرة والأسرار", value: memory.length, colorClass: "text-purple-500", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowMemoryModal(true) },
+          { id: 'contacts', icon: Phone, label: "جهات الاتصال (كاسبو)", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowContacts(true) },
           { id: 'brands', icon: Briefcase, label: "إدارة البراندات", value: undefined, colorClass: "text-pink-500", bgClass: "bg-pink-500/10", borderClass: "border-pink-500/30", onClick: () => setShowBrandsModal(true) },
           { id: 'wallet', icon: Wallet, label: "محفظة السرب ₿", value: "ETH", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowWalletModal(true) },
           { id: 'live', icon: Mic, label: "الجلسة الحية المتصلة 🎙️", colorClass: "text-blue-500", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowLiveModal(true) },
           { id: 'social', icon: Share2, label: "الشبكة العنكبوتية (Social Matrix)", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowSocialModal(true) },
           { id: 'vault', icon: Shield, label: "مفاتيح API", colorClass: "text-red-500", bgClass: "bg-red-500/10", borderClass: "border-red-500/30", onClick: () => setShowApiVault(true) },
+          { id: 'music_vault', icon: Music, label: "ألبوم الأغاني 🎵", colorClass: "text-fuchsia-400", bgClass: "bg-fuchsia-500/10", borderClass: "border-fuchsia-500/30", onClick: () => setShowMusicVault(true) },
           { id: 'sync', icon: Activity, label: "تزامن النظام", value: liveSync + '%', colorClass: "text-cyan-500", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30" },
+          { id: 'tafra', icon: Cpu, label: "تحديث الطفرة ⚡", colorClass: "text-purple-400 animate-pulse", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowTafraDashboard(true) },
       ] : []),
+      { id: 'hologram', icon: Orbit, label: "غرفة الهولوجرام", colorClass: "text-purple-400", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowHologram(true) },
+      { id: 'research', icon: BookOpen, label: "مركز أبحاث الظل", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowResearch(true) },
+      { id: 'advisory', icon: Users, label: "مجلس استشاري الظل", colorClass: "text-amber-400", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: () => setShowAdvisory(true) },
       { id: 'identity', icon: identity.icon, label: identity.label, colorClass: identity.color, bgClass: identity.bg, borderClass: identity.border, onClick: () => setShowVault(true) },
       { id: 'affiliate', icon: user.phone === 'GUEST' ? Megaphone : DollarSign, label: user.phone === 'GUEST' ? "سوق للظل واربح" : "بيزنس العيلة (تسويق)", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: user.phone === 'GUEST' ? onStartAffiliate : onOpenAffiliate },
       ...((user.tier === 'sovereign' || user.phone === 'TITO') ? [
@@ -565,6 +582,10 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
             <MemoryVault onClose={() => setShowMemoryModal(false)} />
         )}
 
+        {showContacts && (
+            <ContactsManagerModal onClose={() => setShowContacts(false)} />
+        )}
+
         {showWorkspace && (
             <WorkspaceModal user={user} onClose={() => setShowWorkspace(false)} />
         )}
@@ -591,6 +612,26 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
 
         {showSocialModal && (
             <SocialMatrixModal user={user} onClose={() => setShowSocialModal(false)} />
+        )}
+
+        {showHologram && (
+            <HologramModal onClose={() => setShowHologram(false)} />
+        )}
+
+        {showResearch && (
+            <ResearchCenterModal onClose={() => setShowResearch(false)} />
+        )}
+
+        {showAdvisory && (
+            <AdvisoryBoardModal onClose={() => setShowAdvisory(false)} />
+        )}
+
+        {showTafraDashboard && (
+            <TafraDashboard onClose={() => setShowTafraDashboard(false)} />
+        )}
+
+        {showMusicVault && (
+            <MusicVaultModal user={user} onClose={() => setShowMusicVault(false)} />
         )}
 
     </div>

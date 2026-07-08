@@ -36,7 +36,7 @@ export const handleAppCardAction = async (card: any, onNavigateTo?: (section: st
     
     if (card.url) { 
         let cleanUrl = card.url.trim();
-        if (!cleanUrl.startsWith('http') && !cleanUrl.startsWith('tel:')) {
+        if (!cleanUrl.match(/^[a-zA-Z0-9+-]+:/)) {
            cleanUrl = `https://${cleanUrl}`;
         }
         window.open(cleanUrl, '_blank', 'noopener,noreferrer'); 
@@ -76,9 +76,14 @@ export const ToolCardRenderer: React.FC<ToolCardRendererProps> = ({ card, index,
     }
     if (card.cardType === 'task_success') {
         return (
-            <div className="mt-4 bg-[#111] p-4 rounded-[22px] border border-emerald-500/20 flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/10 rounded-full"><CheckCircle className="w-5 h-5 text-emerald-500" /></div>
-                <div><h3 className="font-bold text-white text-sm">{card.title}</h3><p className="text-[10px] text-white/50">{card.description}</p></div>
+            <div className="mt-4 bg-[#111] p-4 rounded-[22px] border border-emerald-500/20 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-500/10 rounded-full"><CheckCircle className="w-5 h-5 text-emerald-500" /></div>
+                    <div><h3 className="font-bold text-white text-sm">{card.title}</h3><p className="text-[10px] text-white/50">{card.description}</p></div>
+                </div>
+                {card.audioData && (
+                    <audio controls className="w-full mt-2 rounded-[12px] bg-black/50" src={card.audioData}></audio>
+                )}
             </div>
         );
     }

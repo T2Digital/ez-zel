@@ -9,6 +9,8 @@ import * as dotenv from 'dotenv';
 import twilio from 'twilio';
 import { Resend } from 'resend';
 import { fal } from '@fal-ai/client';
+import { shadowDB } from './services/dbService';
+import { WhatsAppClient } from "@kapso/whatsapp-cloud-api";
 
 dotenv.config();
 
@@ -135,6 +137,18 @@ const tools = [
                 content: { type: "STRING", description: "The complete new source code content" }
             },
             required: ["file_path", "content"]
+        }
+    },
+    {
+        name: "adk_send_whatsapp_message",
+        description: "يرسل رسالة واتساب إلى رقم هاتف محدد من خلال Kapso API.",
+        parameters: {
+            type: "OBJECT",
+            properties: { 
+                to_phone: { type: "STRING", description: "رقم الهاتف المستلم (مثل: 201030956097)" },
+                message: { type: "STRING", description: "النص المراد إرساله" }
+            },
+            required: ["to_phone", "message"]
         }
     },
     {
@@ -297,6 +311,26 @@ export async function processAgentTask(job: Job) {
     const { prompt, userId, taskId, persona } = job.data;
     console.log(`[WORKER] Received Task ${taskId}: ${prompt} with persona: ${persona || 'default'}`);
     
+    let taskApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
+    if (userId) {
+        try {
+            const profile = await shadowDB.getProfile(userId);
+            if (profile?.personalKeys?.geminiApiKey) {
+                taskApiKey = profile.personalKeys.geminiApiKey;
+                console.log(`[WORKER] Using user personal Gemini API key for ${userId}`);
+            }
+        } catch (e) {
+            console.warn(`[WORKER] Could not fetch user profile for ${userId}:`, e);
+        }
+    }
+    
+    const cleanApiKey = taskApiKey ? taskApiKey.replace(/^["']|["']$/g, '').trim() : '';
+    if (!cleanApiKey) {
+         throw new Error("No Gemini API Key found in system environment or user profile");
+    }
+    
+    const taskAi = new GoogleGenAI({ apiKey: cleanApiKey, apiVersion: 'v1beta' });
+    
     let isDone = false;
     let finalOutput = "";
     
@@ -309,10 +343,12 @@ export async function processAgentTask(job: Job) {
     
     while (!isDone && iteration < maxIterations) {
         iteration++;
-        await job.updateProgress({ iteration, logs: `Thinking... Iteration ${iteration}` });
+        if (typeof job.updateProgress === 'function') {
+            await job.updateProgress({ iteration, logs: `Thinking... Iteration ${iteration}` });
+        }
         
         try {
-            const response = await ai.models.generateContent({
+            const response = await taskAi.models.generateContent({
                 model: 'gemini-3.1-pro-preview',
                 contents: history as any,
                 config: {
@@ -585,6 +621,26 @@ export async function processAgentTask(job: Job) {
                              toolResult = `Call initiated successfully. SID: ${callInstance.sid}`;
                          } catch (e: any) {
                              toolResult = `Twilio Error: ${e.message}`;
+                         }
+                     }
+                 } else if (call.name === 'adk_send_whatsapp_message') {
+                     const { to_phone, message } = call.args as any;
+                     if (!process.env.KAPSO_API_KEY) {
+                         toolResult = "KAPSO_API_KEY not found in environment variables.";
+                     } else {
+                         try {
+                             const client = new WhatsAppClient({
+                               baseUrl: "https://api.kapso.ai/meta/whatsapp",
+                               kapsoApiKey: process.env.KAPSO_API_KEY
+                             });
+                             const res = await client.messages.sendText({
+                                 phoneNumberId: "597907523413541",
+                                 to: to_phone,
+                                 body: message
+                             });
+                             toolResult = `WhatsApp Message sent successfully. Response: ${JSON.stringify(res)}`;
+                         } catch (e: any) {
+                             toolResult = `WhatsApp Exception: ${e.message}`;
                          }
                      }
                  } else if (call.name === 'adk_send_email') {

@@ -1,25 +1,25 @@
 import React from 'react';
-import { Loader2, Activity, Briefcase, CheckCircle, Clock, Copy, ExternalLink, FileText, FolderOpen, Layout, Printer, Smartphone, Download, Share2, Globe, Users, Bot, Terminal } from 'lucide-react';
+import { Loader2, Activity, Briefcase, CheckCircle, Clock, Copy, ExternalLink, FileText, FolderOpen, Layout, Printer, Smartphone, Download, Share2, Globe, Users, Bot, Terminal, Play, Pause } from 'lucide-react';
 import LiveAgentAction from '../LiveAgentAction';
 import { getCardIcon, handleAppCardAction } from './ToolCardRenderer';
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip } from 'recharts';
-import { InteractiveEducator } from './InteractiveEducator';
-import { TradingViewChart } from './TradingViewChart';
-import { AutonomousDashboard } from './AutonomousDashboard';
-import { VideoDisplay } from './VideoDisplay';
-import { PredictiveAnalyticsBoard } from './PredictiveAnalyticsBoard';
-import { ExpenseTrackerCard } from './ExpenseTrackerCard';
-import { MuslimCompanionCard } from './MuslimCompanionCard';
-import { ContentMachineCard } from './ContentMachineCard';
-import { PodcastStudioCard } from './PodcastStudioCard';
-import { CommandCenterCard } from './CommandCenterCard';
-import { MemoryConstellationCard } from './MemoryConstellationCard';
-import { CyberDefenseMapCard } from './CyberDefenseMapCard';
-import { TrendHunterCard } from './TrendHunterCard';
-import { BoardroomMeetingCard } from './BoardroomMeetingCard';
-import { RevenueMatrixCard } from './RevenueMatrixCard';
-import { OfflineGhostModeCard } from './OfflineGhostModeCard';
-import { LeadGeneratorCard } from './LeadGeneratorCard';
+const InteractiveEducator = React.lazy(() => import('./InteractiveEducator').then(m => ({ default: m.InteractiveEducator })));
+const TradingViewChart = React.lazy(() => import('./TradingViewChart').then(m => ({ default: m.TradingViewChart })));
+const AutonomousDashboard = React.lazy(() => import('./AutonomousDashboard').then(m => ({ default: m.AutonomousDashboard })));
+const VideoDisplay = React.lazy(() => import('./VideoDisplay').then(m => ({ default: m.VideoDisplay })));
+const PredictiveAnalyticsBoard = React.lazy(() => import('./PredictiveAnalyticsBoard').then(m => ({ default: m.PredictiveAnalyticsBoard })));
+const ExpenseTrackerCard = React.lazy(() => import('./ExpenseTrackerCard').then(m => ({ default: m.ExpenseTrackerCard })));
+const MuslimCompanionCard = React.lazy(() => import('./MuslimCompanionCard').then(m => ({ default: m.MuslimCompanionCard })));
+const ContentMachineCard = React.lazy(() => import('./ContentMachineCard').then(m => ({ default: m.ContentMachineCard })));
+const PodcastStudioCard = React.lazy(() => import('./PodcastStudioCard').then(m => ({ default: m.PodcastStudioCard })));
+const CommandCenterCard = React.lazy(() => import('./CommandCenterCard').then(m => ({ default: m.CommandCenterCard })));
+const MemoryConstellationCard = React.lazy(() => import('./MemoryConstellationCard').then(m => ({ default: m.MemoryConstellationCard })));
+const CyberDefenseMapCard = React.lazy(() => import('./CyberDefenseMapCard').then(m => ({ default: m.CyberDefenseMapCard })));
+const TrendHunterCard = React.lazy(() => import('./TrendHunterCard').then(m => ({ default: m.TrendHunterCard })));
+const BoardroomMeetingCard = React.lazy(() => import('./BoardroomMeetingCard').then(m => ({ default: m.BoardroomMeetingCard })));
+const RevenueMatrixCard = React.lazy(() => import('./RevenueMatrixCard').then(m => ({ default: m.RevenueMatrixCard })));
+const OfflineGhostModeCard = React.lazy(() => import('./OfflineGhostModeCard').then(m => ({ default: m.OfflineGhostModeCard })));
+const LeadGeneratorCard = React.lazy(() => import('./LeadGeneratorCard').then(m => ({ default: m.LeadGeneratorCard })));
 
 const QuranPlayerCard = ({ card }: { card: any }) => {
     const audioRef = React.useRef<HTMLAudioElement>(null);
@@ -93,11 +93,145 @@ const QuranPlayerCard = ({ card }: { card: any }) => {
     );
 };
 
+const MusicPlayerCard = ({ title, description, audioData }: { title: string, description: string, audioData: string }) => {
+    const [isPlaying, setIsPlaying] = React.useState(false);
+    const audioRef = React.useRef<HTMLAudioElement | null>(null);
+    const [progress, setProgress] = React.useState(0);
+    const [currentTime, setCurrentTime] = React.useState(0);
+    const [duration, setDuration] = React.useState(0);
+
+    const togglePlay = () => {
+        if (!audioRef.current) return;
+        if (isPlaying) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+        } else {
+            audioRef.current.play().catch(e => console.error(e));
+            setIsPlaying(true);
+        }
+    };
+
+    const handleTimeUpdate = () => {
+        if (!audioRef.current) return;
+        const cur = audioRef.current.currentTime;
+        const dur = audioRef.current.duration || 0;
+        setCurrentTime(cur);
+        setProgress(dur > 0 ? (cur / dur) * 100 : 0);
+    };
+
+    const handleLoadedMetadata = () => {
+        if (!audioRef.current) return;
+        setDuration(audioRef.current.duration || 0);
+    };
+
+    const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!audioRef.current || !duration) return;
+        const newProgress = parseFloat(e.target.value);
+        const newTime = (newProgress / 100) * duration;
+        audioRef.current.currentTime = newTime;
+        setProgress(newProgress);
+        setCurrentTime(newTime);
+    };
+
+    const formatTime = (time: number) => {
+        const mins = Math.floor(time / 60);
+        const secs = Math.floor(time % 60);
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    };
+
+    return (
+        <div className="mt-4 bg-[#111] border border-fuchsia-500/30 rounded-[22px] p-5 shadow-[0_0_25px_rgba(217,70,239,0.1)] relative overflow-hidden w-full md:w-[400px]" dir="rtl">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-fuchsia-500 to-purple-500"></div>
+            
+            <div className="flex items-center gap-4 mb-4">
+                <button 
+                    onClick={togglePlay}
+                    className="w-12 h-12 bg-fuchsia-600 hover:bg-fuchsia-500 rounded-full flex items-center justify-center hover:scale-105 transition-all text-white shrink-0 shadow-lg shadow-fuchsia-950/20"
+                >
+                    {isPlaying ? <Pause className="w-5 h-5 text-white fill-white" /> : <Play className="w-5 h-5 text-white fill-white mr-0.5" />}
+                </button>
+                <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-white text-sm truncate">{title}</h3>
+                    <p className="text-[10px] text-fuchsia-300 font-mono tracking-widest mt-0.5 uppercase">AI MUSIC PRODUCTION</p>
+                </div>
+            </div>
+
+            {/* Audio tag */}
+            <audio 
+                ref={audioRef} 
+                src={audioData} 
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onEnded={() => setIsPlaying(false)}
+                className="hidden" 
+            />
+
+            {/* Seek Bar */}
+            <div className="flex items-center gap-2 text-[10px] font-mono text-white/40 mb-4">
+                <span>{formatTime(currentTime)}</span>
+                <input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    value={progress} 
+                    onChange={handleProgressChange}
+                    className="flex-1 accent-fuchsia-500 h-1 bg-white/10 rounded-lg cursor-pointer animate-none" 
+                />
+                <span>{formatTime(duration)}</span>
+            </div>
+
+            {/* Description/Lyrics accordion */}
+            {description && (
+                <div className="bg-black/40 p-3 rounded-xl border border-white/5 max-h-36 overflow-y-auto">
+                    <p className="text-xs text-white/70 whitespace-pre-line leading-relaxed text-center">
+                        {description}
+                    </p>
+                </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 mt-4">
+                <a 
+                    href={audioData}
+                    download="AI_Track.wav"
+                    className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/5 text-center"
+                >
+                    <Download className="w-3.5 h-3.5" /> تحميل الملف
+                </a>
+                <button 
+                    onClick={() => {
+                        const text = encodeURIComponent(`اسمع الأغنية دي اللي لسه مألفها بالذكاء الاصطناعي مع ظلي الرقمي!\n🔥🎵`);
+                        const whatsappUrl = `https://wa.me/?text=${text}`;
+                        window.open(whatsappUrl, '_blank');
+                    }}
+                    className="flex-1 bg-[#128C7E]/10 hover:bg-[#128C7E]/20 text-[#25D366] font-medium py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors border border-[#128C7E]/20"
+                >
+                    <Share2 className="w-3.5 h-3.5" /> مشاركة واتساب
+                </button>
+            </div>
+        </div>
+    );
+};
+
 export const renderChatCard = (
     card: any, 
     i: number, 
     currentUser: any, 
-    handleSend: (text: string, v?: any, i?: any, skip?: boolean) => void,
+    handleSend: (text: string, v?: any, inc?: any, skip?: boolean) => void,
+    setSelectedWorkspaceFile: (card: any) => void
+) => {
+    return (
+        <React.Suspense fallback={<div className="animate-pulse h-32 bg-[#1a1a1a] border border-gray-800 rounded-xl m-2" />}>
+            {_renderChatCardInner(card, i, currentUser, handleSend, setSelectedWorkspaceFile)}
+        </React.Suspense>
+    );
+};
+
+const _renderChatCardInner = (
+    card: any, 
+    i: number, 
+    currentUser: any, 
+    handleSend: (text: string, v?: any, inc?: any, skip?: boolean) => void,
     setSelectedWorkspaceFile: (card: any) => void
 ) => {
       if (card.cardType === 'swarm_manager') {
@@ -274,6 +408,9 @@ export const renderChatCard = (
           );
       }
       if (card.cardType === 'task_success') {
+          if (card.audioData) {
+              return <MusicPlayerCard key={i} title={card.title} description={card.description} audioData={card.audioData} />;
+          }
           return (
               <div key={i} className="mt-4 bg-[#111] p-4 rounded-[22px] border border-emerald-500/20 flex items-center gap-3">
                   <div className="p-2 bg-emerald-500/10 rounded-full"><CheckCircle className="w-5 h-5 text-emerald-500" /></div>

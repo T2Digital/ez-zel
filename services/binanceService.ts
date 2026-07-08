@@ -11,7 +11,7 @@ export interface BinanceTradeOptions {
 // Function to get the real live price from Binance API without auth
 export const getLivePrice = async (symbol: string = 'BTCUSDT'): Promise<number> => {
     try {
-        const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+        const response = await fetch(`/api/binance/ticker/price?symbol=${symbol}`).catch(() => fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`));
         const data = await response.json();
         if (data && data.price) {
             return parseFloat(data.price);
@@ -26,7 +26,7 @@ export const getLivePrice = async (symbol: string = 'BTCUSDT'): Promise<number> 
 // Fetch real 24hr ticker data to find the most active trending coin (high volume + clear trend)
 export const getTopTrendingCoin = async (): Promise<{ symbol: string, priceChangePercent: number, volume: number }> => {
     try {
-        const response = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+        const response = await fetch('/api/binance/ticker/24hr').catch(() => fetch('https://api.binance.com/api/v3/ticker/24hr'));
         const data = await response.json();
         
         let validPairs = data.filter((d: any) => 
@@ -95,7 +95,9 @@ const calculateRSI = (closes: number[], period: number = 14) => {
 // Fetch real market structure (klines) and compute indicators
 export const getTechnicalAnalysis = async (symbol: string, interval: string = '5m', limit: number = 50) => {
     try {
-        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+        const response = await fetch(`/api/binance/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`).catch(() => 
+            fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`)
+        );
         const data = await response.json();
         
         const closes = data.map((d: any[]) => parseFloat(d[4])); // Closing prices

@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Activity, ArrowUpRight, ArrowDownRight, Minus, Check, Clock, AlertCircle } from 'lucide-react';
 
 interface Metric {

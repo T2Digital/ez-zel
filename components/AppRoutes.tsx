@@ -14,7 +14,7 @@ const AffiliateDashboard = lazy(() => import("./AffiliateDashboard"));
 const Dashboard = lazy(() => import("./Dashboard"));
 const WorkspaceExplorer = lazy(() => import("./WorkspaceExplorer"));
 const AssistantWidget = lazy(() => import("./AssistantWidget").then(m => ({ default: m.AssistantWidget })));
-
+const MusicStudio = lazy(() => import("./MusicStudio").then(m => ({ default: m.MusicStudio })));
 
 export const AppRoutes: React.FC = () => {
   const navigate = useNavigate();
@@ -58,6 +58,7 @@ export const AppRoutes: React.FC = () => {
     workspace: "/workspace",
     affiliate: "/affiliate",
     widget: "/widget",
+    music: "/music",
     pending_review: "/pending",
     blocked: "/blocked",
     loading: "/loading",
@@ -73,6 +74,7 @@ export const AppRoutes: React.FC = () => {
     "/workspace": "workspace",
     "/affiliate": "affiliate",
     "/widget": "widget",
+    "/music": "music",
     "/pending": "pending_review",
     "/blocked": "blocked",
     "/loading": "loading",
@@ -326,6 +328,27 @@ export const AppRoutes: React.FC = () => {
               user={user}
               onOpenApp={() => (window.location.search = "")}
             />
+          ) : (
+            <Navigate to="/pricing" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/music"
+        element={
+          user ? (
+            <div className="h-full w-full overflow-y-auto p-4 md:p-8 relative z-50">
+              <div className="absolute top-4 right-4 z-50 flex gap-2">
+                <button 
+                  onClick={() => navigateToView("dashboard")}
+                  className="bg-gray-800 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-700 transition"
+                >
+                  العودة للوحة القيادة
+                </button>
+              </div>
+              <MusicStudio />
+            </div>
           ) : (
             <Navigate to="/pricing" replace />
           )

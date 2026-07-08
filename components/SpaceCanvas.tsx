@@ -323,21 +323,24 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                         ctx.font = "normal " + fontSize + "px 'Amiri', 'Cairo', serif";
                         const glowOpacity = Math.max(0.4, Math.min(1, depth * s.o * 2.5));
                         ctx.globalAlpha = glowOpacity;
-                        ctx.shadowColor = s.color;
-                        ctx.shadowBlur = 25 * depth;
-                        ctx.fillStyle = '#ffffff';
+                        ctx.fillStyle = s.color;
                         ctx.textAlign = 'center';
                         ctx.fillText(s.text!, px, py);
-                        ctx.shadowBlur = 0;
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillText(s.text!, px, py);
                     } else if (s.type === 'constellation') {
                         ctx.globalAlpha = Math.max(0, Math.min(1, depth * s.o));
-                        ctx.fillStyle = s.color;
-                        ctx.shadowColor = s.color;
-                        ctx.shadowBlur = 15;
+                        const radGrad = ctx.createRadialGradient(px, py, 0, px, py, s.size * depth * 2);
+                        radGrad.addColorStop(0, s.color);
+                        radGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                        ctx.fillStyle = radGrad;
                         ctx.beginPath();
-                        ctx.arc(px, py, s.size * depth, 0, Math.PI*2);
+                        ctx.arc(px, py, s.size * depth * 2, 0, Math.PI*2);
                         ctx.fill();
-                        ctx.shadowBlur = 0;
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath();
+                        ctx.arc(px, py, s.size * depth * 0.5, 0, Math.PI*2);
+                        ctx.fill();
                         
                         // Label and Fact
                         ctx.textAlign = 'center';
@@ -364,8 +367,6 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                 // Solar System Planets (Static scattered layout for user to pan/explore)
                 // Coordinates relative to Earth
                 const drawPlanet = (name: string, pX: number, pY: number, pSize: number, color1: string, color2: string, rings?: boolean) => {
-                    ctx.shadowColor = color1;
-                    ctx.shadowBlur = 40;
                     const gP = ctx.createRadialGradient(pX - pSize*0.3, pY - pSize*0.3, pSize*0.1, pX, pY, pSize);
                     gP.addColorStop(0, color1);
                     gP.addColorStop(0.6, color2);
@@ -375,7 +376,6 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                     ctx.arc(pX, pY, pSize, 0, Math.PI*2);
                     ctx.fillStyle = gP;
                     ctx.fill();
-                    ctx.shadowBlur = 0;
 
                     // Inner shadow crescent to make it 3D spherical
                     const innerShadow = ctx.createRadialGradient(pX + pSize*0.2, pY + pSize*0.2, pSize*0.4, pX, pY, pSize);
@@ -441,13 +441,17 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                     const inFront = Math.sin(issAngle) > 0;
                     if (isFront !== inFront) return;
 
-                    ctx.fillStyle = '#06b6d4'; // Cyan glowing dot for ISS
-                    ctx.shadowColor = '#06b6d4';
-                    ctx.shadowBlur = 10;
+                    const radGrad = ctx.createRadialGradient(iX, iY, 0, iX, iY, 8);
+                    radGrad.addColorStop(0, '#06b6d4');
+                    radGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = radGrad;
                     ctx.beginPath();
-                    ctx.arc(iX, iY, 4, 0, Math.PI*2);
+                    ctx.arc(iX, iY, 8, 0, Math.PI*2);
                     ctx.fill();
-                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(iX, iY, 2, 0, Math.PI*2);
+                    ctx.fill();
 
                     // Panels
                     ctx.fillStyle = '#1e293b';
@@ -501,8 +505,12 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                     const ax = earthX + earthSize/2 + Math.cos(agentAngle) * (earthSize * agent.distance * 0.8);
                     const ay = earthY + earthSize/2 + Math.sin(agentAngle) * (earthSize * agent.distance * 0.3);
                     ctx.beginPath(); ctx.arc(ax, ay, agent.size, 0, Math.PI * 2);
-                    ctx.fillStyle = agent.color; ctx.shadowColor = agent.color; ctx.shadowBlur = 15;
-                    ctx.fill(); ctx.shadowBlur = 0;
+                    const radGrad = ctx.createRadialGradient(ax, ay, 0, ax, ay, agent.size * 2);
+                    radGrad.addColorStop(0, agent.color);
+                    radGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = radGrad;
+                    ctx.beginPath(); ctx.arc(ax, ay, agent.size * 2, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(ax, ay, agent.size * 0.6, 0, Math.PI * 2); ctx.fill();
                     ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '10px Cairo, sans-serif'; ctx.textAlign = 'center';
                     ctx.fillText(agent.name, ax, ay - 12);
                 };
@@ -520,13 +528,13 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
                 }
 
                 // Earth Base Glow
-                ctx.shadowColor = 'rgba(100, 200, 255, 0.2)';
-                ctx.shadowBlur = 50;
+                const earthGlow = ctx.createRadialGradient(earthX + earthSize/2, earthY + earthSize/2, earthSize/2 * 0.8, earthX + earthSize/2, earthY + earthSize/2, earthSize/2 * 1.5);
+                earthGlow.addColorStop(0, 'rgba(100, 200, 255, 0.3)');
+                earthGlow.addColorStop(1, 'rgba(0,0,0,0)');
                 ctx.beginPath();
-                ctx.arc(earthX + earthSize/2, earthY + earthSize/2, earthSize/2, 0, 2*Math.PI);
-                ctx.fillStyle = 'rgba(0,0,0,1)';
+                ctx.arc(earthX + earthSize/2, earthY + earthSize/2, earthSize/2 * 1.5, 0, 2*Math.PI);
+                ctx.fillStyle = earthGlow;
                 ctx.fill();
-                ctx.shadowBlur = 0;
                 
                 // Earth (rotate slowly)
                 drawRotatingImageSafe(earthImg, earthX, earthY, earthSize, time, 20);
