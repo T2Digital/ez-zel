@@ -1,66 +1,87 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<html lang="ar" dir="rtl" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>الظل الرقمي | Ez-Zel</title>
+    <meta name="description" content="أقوى مساعد شخصي حصين بالذكاء الاصطناعي مع تشفير كامل للبيانات واستوديو الموسيقى الذكي." />
+    <meta property="og:title" content="الظل الرقمي | Ez-Zel" />
+    <meta property="og:description" content="أقوى مساعد شخصي حصين بالذكاء الاصطناعي مع تشفير كامل للبيانات واستوديو الموسيقى الذكي." />
     
-    <!-- SEO & Metadata -->
-    <title>Ez-Zel | الظل الرقمي - المساعد الشخصي الأول بالذكاء الاصطناعي في مصر</title>
-    <meta name="description" content="تطبيق الظل الرقمي (Ez-Zel). أقوى مساعد شخصي مصري بالذكاء الاصطناعي. إدارة مهام، استشارات قانونية، تحليل نفسي، تحكم منزلي، وأرباح بالدولار. حمل التطبيق الآن وامتلك ظلك.">
-    <meta name="keywords" content="ذكاء اصطناعي, مصر, مساعد شخصي, تطبيق الظل, Ez-Zel, AI assistant Egypt, Gemini AI, ربح من النت, تسويق بالعمولة, إدارة أعمال, استشارات قانونية, تحكم منزلي, سمارت هوم, شات بوت مصري, تيتو, Tito HQ">
-    <meta name="author" content="TITO HQ">
-    <meta name="robots" content="index, follow">
-    <meta name="googlebot" content="index, follow">
-    
-    <!-- Open Graph / Facebook / WhatsApp -->
-    
-    <!-- LameJS (MP3 Encoder) - Loaded synchronously to bypass Vite bundler issues -->
-    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    <!-- Google Fonts for Arabic & Futuristic UI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&family=Tajawal:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://Ez-zel.vercel.app/">
-    <meta property="og:title" content="الظل الرقمي | عقلك التاني اللي مبينامش">
-    <meta property="og:description" content="مش مجرد تطبيق.. ده كيان كامل بيدير حياتك. جرب الظل الآن مجاناً.">
-    <meta property="og:image" content="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
-    <meta property="og:locale" content="ar_EG">
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://Ez-zel.vercel.app/">
-    <meta property="twitter:title" content="الظل الرقمي | Ez-Zel AI">
-    <meta property="twitter:description" content="أول مساعد شخصي بلهجة مصرية وقدرات عالمية.">
-    <meta property="twitter:image" content="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
-    
-    <!-- PWA & Mobile -->
-    <link rel="manifest" href="./manifest.json">
-    <link rel="icon" type="image/jpeg" href="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
-    <link rel="apple-touch-icon" href="https://i.ibb.co/fYp5VRYb/1000053833.jpg">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#020202">
-    
+    <!-- Tailwind Play CDN for immediate flawless styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-    
-    <style>
-        html { scroll-behavior: smooth; }
-        body { font-family: 'Cairo', sans-serif; background-color: #020202; color: #e5e5e5; overflow-x: hidden; user-select: none; -webkit-user-select: none; }
-        .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        ::-webkit-scrollbar { width: 0px; }
-        @media print { .print\:hidden { display: none !important; } .printable-invoice { padding: 40px !important; } }
-    </style>
-</head>
-<body>
-    <div id="root"></div>
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch(err => {
-              if (!err.message.includes('404')) console.log('SW register failed:', err);
-          });
-        });
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              cairo: ['Cairo', 'sans-serif'],
+              tajawal: ['Tajawal', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              cyber: {
+                cyan: '#00f2fe',
+                teal: '#4facfe',
+                purple: '#7928ca',
+                pink: '#ff0080',
+                dark: '#070a13',
+                card: '#0e1424',
+                border: '#1f2942'
+              }
+            },
+            animation: {
+              'spin-slow': 'spin 20s linear infinite',
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 6s ease-in-out infinite',
+              'glow': 'glow 2s ease-in-out infinite alternate',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0px)' },
+                '50%': { transform: 'translateY(-10px)' },
+              },
+              glow: {
+                '0%': { boxShadow: '0 0 15px rgba(0, 242, 254, 0.4)' },
+                '100%': { boxShadow: '0 0 35px rgba(0, 242, 254, 0.8), 0 0 15px rgba(121, 40, 202, 0.6)' },
+              }
+            }
+          }
+        }
       }
     </script>
+    <style>
+      body {
+        font-family: 'Cairo', 'Tajawal', sans-serif;
+        background-color: #05070d;
+        color: #f1f5f9;
+        overflow-x: hidden;
+      }
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #090d18;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1e293b;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #38bdf8;
+      }
+    </style>
+  </head>
+  <body class="bg-[#05070d] text-slate-100 antialiased selection:bg-cyan-500 selection:text-black">
+    <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
-</body>
+  </body>
 </html>
