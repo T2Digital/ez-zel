@@ -6,6 +6,7 @@ import { shadowDB, UserProfile, DBFeedback, AgentProfile } from '../services/dbS
 import ChatInterface from './ChatInterface';
 import { ArchitectureMap } from './ArchitectureMap';
 import { SovereignOSArchitectureHub } from './SovereignOSArchitectureHub';
+import { TenantFactoryView } from './TenantFactoryView';
 
 interface Props {
     onLogout: () => void;
@@ -24,7 +25,7 @@ interface AgentInfo {
 }
 
 const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavigateTo }) => {
-  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings' | 'architecture'>('analytics');
+  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings' | 'architecture' | 'factory'>('analytics');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [feedbacks, setFeedbacks] = useState<DBFeedback[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -771,6 +772,12 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                 </div>
             </div>
         )}
+
+        {activeView === 'factory' && (
+            <div className="w-full animate-fadeIn">
+                <TenantFactoryView />
+            </div>
+        )}
       </div>
 
       <nav className="fixed bottom-[32px] left-0 w-full bg-black/95 border-t border-white/10 z-[100] rounded-t-[40px]">
@@ -780,6 +787,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
             <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
             <button onClick={() => { if(onNavigateTo) onNavigateTo('affiliate'); }} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all text-white/30 hover:text-white/60`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">عمولاتي</span></button>
             <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
+            <button onClick={() => setActiveView('factory')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'factory' ? 'text-amber-400 scale-110' : 'text-white/40 hover:text-amber-400'}`}><Zap className="w-5 h-5 text-amber-400" /><span className="text-[8px] font-bold text-amber-400">المصنع</span></button>
             
             <button onClick={() => { if(onNavigateTo) onNavigateTo('chat'); }} className="flex-shrink-0 min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(245,158,11,0.5)] hover:scale-110 transition-transform"><Bot className="w-6 h-6" /></button>
 
