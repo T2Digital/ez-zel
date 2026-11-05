@@ -87,6 +87,14 @@ export const processToolActions = async (
                   const data = t.args;
                   uiCards.push({ cardType: 'task_success', title: `نشر على ${data.platforms.join(' و ')}`, description: `المحتوى: ${data.content.substring(0, 50)}...` });
               }
+              else if (t.name === 'brand_account_manager') {
+                  const data = t.args;
+                  uiCards.push({ 
+                      cardType: 'brand_account_manager', 
+                      title: `إيجنت أكونت مانيجر: ${data.brand_name || 'كلين ماستر لخدمات النظافة'}`, 
+                      data 
+                  });
+              }
               else if (t.name === 'external_webhook') {
                   const data = t.args;
                   uiCards.push({ cardType: 'system_terminal', content: `Executing Endpoint: ${data.method} ${data.url}\nPayload: ${data.payload?.substring(0, 50)}...` });

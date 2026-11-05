@@ -21,6 +21,7 @@ const BoardroomMeetingCard = React.lazy(() => import('./BoardroomMeetingCard').t
 const RevenueMatrixCard = React.lazy(() => import('./RevenueMatrixCard').then(m => ({ default: m.RevenueMatrixCard })));
 const OfflineGhostModeCard = React.lazy(() => import('./OfflineGhostModeCard').then(m => ({ default: m.OfflineGhostModeCard })));
 const LeadGeneratorCard = React.lazy(() => import('./LeadGeneratorCard').then(m => ({ default: m.LeadGeneratorCard })));
+const BrandAccountManagerCard = React.lazy(() => import('./BrandAccountManagerCard').then(m => ({ default: m.BrandAccountManagerCard })));
 
 const QuranPlayerCard = ({ card }: { card: any }) => {
     const audioRef = React.useRef<HTMLAudioElement>(null);
@@ -735,6 +736,9 @@ const _renderChatCardInner = (
       }
       if (card.cardType === 'lead_generator_hunter') {
           return <LeadGeneratorCard key={i} card={card} />;
+      }
+      if (card.cardType === 'brand_account_manager') {
+          return <BrandAccountManagerCard key={i} card={card} />;
       }
       if (card.cardType === 'system_log') {
           return (
