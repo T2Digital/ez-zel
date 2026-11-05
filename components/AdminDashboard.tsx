@@ -254,17 +254,6 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       <div className="p-6 md:p-8 flex justify-between items-center bg-black/50 border-b border-white/5 sticky top-0 z-50 backdrop-blur-md">
           <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">A</div><h2 className="text-xl font-black">Shadow <span className="text-amber-500">HQ</span></h2></div>
           <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setActiveView('factory')} 
-                className={`px-4 py-2 rounded-full text-xs font-black transition-all flex items-center gap-1.5 shadow-lg cursor-pointer ${
-                  activeView === 'factory' 
-                    ? 'bg-amber-500 text-black shadow-amber-500/50 scale-105' 
-                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
-                }`}
-              >
-                <Zap className="w-4 h-4 text-amber-400" />
-                <span>🏭 المصنع (Tenant Factory)</span>
-              </button>
               <button onClick={onSwitchToUserMode} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">وضع المستخدم</button>
               <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-900/20 rounded-full transition-all"><LogOut className="w-5 h-5" /></button>
           </div>
