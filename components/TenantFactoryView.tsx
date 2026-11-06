@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Car, Sparkles, ShoppingBag, Rocket, Globe, 
   Github, CheckCircle, Smartphone, ExternalLink, RefreshCw, 
-  Layers, ShieldCheck, Zap, Plus, ArrowRight 
+  Layers, ShieldCheck, Zap, Plus, ArrowRight, Truck, HeartPulse 
 } from 'lucide-react';
 import { 
   TENANT_TEMPLATES, 
@@ -83,7 +83,10 @@ export const TenantFactoryView: React.FC = () => {
       case 'Car': return <Car className="w-5 h-5 text-amber-400" />;
       case 'Building2': return <Building2 className="w-5 h-5 text-indigo-400" />;
       case 'Sparkles': return <Sparkles className="w-5 h-5 text-teal-400" />;
-      default: return <ShoppingBag className="w-5 h-5 text-emerald-400" />;
+      case 'ShoppingBag': return <ShoppingBag className="w-5 h-5 text-emerald-400" />;
+      case 'Truck': return <Truck className="w-5 h-5 text-cyan-400" />;
+      case 'HeartPulse': return <HeartPulse className="w-5 h-5 text-rose-400" />;
+      default: return <Sparkles className="w-5 h-5 text-purple-400" />;
     }
   };
 

@@ -13,12 +13,21 @@ export interface TenantTemplate {
   icon: string;
   defaultPort: number;
   features: string[];
+  sourceRepo?: string;
 }
+
+export type TemplateIdType = 
+  | 'car_rental' 
+  | 'real_estate' 
+  | 'clean_master' 
+  | 'ecommerce_store'
+  | 'shipping_logistics'
+  | 'medical_clinic';
 
 export interface TenantProvisionConfig {
   clientName: string;
   businessName: string;
-  templateId: 'car_rental' | 'real_estate' | 'clean_master' | 'ecommerce_store';
+  templateId: TemplateIdType;
   phone: string;
   whatsapp: string;
   pricingNotes: string;
@@ -51,7 +60,8 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     description: 'أسطول السيارات، الحجز باليوم والأسبوع، عقود تأجير إلكترونية، وتأكيد فوري عبر واتساب.',
     icon: 'Car',
     defaultPort: 3001,
-    features: ['كتالوج أسطول السيارات', 'حساب تكلفة المدة تلقائياً', 'دفع العربون الإلكتروني', 'تأكيد الحجز التلقائي']
+    features: ['كتالوج أسطول السيارات', 'حساب تكلفة المدة تلقائياً', 'دفع العربون الإلكتروني', 'تأكيد الحجز التلقائي'],
+    sourceRepo: 'khedr-cars-rental'
   },
   {
     id: 'real_estate',
@@ -60,7 +70,8 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     description: 'معاينة الوحدات، مستشار عقاري ذكي بيكلم العميل، حجز مواعيد المعاينات، وخرائط المشاريع.',
     icon: 'Building2',
     defaultPort: 3002,
-    features: ['مستشارك العقاري الذكي 24/7', 'حجز معاينات الفلل والشقق', 'حاسبة الأقساط والتمويل', 'معرض الصور والمخططات']
+    features: ['مستشارك العقاري الذكي 24/7', 'حجز معاينات الفلل والشقق', 'حاسبة الأقساط والتمويل', 'معرض الصور والمخططات'],
+    sourceRepo: 'sales-gate-realestate'
   },
   {
     id: 'clean_master',
@@ -69,16 +80,38 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     description: 'تسعير بالمتر المربع أو القطعة، حجز المواعيد والمعاينات، ودفع العربون التلقائي.',
     icon: 'Sparkles',
     defaultPort: 3003,
-    features: ['حساب تكلفة الخدمة والمساحة', 'خصومات الحجز الإلكتروني', 'جدولة فرق العمل والمواعيد', 'فواتير رقمية معتمدة']
+    features: ['حساب تكلفة الخدمة والمساحة', 'خصومات الحجز الإلكتروني', 'جدولة فرق العمل والمواعيد', 'فواتير رقمية معتمدة'],
+    sourceRepo: 'clean-master-services'
   },
   {
     id: 'ecommerce_store',
-    name: 'متجر إلكتروني متكامل',
+    name: 'متجر إلكتروني وتجارة رقمية',
     category: 'متاجر وتجارة تجزئة',
-    description: 'متجر بيع منتجات متكامل، سلة مشتريات، تتبع الشحنات، وإدارة بوابات الدفع الإلكتروني.',
+    description: 'متجر بيع منتجات متكامل، سلة مشتريات، تتبع الشحنات، وإدارة بوابات الدفع وخصم الدفع المسبق.',
     icon: 'ShoppingBag',
     defaultPort: 3004,
-    features: ['إدارة المنتجات والمخزون', 'بوابات الدفع الإلكتروني', 'حساب تكلفة الشحن للمحافظات', 'إشعارات سريعة للمسؤول']
+    features: ['إدارة المنتجات والمخزون', 'بوابات الدفع الإلكتروني', 'حساب تكلفة الشحن للمحافظات', 'خصم الدفع المسبق التلقائي'],
+    sourceRepo: 'battah-system-ecommerce'
+  },
+  {
+    id: 'shipping_logistics',
+    name: 'تطبيق الشحن واللوجستيات والتتبع',
+    category: 'شحن ونقل بضائع',
+    description: 'إصدار بوالص الشحن، تتبع مسار الطرود لحظياً، حساب تكلفة الأوزان، وإشعارات التسليم.',
+    icon: 'Truck',
+    defaultPort: 3005,
+    features: ['تتبع أرقام البوالص لايف', 'حاسبة أسعار الشحن للمحافظات', 'إدارة المناديب وتأكيد الاستلام', 'لوحة تحكم التجار'],
+    sourceRepo: 'vision-shipping'
+  },
+  {
+    id: 'medical_clinic',
+    name: 'تطبيق العيادات والمراكز الطبية',
+    category: 'رعاية صحية وأسنان',
+    description: 'حجز الكشوفات والاستشارات الطبية، مواعيد الأطباء، ملفات المرضى، وعروض التقسيط والعلاجات.',
+    icon: 'HeartPulse',
+    defaultPort: 3006,
+    features: ['حجز مواعيد الأطباء أونلاين', 'عرض باقات الزراعة والتجميل', 'تذكير بمواعيد الكشف عبر واتساب', 'إدارة فروع العيادة'],
+    sourceRepo: 'al-moussa-dental-clinic'
   }
 ];
 
@@ -89,15 +122,14 @@ export function getDeployedTenants(): DeployedTenant[] {
   try {
     const raw = localStorage.getItem(DEPLOYED_TENANTS_STORAGE_KEY);
     if (!raw) {
-      // Default initial live tenants
       const initial: DeployedTenant[] = [
         {
           id: 'tenant_cm_01',
           clientName: 'كلين ماستر مصر',
           businessName: 'كلين ماستر لخدمات النظافة والتعقيم',
-          templateName: 'خدمات النظافة والتعقيم الفندقي',
+          templateName: 'خدمات عامة وحجوزات',
           liveUrl: 'https://clean-master.vercel.app',
-          githubUrl: 'https://github.com/ahmedattia/clean-master-app',
+          githubUrl: 'https://github.com/T2Digital/clean-master',
           whatsappBot: '01013373634',
           status: 'active',
           deployedAt: '2026-11-01',
@@ -105,15 +137,27 @@ export function getDeployedTenants(): DeployedTenant[] {
         },
         {
           id: 'tenant_cr_02',
-          clientName: 'البركة موتورز',
-          businessName: 'شركة البركة لتأجير السيارات الفارهة',
-          templateName: 'تأجير السيارات الذكي',
-          liveUrl: 'https://baraka-cars.vercel.app',
-          githubUrl: 'https://github.com/ahmedattia/baraka-cars-system',
-          whatsappBot: '01013373634',
+          clientName: 'شركة الخضر لتأجير السيارات',
+          businessName: 'شركة الخضر لتأجير السيارات الفارهة',
+          templateName: 'تطبيق تأجير السيارات الذكي',
+          liveUrl: 'https://khedr-cars.vercel.app',
+          githubUrl: 'https://github.com/T2Digital/khedr-bot',
+          whatsappBot: '+966112973666',
           status: 'active',
           deployedAt: '2026-11-04',
           monthlyRevenue: 28000
+        },
+        {
+          id: 'tenant_sg_03',
+          clientName: 'Sale Gates Egypt',
+          businessName: 'منصة Sale Gates للتسويق العقاري',
+          templateName: 'تطبيق العقارات ووكيل "مستشارك الذكي"',
+          liveUrl: 'https://sales-gate.vercel.app',
+          githubUrl: 'https://github.com/T2Digital/sales-gate',
+          whatsappBot: '011111462944',
+          status: 'active',
+          deployedAt: '2026-11-05',
+          monthlyRevenue: 35000
         }
       ];
       localStorage.setItem(DEPLOYED_TENANTS_STORAGE_KEY, JSON.stringify(initial));
@@ -155,9 +199,8 @@ export async function provisionClientApp(config: TenantProvisionConfig): Promise
   const tenantId = `tenant_${Date.now()}`;
   const repoName = config.gitRepoName || `${slug}-app`;
   const liveUrl = `https://${slug}.vercel.app`;
-  const githubUrl = `https://github.com/ahmedattia/${repoName}`;
+  const githubUrl = `https://github.com/T2Digital/${repoName}`;
 
-  // 1. Simulate GitHub API creation & Git Push
   console.log(`[TENANT FACTORY] Initializing template [${template.name}] for client [${config.clientName}]...`);
   console.log(`[TENANT FACTORY] Injecting WhatsApp [${config.whatsapp}] and prices...`);
   console.log(`[TENANT FACTORY] Created GitHub Repo: ${githubUrl}`);

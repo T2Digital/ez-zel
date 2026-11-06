@@ -34,6 +34,7 @@ export interface BrandConfig {
   metaPageId?: string;
   metaPageName?: string;
   metaPageToken?: string;
+  metaToken?: string;
   subscriptionPlan: string;
   catalog: Record<string, ServiceItem | any>;
   pricingRules?: Record<string, any>;
