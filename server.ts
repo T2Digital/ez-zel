@@ -983,6 +983,78 @@ async function startServer() {
       }
   });
 
+  // Helper to convert 16-bit 24kHz Mono PCM to standard WAV
+  function pcmToWav(pcmBuffer: Buffer, sampleRate = 24000) {
+      const wavHeader = Buffer.alloc(44);
+      wavHeader.write('RIFF', 0);
+      wavHeader.writeUInt32LE(36 + pcmBuffer.length, 4);
+      wavHeader.write('WAVE', 8);
+      wavHeader.write('fmt ', 12);
+      wavHeader.writeUInt32LE(16, 16);
+      wavHeader.writeUInt16LE(1, 20); // PCM format
+      wavHeader.writeUInt16LE(1, 22); // Mono
+      wavHeader.writeUInt32LE(sampleRate, 24);
+      wavHeader.writeUInt32LE(sampleRate * 2, 28); // byteRate
+      wavHeader.writeUInt16LE(2, 32); // blockAlign
+      wavHeader.writeUInt16LE(16, 34); // 16-bit
+      wavHeader.write('data', 36);
+      wavHeader.writeUInt32LE(pcmBuffer.length, 40);
+      return Buffer.concat([wavHeader, pcmBuffer]);
+  }
+
+  // --- LATEST GOOGLE GEMINI NEURAL TTS ENDPOINT (gemini-2.5-flash-preview-tts) ---
+  app.post(["/api/tts/gemini", "/api/tts/google"], async (req, res) => {
+      try {
+          const { text, voice } = req.body;
+          if (!text) return res.status(400).json({ error: "Text is required" });
+
+          const ai = getServerAI();
+          const cleanText = text
+              .replace(/[*_#\-`~>]/g, ' ')
+              .replace(/https?:\/\/\S+/g, '')
+              .replace(/\[.*?\]/g, '')
+              .replace(/\{.*?\}/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+
+          const voiceName = voice === "female" ? "Aoede" : (voice === "charon" ? "Charon" : "Puck");
+          const prompt = `Read the following text aloud: ${cleanText.substring(0, 1000)}`;
+
+          const geminiRes = await ai.models.generateContent({
+              model: "gemini-2.5-flash-preview-tts",
+              contents: prompt,
+              config: {
+                  responseModalities: ["AUDIO"],
+                  speechConfig: {
+                      voiceConfig: {
+                          prebuiltVoiceConfig: {
+                              voiceName
+                          }
+                      }
+                  }
+              }
+          });
+
+          const rawBase64 = geminiRes.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          if (!rawBase64) {
+              throw new Error("No audio returned from Google Gemini TTS");
+          }
+
+          const pcmBuf = Buffer.from(rawBase64, "base64");
+          const wavBuf = pcmToWav(pcmBuf, 24000);
+
+          res.set({
+              "Content-Type": "audio/wav",
+              "Content-Length": wavBuf.length,
+              "Cache-Control": "public, max-age=86400"
+          });
+          res.send(wavBuf);
+      } catch (err: any) {
+          console.error("[Google Gemini TTS Error]:", err?.message || err);
+          res.status(500).json({ error: err?.message || "Google Gemini TTS failed" });
+      }
+  });
+
   // --- EDGE TTS SYNTHESIS PROXY ENDPOINT (Free Neural Voices) ---
   app.post(["/api/tts/edge-proxy", "/api/tts/edge"], async (req, res) => {
       try {

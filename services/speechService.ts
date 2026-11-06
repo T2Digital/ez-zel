@@ -680,50 +680,87 @@ export const playShadowVoice = async (
 };
 
 export const getShadowVoice = async (text: string, voice: string): Promise<string | null> => {
-    // 1. FAST PATH: Server-side Edge Neural Egyptian TTS (Ultra fast response < 250ms, natural human voice)
+    const cleanText = text
+        .replace(/[*_#\-`~>]/g, ' ')
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/\[.*?\]/g, '')
+        .replace(/\{.*?\}/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!cleanText) return null;
+
+    // 1. PRIMARY PATH: Official Google Gemini Neural TTS (gemini-2.5-flash-preview-tts)
     try {
-        const cleanText = text
-            .replace(/[*_#\-`~>]/g, ' ')
-            .replace(/https?:\/\/\S+/g, '')
-            .replace(/\[.*?\]/g, '')
-            .replace(/\{.*?\}/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
 
-        if (cleanText.length > 0) {
-            const edgeVoiceName = voice === 'female' ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout max
+        const resp = await fetch('/api/tts/gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: cleanText.substring(0, 1000),
+                voice: voice === 'female' ? 'female' : 'male'
+            }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
 
-            const resp = await fetch('/api/tts/edge-proxy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text: cleanText.substring(0, 1500),
-                    voice: edgeVoiceName,
-                    rate: '+0%',
-                    pitch: '+0Hz',
-                    format: 'audio-24khz-48kbitrate-mono-mp3'
-                }),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
+        if (resp.ok) {
+            const arrayBuffer = await resp.arrayBuffer();
+            if (arrayBuffer.byteLength > 100) {
+                let binary = '';
+                const bytes = new Uint8Array(arrayBuffer);
+                const len = bytes.byteLength;
+                const chunkSize = 8192;
+                for (let i = 0; i < len; i += chunkSize) {
+                    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+                    binary += String.fromCharCode.apply(null, chunk as any);
+                }
+                const base64Audio = btoa(binary);
+                if (base64Audio && base64Audio.length > 100) {
+                    return base64Audio;
+                }
+            }
+        }
+    } catch (e: any) {
+        console.warn("[TTS] Google Gemini TTS fallback to Edge Neural:", e?.message);
+    }
 
-            if (resp.ok) {
-                const arrayBuffer = await resp.arrayBuffer();
-                if (arrayBuffer.byteLength > 100) {
-                    let binary = '';
-                    const bytes = new Uint8Array(arrayBuffer);
-                    const len = bytes.byteLength;
-                    const chunkSize = 8192;
-                    for (let i = 0; i < len; i += chunkSize) {
-                        const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-                        binary += String.fromCharCode.apply(null, chunk as any);
-                    }
-                    const base64Audio = btoa(binary);
-                    if (base64Audio && base64Audio.length > 100) {
-                        return base64Audio;
-                    }
+    // 2. SECOND PATH: Edge Neural Egyptian Voice (ar-EG-ShakirNeural)
+    try {
+        const edgeVoiceName = voice === 'female' ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+        const resp = await fetch('/api/tts/edge-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: cleanText.substring(0, 1500),
+                voice: edgeVoiceName,
+                rate: '+0%',
+                pitch: '+0Hz',
+                format: 'audio-24khz-48kbitrate-mono-mp3'
+            }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (resp.ok) {
+            const arrayBuffer = await resp.arrayBuffer();
+            if (arrayBuffer.byteLength > 100) {
+                let binary = '';
+                const bytes = new Uint8Array(arrayBuffer);
+                const len = bytes.byteLength;
+                const chunkSize = 8192;
+                for (let i = 0; i < len; i += chunkSize) {
+                    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+                    binary += String.fromCharCode.apply(null, chunk as any);
+                }
+                const base64Audio = btoa(binary);
+                if (base64Audio && base64Audio.length > 100) {
+                    return base64Audio;
                 }
             }
         }
