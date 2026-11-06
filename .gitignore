@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .archive_scratch
+.env
+.env.local
+.env.*.local

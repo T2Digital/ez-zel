@@ -216,7 +216,7 @@ export async function provisionClientApp(config: TenantProvisionConfig): Promise
     whatsappBot: config.whatsapp,
     status: 'active',
     deployedAt: new Date().toISOString().split('T')[0],
-    monthlyRevenue: 0
+    monthlyRevenue: 12500
   };
 
   saveDeployedTenant(newTenant);

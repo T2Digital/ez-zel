@@ -706,13 +706,24 @@ async function startServer() {
   "genre": "shaabi" | "cyberpunk" | "pop" | "hiphop" | "rock" | "ambient",
   "tempo": 128
 }`;
-              const response = await ai.models.generateContent({
-                  model: "gemini-3.8-flash",
-                  contents: geminiPrompt,
-                  config: {
-                      responseMimeType: "application/json"
-                  }
-              });
+              let response: any;
+              try {
+                  response = await ai.models.generateContent({
+                      model: "gemini-3.1-flash-lite",
+                      contents: geminiPrompt,
+                      config: {
+                          responseMimeType: "application/json"
+                      }
+                  });
+              } catch (liteErr: any) {
+                  response = await ai.models.generateContent({
+                      model: "gemini-3.1-flash-lite",
+                      contents: geminiPrompt,
+                      config: {
+                          responseMimeType: "application/json"
+                      }
+                  });
+              }
 
               const textResponse = response.text || "";
               const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
@@ -960,7 +971,7 @@ async function startServer() {
               if (geminiKey) {
                   const ai = getServerAI();
                   const searchRes = await ai.models.generateContent({
-                      model: "gemini-3.8-flash",
+                      model: "gemini-3.1-flash-lite",
                       contents: `المستخدم يريد مقارنة أسعار حقيقية ومحدثة للطلب: "${query}" في الفئة "${category}".
 ابحث واستخرج 3 عروض حقيقية بالأسعار، اسم الموقع أو شركة الطيران/الفندق/المتجر، ورابط أو كود مرجعي.
 أرجع النتيجة بصيغة JSON نظيفة فقط:

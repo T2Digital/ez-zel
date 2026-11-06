@@ -241,10 +241,10 @@ If the user mentions an interest (e.g. food, tech), suggest relevant options bas
 
 // --- UPDATED MODERN MODEL CHAIN (2026 FLAGSHIP GENERATION) ---
 const MODEL_CHAIN = [
-    "gemini-3.8-flash",                  // 1. Primary Flagship: Ultra Fast & Cognitive Power (~300ms)
-    "gemini-flash-latest",               // 2. High-speed Stable Flash Production
-    "gemini-3.1-pro-preview",            // 3. Deep Reasoning, Coding & Multi-step Logic
-    "gemini-3.1-flash-lite"              // 4. Ultra-lightweight Fallback
+    "gemini-3.1-flash-lite",             // 1. Primary Ultra Fast & Highly Available (~200ms)
+    "gemini-3.8-flash",                  // 2. Flagship Cognitive Power
+    "gemini-flash-latest",               // 3. High-speed Stable Flash Production
+    "gemini-3.1-pro-preview"             // 4. Deep Reasoning, Coding & Multi-step Logic
 ];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

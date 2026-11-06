@@ -252,7 +252,15 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   return (
     <div className="min-h-screen bg-transparent text-white flex flex-col font-['Cairo'] pb-48">
       <div className="p-6 md:p-8 flex justify-between items-center bg-black/50 border-b border-white/5 sticky top-0 z-50 backdrop-blur-md">
-          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center font-black text-black">A</div><h2 className="text-xl font-black">Shadow <span className="text-amber-500">HQ</span></h2></div>
+          <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center font-black text-black shadow-lg shadow-amber-500/20">
+                  👑
+              </div>
+              <div>
+                  <h2 className="text-xl font-black text-white">عرين الظل السيادي <span className="text-amber-400">| Tito HQ</span></h2>
+                  <p className="text-[10px] text-gray-400 font-mono">منظومة الإمبراطور للتحكم بالبزنس واللايف ستايل الشخصي</p>
+              </div>
+          </div>
           <div className="flex items-center gap-2">
               <button onClick={onSwitchToUserMode} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs font-bold hover:bg-white/10 transition-all">وضع المستخدم</button>
               <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-900/20 rounded-full transition-all"><LogOut className="w-5 h-5" /></button>

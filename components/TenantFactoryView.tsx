@@ -92,25 +92,32 @@ export const TenantFactoryView: React.FC = () => {
 
   return (
     <div className="space-y-6 text-slate-100 p-2 sm:p-6" dir="rtl">
-      {/* Top Banner */}
+      {/* Top Banner: Sovereign SaaS Metrics */}
       <div className="bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 border border-amber-500/30 rounded-2xl p-5 shadow-2xl flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
               <Zap className="w-6 h-6" />
             </span>
-            <h1 className="text-xl font-black tracking-tight text-white">
-              مصنع التطبيقات السيادي | Sovereign Tenant Factory
-            </h1>
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+                مصنع التطبيقات وباقة دكتور بزنس | Dr. Business Platform
+              </h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                لوحة إمبراطور المنظومة (تيتو) — استنساخ ونشر تطبيقات الـ 100 عميل ومتابعة الاشتراكات الشهرية
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            أتمتة إنشاء ونشر متاجر وتطبيقات العملاء الجدد على GitHub و Vercel خلال 45 ثانية بصوتك
-          </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 text-xs">
-            إجمالي التطبيقات المنتجة: <span className="font-bold text-amber-400 font-mono">{deployedTenants.length}</span>
+            🏢 عملاء المنظومة: <span className="font-bold text-amber-400 font-mono text-sm">{deployedTenants.length}</span>
+          </div>
+          <div className="px-3 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-xs">
+            💰 اشتراكات المنظومة (MRR): <span className="font-bold text-emerald-400 font-mono text-sm">
+              {deployedTenants.reduce((acc, t) => acc + (t.monthlyRevenue || 0), 0).toLocaleString('en-US')} ج.م
+            </span>
           </div>
         </div>
       </div>

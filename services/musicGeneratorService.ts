@@ -7,13 +7,18 @@ export class MusicGeneratorService {
             const res = await fetch('/api/services/generate-music', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: `اكتب كلمات أغنية تجارية أو هوية صوتية جذابة باللهجة المصرية الموزونة عن: ${prompt}. اللون: ${genre}، المؤدي: ${singer}`, mode: 'lyrics_only' })
+                body: JSON.stringify({ 
+                    prompt: `أغنية شخصية ترفيهية وترويق باللهجة المصرية الأصيلة الموزونة ذات القافية الرنانة عن: ${prompt}. اللون الغنائي: ${genre}، طابع المغني: ${singer}`, 
+                    mode: 'lyrics_only',
+                    singer,
+                    length: 'pro'
+                })
             });
             const data = await res.json();
             if (data.lyrics) return data.lyrics;
-            return `يا هلا بيك في عالمنا الجميل\nمعانا تلاقي الحل الأصيل\nخدمة وفخامة وجودة تدوم\nمعانا النجاح في كل يوم`;
+            return `عايشين في الدنيا ملوك على الأصل دايمين\nبالحب والجدعنة في كل خطوة ماشيين\nالضحكة من القلب والروقان مالينا\nواللي يقدّر قيمتنا ده نور عينينا`;
         } catch {
-            return `معانا تلاقي الحل الأكيد\nفي كل ثانية يوم جديد\nراحة وأمان وجودة عالية\nوأسعارنا في متناول الإيد`;
+            return `يا ليل يا عيني على الصحبة والجدعان\nواقفين في ضهر بعض في أي مكان\nبالأصول كسبانين والراس مرفوعة\nوقلوبنا بيضا بالوفاء مطبوعة`;
         }
     }
 
