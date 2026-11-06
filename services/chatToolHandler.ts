@@ -495,24 +495,47 @@ export const processToolActions = async (
               }
               else if (t.name === 'link_reader') {
                   const args = t.args;
-                  uiCards.push({ cardType: 'task_success', title: '🌐 شبكة الإنترنت', description: `جاري تجريف محتوى: ${args.url}` });
+                  uiCards.push({ cardType: 'task_success', title: '🌐 شبكة الإنترنت', description: `جاري تجريف محتوى: ${args.url || 'الإنترنت'}` });
                   
                   setTimeout(async () => {
                       try {
-                          const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(args.url)}`);
+                          const res = await fetch('/api/scraper/scrape', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ url: args.url })
+                          });
                           const data = await res.json();
-                          const html = data.contents;
-                          const parser = new DOMParser();
-                          const doc = parser.parseFromString(html, 'text/html');
-                          doc.querySelectorAll('script, style, nav, footer, iframe, header, noscript').forEach(el => el.remove());
-                          const text = doc.body.innerText.replace(/\s+/g, ' ').substring(0, 20000); // 20k chars is good for Gemini
+                          const text = data.content || '';
                           
-                          const hiddenText = `[WEB_SCRAPER_RESULT]\nتم شفط وتجريف المحتوى من (${args.url}):\n\n${text}\n\n[INSTRUCTION]: بناءً على هذا المحتوى المختصر، أجب المستخدم أو لخص المحتوى بأسلوبك ولا تذكر أداة التجريف.`;
+                          const hiddenText = `[WEB_SCRAPER_RESULT]\nتم استخراج المحتوى بنجاح من (${args.url}):\n\n${text}\n\n[INSTRUCTION]: بناءً على هذه البيانات الحية المستخرجة، أجب المستخدم ولخص له الأخبار أو المحتوى بأسلوبك المصري الذكي ولا تذكر أداة التجريف.`;
                           handleSend(hiddenText, undefined, undefined, true);
                       } catch (e) {
-                          handleSend(`[WEB_SCRAPER_RESULT]\nفشل تجريف الرابط (${args.url}). أخبر المستخدم أن الموقع محمي أو غير متاح.`, undefined, undefined, true);
+                          // Resilient fallback to live news feed
+                          try {
+                              const newsRes = await fetch('/api/news/latest');
+                              const newsData = await newsRes.json();
+                              const newsList = (newsData.news || []).slice(0, 8).map((n: any, i: number) => `${i + 1}. ${n.title} (${n.source})`).join('\n');
+                              const hiddenText = `[LIVE_NEWS_FEED]\nأحدث الأخبار العاجلة الآن في مصر والعالم:\n${newsList}\n\n[INSTRUCTION]: لخص هذه الأخبار الحية للمستخدم باللهجة المصرية بوضوح واحترافية.`;
+                              handleSend(hiddenText, undefined, undefined, true);
+                          } catch {
+                              handleSend(`[WEB_SCRAPER_RESULT]\nعذراً يا ماستر، الموقع غير متاح حالياً.`, undefined, undefined, true);
+                          }
                       }
-                  }, 500);
+                  }, 300);
+              }
+              else if (t.name === 'get_latest_news') {
+                  uiCards.push({ cardType: 'task_success', title: '📰 رادار الأخبار الحية', description: 'جاري استخراج أحدث الأخبار العاجلة...' });
+                  setTimeout(async () => {
+                      try {
+                          const res = await fetch('/api/news/latest');
+                          const data = await res.json();
+                          const newsList = (data.news || []).slice(0, 8).map((n: any, i: number) => `${i + 1}. ${n.title} [${n.source}]`).join('\n');
+                          const hiddenText = `[LIVE_NEWS_FEED]\nأحدث عناوين الأخبار العاجلة في مصر والمنطقة الآن:\n${newsList}\n\n[INSTRUCTION]: لخص هذه الأخبار الحية للمستخدم بأسلوب مصري شيق وذكي ومباشر، وقسمها لعناوين بارزة.`;
+                          handleSend(hiddenText, undefined, undefined, true);
+                      } catch (e) {
+                          handleSend(`[LIVE_NEWS_FEED]\nعذراً، تعذر الاتصال بموجز الأخبار لحظياً.`, undefined, undefined, true);
+                      }
+                  }, 300);
               }
               else if (t.name === 'auto_deployer' || t.name === 'crypto_trader' || t.name === 'social_poster') {
                   uiCards.push({

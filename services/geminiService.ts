@@ -666,10 +666,13 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 const socialAction = toolActions.find((t: any) => t.name === 'social_poster');
                 const platform = socialAction?.args?.platform || 'السوشيال ميديا';
                 finalText = `بجهزلك البوست وبنزله على ${platform} حالا، متقلقش من حاجة.`;
+            } else if (toolActions.some((t: any) => t.name === 'get_latest_news')) {
+                finalText = "ثواني يا ماستر، بجيبلك شريط الأخبار العاجلة الحية دلوقتي حالا من الرادار...";
             } else if (toolActions.some((t: any) => t.name === 'link_reader')) {
                 const linkAction = toolActions.find((t: any) => t.name === 'link_reader');
-                const urlSummary = linkAction?.args?.url ? new URL(linkAction.args.url).hostname : 'الموقع ده';
-                finalText = `عيني يا هندسة، بدخل أشفطلك المحتوى من ${urlSummary} وألخصهولك دلوقتي...`;
+                let urlSummary = 'الموقع';
+                try { urlSummary = linkAction?.args?.url ? new URL(linkAction.args.url).hostname : 'الموقع'; } catch {}
+                finalText = `عيني يا هندسة، بجيبلك محتوى (${urlSummary}) وألخصهولك في ثواني...`;
             } else if (toolActions.some((t: any) => t.name === 'click_on_screen')) {
                 const clickAction = toolActions.find((t: any) => t.name === 'click_on_screen');
                 const textTarget = clickAction?.args?.text_to_click || 'الزرار';

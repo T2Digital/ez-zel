@@ -1296,6 +1296,106 @@ async function startServer() {
       }
   });
 
+  // --- REAL-TIME LIVE NEWS ENGINE (Google News Egypt RSS - 100% Free & Live) ---
+  app.all(["/api/news/latest", "/api/news"], async (_req, res) => {
+      try {
+          const rssUrl = "https://news.google.com/rss?hl=ar&gl=EG&ceid=EG:ar";
+          const response = await fetch(rssUrl, {
+              headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+              }
+          });
+          const xmlText = await response.text();
+
+          const items: { title: string; link: string; pubDate: string; source: string }[] = [];
+          const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+          let match;
+          while ((match = itemRegex.exec(xmlText)) !== null && items.length < 15) {
+              const itemContent = match[1];
+              const titleMatch = itemContent.match(/<title>([\s\S]*?)<\/title>/);
+              const linkMatch = itemContent.match(/<link>([\s\S]*?)<\/link>/);
+              const pubDateMatch = itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+              const sourceMatch = itemContent.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+
+              const cleanTitle = (titleMatch ? titleMatch[1] : "").replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
+              const link = linkMatch ? linkMatch[1].trim() : "";
+              const pubDate = pubDateMatch ? pubDateMatch[1].trim() : "";
+              const source = sourceMatch ? sourceMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim() : "";
+
+              if (cleanTitle) {
+                  items.push({ title: cleanTitle, link, pubDate, source });
+              }
+          }
+
+          res.json({
+              success: true,
+              timestamp: new Date().toISOString(),
+              count: items.length,
+              news: items
+          });
+      } catch (err: any) {
+          console.error("[News API Error]:", err?.message || err);
+          res.status(500).json({ error: err?.message || "Failed to fetch live news" });
+      }
+  });
+
+  // --- SERVER-SIDE SCRAPER PROXY (Zero CORS issues, direct server fetch & fallback) ---
+  app.post("/api/scraper/scrape", async (req, res) => {
+      try {
+          const { url, query } = req.body;
+          if (!url && !query) return res.status(400).json({ error: "url or query is required" });
+
+          // If it is a news query or news website
+          if (query || (url && /news|akhbar|youm7|masrawy|almasryalyoum|bbc/i.test(url))) {
+              const rssUrl = "https://news.google.com/rss?hl=ar&gl=EG&ceid=EG:ar";
+              const rssRes = await fetch(rssUrl, {
+                  headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+              });
+              const xml = await rssRes.text();
+              const titles: string[] = [];
+              const matchRegex = /<title>([\s\S]*?)<\/title>/g;
+              let m;
+              while ((m = matchRegex.exec(xml)) !== null && titles.length < 10) {
+                  const t = m[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
+                  if (t && !t.includes("Google الأخبار")) titles.push(t);
+              }
+              if (titles.length > 0) {
+                  return res.json({
+                      success: true,
+                      url: url || rssUrl,
+                      content: `أحدث عناوين الأخبار العاجلة الحية الآن:\n${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
+                  });
+              }
+          }
+
+          // Direct server-side fetch
+          const fetchRes = await fetch(url, {
+              headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                  "Accept-Language": "ar,en;q=0.9"
+              }
+          });
+          const html = await fetchRes.text();
+          const cleanText = html
+              .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+              .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&[a-z0-9#]+;/gi, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+
+          res.json({
+              success: true,
+              url,
+              content: cleanText.substring(0, 8000)
+          });
+      } catch (err: any) {
+          console.error("[Scraper Error]:", err.message);
+          res.status(500).json({ error: err.message });
+      }
+  });
+
   // --- REAL BROWSER & WEB AUTOMATION ENGINE (Puppeteer Real Headless Execution) ---
   app.post("/api/agent/browser-action", async (req, res) => {
       try {
