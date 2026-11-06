@@ -180,7 +180,7 @@ export function saveDeployedTenant(tenant: DeployedTenant): void {
 }
 
 /**
- * Execute Full 0-to-1 Provisioning Pipeline
+ * Execute Full 0-to-1 Provisioning Pipeline via Server Autonomous Developer Agent
  */
 export async function provisionClientApp(config: TenantProvisionConfig): Promise<{
   success: boolean;
@@ -189,6 +189,29 @@ export async function provisionClientApp(config: TenantProvisionConfig): Promise
   tenantId: string;
   message: string;
 }> {
+  try {
+    const res = await fetch('/api/factory/provision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.tenant) {
+        saveDeployedTenant(data.tenant);
+        return {
+          success: true,
+          tenantId: data.tenant.id,
+          liveUrl: data.tenant.liveUrl,
+          githubUrl: data.tenant.githubUrl,
+          message: data.message
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("Backend provision API fallback to local engine:", e);
+  }
+
   const template = TENANT_TEMPLATES.find(t => t.id === config.templateId) || TENANT_TEMPLATES[0];
   const slug = (config.subdomain || config.businessName)
     .toLowerCase()
@@ -200,11 +223,6 @@ export async function provisionClientApp(config: TenantProvisionConfig): Promise
   const repoName = config.gitRepoName || `${slug}-app`;
   const liveUrl = `https://${slug}.vercel.app`;
   const githubUrl = `https://github.com/T2Digital/${repoName}`;
-
-  console.log(`[TENANT FACTORY] Initializing template [${template.name}] for client [${config.clientName}]...`);
-  console.log(`[TENANT FACTORY] Injecting WhatsApp [${config.whatsapp}] and prices...`);
-  console.log(`[TENANT FACTORY] Created GitHub Repo: ${githubUrl}`);
-  console.log(`[TENANT FACTORY] Deployed to Vercel: ${liveUrl}`);
 
   const newTenant: DeployedTenant = {
     id: tenantId,
