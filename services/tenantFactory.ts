@@ -61,7 +61,7 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     icon: 'Car',
     defaultPort: 3001,
     features: ['كتالوج أسطول السيارات', 'حساب تكلفة المدة تلقائياً', 'دفع العربون الإلكتروني', 'تأكيد الحجز التلقائي'],
-    sourceRepo: 'khedr-cars-rental'
+    sourceRepo: 'https://github.com/T2Digital/khedr-bot'
   },
   {
     id: 'real_estate',
@@ -71,7 +71,7 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     icon: 'Building2',
     defaultPort: 3002,
     features: ['مستشارك العقاري الذكي 24/7', 'حجز معاينات الفلل والشقق', 'حاسبة الأقساط والتمويل', 'معرض الصور والمخططات'],
-    sourceRepo: 'sales-gate-realestate'
+    sourceRepo: 'https://github.com/T2Digital/sales-gate'
   },
   {
     id: 'clean_master',
@@ -81,7 +81,7 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     icon: 'Sparkles',
     defaultPort: 3003,
     features: ['حساب تكلفة الخدمة والمساحة', 'خصومات الحجز الإلكتروني', 'جدولة فرق العمل والمواعيد', 'فواتير رقمية معتمدة'],
-    sourceRepo: 'clean-master-services'
+    sourceRepo: 'https://github.com/T2Digital/cleanmaster-app'
   },
   {
     id: 'ecommerce_store',
@@ -91,7 +91,7 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     icon: 'ShoppingBag',
     defaultPort: 3004,
     features: ['إدارة المنتجات والمخزون', 'بوابات الدفع الإلكتروني', 'حساب تكلفة الشحن للمحافظات', 'خصم الدفع المسبق التلقائي'],
-    sourceRepo: 'battah-system-ecommerce'
+    sourceRepo: 'https://github.com/T2Digital/battah-system-final'
   },
   {
     id: 'shipping_logistics',
@@ -101,7 +101,7 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     icon: 'Truck',
     defaultPort: 3005,
     features: ['تتبع أرقام البوالص لايف', 'حاسبة أسعار الشحن للمحافظات', 'إدارة المناديب وتأكيد الاستلام', 'لوحة تحكم التجار'],
-    sourceRepo: 'vision-shipping'
+    sourceRepo: 'https://github.com/T2Digital/vision-shipping'
   },
   {
     id: 'medical_clinic',
@@ -111,7 +111,7 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     icon: 'HeartPulse',
     defaultPort: 3006,
     features: ['حجز مواعيد الأطباء أونلاين', 'عرض باقات الزراعة والتجميل', 'تذكير بمواعيد الكشف عبر واتساب', 'إدارة فروع العيادة'],
-    sourceRepo: 'al-moussa-dental-clinic'
+    sourceRepo: 'https://github.com/T2Digital/rivoli-dental-center'
   }
 ];
 

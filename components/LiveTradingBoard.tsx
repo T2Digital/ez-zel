@@ -17,8 +17,6 @@ export const LiveTradingBoard: React.FC<{ onClose: () => void, apiKey?: string, 
     const currentPriceRef = useRef(0);
 
     useEffect(() => {
-        if (!apiKey || !apiSecret) return;
-
         setIsSwarmActive(true);
         
         // Initial price
