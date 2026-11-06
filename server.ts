@@ -341,18 +341,48 @@ async function startServer() {
   });
 
   // --- SERVER-SIDE GEMINI API ENDPOINTS --- //
+  // Helper to sanitize model & strip tools that trigger Free Tier 429 quota exhaustion
+  function sanitizeModelAndConfig(model: string, config?: any) {
+      let safeModel = model;
+      if (!safeModel || safeModel.includes("pro") || safeModel.includes("2.0-flash") || safeModel.includes("1.5-flash")) {
+          safeModel = "gemini-3.1-flash-lite";
+      }
+      let safeConfig = config ? { ...config } : {};
+      if (safeConfig.tools && Array.isArray(safeConfig.tools)) {
+          // Filter out googleSearch because Google AI Studio Free Tier has 0 quota for search grounding and throws 429
+          safeConfig.tools = safeConfig.tools.filter((t: any) => !t.googleSearch);
+          if (safeConfig.tools.length === 0) {
+              delete safeConfig.tools;
+              delete safeConfig.toolConfig;
+          }
+      }
+      return { safeModel, safeConfig };
+  }
+
   app.post("/api/gemini/generate", async (req, res) => {
       try {
           const { model, contents, config } = req.body || {};
           if (!model || contents === undefined) {
               return res.status(400).json({ error: "model and contents are required" });
           }
+          const { safeModel, safeConfig } = sanitizeModelAndConfig(model, config);
           const ai = getServerAI();
-          const response = await ai.models.generateContent({
-              model,
-              contents,
-              ...(config ? { config } : {}),
-          });
+          
+          let response: any;
+          try {
+              response = await ai.models.generateContent({
+                  model: safeModel,
+                  contents,
+                  ...(Object.keys(safeConfig).length > 0 ? { config: safeConfig } : {}),
+              });
+          } catch (firstErr: any) {
+              console.warn(`[Gemini Generate] ${safeModel} failed (${firstErr?.status || firstErr?.message}), auto-recovering clean with gemini-3.1-flash-lite...`);
+              response = await ai.models.generateContent({
+                  model: "gemini-3.1-flash-lite",
+                  contents,
+              });
+          }
+
           res.json({
               text: response.text ?? '',
               functionCalls: response.functionCalls ?? [],
@@ -371,17 +401,27 @@ async function startServer() {
           if (!model || contents === undefined) {
               return res.status(400).json({ error: "model and contents are required" });
           }
+          const { safeModel, safeConfig } = sanitizeModelAndConfig(model, config);
           const ai = getServerAI();
           res.setHeader("Content-Type", "text/event-stream");
           res.setHeader("Cache-Control", "no-cache");
           res.setHeader("Connection", "keep-alive");
           res.flushHeaders();
 
-          const stream = await ai.models.generateContentStream({
-              model,
-              contents,
-              ...(config ? { config } : {}),
-          });
+          let stream: any;
+          try {
+              stream = await ai.models.generateContentStream({
+                  model: safeModel,
+                  contents,
+                  ...(Object.keys(safeConfig).length > 0 ? { config: safeConfig } : {}),
+              });
+          } catch (streamErr: any) {
+              console.warn(`[Gemini Stream] ${safeModel} failed, auto-recovering stream on gemini-3.1-flash-lite...`);
+              stream = await ai.models.generateContentStream({
+                  model: "gemini-3.1-flash-lite",
+                  contents,
+              });
+          }
 
           for await (const chunk of stream) {
               const payload = {
@@ -728,10 +768,19 @@ async function startServer() {
               const textResponse = response.text || "";
               const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
-                  const parsed = JSON.parse(jsonMatch[0]);
-                  title = parsed.title || title;
-                  lyrics = parsed.lyrics || lyrics;
-                  if (parsed.genre) genre = parsed.genre;
+                  try {
+                      const parsed = JSON.parse(jsonMatch[0]);
+                      title = parsed.title || title;
+                      lyrics = parsed.lyrics || lyrics;
+                      if (parsed.genre) genre = parsed.genre;
+                  } catch {
+                      const lyricsMatch = textResponse.match(/"lyrics"\s*:\s*"([\s\S]*?)(?:"\s*,\s*"|"\s*\})/);
+                      if (lyricsMatch && lyricsMatch[1]) {
+                          lyrics = lyricsMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                      } else {
+                          lyrics = textResponse.replace(/[{}\[\]"]/g, '').trim();
+                      }
+                  }
               } else {
                   lyrics = textResponse;
               }
