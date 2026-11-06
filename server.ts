@@ -383,8 +383,17 @@ async function startServer() {
               });
           }
 
+          let responseText = '';
+          try {
+              const parts = response.candidates?.[0]?.content?.parts || [];
+              const textParts = parts.filter((p: any) => typeof p.text === 'string').map((p: any) => p.text);
+              responseText = textParts.length > 0 ? textParts.join('') : (response.text ?? '');
+          } catch {
+              responseText = '';
+          }
+
           res.json({
-              text: response.text ?? '',
+              text: responseText,
               functionCalls: response.functionCalls ?? [],
               candidates: response.candidates ?? [],
           });
@@ -424,8 +433,17 @@ async function startServer() {
           }
 
           for await (const chunk of stream) {
+              let chunkText = '';
+              try {
+                  const parts = chunk.candidates?.[0]?.content?.parts || [];
+                  const textParts = parts.filter((p: any) => typeof p.text === 'string').map((p: any) => p.text);
+                  chunkText = textParts.length > 0 ? textParts.join('') : (chunk.text ?? '');
+              } catch {
+                  chunkText = '';
+              }
+
               const payload = {
-                  text: chunk.text ?? '',
+                  text: chunkText,
                   functionCalls: chunk.functionCalls ?? [],
                   candidates: chunk.candidates ?? [],
               };
@@ -1843,71 +1861,84 @@ async function startServer() {
           const voiceName = voiceParam === "female" ? "Kore" : "Puck";
 
           const ai = getServerAI();
-          liveSession = await ai.live.connect({
-              model: "gemini-3.8-live",
-              config: {
-                  responseModalities: [Modality.AUDIO],
-                  speechConfig: {
-                      voiceConfig: {
-                          prebuiltVoiceConfig: { voiceName },
+          const liveConfig = {
+              responseModalities: [Modality.AUDIO],
+              speechConfig: {
+                  voiceConfig: {
+                      prebuiltVoiceConfig: { voiceName },
+                  },
+              },
+              inputAudioTranscription: {},
+              outputAudioTranscription: {},
+              systemInstruction: {
+                  parts: [
+                      {
+                          text: `أنت "الظل الرقمي" (Ez-Zel)، مساعد ذكي مصري عبقري وسريع البديهة${userName ? ` يتحدث مع ${userName}` : ""}. تحدث باللهجة المصرية الودودة والذكية بإيجاز ووضوح.`,
                       },
-                  },
-                  inputAudioTranscription: {},
-                  outputAudioTranscription: {},
-                  systemInstruction: {
-                      parts: [
-                          {
-                              text: `أنت "الظل الرقمي" (Ez-Zel)، مساعد ذكي مصري عبقري وسريع البديهة${userName ? ` يتحدث مع ${userName}` : ""}. تحدث باللهجة المصرية الودودة والذكية بإيجاز ووضوح.`,
-                          },
-                      ],
-                  },
+                  ],
               },
-              callbacks: {
-                  onopen: () => {
-                      if (ws.readyState === WebSocket.OPEN) {
-                          ws.send(JSON.stringify({ status: "connected" }));
-                      }
-                  },
-                  onmessage: (message: any) => {
-                      if (ws.readyState !== WebSocket.OPEN) return;
+          };
 
-                      if (message.serverContent?.interrupted) {
-                          ws.send(JSON.stringify({ interrupted: true }));
-                      }
-
-                      const parts = message.serverContent?.modelTurn?.parts || [];
-                      for (const part of parts) {
-                          if (part.inlineData?.data) {
-                              ws.send(JSON.stringify({ audio: part.inlineData.data }));
-                          }
-                      }
-
-                      if (message.serverContent?.inputTranscription?.text) {
-                          ws.send(JSON.stringify({ inputTranscript: message.serverContent.inputTranscription.text }));
-                      }
-                      if (message.serverContent?.outputTranscription?.text) {
-                          ws.send(JSON.stringify({ outputTranscript: message.serverContent.outputTranscription.text }));
-                      }
-                      if (message.toolCall) {
-                          ws.send(JSON.stringify({ toolCall: message.toolCall }));
-                      }
-                      if (message.serverContent?.turnComplete) {
-                          ws.send(JSON.stringify({ turnComplete: true }));
-                      }
-                  },
-                  onerror: (err: any) => {
-                      console.error("[Gemini Live Session Error]:", err?.message || err);
-                      if (ws.readyState === WebSocket.OPEN) {
-                          ws.send(JSON.stringify({ error: err?.message || "Gemini Live API error" }));
-                      }
-                  },
-                  onclose: () => {
-                      if (ws.readyState === WebSocket.OPEN) {
-                          ws.close();
-                      }
-                  },
+          const liveCallbacks = {
+              onopen: () => {
+                  if (ws.readyState === WebSocket.OPEN) {
+                      ws.send(JSON.stringify({ status: "connected" }));
+                  }
               },
-          });
+              onmessage: (message: any) => {
+                  if (ws.readyState !== WebSocket.OPEN) return;
+
+                  if (message.serverContent?.interrupted) {
+                      ws.send(JSON.stringify({ interrupted: true }));
+                  }
+
+                  const parts = message.serverContent?.modelTurn?.parts || [];
+                  for (const part of parts) {
+                      if (part.inlineData?.data) {
+                          ws.send(JSON.stringify({ audio: part.inlineData.data }));
+                      }
+                  }
+
+                  if (message.serverContent?.inputTranscription?.text) {
+                      ws.send(JSON.stringify({ inputTranscript: message.serverContent.inputTranscription.text }));
+                  }
+                  if (message.serverContent?.outputTranscription?.text) {
+                      ws.send(JSON.stringify({ outputTranscript: message.serverContent.outputTranscription.text }));
+                  }
+                  if (message.toolCall) {
+                      ws.send(JSON.stringify({ toolCall: message.toolCall }));
+                  }
+                  if (message.serverContent?.turnComplete) {
+                      ws.send(JSON.stringify({ turnComplete: true }));
+                  }
+              },
+              onerror: (err: any) => {
+                  console.error("[Gemini Live Session Error]:", err?.message || err);
+                  if (ws.readyState === WebSocket.OPEN) {
+                      ws.send(JSON.stringify({ error: err?.message || "Gemini Live API error" }));
+                  }
+              },
+              onclose: () => {
+                  if (ws.readyState === WebSocket.OPEN) {
+                      ws.close();
+                  }
+              },
+          };
+
+          try {
+              liveSession = await ai.live.connect({
+                  model: "gemini-live-2.5-flash-preview",
+                  config: liveConfig,
+                  callbacks: liveCallbacks
+              });
+          } catch (liveErr: any) {
+              console.warn(`[Gemini Live] Primary model failed (${liveErr?.message}), trying gemini-2.0-flash-exp...`);
+              liveSession = await ai.live.connect({
+                  model: "gemini-2.0-flash-exp",
+                  config: liveConfig,
+                  callbacks: liveCallbacks
+              });
+          }
 
           while (pendingMessages.length > 0) {
               const queued = pendingMessages.shift();
