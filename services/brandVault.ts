@@ -1,6 +1,6 @@
 /**
  * Sovereign Brand Vault for The Shadow (D:\ez-zel-)
- * Single Source of Truth unifying Tito Studio visual identities & Tito Agent operational bot data.
+ * Single Source of Truth matching live production brands from Tito Agent & Tito Studio.
  */
 
 export interface ServiceItem {
@@ -15,37 +15,38 @@ export interface BrandConfig {
   id: string;
   name: string;
   category: string;
-  source: 'studio' | 'agent' | 'unified';
-  metaPageId?: string;
-  metaPageToken?: string;
+  source: 'agent' | 'studio' | 'unified';
+  status: 'شغال' | 'متوقف';
+  conversationsCount: number;
   phone: string;
   whatsapp: string;
   primaryColor: string;
   accentColor: string;
-  logoUrl: string;
+  logoUrl?: string;
   address?: string;
-  botStatus?: 'CONNECTED' | 'DISCONNECTED' | 'READY';
+  subscriptionPlan: 'VIP غير محدود' | 'تجربة مجانية 7 أيام';
   catalog: Record<string, any>;
   pricingRules?: Record<string, any>;
-  servicesList?: ServiceItem[];
   systemPrompt?: string;
+  knowledgeText?: string;
 }
 
 export const BRAND_VAULT: Record<string, BrandConfig> = {
+  // 1. كلين ماستر (شغال - 221 محادثة لايف)
   clean_master: {
     id: 'clean_master',
     name: 'كلين ماستر لخدمات النظافة والتعقيم',
-    category: 'خدمات عامة وحجوزات',
+    category: 'خدمات تنظيف ومنازل',
     source: 'unified',
-    metaPageId: '355285914324865',
-    metaPageToken: 'EAAaEIxaL5OsBSZCSwZA9n1qkPw0UoQZCRqepPbpApFyRzwYcnJp8iHNVuoQSdDnqInAC8jolZAm2pDhH6K0wVc7ggfwKu8lFPt0qpvrHDzZAauB56WA7XCmPZBvQZBsryIu8bpftzT0mTAg4DjE5ZB9QiIvfnuuDZA9uZC2T0iv5noJc0bvAWaGoHsUEBxH2vAupflgSWJQiMwR7Ms4pOJHaQtcAY0mymrhnAZBBiGkSZBaUuwZDZD',
+    status: 'شغال',
+    conversationsCount: 221,
     phone: '01013373634',
-    whatsapp: '01013373634',
+    whatsapp: '201013373634',
     primaryColor: '#13343B',
     accentColor: '#21808D',
     logoUrl: 'https://i.ibb.co/f52dPHc/1000049048.jpg',
     address: 'المهندسين، الجيزة - تغطية القاهرة الكبرى',
-    botStatus: 'CONNECTED',
+    subscriptionPlan: 'VIP غير محدود',
     catalog: {
       mosqueCarpets: {
         name: 'غسيل سجاد وموكيت المساجد ودور العبادة بالبخار الحار',
@@ -60,7 +61,7 @@ export const BRAND_VAULT: Record<string, BrandConfig> = {
         unit: 'ج.م / م²'
       },
       sofaUpholstery: {
-        name: 'غسيل وتطهير أطقم الكنب والإنتريهات والمفروشات بالرغوة الجافة',
+        name: 'غسيل وتطهير أطقم الكنب والإنتريهات بالرغوة الجافة',
         pricePerSet: 450,
         unit: 'ج.م / طقم'
       }
@@ -73,18 +74,70 @@ export const BRAND_VAULT: Record<string, BrandConfig> = {
     }
   },
 
+  // 2. Sale Gates Egypt (شغال - 59 محادثة لايف)
+  besho: {
+    id: 'besho',
+    name: 'Sale Gates Egypt',
+    category: 'منصة بيع وعقارات',
+    source: 'agent',
+    status: 'شغال',
+    conversationsCount: 59,
+    phone: '011111462944',
+    whatsapp: '201111462944',
+    primaryColor: '#059669',
+    accentColor: '#10B981',
+    address: 'القاهرة، مصر - مشروعات العاصمة والشيخ زايد والتجمع',
+    subscriptionPlan: 'VIP غير محدود',
+    catalog: {
+      apartments: { name: 'شقق ووحدات سكنية بكمبوندات راقية مع أنظمة سداد' },
+      commercial: { name: 'محلات ومكاتب تجارية وإدارية ذات عائد إيجاري' },
+      villas: { name: 'فيلات وتاون هاوس تسليم فوري وتقسيط مباشر' }
+    },
+    systemPrompt: 'أنت المستشار العقاري الذكي لمنصة Sale Gates Egypt. تجيب على العملاء وتجمع متطلبات الوحدة والميزانية وترتب المعاينات.'
+  },
+
+  // 3. متجر بطاح (VIP غير محدود)
+  battah_system: {
+    id: 'battah_system',
+    name: 'متجر بطاح لقطع غيار السيارات والكماليات',
+    category: 'تجارة إلكترونية وقطع غيار',
+    source: 'unified',
+    status: 'متوقف',
+    conversationsCount: 0,
+    phone: '01013373634',
+    whatsapp: '201013373634',
+    primaryColor: '#B91C1C',
+    accentColor: '#EF4444',
+    logoUrl: 'https://i.ibb.co/L5kHjXz/battah.jpg',
+    address: 'القاهرة، مصر - شحن فوري لكافة المحافظات',
+    subscriptionPlan: 'VIP غير محدود',
+    catalog: {
+      brakePads: { name: 'تيل فرامل أصلي معتمد', discount: '10% دفع إلكتروني مسبق' },
+      engineFilters: { name: 'فلاتر زيت وهواء وتكييف معتمدة', discount: '10% فوري' },
+      sparkPlugs: { name: 'بوجيهات إيريديوم ليزر وسير كاتينة ألماني', discount: '10% فوري' }
+    },
+    pricingRules: {
+      currency: 'EGP',
+      prepayDiscountPercent: 10,
+      deliveryTimeHours: '24-48 ساعة'
+    }
+  },
+
+  // 4. شركة الخضر لتأجير السيارات (VIP غير محدود)
   alkhedr_car_rental: {
     id: 'alkhedr_car_rental',
     name: 'شركة الخضر لتأجير السيارات',
-    category: 'تأجير سيارات ونقل سياحي',
+    category: 'تأجير سيارات وسياحة',
     source: 'unified',
+    status: 'متوقف',
+    conversationsCount: 0,
     phone: '+966112973666',
     whatsapp: '+966112973666',
     primaryColor: '#1E3A8A',
     accentColor: '#3B82F6',
     logoUrl: 'https://i.ibb.co/4p4Fqgq/khedr.jpg',
     address: 'الرياض، المملكة العربية السعودية / فروع القاهرة',
-    botStatus: 'READY',
+    subscriptionPlan: 'VIP غير محدود',
     catalog: {
       elantraCN7: {
         name: 'هيونداي إلنترا CN7 موديل 2024',
@@ -111,113 +164,47 @@ export const BRAND_VAULT: Record<string, BrandConfig> = {
     }
   },
 
-  battah_system: {
-    id: 'battah_system',
-    name: 'متجر بطاح لقطع غيار السيارات والكماليات',
-    category: 'متجر إلكتروني وتجارة رقمية',
-    source: 'unified',
-    phone: '01013373634',
-    whatsapp: '01013373634',
-    primaryColor: '#B91C1C',
-    accentColor: '#EF4444',
-    logoUrl: 'https://i.ibb.co/L5kHjXz/battah.jpg',
-    address: 'القاهرة، مصر - شحن فوري لكافة المحافظات',
-    botStatus: 'READY',
-    catalog: {
-      brakePads: { name: 'تيل فرامل أصلي معتمد', discount: '10% دفع إلكتروني مسبق' },
-      engineFilters: { name: 'فلاتر زيت وهواء وتكييف معتمدة', discount: '10% فوري' },
-      sparkPlugs: { name: 'بوجيهات إيريديوم ليزر وسير كاتينة ألماني', discount: '10% فوري' }
-    },
-    pricingRules: {
-      currency: 'EGP',
-      prepayDiscountPercent: 10,
-      deliveryTimeHours: '24-48 ساعة'
-    }
-  },
-
-  crystal_teeth: {
-    id: 'crystal_teeth',
-    name: 'عيادة كريستال لطب وزراعة الأسنان (فيصل)',
-    category: 'رعاية صحية وطب أسنان',
-    source: 'studio',
-    phone: '01152751755',
-    whatsapp: '01152751755',
-    primaryColor: '#0D9488',
-    accentColor: '#14B8A6',
-    logoUrl: 'https://i.ibb.co/crystal-logo.jpg',
-    address: 'شارع فيصل الرئيسي، الجيزة',
-    catalog: {
-      implant: { name: 'زراعة الأسنان الفورية الألمانية' },
-      hollywoodSmile: { name: 'ابتسامة هوليود وفينير إيماكس سويسري' },
-      whitening: { name: 'تبييض الأسنان بالليزر وجلسة تنظيف الجير' }
-    }
-  },
-
-  almeshwar_rent_car: {
-    id: 'almeshwar_rent_car',
-    name: 'المشوار لتأجير السيارات',
-    category: 'تأجير سيارات ونقل سياحي',
-    source: 'studio',
-    phone: '0112716060',
-    whatsapp: '0112716060',
-    primaryColor: '#D97706',
-    accentColor: '#F59E0B',
-    logoUrl: 'https://i.ibb.co/meshwar-logo.jpg',
-    address: 'المملكة العربية السعودية',
-    catalog: {
-      luxuryFleet: { name: 'سيارات فارهة VIP مع سائق خاص' },
-      monthlyRentals: { name: 'عقود تأجير شهرية وسنوية للشركات' }
-    }
-  },
-
-  albaraka_motors: {
-    id: 'albaraka_motors',
-    name: 'البركة موتورز لتجارة السيارات',
+  // 5. بركة موتورز
+  baraka_motors: {
+    id: 'baraka_motors',
+    name: 'بركة موتورز',
     category: 'تجارة سيارات ومعارض',
-    source: 'studio',
+    source: 'unified',
+    status: 'متوقف',
+    conversationsCount: 0,
     phone: '01147418358',
     whatsapp: '01147418358',
     primaryColor: '#1F2937',
     accentColor: '#4B5563',
-    logoUrl: '',
     address: 'القاهرة، مصر',
+    subscriptionPlan: 'تجربة مجانية 7 أيام',
     catalog: {
       installmentCars: { name: 'برامج تقسيط السيارات المباشر بأقل مقدم' }
-    }
+    },
+    systemPrompt: 'أنت المساعد الذكي لشركة بركة موتورز لتجارة وتأجير السيارات.',
+    knowledgeText: 'معرض بركة موتورز يقدم أفضل عروض التقسيط والتأجير للسيارات الحديثة.'
   },
 
-  kyan_store: {
-    id: 'kyan_store',
-    name: 'كيان للتجارة والتسوق الإلكتروني',
-    category: 'متجر إلكتروني وتجارة رقمية',
-    source: 'studio',
-    phone: '01038690400',
-    whatsapp: '01038690400',
-    primaryColor: '#7C3AED',
-    accentColor: '#8B5CF6',
-    logoUrl: '',
-    address: 'القاهرة، مصر',
-    catalog: {
-      products: { name: 'منتجات وأدوات منزلية وشخصية' }
-    }
-  },
-
-  tito_media: {
-    id: 'tito_media',
-    name: 'T2 Media & Production Agency',
-    category: 'إعلام وإنتاج رقمي وأتمتة',
+  // 6. T2 Digital
+  'T2-Digital': {
+    id: 'T2-Digital',
+    name: 'T2 Digital',
+    category: 'إعلام وتسويق ونمو رقمي',
     source: 'unified',
+    status: 'متوقف',
+    conversationsCount: 0,
     phone: '01030956097',
     whatsapp: '01030956097',
     primaryColor: '#0F172A',
     accentColor: '#38BDF8',
-    logoUrl: '',
     address: 'القاهرة، مصر',
-    botStatus: 'READY',
+    subscriptionPlan: 'تجربة مجانية 7 أيام',
     catalog: {
       saasBots: { name: 'بناء وإطلاق وكلاء الذكاء الاصطناعي للمؤسسات والشركات' },
       digitalMarketing: { name: 'حملات إعلانية ممولة وإدارة منصات السوشيال ميديا' }
-    }
+    },
+    systemPrompt: 'أنت اسمك تيتو، تعمل كمطور أعمال وخبير النمو والتسويق الرقمي.',
+    knowledgeText: 'البراندنج وتأسيس الهوية التجارية بالكامل، التواجد الإلكتروني، وإدارة الحملات الإعلانية الممولة واستراتيجيات النمو.'
   }
 };
 
