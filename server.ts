@@ -1194,10 +1194,9 @@ async function startServer() {
   // --- LATEST GOOGLE GEMINI NEURAL TTS ENDPOINT (gemini-2.5-flash-preview-tts) ---
   app.post(["/api/tts/gemini", "/api/tts/google"], async (req, res) => {
       try {
-          const { text, voice } = req.body;
+          const { text, voice, engine } = req.body;
           if (!text) return res.status(400).json({ error: "Text is required" });
 
-          const ai = getServerAI();
           const cleanText = text
               .replace(/[*_#\-`~>]/g, ' ')
               .replace(/https?:\/\/\S+/g, '')
@@ -1206,6 +1205,33 @@ async function startServer() {
               .replace(/\s+/g, ' ')
               .trim();
 
+          const isArabic = /[\u0600-\u06FF]/.test(cleanText);
+
+          // For Arabic speech, deliver authentic human Egyptian neural voice (ar-EG-ShakirNeural / ar-EG-SalmaNeural)
+          // Google Gemini TTS currently only has English voice models (Puck/Aoede) that sound robotic on Arabic
+          if (isArabic && engine !== "google_raw") {
+              try {
+                  const edgeVoice = voice === "female" ? "ar-EG-SalmaNeural" : "ar-EG-ShakirNeural";
+                  const audioBuffer = await synthesizeEdgeSpeech({
+                      text: cleanText.substring(0, 1500),
+                      voice: edgeVoice,
+                      rate: "+4%",
+                      pitch: voice === "female" ? "+0Hz" : "-2Hz",
+                      outputFormat: "audio-24khz-48kbitrate-mono-mp3"
+                  });
+
+                  res.set({
+                      "Content-Type": "audio/mp3",
+                      "Content-Length": audioBuffer.length,
+                      "Cache-Control": "public, max-age=86400"
+                  });
+                  return res.send(audioBuffer);
+              } catch (edgeErr: any) {
+                  console.warn("[TTS] Edge Egyptian neural fallback to Gemini TTS:", edgeErr.message);
+              }
+          }
+
+          const ai = getServerAI();
           const voiceName = voice === "female" ? "Aoede" : (voice === "charon" ? "Charon" : "Puck");
           const prompt = `Read the following text aloud: ${cleanText.substring(0, 1000)}`;
 

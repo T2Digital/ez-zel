@@ -4,6 +4,7 @@ import { TextToSpeech } from "@capacitor-community/text-to-speech";
 import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
 import { getAI, Modality } from "./aiClient";
+import { resolveVoicePersona } from "./voicePersonaService";
 let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 
@@ -680,7 +681,60 @@ export const getShadowVoice = async (text: string, voice: string): Promise<strin
 
     if (!cleanText) return null;
 
-    // 1. PRIMARY PATH: Official Google Gemini Neural TTS (gemini-2.5-flash-preview-tts)
+    // Resolve active human voice persona for genuine Egyptian warmth & cadence
+    let edgeVoiceName = voice === 'female' ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
+    let edgeRate = '+4%';
+    let edgePitch = '-2Hz';
+
+    try {
+        const { persona, config } = resolveVoicePersona(voice);
+        if (persona?.edgeVoice) edgeVoiceName = persona.edgeVoice;
+        if (persona?.edgeRate) edgeRate = persona.edgeRate;
+        if (persona?.edgePitch) edgePitch = persona.edgePitch;
+    } catch {}
+
+    // 1. PRIMARY PATH: High-Fidelity Human Egyptian Neural Voice (ar-EG-ShakirNeural / ar-EG-SalmaNeural)
+    // 100% human studio recordings by native Egyptian speakers with authentic dialect, breath, and warmth
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+        const resp = await fetch('/api/tts/edge-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: cleanText.substring(0, 1500),
+                voice: edgeVoiceName,
+                rate: edgeRate,
+                pitch: edgePitch,
+                format: 'audio-24khz-48kbitrate-mono-mp3'
+            }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (resp.ok) {
+            const arrayBuffer = await resp.arrayBuffer();
+            if (arrayBuffer.byteLength > 100) {
+                let binary = '';
+                const bytes = new Uint8Array(arrayBuffer);
+                const len = bytes.byteLength;
+                const chunkSize = 8192;
+                for (let i = 0; i < len; i += chunkSize) {
+                    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+                    binary += String.fromCharCode.apply(null, chunk as any);
+                }
+                const base64Audio = btoa(binary);
+                if (base64Audio && base64Audio.length > 100) {
+                    return base64Audio;
+                }
+            }
+        }
+    } catch (e: any) {
+        console.warn("[TTS] Edge Egyptian Neural failed, falling back to Google Gemini TTS:", e?.message);
+    }
+
+    // 2. SECOND PATH: Google Gemini Neural TTS Endpoint (gemini-2.5-flash-preview-tts)
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 9000);
@@ -714,48 +768,7 @@ export const getShadowVoice = async (text: string, voice: string): Promise<strin
             }
         }
     } catch (e: any) {
-        console.warn("[TTS] Google Gemini TTS fallback to Edge Neural:", e?.message);
-    }
-
-    // 2. SECOND PATH: Edge Neural Egyptian Voice (ar-EG-ShakirNeural)
-    try {
-        const edgeVoiceName = voice === 'female' ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-        const resp = await fetch('/api/tts/edge-proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: cleanText.substring(0, 1500),
-                voice: edgeVoiceName,
-                rate: '+0%',
-                pitch: '+0Hz',
-                format: 'audio-24khz-48kbitrate-mono-mp3'
-            }),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (resp.ok) {
-            const arrayBuffer = await resp.arrayBuffer();
-            if (arrayBuffer.byteLength > 100) {
-                let binary = '';
-                const bytes = new Uint8Array(arrayBuffer);
-                const len = bytes.byteLength;
-                const chunkSize = 8192;
-                for (let i = 0; i < len; i += chunkSize) {
-                    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-                    binary += String.fromCharCode.apply(null, chunk as any);
-                }
-                const base64Audio = btoa(binary);
-                if (base64Audio && base64Audio.length > 100) {
-                    return base64Audio;
-                }
-            }
-        }
-    } catch (e: any) {
-        console.warn("[TTS] Edge proxy error:", e?.message);
+        console.warn("[TTS] Google Gemini TTS fallback error:", e?.message);
     }
 
     return null;
