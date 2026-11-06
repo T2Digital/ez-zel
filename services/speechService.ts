@@ -605,7 +605,6 @@ export const playShadowVoice = async (
     onVoiceLoaded?: (base64: string) => void
 ) => {
     stopVoice();
-    const ctx = resumeAudioContext();
 
     try {
         let base64 = existing;
@@ -628,69 +627,60 @@ export const playShadowVoice = async (
         }
 
         if (!base64) { 
-            speakNative(text, voice, onEnded);
+            console.warn("[TTS] No neural voice returned from Edge Neural pipeline.");
+            onEnded?.();
             return; 
         }
 
-        // If Web Audio context is not available, play pristine MP3 via HTML5 Audio directly
-        if (!ctx) {
-            playHtml5Audio(base64, onEnded, () => speakNative(text, voice, onEnded));
-            return;
+        // Direct HTML5 Audio playback via Blob URL - Pristine 24kHz Human Neural Quality
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
-        
-        try {
-            const u8 = new Uint8Array(base64ToArrayBuffer(base64));
-            const buffer = await decodeAudioData(u8, ctx);
-            const source = ctx.createBufferSource();
-            source.buffer = buffer;
-            
-            // Add Analyser for lip-sync and face reactivity
-            const analyser = ctx.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-            analyser.connect(ctx.destination);
-            
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            let animationFrame: number;
-            
-            const updateAudioLevel = () => {
-                if (!currentSource) return;
-                analyser.getByteFrequencyData(dataArray);
-                
-                let sum = 0;
-                for(let i = 0; i < dataArray.length; i++) {
-                    sum += dataArray[i];
-                }
-                const average = sum / dataArray.length;
-                const normalizedLevel = Math.min(1, average / 128);
-                
-                window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: normalizedLevel } }));
-                animationFrame = requestAnimationFrame(updateAudioLevel);
-            };
-            
-            source.onended = () => { 
-                currentSource = null; 
-                cancelAnimationFrame(animationFrame);
-                window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
-                window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
-                onEnded?.(); 
-            };
-            
-            source.start(0);
-            currentSource = source;
-            updateAudioLevel();
-        } catch (decodeErr) {
-            console.warn("WebAudio buffer decode failed, switching to HTML5 audio element:", decodeErr);
-            playHtml5Audio(base64, onEnded, () => speakNative(text, voice, onEnded));
-        }
-    } catch (e) { 
-        console.error("Voice Playback Error:", e); 
-        speakNative(text, voice, onEnded);
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'audio/mp3' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const audio = new Audio(blobUrl);
+        currentHtmlAudio = audio;
+
+        // Lip-sync / waveform simulation for UI
+        const interval = setInterval(() => {
+            if (!currentHtmlAudio || currentHtmlAudio.paused) {
+                clearInterval(interval);
+                return;
+            }
+            const lvl = 0.35 + Math.random() * 0.45;
+            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: lvl } }));
+        }, 80);
+
+        audio.onended = () => {
+            clearInterval(interval);
+            URL.revokeObjectURL(blobUrl);
+            currentHtmlAudio = null;
+            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
+            window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
+            onEnded?.();
+        };
+
+        audio.onerror = (e) => {
+            console.error("[TTS] HTML5 Audio playback error:", e);
+            clearInterval(interval);
+            URL.revokeObjectURL(blobUrl);
+            currentHtmlAudio = null;
+            onEnded?.();
+        };
+
+        await audio.play();
+    } catch (e: any) { 
+        console.error("[TTS] PlayShadowVoice Error:", e);
+        onEnded?.();
     }
 };
 
 export const getShadowVoice = async (text: string, voice: string): Promise<string | null> => {
-    // 1. FAST PATH: Server-side Edge Neural Egyptian TTS (Ultra fast response < 250ms, natural voice)
+    // 1. FAST PATH: Server-side Edge Neural Egyptian TTS (Ultra fast response < 250ms, natural human voice)
     try {
         const cleanText = text
             .replace(/[*_#\-`~>]/g, ' ')
@@ -703,7 +693,7 @@ export const getShadowVoice = async (text: string, voice: string): Promise<strin
         if (cleanText.length > 0) {
             const edgeVoiceName = voice === 'female' ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout max
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout max
 
             const resp = await fetch('/api/tts/edge-proxy', {
                 method: 'POST',
@@ -711,7 +701,7 @@ export const getShadowVoice = async (text: string, voice: string): Promise<strin
                 body: JSON.stringify({
                     text: cleanText.substring(0, 1500),
                     voice: edgeVoiceName,
-                    rate: '+10%',
+                    rate: '+0%',
                     pitch: '+0Hz',
                     format: 'audio-24khz-48kbitrate-mono-mp3'
                 }),
@@ -738,24 +728,10 @@ export const getShadowVoice = async (text: string, voice: string): Promise<strin
             }
         }
     } catch (e: any) {
-        console.warn("[TTS] Edge proxy fallback:", e?.message);
+        console.warn("[TTS] Edge proxy error:", e?.message);
     }
 
-    // 2. SECOND PATH: Gemini TTS Modern Engine (Neural Vocalizer)
-    try {
-        const res = await getAI().models.generateContent({
-            model: "gemini-3.8-flash-lite-tts",
-            contents: [{ parts: [{ text }] }],
-            config: { 
-                responseModalities: [Modality.AUDIO], 
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice === 'female' ? 'Kore' : 'Puck' } } } 
-            }
-        });
-        return res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-    } catch (e: any) { 
-        console.warn(`[TTS] Voice generation fallback to native UI voice.`);
-        return null; 
-    }
+    return null;
 };
 
 /**
