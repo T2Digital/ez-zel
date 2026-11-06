@@ -243,8 +243,7 @@ If the user mentions an interest (e.g. food, tech), suggest relevant options bas
 const MODEL_CHAIN = [
     "gemini-3.1-flash-lite",             // 1. Primary Ultra Fast & Highly Available (~200ms)
     "gemini-3.8-flash",                  // 2. Flagship Cognitive Power
-    "gemini-flash-latest",               // 3. High-speed Stable Flash Production
-    "gemini-3.1-pro-preview"             // 4. Deep Reasoning, Coding & Multi-step Logic
+    "gemini-flash-latest"                // 3. High-speed Stable Flash Production
 ];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -479,12 +478,12 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         }, []);
 
         let tools: any[] = [];
-        // Extract active persona if defined in userProfile or deduce it (for now we use undefined, to be injected by UI)
+        // Extract active persona if defined in userProfile or deduce it
         const activePersona = extraData?.activePersona || undefined;
         const resolvedTools = await getAvailableTools(userProfile, activePersona);
-        tools.push({ functionDeclarations: resolvedTools });
-        // Always give him the ability to search google if he wants, but give priority to action tools
-        tools.push({ googleSearch: {} });
+        if (resolvedTools && resolvedTools.length > 0) {
+            tools.push({ functionDeclarations: resolvedTools });
+        }
 
         let response: GenerateContentResponse | null = null;
         let lastError: any = null;
@@ -534,7 +533,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
             try {
                 if (lastError) {
                     const isQuota = lastError.message?.includes('429') || lastError.status === 429;
-                    await sleep(isQuota ? 2000 : 500); 
+                    await sleep(isQuota ? 500 : 200); 
                 }
                 
                 const generatePromise = getAI().models.generateContent({
@@ -542,15 +541,14 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                     contents: [...cleanHistory.slice(-6), { role: 'user', parts: userParts }],
                     config: {
                         systemInstruction: { parts: [{ text: systemInstruction }] },
-                        tools: tools,
-                        toolConfig: { includeServerSideToolInvocations: true },
+                        ...(tools.length > 0 ? { tools, toolConfig: { includeServerSideToolInvocations: true } } : {}),
                         temperature: 0.7
                     }
                 });
 
-                // 60 seconds timeout
+                // 30 seconds timeout
                 const timeoutPromise = new Promise<never>((_, reject) => {
-                    setTimeout(() => reject(new Error('Request Timeout')), 60000);
+                    setTimeout(() => reject(new Error('Request Timeout')), 30000);
                 });
 
                 response = await Promise.race([generatePromise, timeoutPromise]) as GenerateContentResponse;
@@ -559,6 +557,21 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
             } catch (e: any) {
                 lastError = e;
                 allErrors.push(`${model}: ${e.message || 'Error'}`);
+                
+                // Fallback: If tool config causes 429 quota exhaustion, retry immediately plain without tools
+                if (tools.length > 0 && (e.status === 429 || e.message?.includes('429') || e.message?.includes('quota') || e.message?.includes('RESOURCE_EXHAUSTED'))) {
+                    try {
+                        response = await getAI().models.generateContent({
+                            model: 'gemini-3.1-flash-lite',
+                            contents: [...cleanHistory.slice(-6), { role: 'user', parts: userParts }],
+                            config: {
+                                systemInstruction: { parts: [{ text: systemInstruction }] },
+                                temperature: 0.7
+                            }
+                        });
+                        if (response) break;
+                    } catch {}
+                }
             }
         }
 
