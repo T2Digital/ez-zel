@@ -53,11 +53,19 @@
 <body>
     <div id="root"></div>
     <script>
+      // Auto-purge stale service workers and caches on load to enforce latest Google TTS code
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch(err => {
-              if (!err.message.includes('404')) console.log('SW register failed:', err);
-          });
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          for (const reg of registrations) {
+            reg.unregister();
+          }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          for (const name of names) {
+            caches.delete(name);
+          }
         });
       }
     </script>

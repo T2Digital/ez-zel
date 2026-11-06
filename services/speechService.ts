@@ -607,27 +607,15 @@ export const playShadowVoice = async (
     stopVoice();
 
     try {
-        let base64 = existing;
-        if (!base64 && audioCache.has(text)) base64 = audioCache.get(text);
-        if (!base64) base64 = await shadowDB.getAudioSegment(text) || undefined;
-        
-        if (!base64) {
-            base64 = await getShadowVoice(text, voice);
-            if (base64) {
-                if (audioCache.size >= 100) {
-                    const firstKey = audioCache.keys().next().value;
-                    if (firstKey) audioCache.delete(firstKey);
-                }
-                audioCache.set(text, base64);
-                shadowDB.saveAudioSegment(text, base64).catch(() => {});
-                onVoiceLoaded?.(base64);
-            }
-        } else {
+        // ALWAYS fetch fresh neural audio from Google Gemini TTS
+        // Completely bypass old cached robotic audio from previous sessions
+        let base64 = await getShadowVoice(text, voice);
+        if (base64) {
             onVoiceLoaded?.(base64);
         }
 
         if (!base64) { 
-            console.warn("[TTS] No neural voice returned from Edge Neural pipeline.");
+            console.warn("[TTS] No neural voice returned from Google TTS pipeline.");
             onEnded?.();
             return; 
         }
@@ -639,7 +627,9 @@ export const playShadowVoice = async (
             byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
         const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'audio/mp3' });
+        const isWav = byteArray.length > 4 && byteArray[0] === 0x52 && byteArray[1] === 0x49 && byteArray[2] === 0x46 && byteArray[3] === 0x46;
+        const mimeType = isWav ? 'audio/wav' : 'audio/mp3';
+        const blob = new Blob([byteArray], { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
 
         const audio = new Audio(blobUrl);
