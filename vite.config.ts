@@ -46,10 +46,10 @@ export default defineConfig(() => {
           'react': path.resolve(__dirname, 'node_modules/react'),
           'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
         },
-        dedupe: ['react', 'react-dom']
+        dedupe: ['react', 'react-dom', 'react-is']
       },
       optimizeDeps: {
-        include: ['react', 'react-dom', 'react/jsx-runtime']
+        include: ['react', 'react-dom', 'react/jsx-runtime', 'react-is']
       }
     };
 });
