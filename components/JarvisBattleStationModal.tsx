@@ -15,6 +15,12 @@ import { FluidLuminescentOrb } from './FluidLuminescentOrb';
 import SpaceCanvas from './SpaceCanvas';
 import { BRAND_VAULT } from '../services/brandVault';
 
+const toast = {
+  success: (msg: string) => console.log('[Toast Success]:', msg),
+  error: (msg: string) => console.error('[Toast Error]:', msg),
+  info: (msg: string) => console.log('[Toast Info]:', msg)
+};
+
 interface JarvisBattleStationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -234,15 +240,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     };
   }, []);
 
-  // Fetch real database telemetry on open
-  useEffect(() => {
-    if (!isOpen) {
-      stopVoice();
-      setIsPlayingVoice(false);
-      return;
-    }
-
-    // Fetch real ecosystem stats from databases
+  const fetchDatabaseStats = () => {
     fetch('/api/system/real-financials')
       .then(r => r.json())
       .then(d => {
@@ -262,6 +260,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         }
       })
       .catch(() => {});
+  };
+
+  // Fetch real database telemetry on open
+  useEffect(() => {
+    if (!isOpen) {
+      stopVoice();
+      setIsPlayingVoice(false);
+      return;
+    }
+
+    fetchDatabaseStats();
 
     // Fetch live market briefing (BTC / Gold)
     fetch('/api/system/jarvis-briefing')
@@ -289,7 +298,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     const now = new Date();
     const hours = now.getHours();
-    const timeGreeting = hours < 12 ? 'صباح الخير' : 'مساء الخير';
+    const timeGreeting = hours < 12 ? 'صباح الفل والجمال' : 'مساء الفل والجمال';
+    const brandsCount = realStats.totalVaultBrandsCount || 19;
 
     let text = '';
     if (currentPersona === 'visitor') {
@@ -297,11 +307,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     } else if (currentPersona === 'trial') {
       text = `${timeGreeting} يا فندم في أسبوعك التجريبي المجاني. منظومتك مربوطة، وجارفيس جاهز لتنفيذ أي أوامر ومساعدتك فوراً.`;
     } else if (currentPersona === 'client') {
-      text = `${timeGreeting} يا شريكنا العزيز. المنظومة مربوطة ووكيلك الذكي نشط وجاهز لخدمتك.`;
+      text = `${timeGreeting} يا شريكنا العزيز. المنظومة مربوطة ووكيلك الذكي نشط وجاهز لخدمتك على مدار الساعة.`;
     } else {
-      text = `${timeGreeting} يا ماستر تيتو. كابينة قيادة جارفيس السيادية تحت إمرتك بالكامل. الرادار والأنظمة الحية نشطة، تؤمرني بإيه دلوقتي يا باشا؟`;
+      text = `${timeGreeting} عليك يا ماستر تيتو. كابينة قيادة جارفيس السيادية تحت إمرتك. الرادار والأنظمة الحية نشطة لعدد ${brandsCount} براند، تؤمرني بإيه يا باشا؟`;
     }
 
+    setTranscript(text);
     playShadowVoice(text, 'male', undefined, () => {
       setIsPlayingVoice(false);
     });
@@ -413,7 +424,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               }));
             }, 1000);
           } else if (data.action.type === 'TOGGLE_BOT') {
-            setAgentStatus(prev => ({ ...prev, [data.action.brandId]: data.action.status !== 'paused' }));
+            setBotStates(prev => ({ ...prev, [data.action.brandId]: data.action.status !== 'paused' }));
           }
         }
 

@@ -351,8 +351,9 @@ export const playShadowVoice = async (
         }
 
         if (!base64) { 
-            console.warn("[TTS] No neural voice returned from Google TTS pipeline.");
-            onEnded?.();
+            console.log("[TTS] Server audio unavailable, speaking via Browser Natural Voice Engine...");
+            const spoken = speakBrowserNaturalVoice(text, voice, onEnded);
+            if (!spoken) onEnded?.();
             return; 
         }
 
@@ -605,6 +606,17 @@ export const playShadowVoiceStreaming = async (
 
 
 
+// Pre-load and cache browser voices at module initialization
+let cachedBrowserVoices: SpeechSynthesisVoice[] = [];
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+        cachedBrowserVoices = window.speechSynthesis.getVoices();
+        window.speechSynthesis.onvoiceschanged = () => {
+            cachedBrowserVoices = window.speechSynthesis.getVoices();
+        };
+    } catch {}
+}
+
 /**
  * Speaks text using the user's browser's native natural voice (Microsoft Shakir Online (Natural) or ar-EG)
  * Instant, client-side, 0 delay, 100% human studio quality directly through Windows/Chrome!
@@ -613,21 +625,27 @@ export function speakBrowserNaturalVoice(text: string, voice: string = 'male', o
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
     try {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
+        const cleanText = text
+            .replace(/[*_#\-`~>]/g, ' ')
+            .replace(/https?:\/\/\S+/g, '')
+            .replace(/\[.*?\]/g, '')
+            .replace(/\{.*?\}/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (!cleanText) return false;
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = 'ar-EG';
 
-        const voices = window.speechSynthesis.getVoices();
-        const preferredVoice = voices.find(v => 
-            v.lang.toLowerCase().includes('ar-eg') && (v.name.includes('Natural') || v.name.includes('Shakir') || v.name.includes('Salma'))
-        ) || voices.find(v => 
-            v.lang.toLowerCase().includes('ar') && (v.name.includes('Natural') || v.name.includes('Online'))
-        ) || voices.find(v => v.lang.toLowerCase().startsWith('ar'));
-
-        if (preferredVoice) {
-            utterance.voice = preferredVoice;
-        }
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
+        const pickVoice = (vList: SpeechSynthesisVoice[]) => {
+            return vList.find(v => 
+                v.lang.toLowerCase().replace('_', '-').includes('ar-eg') && (v.name.includes('Natural') || v.name.includes('Shakir') || v.name.includes('Salma') || v.name.includes('Online'))
+            ) || vList.find(v => 
+                v.lang.toLowerCase().startsWith('ar') && (v.name.includes('Natural') || v.name.includes('Online'))
+            ) || vList.find(v => v.lang.toLowerCase().replace('_', '-').includes('ar-eg'))
+              || vList.find(v => v.lang.toLowerCase().startsWith('ar'));
+        };
 
         let interval: any;
         utterance.onstart = () => {
@@ -650,7 +668,29 @@ export function speakBrowserNaturalVoice(text: string, voice: string = 'male', o
             onEnd?.();
         };
 
-        window.speechSynthesis.speak(utterance);
+        const speakNow = (selectedVoice?: SpeechSynthesisVoice) => {
+            if (selectedVoice) utterance.voice = selectedVoice;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
+        };
+
+        let voices = cachedBrowserVoices.length > 0 ? cachedBrowserVoices : window.speechSynthesis.getVoices();
+        let chosen = pickVoice(voices);
+
+        if (chosen) {
+            speakNow(chosen);
+        } else if (voices.length === 0) {
+            window.speechSynthesis.onvoiceschanged = () => {
+                const updated = window.speechSynthesis.getVoices();
+                cachedBrowserVoices = updated;
+                const matched = pickVoice(updated);
+                speakNow(matched);
+            };
+        } else {
+            speakNow(undefined);
+        }
+
         return true;
     } catch {
         return false;

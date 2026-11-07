@@ -404,52 +404,7 @@ function masterAudioWithFfmpeg(
     });
 }
 
-async function synthesizeCloudFallbackSpeech(options: SynthesizeOptions): Promise<Buffer> {
-    const text = (options.text || '').trim();
-    const voice = options.voice || 'ar-EG-ShakirNeural';
-    const format = options.outputFormat || 'audio-24khz-48kbitrate-mono-mp3';
-
-    const hasArabic = /[\u0600-\u06FF]/.test(text);
-    const tl = !hasArabic && /[a-zA-Z]{3,}/.test(text) ? 'en' : 'ar';
-    const isMale = /shakir|guy|male|hamed|zayd/i.test(voice) && !/salma|female|zariyah|jenny/i.test(voice);
-
-    const segments = splitTextForGoogleTts(text, 170);
-    if (segments.length === 0) {
-        throw new Error("Empty text for cloud TTS fallback");
-    }
-
-    const segmentBuffers: Buffer[] = new Array(segments.length);
-    const BATCH = 3;
-
-    for (let i = 0; i < segments.length; i += BATCH) {
-        const slice = segments.slice(i, i + BATCH);
-        await Promise.all(
-            slice.map(async (seg, idx) => {
-                const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(seg)}`;
-                const resp = await fetch(url, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
-                    }
-                });
-                if (!resp.ok) {
-                    throw new Error(`Cloud TTS HTTP ${resp.status}`);
-                }
-                const arr = await resp.arrayBuffer();
-                segmentBuffers[i + idx] = Buffer.from(arr);
-            })
-        );
-    }
-
-    const combinedRawMp3 = Buffer.concat(segmentBuffers.filter(Boolean));
-    const outputPcm = format.includes('pcm');
-    const sampleRate = format.includes('16khz') ? 16000 : 24000;
-
-    return masterAudioWithFfmpeg(combinedRawMp3, {
-        isMale,
-        outputPcm,
-        sampleRate
-    });
-}
+// Legacy Google Translate fallback has been eradicated permanently to guarantee 0% robotic voice.
 
 function synthesizeViaEdgeTtsCli(text: string, voice: string, rate: string, pitch: string): Promise<Buffer> {
     return new Promise((resolve, reject) => {

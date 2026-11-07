@@ -1,0 +1,842 @@
+{
+  "clean_master": {
+    "id": "clean_master",
+    "name": "كلين ماستر لخدمات النظافة والتعقيم",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "خدمات تنظيف ومنازل وسيارات",
+    "dialect": "مصرية احترافية وسريعة",
+    "websiteUrl": "https://cleanmaster-eg.com",
+    "socialLink": "https://facebook.com/cleanmaster",
+    "directKnowledge": "شركة كلين ماستر لخدمات النظافة والتعقيم بمصر. خصم 10% فوري للدفع الإلكتروني مع سداد 25% عربون جدية حجز على 01013373634 والمتبقي 75% عند الاستلام.",
+    "knowledgeText": "شركة كلين ماستر لخدمات النظافة والتعقيم الشامل. خصم 10% فوري للدفع الإلكتروني مع سداد 25% عربون جدية حجز عبر إنستاباي أو فودافون كاش على 01013373634 والمتبقي 75% عند الاستلام.",
+    "systemPrompt": "# تعليمات وتوجيهات وكيل واتساب الذكي (Clean Master AI Agent)\nأنت المساعد الذكي الرسمي لشركة **كلين ماستر لخدمات النظافة والتعقيم في مصر** (Clean Master) عبر واتساب.\nتحت إدارة: شركة T2 للحلول الرقمية وتطوير الأعمال.\n\n---\n### 🏢 بيانات الشركة:\n- الاسم: كلين ماستر لخدمات النظافة والتعقيم\n- رقم خدمة العملاء: 01013373634\n- رقم تحويل الحجوزات والإنستاباي / فودافون كاش: **01013373634**\n- مواعيد العمل: من 8 صباحاً حتى 10 مساءً - 7 أيام في الأسبوع\n- مناطق الخدمة: القاهرة الجديدة (التجمع) - الشيخ زايد & 6 أكتوبر - الزمالك & المهندسين - المعادي - مدينتي & الرحاب\n\n---\n### 💰 نظام الأسعار وقواعد الخصم الصارمة (10% خصم عند دفع ربع الحجز):\n1. **خصم الدفع الإلكتروني (10%):**\n   - يحصل العميل على **خصم فوري بنسبة 10%** على إجمالي قيمة الأوردر عند دفع **عربون حجز بنسبة 25% (ربع القيمة)** مقدماً عبر إنستاباي (Instapay) أو المحافظ الإلكترونية (فودافون كاش) على الرقم **01013373634**.\n   - باقي المبلغ (75%) يُدفع عند انتهاء الخدمة.\n2. **الدفع عند المعاينة أو الانتهاء (كاش):**\n   - يدفع العميل المبلغ الإجمالي بالكامل (Base Price) **بدون أي خصم** (0% خصم).\n\n#### 🧮 معادلة الحساب:\n- السعر الأساسي (Base Price) = مجموع (سعر كل خدمة × المساحة أو الكمية)\n- في حالة الدفع الإلكتروني:\n  * قيمة الخصم (10%) = Base Price × 0.10\n  * السعر الصافي بعد الخصم = Base Price - قيمة الخصم\n  * العربون المطلوب لتحقيق الخصم وتأكيد الحجز (25%) = السعر الصافي × 0.25\n  * المتبقي عند إتمام الخدمة = السعر الصافي × 0.75\n\n---\n### 🧹 قائمة الخدمات والأسعار الأساسية:\n- **غسيل سجاد المساجد 🕌**: 7 جنيه لكل م² (خدمة غسيل وتنظيف سجاد المساجد بتقنيات متطورة وآمنة)\n- **تنظيف المنازل العميق 🏠**: 14 جنيه لكل م² (تنظيف معمق وشامل لجميع أجزاء المنزل)\n- **تنظيف المنازل العادي 🧹**: 10 جنيه لكل م² (تنظيف شامل للمنازل يشمل جميع الغرف والمرافق)\n- **تنظيف بعد التشطيب 🏗️**: 13 جنيه لكل م² (تنظيف متخصص بعد أعمال التشطيب والبناء)\n- **تنظيف الاماكن المغلقة 🚪**: 20 جنيه لكل م² (تنظيف الأماكن المغلقة لفترة طويلة)\n- **تنظيف شقة فاضية 🏢**: 12 جنيه لكل م² (تنظيف الشقق الفارغة قبل الانتقال)\n- **دهانات وتشطيب 🎨**: معاينة مجانية (خدمات الدهان والتشطيب (السعر بعد المعاينة))\n- **تنظيف موكيت المنازل 🛋️**: 10 جنيه لكل م² (تنظيف وغسيل موكيت المنازل بالبخار)\n- **تنظيف موكيت المكاتب 💼**: 15 جنيه لكل م² (تنظيف موكيت المكاتب والشركات بتقنيات متطورة)\n- **تنظيف الانتريه 🛋️**: 350 جنيه للقطعة/الطقم (تنظيف وغسيل طقم الانتريه)\n- **تنظيف الصالون 🪑**: 350 جنيه للقطعة/الطقم (تنظيف وغسيل طقم الصالون)\n- **تنظيف ركنه صغيرة 🛋️**: 350 جنيه للقطعة/الطقم (تنظيف الركنة الصغيرة)\n- **تنظيف ركنه كبيرة 🛋️**: 85 جنيه لكل م² (تنظيف الركنة الكبيرة حسب المساحة)\n- **كرسي ليزى بوى 💺**: 150 جنيه للقطعة/الطقم (تنظيف كرسي ليزى بوي)",
+    "productsCatalog": [
+      {
+        "id": "carpet_mosque",
+        "name": "غسيل سجاد المساجد 🕌",
+        "price": "7 ج.م / م²",
+        "unitPrice": 7,
+        "unit": "م²",
+        "category": "carpets",
+        "description": "خدمة غسيل وتنظيف سجاد المساجد بتقنيات متطورة وآمنة وتعقيم بالبخار الحار",
+        "imageUrl": "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "home_cleaning_deep",
+        "name": "تنظيف المنازل العميق 🏠",
+        "price": "14 ج.م / م²",
+        "unitPrice": 14,
+        "unit": "م²",
+        "category": "apartments",
+        "description": "تنظيف معمق وشامل لجميع أجزاء المنزل، تلميع أرضيات، غسيل حمامات ومطابخ وتعقيم شامل",
+        "imageUrl": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "home_cleaning_regular",
+        "name": "تنظيف المنازل العادي 🧹",
+        "price": "10 ج.م / م²",
+        "unitPrice": 10,
+        "unit": "م²",
+        "category": "apartments",
+        "description": "تنظيف شامل للمنازل يشمل جميع الغرف والمرافق وترتيب وإزالة الأتربة وتعقيم دوري",
+        "imageUrl": "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "post_construction",
+        "name": "تنظيف بعد التشطيب 🏗️",
+        "price": "13 ج.م / م²",
+        "unitPrice": 13,
+        "unit": "م²",
+        "category": "apartments",
+        "description": "تنظيف متخصص بعد أعمال التشطيب والبناء وإزالة آثار الدهانات والجبس والإسمنت بأحدث المعدات",
+        "imageUrl": "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "closed_places",
+        "name": "تنظيف الاماكن المغلقة 🚪",
+        "price": "20 ج.م / م²",
+        "unitPrice": 20,
+        "unit": "م²",
+        "category": "apartments",
+        "description": "تنظيف الأماكن المغلقة لفترة طويلة وإزالة الأتربة المتراكمة والتهوية والتطهير والتعقيم العميق",
+        "imageUrl": "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "empty_apartment",
+        "name": "تنظيف شقة فاضية 🏢",
+        "price": "12 ج.م / م²",
+        "unitPrice": 12,
+        "unit": "م²",
+        "category": "apartments",
+        "description": "تنظيف الشقق الفارغة قبل الانتقال للسكن أو بعد الإخلاء وتجهيزها بأعلى معايير النظافة",
+        "imageUrl": "https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "painting_finishing",
+        "name": "دهانات وتشطيب 🎨",
+        "price": "معاينة مجانية",
+        "unitPrice": 0,
+        "unit": "معاينة",
+        "category": "finishing",
+        "description": "خدمات الدهان والتشطيب والديكور المتكاملة مع إرسال فني للمعاينة المجانية وتحديد التكلفة بدقة",
+        "imageUrl": "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "carpet_home",
+        "name": "تنظيف موكيت المنازل 🛋️",
+        "price": "10 ج.م / م²",
+        "unitPrice": 10,
+        "unit": "م²",
+        "category": "carpets",
+        "description": "تنظيف وغسيل موكيت المنازل بالبخار وإزالة البقع العنيدة والروائح وتجفيف سريع في مكانك",
+        "imageUrl": "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "carpet_office",
+        "name": "تنظيف موكيت المكاتب 💼",
+        "price": "15 ج.م / م²",
+        "unitPrice": 15,
+        "unit": "م²",
+        "category": "carpets",
+        "description": "تنظيف موكيت المكاتب والشركات والمؤسسات بتقنيات متطورة ومواد معتمدة دون تعطيل سير العمل",
+        "imageUrl": "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "sofa_regular",
+        "name": "تنظيف الانتريه 🛋️",
+        "price": "350 ج.م / الطقم",
+        "unitPrice": 350,
+        "unit": "طقم",
+        "category": "sofas",
+        "description": "تنظيف وغسيل طقم الانتريه بالبخار والتعقيم وإزالة البقع وتفتيح الألوان وتجفيف فوري",
+        "imageUrl": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "salon",
+        "name": "تنظيف الصالون 🪑",
+        "price": "350 ج.م / الطقم",
+        "unitPrice": 350,
+        "unit": "طقم",
+        "category": "sofas",
+        "description": "تنظيف وغسيل طقم الصالون الكلاسيكي والمذهب والأقمشة الحساسة بأمان تام ومواد مستوردة",
+        "imageUrl": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "small_l_shape",
+        "name": "تنظيف ركنه صغيرة 🛋️",
+        "price": "350 ج.م / القطعة",
+        "unitPrice": 350,
+        "unit": "قطعة",
+        "category": "sofas",
+        "description": "تنظيف الركنة الصغيرة وإزالة البقع العميقة والتعقيم بالبخار الحار وتعطير يدوم طويلاً",
+        "imageUrl": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "big_l_shape",
+        "name": "تنظيف ركنه كبيرة 🛋️",
+        "price": "85 ج.م / م²",
+        "unitPrice": 85,
+        "unit": "م²",
+        "category": "sofas",
+        "description": "تنظيف الركنة الكبيرة حسب المساحة والأمتار بأحدث أجهزة الحقن والشفط والتجفيف الفوري",
+        "imageUrl": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "lazy_boy",
+        "name": "كرسي ليزى بوى 💺",
+        "price": "150 ج.م / القطعة",
+        "unitPrice": 150,
+        "unit": "قطعة",
+        "category": "sofas",
+        "description": "تنظيف كرسي ليزى بوي بالبخار مع حماية الميكانيزم وتعقيم كامل للفرش والجلد أو القماش",
+        "imageUrl": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&auto=format&fit=crop&q=80"
+      }
+    ],
+    "responsePreference": "MATCH",
+    "voiceGender": "male",
+    "sendTextWithVoice": true,
+    "sendImagesWithVoice": true,
+    "antiBanSettings": {
+      "minDelayMs": 3000,
+      "maxDelayMs": 6000,
+      "showTypingPresence": true,
+      "showVoicePresence": true,
+      "warmupMode": false
+    },
+    "followUpSettings": {
+      "appointmentReminderHours": 2,
+      "enableAppointmentReminder": true,
+      "retargetingHours": 24,
+      "enableRetargeting": true,
+      "discountCoupon": "CLEAN15",
+      "discountText": "خصم خاص 15% بمناسبة نهاية الأسبوع"
+    },
+    "financials": {
+      "totalRevenue": 14850,
+      "collectedRevenue": 11200,
+      "pendingRevenue": 3650,
+      "totalDeals": 28,
+      "currency": "ج.م"
+    },
+    "egyptPayments": {
+      "instapayPhone": "01013373634",
+      "vodafoneCash": "01013373634",
+      "instapayLink": "https://instapay.eg/pay/01013373634",
+      "cashOnDelivery": true,
+      "electronicDiscountPct": 10,
+      "depositRequiredPct": 25
+    },
+    "bookingRules": {
+      "depositPct": 25,
+      "remainingPct": 75,
+      "electronicDiscountPct": 10,
+      "paymentPhone": "01013373634",
+      "requiredFields": [
+        "الاسم الكامل",
+        "رقم الهاتف",
+        "العنوان بالتفصيل",
+        "موعد وتاريخ الزيارة"
+      ]
+    },
+    "integrations": {
+      "webhookUrl": "https://cleanmaster-lac.vercel.app/api/bookings/webhook",
+      "webhookSecret": "cm_live_sec_892147",
+      "apiKey": "cm_live_sec_892147"
+    },
+    "subscriptionStatus": "PRO",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 842,
+    "createdAt": "2026-11-01T21:36:20.547Z",
+    "test_prop_0": 0,
+    "updatedAt": "2026-11-02T16:34:14.354Z",
+    "test_prop_1": 1,
+    "test_prop_2": 2,
+    "test_prop_3": 3,
+    "test_prop_4": 4,
+    "test_prop_5": 5,
+    "test_prop_6": 6,
+    "test_prop_7": 7,
+    "test_prop_8": 8,
+    "test_prop_9": 9,
+    "test_prop_10": 10,
+    "test_prop_11": 11,
+    "test_prop_12": 12,
+    "test_prop_13": 13,
+    "test_prop_14": 14,
+    "test_prop_15": 15,
+    "test_prop_16": 16,
+    "test_prop_17": 17,
+    "test_prop_18": 18,
+    "test_prop_19": 19,
+    "test_prop_20": 20,
+    "test_prop_21": 21,
+    "test_prop_22": 22,
+    "test_prop_23": 23,
+    "test_prop_24": 24,
+    "foo": 2,
+    "prop_0": 0,
+    "prop_1": 1,
+    "prop_2": 2,
+    "prop_3": 3,
+    "prop_4": 4,
+    "prop_5": 5,
+    "prop_6": 6,
+    "prop_7": 7,
+    "prop_8": 8,
+    "prop_9": 9,
+    "cloudSyncTestTimestamp": 1793606625654,
+    "notificationWhatsApp": "01156408009",
+    "notificationEmail": "admin@t2.com",
+    "teamMembers": [
+      {
+        "id": "tm_owner_clean_master",
+        "name": "أحمد عطية (المالك)",
+        "email": "ahm.atya@gmail.com",
+        "role": "owner",
+        "roleTitle": "المالك (صلاحيات كاملة)",
+        "phone": "01013373634",
+        "assignedChats": 0,
+        "closedDeals": 0,
+        "avgResponseTimeSec": 35,
+        "joinedAt": "2026-01-01"
+      },
+      {
+        "id": "tm_sales_clean_master",
+        "name": "مسؤول المبيعات والأوردرات",
+        "email": "sales@clean_master.com",
+        "role": "sales_agent",
+        "roleTitle": "مسؤول مبيعات (Sales Rep)",
+        "phone": "01000000001",
+        "assignedChats": 0,
+        "closedDeals": 0,
+        "avgResponseTimeSec": 50,
+        "joinedAt": "2026-02-15"
+      }
+    ],
+    "additionalNumbers": [
+      {
+        "id": "sim_mvz6zqpi",
+        "sessionId": "clean_master__num_sim_mvz6zqpi",
+        "label": "رقم تجريبي 2",
+        "phone": "201012345678",
+        "status": "PAIRING",
+        "createdAt": "2026-11-02T11:45:23.958Z"
+      }
+    ],
+    "adminNotificationWhatsApp": "01156408009",
+    "bookingReceiverPhone": "01156408009",
+    "status": "active",
+    "baileysConnected": false,
+    "reEngagementSettings": {
+      "enabled": true,
+      "delayHours": 3,
+      "maxWindowHours": 12,
+      "discountCoupon": "SAVE20",
+      "discountCode": "SAVE20",
+      "discountText": "عرض خاص 20%",
+      "offerText": "عرض خاص 20%",
+      "customTemplate": "مرحباً، هل ما زلت مهتماً بالخدمة؟",
+      "template": "مرحباً، هل ما زلت مهتماً بالخدمة؟"
+    },
+    "webhookSecret": "cm_live_sec_892147",
+    "apiKey": "cm_live_sec_892147",
+    "conversationsCount": 297
+  },
+  "alkhedr_car_rental": {
+    "id": "alkhedr_car_rental",
+    "name": "شركة الخضر لتأجير السيارات",
+    "ownerEmail": "admin@t2.com",
+    "businessType": "تأجير سيارات وسياحة",
+    "dialect": "مصرية احترافية وسريعة",
+    "websiteUrl": "https://alkhedr-cars.com",
+    "directKnowledge": "أحدث أسطول سيارات حديثة للإيجار اليومي والشهري وسياحة المطار.",
+    "knowledgeText": "الخضر كارز: سيارات اقتصادية من 600 ج/يوم (هيونداي النترا، كيا سيراتو)، وسيارات دفع رباعي 1500 ج/يوم (تويوتا فورتشنر). استلام فوري من المطار أو التوصيل للباب.",
+    "systemPrompt": "أنت مسؤول المبيعات والحجوزات لشركة 'الخضر لتأجير السيارات'. تتحدث بثقة وسرعة، وتعرض موديلات السيارات المتاحة وأسعارها وتطلب صورة الرخصة والبطاقة لحجز السيارة فوراً.",
+    "productsCatalog": [
+      {
+        "id": "car_1",
+        "name": "هيونداي إلنترا CN7 موديل 2024",
+        "price": "800 ج.م / يوم",
+        "description": "أوتوماتيك، شاشة، كاميرا، فرش جلد، تكييف تاتش، تسليم فوري",
+        "imageUrl": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "car_2",
+        "name": "كيا سيراتو 2024",
+        "price": "750 ج.م / يوم",
+        "description": "اقتصادية في البنزين، عائلية، عداد مفتوح للعقود الأسبوعية",
+        "imageUrl": "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?w=600&auto=format&fit=crop&q=80"
+      },
+      {
+        "id": "car_3",
+        "name": "تويوتا فورتشنر 4x4",
+        "price": "1800 ج.م / يوم",
+        "description": "دفع رباعي 7 ركاب، مثالية للسفر والمشاوير الصحراوية",
+        "imageUrl": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=600&auto=format&fit=crop&q=80"
+      }
+    ],
+    "responsePreference": "MATCH",
+    "voiceGender": "male",
+    "sendTextWithVoice": true,
+    "sendImagesWithVoice": true,
+    "antiBanSettings": {
+      "minDelayMs": 3000,
+      "maxDelayMs": 6000,
+      "showTypingPresence": true,
+      "showVoicePresence": true,
+      "warmupMode": false
+    },
+    "followUpSettings": {
+      "appointmentReminderHours": 2,
+      "enableAppointmentReminder": true,
+      "retargetingHours": 24,
+      "enableRetargeting": true,
+      "discountCoupon": "CAR10",
+      "discountText": "خصم 10% على الإيجار الأسبوعي"
+    },
+    "financials": {
+      "totalRevenue": 0,
+      "collectedRevenue": 0,
+      "pendingRevenue": 0,
+      "totalDeals": 0,
+      "currency": "ج.م"
+    },
+    "subscriptionStatus": "PRO",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 312,
+    "createdAt": "2026-11-01T21:36:20.547Z",
+    "conversationsCount": 10,
+    "status": "paused"
+  },
+  "besho": {
+    "id": "besho",
+    "name": "Sale Gates Egypt",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "تسويق عقاري واستشارات استثمارية",
+    "dialect": "مصرية احترافية عقارية",
+    "websiteUrl": "https://sales-gate.vercel.app",
+    "conversationsCount": 61,
+    "status": "active",
+    "subscriptionStatus": "PRO",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 61,
+    "directKnowledge": "الخدمات الرسمية لـ Sale Gates Egypt تحت إدارة منظومة T2 الرقمية. رقم التواصل: 011111462944",
+    "knowledgeText": "الخدمات الرسمية لـ Sale Gates Egypt تحت إدارة منظومة T2 الرقمية. رقم التواصل: 011111462944",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ Sale Gates Egypt. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "besho_item1",
+        "name": "الخدمة الرئيسية لـ Sale Gates Egypt",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.070Z"
+  },
+  "battah_system": {
+    "id": "battah_system",
+    "name": "متجر بطاح لقطع غيار السيارات والكماليات",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "متاجر إلكترونية وقطع غيار",
+    "dialect": "مصرية تجارية سريعة",
+    "websiteUrl": "https://battah.store",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "PRO",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ متجر بطاح لقطع غيار السيارات والكماليات تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01099887766",
+    "knowledgeText": "الخدمات الرسمية لـ متجر بطاح لقطع غيار السيارات والكماليات تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01099887766",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ متجر بطاح لقطع غيار السيارات والكماليات. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "battah_system_item1",
+        "name": "الخدمة الرئيسية لـ متجر بطاح لقطع غيار السيارات والكماليات",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "baraka_motors": {
+    "id": "baraka_motors",
+    "name": "البركة موتورز",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "تجارة واستيراد سيارات",
+    "dialect": "مصرية تجارية",
+    "websiteUrl": "https://baraka-motors.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": false,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ البركة موتورز تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01147418358",
+    "knowledgeText": "الخدمات الرسمية لـ البركة موتورز تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01147418358",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ البركة موتورز. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "baraka_motors_item1",
+        "name": "الخدمة الرئيسية لـ البركة موتورز",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "t2_studio": {
+    "id": "t2_studio",
+    "name": "T2 Studio",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "وكالة تسويق رقمي وحلول ذكاء اصطناعي",
+    "dialect": "عربية فصحى ومصرية رقمية",
+    "websiteUrl": "https://t2-studio.vercel.app",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": false,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ T2 Studio تحت إدارة منظومة T2 الرقمية. رقم التواصل: +966501234567",
+    "knowledgeText": "الخدمات الرسمية لـ T2 Studio تحت إدارة منظومة T2 الرقمية. رقم التواصل: +966501234567",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ T2 Studio. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "t2_studio_item1",
+        "name": "الخدمة الرئيسية لـ T2 Studio",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "crystal_teeth": {
+    "id": "crystal_teeth",
+    "name": "عيادة كريستال لطب الأسنان",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "طب وتجميل أسنان",
+    "dialect": "مصرية طبية راقية",
+    "websiteUrl": "https://crystal-teeth.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ عيادة كريستال لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01152751755",
+    "knowledgeText": "الخدمات الرسمية لـ عيادة كريستال لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01152751755",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ عيادة كريستال لطب الأسنان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "crystal_teeth_item1",
+        "name": "الخدمة الرئيسية لـ عيادة كريستال لطب الأسنان",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "socotra_dental": {
+    "id": "socotra_dental",
+    "name": "عيادة سقطرى لطب الأسنان",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "طب وتجميل أسنان",
+    "dialect": "مصرية طبية راقية",
+    "websiteUrl": "https://socotra-dental.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ عيادة سقطرى لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01114474774",
+    "knowledgeText": "الخدمات الرسمية لـ عيادة سقطرى لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01114474774",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ عيادة سقطرى لطب الأسنان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "socotra_dental_item1",
+        "name": "الخدمة الرئيسية لـ عيادة سقطرى لطب الأسنان",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "alkhalig_dental": {
+    "id": "alkhalig_dental",
+    "name": "عيادة الخليج لطب الأسنان",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "طب وتجميل أسنان",
+    "dialect": "مصرية طبية راقية",
+    "websiteUrl": "https://alkhalig-dental.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ عيادة الخليج لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01040441411",
+    "knowledgeText": "الخدمات الرسمية لـ عيادة الخليج لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01040441411",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ عيادة الخليج لطب الأسنان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "alkhalig_dental_item1",
+        "name": "الخدمة الرئيسية لـ عيادة الخليج لطب الأسنان",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "dental_district": {
+    "id": "dental_district",
+    "name": "عيادة حي الأسنان",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "طب وتجميل أسنان",
+    "dialect": "مصرية طبية راقية",
+    "websiteUrl": "https://dental-district.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ عيادة حي الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01114664644",
+    "knowledgeText": "الخدمات الرسمية لـ عيادة حي الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01114664644",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ عيادة حي الأسنان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "dental_district_item1",
+        "name": "الخدمة الرئيسية لـ عيادة حي الأسنان",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "mecca_dental": {
+    "id": "mecca_dental",
+    "name": "عيادة مكة لطب الأسنان",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "طب وتجميل أسنان",
+    "dialect": "مصرية طبية راقية",
+    "websiteUrl": "https://mecca-dental.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ عيادة مكة لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01040111001",
+    "knowledgeText": "الخدمات الرسمية لـ عيادة مكة لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01040111001",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ عيادة مكة لطب الأسنان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "mecca_dental_item1",
+        "name": "الخدمة الرئيسية لـ عيادة مكة لطب الأسنان",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "dr_abdelaziz_moussa": {
+    "id": "dr_abdelaziz_moussa",
+    "name": "عيادة د. عبدالعزيز الموسى",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "طب وتجميل أسنان",
+    "dialect": "خليجية سعودية راقية",
+    "websiteUrl": "https://dr-moussa.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ عيادة د. عبدالعزيز الموسى تحت إدارة منظومة T2 الرقمية. رقم التواصل: 920000007",
+    "knowledgeText": "الخدمات الرسمية لـ عيادة د. عبدالعزيز الموسى تحت إدارة منظومة T2 الرقمية. رقم التواصل: 920000007",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ عيادة د. عبدالعزيز الموسى. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "dr_abdelaziz_moussa_item1",
+        "name": "الخدمة الرئيسية لـ عيادة د. عبدالعزيز الموسى",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "crypto_bel_arabi": {
+    "id": "crypto_bel_arabi",
+    "name": "كريبتو بالعربي",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "علامة تجارية رائدة وبلوكتشين",
+    "dialect": "عربية مبسطة واحترافية",
+    "websiteUrl": "https://cryptobelarabi.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ كريبتو بالعربي تحت إدارة منظومة T2 الرقمية. رقم التواصل: 201000000000",
+    "knowledgeText": "الخدمات الرسمية لـ كريبتو بالعربي تحت إدارة منظومة T2 الرقمية. رقم التواصل: 201000000000",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ كريبتو بالعربي. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "crypto_bel_arabi_item1",
+        "name": "الخدمة الرئيسية لـ كريبتو بالعربي",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "tito_media": {
+    "id": "tito_media",
+    "name": "تيتو ميديا",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "وكالة تسويق رقمي وإنتاج إعلامي",
+    "dialect": "مصرية إبداعية",
+    "websiteUrl": "https://titomedia.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ تيتو ميديا تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01030956097",
+    "knowledgeText": "الخدمات الرسمية لـ تيتو ميديا تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01030956097",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ تيتو ميديا. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "tito_media_item1",
+        "name": "الخدمة الرئيسية لـ تيتو ميديا",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "sky_vip": {
+    "id": "sky_vip",
+    "name": "SKY VIP",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "علامة تجارية رائدة وخدمات VIP",
+    "dialect": "مصرية وخليجية راقية",
+    "websiteUrl": "https://skyvip.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ SKY VIP تحت إدارة منظومة T2 الرقمية. رقم التواصل: 201154040041",
+    "knowledgeText": "الخدمات الرسمية لـ SKY VIP تحت إدارة منظومة T2 الرقمية. رقم التواصل: 201154040041",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ SKY VIP. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "sky_vip_item1",
+        "name": "الخدمة الرئيسية لـ SKY VIP",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "kyan_store": {
+    "id": "kyan_store",
+    "name": "كيان",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "متاجر إلكترونية وأزياء",
+    "dialect": "مصرية عصرية",
+    "websiteUrl": "https://kayan-store.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ كيان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01038690400",
+    "knowledgeText": "الخدمات الرسمية لـ كيان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01038690400",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ كيان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "kyan_store_item1",
+        "name": "الخدمة الرئيسية لـ كيان",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "fazaa_express": {
+    "id": "fazaa_express",
+    "name": "فزعه إكسبريس",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "خدمات لوجستية وتوصيل سريع",
+    "dialect": "مصرية سريعة",
+    "websiteUrl": "https://fazaa-express.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ فزعه إكسبريس تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01141244184",
+    "knowledgeText": "الخدمات الرسمية لـ فزعه إكسبريس تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01141244184",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ فزعه إكسبريس. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "fazaa_express_item1",
+        "name": "الخدمة الرئيسية لـ فزعه إكسبريس",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "al_shomoukh_dentistry": {
+    "id": "al_shomoukh_dentistry",
+    "name": "الشموخ لطب الأسنان",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "طب وتجميل أسنان",
+    "dialect": "مصرية طبية راقية",
+    "websiteUrl": "https://alshumoukh-dental.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ الشموخ لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01114844884",
+    "knowledgeText": "الخدمات الرسمية لـ الشموخ لطب الأسنان تحت إدارة منظومة T2 الرقمية. رقم التواصل: 01114844884",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ الشموخ لطب الأسنان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "al_shomoukh_dentistry_item1",
+        "name": "الخدمة الرئيسية لـ الشموخ لطب الأسنان",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "almeshwar_rent_car": {
+    "id": "almeshwar_rent_car",
+    "name": "المشوار لتأجير السيارات",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "تأجير سيارات وسياحة",
+    "dialect": "مصرية سريعة ومحترمة",
+    "websiteUrl": "https://almeshwar-cars.com",
+    "conversationsCount": 0,
+    "status": "paused",
+    "subscriptionStatus": "TRIAL",
+    "isUnlimited": true,
+    "messagesUsedThisMonth": 0,
+    "directKnowledge": "الخدمات الرسمية لـ المشوار لتأجير السيارات تحت إدارة منظومة T2 الرقمية. رقم التواصل: 0112716060",
+    "knowledgeText": "الخدمات الرسمية لـ المشوار لتأجير السيارات تحت إدارة منظومة T2 الرقمية. رقم التواصل: 0112716060",
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ المشوار لتأجير السيارات. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.",
+    "productsCatalog": [
+      {
+        "id": "almeshwar_rent_car_item1",
+        "name": "الخدمة الرئيسية لـ المشوار لتأجير السيارات",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T01:18:11.072Z"
+  },
+  "brand_1794040386779": {
+    "id": "brand_1794040386779",
+    "name": "????? ????? ??? ?????? ????",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "medical_clinic",
+    "dialect": "مصرية احترافية وسريعة",
+    "websiteUrl": "https://brand_1794040386779.t2-client.vercel.app",
+    "conversationsCount": 0,
+    "status": "active",
+    "subscriptionStatus": "PRO",
+    "isUnlimited": true,
+    "adBudgetEgp": 2500,
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ ????? ????? ??? ?????? ????. تستقبل العملاء باحترافية وتجيب عن الاستفسارات وتؤكد الحجوزات والطلبات.",
+    "productsCatalog": [
+      {
+        "id": "brand_1794040386779_svc1",
+        "name": "الخدمة والمنتج الرئيسي لـ ????? ????? ??? ?????? ????",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T08:33:06.829Z"
+  },
+  "brand_1794047682863": {
+    "id": "brand_1794047682863",
+    "name": "أورينت كارز مصر",
+    "ownerEmail": "ahm.atya@gmail.com",
+    "businessType": "تأجير سيارات",
+    "dialect": "مصرية احترافية وسريعة",
+    "websiteUrl": "https://elite-brand.t2-client.vercel.app",
+    "conversationsCount": 0,
+    "status": "active",
+    "subscriptionStatus": "PRO",
+    "isUnlimited": true,
+    "adBudgetEgp": 2500,
+    "systemPrompt": "أنت المساعد الذكي الرسمي لـ أورينت كارز مصر. تستقبل العملاء باحترافية وتجيب عن الاستفسارات وتؤكد الحجوزات والطلبات.",
+    "productsCatalog": [
+      {
+        "id": "brand_1794047682863_svc1",
+        "name": "الخدمة والمنتج الرئيسي لـ أورينت كارز مصر",
+        "price": "حسب المعاينة والاستشارة",
+        "category": "general"
+      }
+    ],
+    "createdAt": "2026-11-07T10:34:42.866Z"
+  }
+}

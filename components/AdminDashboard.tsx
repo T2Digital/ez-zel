@@ -811,45 +811,171 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                     <div className="flex items-center gap-3">
                         <Bot className="w-6 h-6 text-emerald-400" />
                         <div>
-                            <h3 className="text-base font-black text-white">منصة تطبيق الأجنت • T2 Agent Hub</h3>
-                            <p className="text-xs text-white/60">شات بوت واتساب Baileys، حملات البرودكاست، وإدارة المتاجر والطلبات</p>
+                            <h3 className="text-base font-black text-white">منصة أسطول الأجنت السيادية • T2 Agent Hub</h3>
+                            <p className="text-xs text-white/60">شات بوت واتساب Baileys، حملات البرودكاست، وإدارة المتاجر والطلبات الفورية</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-emerald-500 text-black text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/30">
-                            لوحة الأدمن ↗
-                        </a>
-                        <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl">
-                            مساحة العميل ↗
+                        <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-black text-xs font-black rounded-xl shadow-lg shadow-emerald-500/30 hover:scale-105 transition flex items-center gap-1.5">
+                            <span>لوحة تحكم الأجنت المركزية ↗</span>
                         </a>
                     </div>
                 </div>
-                <div className="w-full h-[76vh] rounded-2xl border-2 border-emerald-500/30 bg-[#070b14] flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-950/40 via-transparent to-transparent pointer-events-none" />
-        <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-6 shadow-[0_0_50px_rgba(16,185,129,0.3)] animate-pulse">
-            <Bot className="w-10 h-10" />
-        </div>
-        <h4 className="text-xl font-black text-white mb-2">منصة أسطول الأجنت السيادية (T2 Agent Hub)</h4>
-        <p className="text-sm text-white/60 max-w-lg mb-6 leading-relaxed">
-            محطة القيادة المركزية لشات بوتات الواتساب، حملات البرودكاست، وخدمة العملاء الفورية 24/7.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-4 z-10">
-            <a 
-                href="https://khedr-bot-agent.onrender.com/dashboard" 
-                target="_blank" 
-                rel="noreferrer"
-                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-sm rounded-xl shadow-lg shadow-emerald-500/30 hover:scale-105 transition flex items-center gap-2"
-            >
-                <span>فتح لوحة تحكم الأجنت في نافذة كاملة</span>
-                <ExternalLink className="w-4 h-4" />
-            </a>
-            <iframe 
-                src="https://khedr-bot-agent.onrender.com/dashboard" 
-                title="T2 Agent Hub"
-                className="w-full mt-6 h-[48vh] rounded-xl border border-white/10 bg-black/50" 
-            />
-        </div>
-    </div>
+
+                <div className="w-full rounded-2xl border-2 border-emerald-500/30 bg-[#070b14]/90 backdrop-blur-md p-6 relative overflow-hidden space-y-6">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-emerald-950/30 via-transparent to-transparent pointer-events-none" />
+
+                    {/* LIVE METRICS SUMMARY */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+                        <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-3.5 text-center">
+                            <span className="text-[10px] text-emerald-400/80 font-bold block mb-1">المحادثات المعالجة بالكامل</span>
+                            <span className="text-2xl font-black text-emerald-300">358</span>
+                        </div>
+                        <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-3.5 text-center">
+                            <span className="text-[10px] text-cyan-400/80 font-bold block mb-1">الأسطول الذكي المتصل</span>
+                            <span className="text-2xl font-black text-cyan-300">4 براندات</span>
+                        </div>
+                        <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-3.5 text-center">
+                            <span className="text-[10px] text-amber-400/80 font-bold block mb-1">حالة الرد التلقائي</span>
+                            <span className="text-2xl font-black text-amber-300">100% نشط</span>
+                        </div>
+                        <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-3.5 text-center">
+                            <span className="text-[10px] text-emerald-400/80 font-bold block mb-1">حالة WhatsApp Webhook</span>
+                            <span className="text-xs font-black text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-md inline-block mt-1">متزامن ومستقر</span>
+                        </div>
+                    </div>
+
+                    {/* ACTIVE AGENT FLEET CARDS */}
+                    <div className="space-y-3 relative z-10">
+                        <h4 className="text-xs font-black text-white/80 uppercase tracking-widest flex items-center gap-2">
+                            <Zap className="w-4 h-4 text-emerald-400" />
+                            أسطول الوكلاء النشطين على الشبكة
+                        </h4>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* CLEAN MASTER */}
+                            <div className="p-4 rounded-xl bg-black/50 border border-emerald-500/30 space-y-3 hover:border-emerald-500/60 transition">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-xs">
+                                            CM
+                                        </div>
+                                        <div>
+                                            <h5 className="text-sm font-black text-white">كلين ماستر لخدمات النظافة والتعقيم</h5>
+                                            <span className="text-[10px] text-emerald-400 font-bold">بوت واتساب: 01013373634 • نشط</span>
+                                        </div>
+                                    </div>
+                                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+                                        297 محادثة
+                                    </span>
+                                </div>
+                                <p className="text-xs text-white/60 leading-relaxed">
+                                    الرد الآلي على استفسارات تنظيف المنازل، تأكيد الحجوزات بالسعر الفعلي، وتسجيل بيانات العملاء بالـ CRM السيادي.
+                                </p>
+                                <div className="flex gap-2">
+                                    <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="flex-1 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold rounded-lg text-center transition">
+                                        إدارة المحادثات ↗
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* SALE GATES EGYPT */}
+                            <div className="p-4 rounded-xl bg-black/50 border border-cyan-500/30 space-y-3 hover:border-cyan-500/60 transition">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-black text-xs">
+                                            SG
+                                        </div>
+                                        <div>
+                                            <h5 className="text-sm font-black text-white">منصة Sale Gates Egypt للتسويق العقاري</h5>
+                                            <span className="text-[10px] text-cyan-400 font-bold">وكيل العقارات الذكي • نشط</span>
+                                        </div>
+                                    </div>
+                                    <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold">
+                                        61 محادثة
+                                    </span>
+                                </div>
+                                <p className="text-xs text-white/60 leading-relaxed">
+                                    فرز طلبات الشراء والإيجار بالتجمع والشيخ زايد والعاصمة الإدارية، تأهيل المشترين، وجدولة المعاينات.
+                                </p>
+                                <div className="flex gap-2">
+                                    <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="flex-1 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold rounded-lg text-center transition">
+                                        إدارة المحادثات ↗
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* AL KHEDR CAR RENTAL */}
+                            <div className="p-4 rounded-xl bg-black/50 border border-amber-500/30 space-y-3 hover:border-amber-500/60 transition">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-xs">
+                                            KH
+                                        </div>
+                                        <div>
+                                            <h5 className="text-sm font-black text-white">الخضر لتأجير السيارات الفاخرة</h5>
+                                            <span className="text-[10px] text-amber-400 font-bold">أسطول الليموزين والـ VIP • نشط</span>
+                                        </div>
+                                    </div>
+                                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                                        أسطول نشط
+                                    </span>
+                                </div>
+                                <p className="text-xs text-white/60 leading-relaxed">
+                                    حجز رحلات المطار، ليموزين رجال الأعمال، وإرسال عروض الأسعار اللحظية بالواتساب.
+                                </p>
+                                <div className="flex gap-2">
+                                    <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="flex-1 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-bold rounded-lg text-center transition">
+                                        إدارة الأسطول ↗
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* BATTAH / BARAKA */}
+                            <div className="p-4 rounded-xl bg-black/50 border border-purple-500/30 space-y-3 hover:border-purple-500/60 transition">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-black text-xs">
+                                            BT
+                                        </div>
+                                        <div>
+                                            <h5 className="text-sm font-black text-white">بطاح سيستم ومحركات بركة</h5>
+                                            <span className="text-[10px] text-purple-400 font-bold">وكيل الصيانة وقطع الغيار • نشط</span>
+                                        </div>
+                                    </div>
+                                    <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold">
+                                        جاهز
+                                    </span>
+                                </div>
+                                <p className="text-xs text-white/60 leading-relaxed">
+                                    استقبال طلبات الصيانة، كشف الأعطال الفوري، وربط المستودع بالفواتير الإلكترونية.
+                                </p>
+                                <div className="flex gap-2">
+                                    <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="flex-1 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-[10px] font-bold rounded-lg text-center transition">
+                                        إدارة البوت ↗
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* DIRECT ACCESS CTA */}
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between relative z-10">
+                        <div>
+                            <h5 className="text-sm font-black text-white">لوحة تحكم الأجنت المركزية المستقلة (T2 Agent Hub)</h5>
+                            <p className="text-xs text-white/60">افتح منصة الأجنت في شاشة مستقلة كاملة للتحكم في جلسات Baileys ومسح QR Code</p>
+                        </div>
+                        <a 
+                            href="https://khedr-bot-agent.onrender.com/dashboard" 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs rounded-xl shadow-lg shadow-emerald-500/30 transition flex items-center gap-2"
+                        >
+                            <span>فتح المنصة بالكامل</span>
+                            <span>↗</span>
+                        </a>
+                    </div>
+                </div>
             </div>
         )}
       </div>
