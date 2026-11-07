@@ -431,7 +431,7 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
 
     if (!cleanText) return null;
 
-    // Resolve active human voice persona
+    // Resolve authentic Egyptian voice persona
     let edgeVoiceName = voice === 'female' ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
     let edgeRate = '+0%';
     let edgePitch = '+0Hz';
@@ -443,47 +443,10 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
         if (persona?.edgePitch) edgePitch = persona.edgePitch;
     } catch {}
 
-    // 1. PRIMARY SOVEREIGN ENGINE: Google Human Voice (Zero-latency, 100% human studio warmth)
+    // 1. PRIMARY & SOVEREIGN: 100% Studio Human Egyptian Neural Voice (Shakir / Salma)
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-        const resp = await fetch('/api/tts/google', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: cleanText.substring(0, 1500),
-                voice: edgeVoiceName
-            }),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (resp.ok) {
-            const arrayBuffer = await resp.arrayBuffer();
-            if (arrayBuffer.byteLength > 100) {
-                let binary = '';
-                const bytes = new Uint8Array(arrayBuffer);
-                const len = bytes.byteLength;
-                const chunkSize = 8192;
-                for (let i = 0; i < len; i += chunkSize) {
-                    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-                    binary += String.fromCharCode.apply(null, chunk as any);
-                }
-                const base64Audio = btoa(binary);
-                if (base64Audio && base64Audio.length > 100) {
-                    return base64Audio;
-                }
-            }
-        }
-    } catch (gErr: any) {
-        console.warn("[TTS] Google Human TTS warning, falling back to Microsoft Edge:", gErr?.message);
-    }
-
-    // 2. SECONDARY FALLBACK: Microsoft Edge-TTS (ar-EG-ShakirNeural / ar-EG-SalmaNeural)
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         const resp = await fetch('/api/tts/edge-proxy', {
             method: 'POST',
@@ -517,28 +480,47 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
             }
         }
     } catch (e: any) {
-        console.warn("[TTS] Edge Egyptian Neural failed:", e?.message);
+        console.warn("[TTS] Human Egyptian Neural endpoint failed:", e?.message);
     }
 
-    // 3. TERTIARY FALLBACK: Direct Client Google TTS Audio Buffer
+    // 2. SECONDARY RESILIENT FALLBACK: Sovereign TTS Route
     try {
-        const directUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText.substring(0, 180))}&tl=ar&client=tw-ob`;
-        const resp = await fetch(directUrl);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+        const resp = await fetch('/api/tts/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: cleanText.substring(0, 1500),
+                voice: edgeVoiceName
+            }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         if (resp.ok) {
             const arrayBuffer = await resp.arrayBuffer();
             if (arrayBuffer.byteLength > 100) {
                 let binary = '';
                 const bytes = new Uint8Array(arrayBuffer);
                 const len = bytes.byteLength;
-                for (let i = 0; i < len; i += 8192) {
-                    binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 8192, len)) as any);
+                const chunkSize = 8192;
+                for (let i = 0; i < len; i += chunkSize) {
+                    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+                    binary += String.fromCharCode.apply(null, chunk as any);
                 }
-                return btoa(binary);
+                const base64Audio = btoa(binary);
+                if (base64Audio && base64Audio.length > 100) {
+                    return base64Audio;
+                }
             }
         }
-    } catch {}
+    } catch (gErr: any) {
+        console.warn("[TTS] Sovereign fallback failed:", gErr?.message);
+    }
 
-    // 4. FINAL RESILIENT PATH: Browser Native SpeechSynthesis
+    // 3. FINAL PATH: Browser Native SpeechSynthesis
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         try {
             const utterance = new SpeechSynthesisUtterance(cleanText.substring(0, 300));

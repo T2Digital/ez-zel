@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts worker.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outdir=dist --out-extension:.js=.cjs",
+    "postinstall": "pip install edge-tts || python3 -m pip install edge-tts --break-system-packages || true",
+    "build": "node --max-old-space-size=4096 ./node_modules/vite/bin/vite.js build && esbuild server.ts worker.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outdir=dist --out-extension:.js=.cjs",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "start": "node dist/server.cjs"
@@ -40,6 +41,7 @@
     "crypto-js": "^4.2.0",
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
+    "edge-tts-universal": "^1.4.0",
     "ethers": "^6.16.0",
     "express": "^5.2.1",
     "firebase": "^12.12.1",
