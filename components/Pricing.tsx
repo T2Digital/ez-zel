@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Zap, UserCheck, Eye, Fingerprint, Sparkles, BrainCircuit, Shield, Mic, HardDrive, ArrowLeft, Calendar, Check, FileText, Terminal } from 'lucide-react';
 import CapabilitiesGuide from './CapabilitiesGuide';
 import WhitePaper from './WhitePaper';
+import { JarvisBattleStationModal } from './JarvisBattleStationModal';
 
 const TerminalEffect = () => {
     const lines = [
@@ -18,10 +19,10 @@ const TerminalEffect = () => {
         "- المحلل: بيحلل الصور والمستندات.",
         "- المعالج: بيسمعك ويخفف عنك.",
         "- المحلل الفني: بيتابعلك السوق والشارتات.",
-        "وكمان عندنا بيزنس العيلة (نظام الإحالة):",
-        "لو دعيت حد واشترك شهري (1000 جنيه) هينزلك 100 جنيه كاش.",
-        "ولو اشترك سنوي (10,000 جنيه) هينزلك 1000 جنيه كاش (عمولة 10%).",
-        "تقدر تسحب أرباحك من محفظتك في أي وقت.",
+        "وكمان عندنا بيزنس العيلة (نظام الإحالة اعمل فلوس):",
+        "لو دعيت حد واشترك في باقة الانطلاق (2500 جنيه) هينزلك 250 جنيه كاش فوري.",
+        "ولو اشترك في باقة النمو (5000 جنيه) هينزلك 500 جنيه كاش (عمولة 10% مدى الحياة).",
+        "تقدر تسحب أرباحك من محفظتك في أي وقت (فودافون كاش أو إنستاباي).",
         "--- ميثاق الظل ---",
         "1. السرية التامة: بياناتك مشفرة ومحفوظة في الخزنة.",
         "2. الولاء المطلق: أنا هنا لخدمتك وحماية مصالحك.",
@@ -97,15 +98,27 @@ interface Props {
 const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart }) => {
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [showWhitePaper, setShowWhitePaper] = useState(false);
+  const [showBattleStation, setShowBattleStation] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [selectedTier, setSelectedTier] = useState<'growth' | 'launch'>('growth');
 
-  const prices = {
-      monthly: { egp: '1,000', usd: '20', label: 'شهرياً', discount: '' },
-      yearly: { egp: '10,000', usd: '200', label: 'سنوياً', discount: 'وفر 2000 ج.م' }
+  const tierPrices = {
+    growth: {
+      monthly: { egp: '5,000', usd: '100', label: 'شهرياً • 2,500 ج إعلانات + تطبيق ويب كامل مستمر والأجنت', discount: '' },
+      yearly: { egp: '50,000', usd: '1,000', label: 'سنوياً • 25,000 ج إعلانات + تطبيق ويب كامل', discount: 'وفر 10,000 ج.م' },
+      commissionMonthly: '500',
+      commissionYearly: '5,000'
+    },
+    launch: {
+      monthly: { egp: '2,500', usd: '50', label: 'شهرياً • 1,250 ج إعلانات رسايل واتساب + الأجنت (بدون تطبيق)', discount: '' },
+      yearly: { egp: '25,000', usd: '500', label: 'سنوياً • 12,500 ج إعلانات رسايل', discount: 'وفر 5,000 ج.م' },
+      commissionMonthly: '250',
+      commissionYearly: '2,500'
+    }
   };
 
-  const currentPrice = prices[billingCycle];
-  const commissionAmount = billingCycle === 'yearly' ? '1000' : '100';
+  const currentPrice = tierPrices[selectedTier][billingCycle];
+  const commissionAmount = billingCycle === 'yearly' ? tierPrices[selectedTier].commissionYearly : tierPrices[selectedTier].commissionMonthly;
 
   const handleJoinFromGuide = () => {
       setShowCapabilities(false);
@@ -132,6 +145,14 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
           <WhitePaper onClose={() => setShowWhitePaper(false)} />
       )}
 
+      {showBattleStation && (
+          <JarvisBattleStationModal 
+              isOpen={showBattleStation} 
+              onClose={() => setShowBattleStation(false)} 
+              initialPersona="visitor" 
+          />
+      )}
+
       {/* Deep Ambient Background */}
       <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-purple-900/10 blur-[150px] rounded-full pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-amber-900/10 blur-[150px] rounded-full pointer-events-none"></div>
@@ -152,7 +173,14 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                 امتلك <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-white to-cyan-400">ظلك الرقمي</span>
             </h1>
             
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap justify-center">
+                <button 
+                    onClick={() => setShowBattleStation(true)} 
+                    className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-blue-600/30 via-cyan-500/30 to-emerald-500/30 hover:from-blue-600/50 hover:to-cyan-400/50 border border-cyan-400/60 rounded-full transition-all group backdrop-blur-md shadow-[0_0_15px_rgba(6,182,212,0.3)] cursor-pointer"
+                >
+                    <Zap className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
+                    <span className="text-[10px] font-black text-cyan-200 group-hover:text-white">محطة جارفيس ⚡</span>
+                </button>
                 <button 
                     onClick={() => setShowCapabilities(true)} 
                     className="flex items-center gap-2 px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all group backdrop-blur-md"
@@ -217,6 +245,32 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
 
         {/* 3. FOOTER ACTIONS (Bottom) */}
         <div className="shrink-0 w-full space-y-2 pb-6">
+             {/* Tier Selector: Growth (5K) vs Launch (2.5K) */}
+             <div className="flex justify-center mb-1">
+               <div className="bg-black/80 p-1 rounded-2xl border border-white/10 flex gap-1 text-[11px] font-black select-none">
+                 <button
+                   onClick={() => setSelectedTier('growth')}
+                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                     selectedTier === 'growth'
+                       ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg shadow-amber-500/20'
+                       : 'text-white/60 hover:text-white'
+                   }`}
+                 >
+                   <span>⭐ باقة النمو (5,000 ج)</span>
+                 </button>
+                 <button
+                   onClick={() => setSelectedTier('launch')}
+                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
+                     selectedTier === 'launch'
+                       ? 'bg-white/20 text-white font-bold'
+                       : 'text-white/40 hover:text-white'
+                   }`}
+                 >
+                   <span>باقة الانطلاق (2,500 ج)</span>
+                 </button>
+               </div>
+             </div>
+
              <div className="text-center space-y-1 mb-2">
                  {billingCycle === 'yearly' && currentPrice.discount && (
                      <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black rounded animate-pulse border border-emerald-500/20">
@@ -234,30 +288,33 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                         <span className="text-[9px] font-bold text-white/30 mr-1">USD</span>
                     </div>
                  </div>
-                 <p className="text-[9px] text-white/30 font-bold">{currentPrice.label}</p>
+                 <p className="text-[9px] text-white/40 font-bold px-2">{currentPrice.label}</p>
                  
                  <button 
                     onClick={onAffiliateStart} 
                     className="inline-block px-3 py-1 mt-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/40 rounded-lg animate-pulse cursor-pointer transition-colors"
                  >
                     <p className="text-[9px] font-bold text-emerald-400 flex items-center gap-1">
-                        💡 ادعي صحابك واربح {commissionAmount}ج كاش! <span className="underline">التفاصيل</span>
+                        💡 ادعي صحابك واربح {commissionAmount}ج كاش فوري! (10% مدى الحياة) <span className="underline">التفاصيل</span>
                     </p>
                  </button>
              </div>
 
              <div className="space-y-2">
-                <button onClick={onTrialStart} className="group relative w-full py-3.5 bg-white text-black rounded-[20px] font-black text-base hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_40px_rgba(255,255,255,0.15)] flex items-center justify-center gap-2 overflow-hidden">
+                <button 
+                  onClick={() => setShowBattleStation(true)} 
+                  className="group relative w-full py-3.5 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 text-black rounded-[20px] font-black text-base hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_40px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 overflow-hidden"
+                >
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
                     <Eye className="w-5 h-5 text-black" /> 
-                    <span>تجربة الظل (3 أيام)</span>
+                    <span>ابدأ الأسبوع المجاني مع جارفيس (7 أيام)</span>
                 </button>
                 
                 <div className="flex gap-2">
-                    <button onClick={() => onSelectPlan('elite', billingCycle)} className="flex-[2] py-3.5 bg-[#151515] hover:bg-[#1a1a1a] text-purple-400 border border-white/10 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2 hover:border-purple-500/30">
-                        <Zap className="w-4 h-4" /> تفعيل الاشتراك
+                    <button onClick={() => onSelectPlan(selectedTier, billingCycle)} className="flex-[2] py-3.5 bg-[#151515] hover:bg-[#1a1a1a] text-purple-400 border border-white/10 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2 hover:border-purple-500/30">
+                        <Zap className="w-4 h-4" /> تفعيل الاشتراك المباشر
                     </button>
-                    <button onClick={() => onSelectPlan('elite', billingCycle)} className="flex-1 py-3.5 bg-transparent hover:bg-white/5 text-white/40 hover:text-white border border-white/5 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2">
+                    <button onClick={() => setShowBattleStation(true)} className="flex-1 py-3.5 bg-transparent hover:bg-white/5 text-white/40 hover:text-white border border-white/5 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2">
                         <UserCheck className="w-4 h-4" /> دخول
                     </button>
                 </div>

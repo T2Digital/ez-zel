@@ -424,6 +424,55 @@ const _renderChatCardInner = (
               </div>
           );
       }
+      if (card.cardType === 'news_feed') {
+          const items = (card.news || []).slice(0, 6);
+          return (
+              <div key={i} className="mt-4 bg-[#0a0f1d] border border-cyan-500/30 rounded-2xl p-4 md:p-5 shadow-[0_0_25px_rgba(6,182,212,0.15)] w-full md:w-[480px] font-['Cairo'] space-y-3" dir="rtl">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                      <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+                              <Globe className="w-4 h-4 animate-spin" style={{ animationDuration: '12s' }} />
+                          </div>
+                          <div>
+                              <h3 className="font-black text-white text-sm flex items-center gap-2">
+                                  {card.title || 'رادار الأخبار الحية العاجلة'}
+                                  <span className="text-[9px] bg-red-500/20 text-red-400 border border-red-500/40 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                                      مباشر الآن
+                                  </span>
+                              </h3>
+                              <p className="text-[10px] text-white/50">أحدث العناوين من المصادر الرسمية مع الروابط المباشرة</p>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="space-y-2.5">
+                      {items.map((item: any, idx: number) => (
+                          <div key={idx} className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all space-y-2 group">
+                              <div className="text-xs font-bold text-white group-hover:text-cyan-300 transition-colors leading-relaxed">
+                                  {item.title}
+                              </div>
+                              <div className="flex items-center justify-between text-[10px] text-white/40 pt-1 border-t border-white/5">
+                                  <span className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded-md font-mono font-bold">
+                                      {item.source || 'المصدر الإخباري'}
+                                  </span>
+                                  {item.link && (
+                                      <a
+                                          href={item.link}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-bold transition-colors"
+                                      >
+                                          قراءة المصدر
+                                          <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                  )}
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          );
+      }
       if (card.cardType === 'task_success') {
           if (card.audioData) {
               return <MusicPlayerCard key={i} title={card.title} description={card.description} audioData={card.audioData} />;

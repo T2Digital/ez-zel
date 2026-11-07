@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: the-shadow-sovereign-os
+    env: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ADMIN_SECRET_KEY
+        generateValue: true
+      - key: ALLOW_INSECURE_HEADER_AUTH
+        value: "false"

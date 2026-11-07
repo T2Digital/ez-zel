@@ -37,15 +37,15 @@ const STORAGE_KEY = 'shadow_human_voice_config_v1';
 export const HUMAN_VOICE_PERSONAS: HumanVoicePersonaDefinition[] = [
     {
         id: 'charon_sovereign',
-        name: 'الظل السيادي (نبرة بشرية عميقة)',
-        shortBadge: 'الظل البشري • عميق',
-        subtitle: 'نبرة بشرية رجولية عميقة، دافئة ووقورة بنَفَس بشري حقيقي وهيبة الماستر',
+        name: 'الظل السيادي (نبرة بشرية نقية)',
+        shortBadge: 'الظل البشري • وقور وطبيعي',
+        subtitle: 'نبرة بشرية مصرية حقيقية 100% بنَفَس استوديو طبيعي فائق النقاء وبدون أي تعديل إلكتروني',
         gender: 'male',
         geminiVoice: 'Charon',
         edgeVoice: 'ar-EG-ShakirNeural',
-        edgeRate: '+4%',
-        edgePitch: '-2Hz',
-        baseStylePrompt: 'Deep, warm, resonant, authentic human Egyptian Arabic male voice with natural breathing and calm sovereign confidence',
+        edgeRate: '+0%',
+        edgePitch: '+0Hz',
+        baseStylePrompt: 'Deep, warm, authentic natural human Egyptian Arabic male voice, pristine studio delivery without digital artifacts or robotic pitch shifts',
         sampleGreeting: 'يا ريس، أنا ظلك الرقمي بنبرتي البشرية الحقيقية.. عقلك التاني اللي فاهمك وسابق معاك بخطوة.'
     },
     {
@@ -56,7 +56,7 @@ export const HUMAN_VOICE_PERSONAS: HumanVoicePersonaDefinition[] = [
         gender: 'male',
         geminiVoice: 'Puck',
         edgeVoice: 'ar-EG-ShakirNeural',
-        edgeRate: '+8%',
+        edgeRate: '+0%',
         edgePitch: '+0Hz',
         baseStylePrompt: 'Natural, expressive, street-smart friendly Egyptian human male voice with warm conversational rhythm and authentic emotion',
         sampleGreeting: 'أهلاً يا هندسة! أنا معاك على الخط بنبرة بشرية طبيعية مية في المية، قولّي نبدأ بإيه دلوقتي؟'
@@ -69,8 +69,8 @@ export const HUMAN_VOICE_PERSONAS: HumanVoicePersonaDefinition[] = [
         gender: 'male',
         geminiVoice: 'Fenrir',
         edgeVoice: 'ar-SA-HamedNeural',
-        edgeRate: '+5%',
-        edgePitch: '-3Hz',
+        edgeRate: '+0%',
+        edgePitch: '+0Hz',
         baseStylePrompt: 'Strong, clear, authoritative human male voice with natural warmth, crisp articulation, and decisive pacing',
         sampleGreeting: 'غرفة عمليات الظل جاهزة بالكامل. جميع الأنظمة تحت سيطرتك ومستعد للتنفيذ الفوري.'
     },
@@ -82,7 +82,7 @@ export const HUMAN_VOICE_PERSONAS: HumanVoicePersonaDefinition[] = [
         gender: 'female',
         geminiVoice: 'Kore',
         edgeVoice: 'ar-EG-SalmaNeural',
-        edgeRate: '+5%',
+        edgeRate: '+0%',
         edgePitch: '+0Hz',
         baseStylePrompt: 'Warm, expressive, natural human Egyptian Arabic female voice, empathetic, smooth, and conversational',
         sampleGreeting: 'أهلاً بيك.. أنا ظلك الرقمي بنبرة بشرية هادية ودافية، معاك في كل تفصيلة تحب نرتبها سوا.'
@@ -95,8 +95,8 @@ export const HUMAN_VOICE_PERSONAS: HumanVoicePersonaDefinition[] = [
         gender: 'female',
         geminiVoice: 'Zephyr',
         edgeVoice: 'ar-EG-SalmaNeural',
-        edgeRate: '+2%',
-        edgePitch: '+1Hz',
+        edgeRate: '+0%',
+        edgePitch: '+0Hz',
         baseStylePrompt: 'Calm, soothing, crystal-clear natural human voice with gentle pacing and soft natural breath',
         sampleGreeting: 'مساء الهدوء والتركيز.. كل أفكارك ومهامك في أمان، خد نفس عميق وخليني أرتبلك كل حاجة.'
     }

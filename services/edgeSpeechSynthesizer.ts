@@ -453,34 +453,52 @@ async function synthesizeCloudFallbackSpeech(options: SynthesizeOptions): Promis
 
 function synthesizeViaEdgeTtsCli(text: string, voice: string, rate: string, pitch: string): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-        const tmpFile = path.join(os.tmpdir(), `edge_tts_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
+        const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const tmpTxtFile = path.join(os.tmpdir(), `edge_tts_${uniqueId}.txt`);
+        const tmpMp3File = path.join(os.tmpdir(), `edge_tts_${uniqueId}.mp3`);
+
+        // Write UTF-8 text file to eliminate Windows console encoding corruption on Arabic characters
+        try {
+            fs.writeFileSync(tmpTxtFile, text, { encoding: 'utf8' });
+        } catch (writeErr) {
+            return reject(writeErr);
+        }
+
         const args = [
+            '--file', tmpTxtFile,
             '--voice', voice,
-            '--text', text,
-            '--write-media', tmpFile
+            '--write-media', tmpMp3File
         ];
-        if (rate && rate !== '+0%') args.push('--rate', rate);
-        if (pitch && pitch !== '+0Hz') args.push('--pitch', pitch);
+        if (rate && rate !== '+0%') args.push(`--rate=${rate}`);
+        if (pitch && pitch !== '+0Hz') args.push(`--pitch=${pitch}`);
 
         const proc = spawn('edge-tts', args);
         let stderr = '';
         proc.stderr.on('data', d => stderr += d.toString());
 
         proc.on('close', code => {
-            if (code === 0 && fs.existsSync(tmpFile)) {
+            // Clean up temporary text file
+            try { if (fs.existsSync(tmpTxtFile)) fs.unlinkSync(tmpTxtFile); } catch {}
+
+            if (code === 0 && fs.existsSync(tmpMp3File)) {
                 try {
-                    const buf = fs.readFileSync(tmpFile);
-                    fs.unlinkSync(tmpFile);
+                    const buf = fs.readFileSync(tmpMp3File);
+                    try { if (fs.existsSync(tmpMp3File)) fs.unlinkSync(tmpMp3File); } catch {}
                     resolve(buf);
                 } catch (readErr) {
                     reject(readErr);
                 }
             } else {
+                try { if (fs.existsSync(tmpMp3File)) fs.unlinkSync(tmpMp3File); } catch {}
                 reject(new Error(`edge-tts CLI exited with code ${code}: ${stderr}`));
             }
         });
 
-        proc.on('error', err => reject(err));
+        proc.on('error', err => {
+            try { if (fs.existsSync(tmpTxtFile)) fs.unlinkSync(tmpTxtFile); } catch {}
+            try { if (fs.existsSync(tmpMp3File)) fs.unlinkSync(tmpMp3File); } catch {}
+            reject(err);
+        });
     });
 }
 

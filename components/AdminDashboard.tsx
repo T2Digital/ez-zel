@@ -25,7 +25,7 @@ interface AgentInfo {
 }
 
 const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavigateTo }) => {
-  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings' | 'architecture' | 'factory'>('analytics');
+  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings' | 'architecture' | 'factory' | 'studio' | 'agent_platform'>('analytics');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [feedbacks, setFeedbacks] = useState<DBFeedback[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -786,6 +786,47 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                 <TenantFactoryView />
             </div>
         )}
+
+        {activeView === 'studio' && (
+            <div className="w-full space-y-4 animate-fadeIn">
+                <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl">
+                    <div className="flex items-center gap-3">
+                        <Film className="w-6 h-6 text-amber-400" />
+                        <div>
+                            <h3 className="text-base font-black text-white">تيتو ستوديو • محرك إنتاج المحتوى والميديا</h3>
+                            <p className="text-xs text-white/60">Zain Copilot للإعلانات، الاسكربتات، وتصدير الـ Content Decks</p>
+                        </div>
+                    </div>
+                    <a href="http://localhost:3001?admin_bypass=vdgcwb4npax7k5me92futh0jq8orzi13y6sl" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-amber-500 text-black text-xs font-bold rounded-xl shadow-lg shadow-amber-500/30">
+                        فتح في نافذة كاملة ↗
+                    </a>
+                </div>
+                <iframe src="http://localhost:3001?admin_bypass=vdgcwb4npax7k5me92futh0jq8orzi13y6sl" title="تيتو ستوديو" className="w-full h-[76vh] rounded-2xl border-2 border-amber-500/30 bg-[#070b14]" />
+            </div>
+        )}
+
+        {activeView === 'agent_platform' && (
+            <div className="w-full space-y-4 animate-fadeIn">
+                <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl">
+                    <div className="flex items-center gap-3">
+                        <Bot className="w-6 h-6 text-emerald-400" />
+                        <div>
+                            <h3 className="text-base font-black text-white">منصة تطبيق الأجنت • T2 Agent Hub</h3>
+                            <p className="text-xs text-white/60">شات بوت واتساب Baileys، حملات البرودكاست، وإدارة المتاجر والطلبات</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <a href="/apps/t2-agent/admin.html" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-emerald-500 text-black text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/30">
+                            لوحة الأدمن ↗
+                        </a>
+                        <a href="/apps/t2-agent/dashboard.html" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl">
+                            مساحة العميل ↗
+                        </a>
+                    </div>
+                </div>
+                <iframe src="/apps/t2-agent/admin.html" title="منصة الأجنت" className="w-full h-[76vh] rounded-2xl border-2 border-emerald-500/30 bg-[#070b14]" />
+            </div>
+        )}
       </div>
 
       <nav className="fixed bottom-[32px] left-0 w-full bg-black/95 border-t border-white/10 z-[100] rounded-t-[40px]">
@@ -796,6 +837,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
             <button onClick={() => { if(onNavigateTo) onNavigateTo('affiliate'); }} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all text-white/30 hover:text-white/60`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">عمولاتي</span></button>
             <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
             <button onClick={() => setActiveView('factory')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'factory' ? 'text-amber-400 scale-110' : 'text-white/40 hover:text-amber-400'}`}><Zap className="w-5 h-5 text-amber-400" /><span className="text-[8px] font-bold text-amber-400">المصنع</span></button>
+            <button onClick={() => setActiveView('studio')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'studio' ? 'text-amber-400 scale-110' : 'text-white/40 hover:text-amber-400'}`}><Film className="w-5 h-5 text-amber-400" /><span className="text-[8px] font-bold text-amber-400">الاستوديو</span></button>
+            <button onClick={() => setActiveView('agent_platform')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'agent_platform' ? 'text-emerald-400 scale-110' : 'text-white/40 hover:text-emerald-400'}`}><Bot className="w-5 h-5 text-emerald-400" /><span className="text-[8px] font-bold text-emerald-400">الأجنت</span></button>
             
             <button onClick={() => { if(onNavigateTo) onNavigateTo('chat'); }} className="flex-shrink-0 min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(245,158,11,0.5)] hover:scale-110 transition-transform"><Bot className="w-6 h-6" /></button>
 

@@ -523,19 +523,70 @@ export const processToolActions = async (
                       }
                   }, 300);
               }
+              else if (t.name === 'open_onboarding_wizard') {
+                  uiCards.push({ cardType: 'task_success', title: '🚀 مصنع التطبيقات الذكي', description: 'تم فتح نافذة استنساخ البراند وربط واتساب وميتا.' });
+                  window.dispatchEvent(new CustomEvent('shadow:open-onboarding', { 
+                      detail: { 
+                          businessName: t.args?.business_name || '', 
+                          category: t.args?.category || '' 
+                      } 
+                  }));
+                  setTimeout(() => {
+                      handleSend(`[ONBOARDING_WIZARD_OPENED]\nتم فتح نافذة تجهيز التطبيق للمستخدم الآن على الشاشة لكتابة اسم البراند ورفع اللوجو وربط واتساب وصفحات ميتا.\n[INSTRUCTION]: رحب به بحرارة وبصوتك البشري المصري، وأخبره أن يملأ البيانات وسيقوم الظل باستنساخ تطبيقه وتشغيل البوت فوراً.`, undefined, undefined, true);
+                  }, 400);
+              }
+              else if (t.name === 'open_jarvis_battlestation') {
+                  uiCards.push({ cardType: 'task_success', title: '⚡ محطة جارفيس التفاعلية', description: 'جاري تشغيل واجهة العمليات الذكية...' });
+                  window.dispatchEvent(new CustomEvent('shadow:open-battlestation', { 
+                      detail: { persona: t.args?.persona || 'visitor' } 
+                  }));
+                  setTimeout(() => {
+                      handleSend(`[BATTLESTATION_OPENED]\nتم فتح محطة جارفيس التفاعلية بنمط (${t.args?.persona || 'visitor'}).\n[INSTRUCTION]: خاطب المستخدم مباشرة وأكد له أن المحطة جاهزة بنسبة 100%.`, undefined, undefined, true);
+                  }, 400);
+              }
+              else if (t.name === 'get_tenants_overview') {
+                  uiCards.push({ cardType: 'task_success', title: '📊 إحصائيات مصنع التطبيقات', description: 'جاري استدعاء تقرير الشركات النشطة...' });
+                  setTimeout(async () => {
+                      try {
+                          const res = await fetch('/api/factory/tenants');
+                          const data = await res.json();
+                          const summary = `إجمالي الشركات النشطة: ${data.count} شركات.\nإجمالي الـ MRR الشهري: ${data.totalMRR} جنيه مصري.\nالشركات: ${data.tenants?.map((t: any) => `${t.businessName} (${t.monthlyRevenue} ج.م)`).join('، ')}`;
+                          handleSend(`[TENANTS_OVERVIEW_RESULT]\n${summary}\n[INSTRUCTION]: اعرض هذه البيانات للمستخدم بفخر ووضح جاهزية استنساخ المزيد من التطبيقات.`, undefined, undefined, true);
+                      } catch {
+                          handleSend(`[TENANTS_OVERVIEW_RESULT]\nتعذر جلب إحصائيات المصنع لحظياً.`, undefined, undefined, true);
+                      }
+                  }, 300);
+              }
               else if (t.name === 'get_latest_news') {
-                  uiCards.push({ cardType: 'task_success', title: '📰 رادار الأخبار الحية', description: 'جاري استخراج أحدث الأخبار العاجلة...' });
                   setTimeout(async () => {
                       try {
                           const res = await fetch('/api/news/latest');
                           const data = await res.json();
-                          const newsList = (data.news || []).slice(0, 8).map((n: any, i: number) => `${i + 1}. ${n.title} [${n.source}]`).join('\n');
-                          const hiddenText = `[LIVE_NEWS_FEED]\nأحدث عناوين الأخبار العاجلة في مصر والمنطقة الآن:\n${newsList}\n\n[INSTRUCTION]: لخص هذه الأخبار الحية للمستخدم بأسلوب مصري شيق وذكي ومباشر، وقسمها لعناوين بارزة.`;
-                          handleSend(hiddenText, undefined, undefined, true);
+                          const rawList = data.news || [];
+                          
+                          // Push visual interactive News Feed Card
+                          setMessages((prev: any[]) => {
+                              const updated = [...prev];
+                              const last = updated[updated.length - 1];
+                              if (last && last.role === 'model') {
+                                  last.uiCards = [
+                                      ...(last.uiCards || []),
+                                      { cardType: 'news_feed', title: '📰 رادار الأخبار الحية العاجلة', news: rawList }
+                                  ];
+                              }
+                              return updated;
+                          });
+
+                          const newsFormatted = rawList.slice(0, 6).map((n: any, i: number) => 
+                              `${i + 1}. **${n.title}**\n   - المصدر: [${n.source || 'المصدر الإخباري'}](${n.link})`
+                          ).join('\n\n');
+
+                          const hiddenText = `[LIVE_NEWS_FEED]\nأحدث الأخبار العاجلة الآن مع مصادرها الأصلية:\n\n${newsFormatted}\n\n[INSTRUCTION]: اعرض هذه الأخبار للمستخدم بنبرتك المصرية الذكية، ويجب أن تذكر اسم كل مصدر ورابطه المباشر القابل للنقر (مثل: [المصدر: اليوم السابع](الرابط)) بجوار كل خبر ليتمكن المستخدم من قراءة التفاصيل من المصدر الأصلي.`;
+                          handleSend(hiddenText, undefined, undefined, false);
                       } catch (e) {
-                          handleSend(`[LIVE_NEWS_FEED]\nعذراً، تعذر الاتصال بموجز الأخبار لحظياً.`, undefined, undefined, true);
+                          handleSend(`[LIVE_NEWS_FEED]\nعذراً، تعذر جلب الأخبار لحظياً من المصدر.`, undefined, undefined, false);
                       }
-                  }, 300);
+                  }, 200);
               }
               else if (t.name === 'auto_deployer' || t.name === 'crypto_trader' || t.name === 'social_poster') {
                   uiCards.push({

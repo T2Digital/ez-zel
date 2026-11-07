@@ -36,6 +36,8 @@ const ShadowMeshSync = React.lazy(() => import('./ShadowMeshSync').then(m => ({ 
 import { SovereignOSArchitectureHub } from './SovereignOSArchitectureHub';
 const SovereignVirtualWorld3D = React.lazy(() => import('./SovereignVirtualWorld3D'));
 import { HumanVoiceToneModal } from './chat/HumanVoiceToneModal';
+import { JarvisBattleStationModal } from './JarvisBattleStationModal';
+import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { resolveVoicePersona } from '../services/voicePersonaService';
 
 interface Props {
@@ -221,6 +223,12 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const [personalKeys, setPersonalKeys] = useState(currentUser.personalKeys || {});
   const [toastBanner, setToastBanner] = useState<string | null>(null);
 
+  // Jarvis Battle Station & Client Onboarding States
+  const [showBattleStation, setShowBattleStation] = useState(false);
+  const [battleStationPersona, setBattleStationPersona] = useState<'visitor' | 'client' | 'tito'>('visitor');
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [onboardingInitialData, setOnboardingInitialData] = useState<{ businessName?: string; category?: string }>({});
+
   const showChatToast = useCallback((msg: string) => {
       setToastBanner(msg);
       setTimeout(() => setToastBanner(null), 3500);
@@ -230,8 +238,27 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
       const handleGlobalToast = (e: any) => {
           if (e.detail) showChatToast(typeof e.detail === 'string' ? e.detail : e.detail.text || 'إشعار');
       };
+      const handleOpenBattleStation = (e: any) => {
+          setBattleStationPersona(e.detail?.persona || 'visitor');
+          setShowBattleStation(true);
+      };
+      const handleOpenOnboarding = (e: any) => {
+          setOnboardingInitialData({
+              businessName: e.detail?.businessName || '',
+              category: e.detail?.category || 'ecommerce_store'
+          });
+          setShowOnboardingModal(true);
+      };
+
       window.addEventListener('shadow_toast', handleGlobalToast);
-      return () => window.removeEventListener('shadow_toast', handleGlobalToast);
+      window.addEventListener('shadow:open-battlestation', handleOpenBattleStation);
+      window.addEventListener('shadow:open-onboarding', handleOpenOnboarding);
+
+      return () => {
+          window.removeEventListener('shadow_toast', handleGlobalToast);
+          window.removeEventListener('shadow:open-battlestation', handleOpenBattleStation);
+          window.removeEventListener('shadow:open-onboarding', handleOpenOnboarding);
+      };
   }, [showChatToast]);
 
   const handleSavePersonalKeys = async () => {
@@ -1401,6 +1428,10 @@ ${textContent.substring(0, 10000)}`;
         setIsMuted={setIsMuted}
         onOpenHumanVoice={() => setShowHumanVoiceModal(true)}
         humanVoiceLabel={humanVoiceBadge}
+        onOpenBattleStation={() => {
+            setBattleStationPersona(isTito ? 'tito' : 'visitor');
+            setShowBattleStation(true);
+        }}
         audioLevel={audioLevel}
         onFaceClick={() => setShowBigFace(true)}
       />
@@ -1594,6 +1625,22 @@ ${textContent.substring(0, 10000)}`;
           <HumanVoiceToneModal
               onClose={() => setShowHumanVoiceModal(false)}
               user={currentUser}
+          />
+      )}
+      {showBattleStation && (
+          <JarvisBattleStationModal
+              isOpen={showBattleStation}
+              onClose={() => setShowBattleStation(false)}
+              initialPersona={battleStationPersona}
+              onNavigateTo={onNavigateTo}
+          />
+      )}
+      {showOnboardingModal && (
+          <ClientOnboardingModal
+              isOpen={showOnboardingModal}
+              onClose={() => setShowOnboardingModal(false)}
+              initialBusinessName={onboardingInitialData.businessName}
+              initialCategory={onboardingInitialData.category}
           />
       )}
 

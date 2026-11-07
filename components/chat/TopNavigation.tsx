@@ -38,6 +38,7 @@ interface TopNavigationProps {
     setIsMuted: (val: boolean) => void;
     onOpenHumanVoice?: () => void;
     humanVoiceLabel?: string;
+    onOpenBattleStation?: () => void;
     audioLevel: number;
     onFaceClick: () => void;
 }
@@ -48,7 +49,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
     speechSupported, syncStatus, onOpenAffiliate, isRestrictedMode,
     hasVoiceSignature, setShowVoiceBiometricsManager, setShowLiveAPIMode,
     setShowMemoryVault, setShowLocalDeepDive, setShowPersonalKeys, setShowNativeSettings, setShowAutonomousManager, setShowShadowMesh, setShowArchitectureHub, setShowVirtualWorld, setShow3DGame, setShowMediaStudio, runningTasks = 0,
-    isMuted, setIsMuted, onOpenHumanVoice, humanVoiceLabel, audioLevel, onFaceClick
+    isMuted, setIsMuted, onOpenHumanVoice, humanVoiceLabel, onOpenBattleStation, audioLevel, onFaceClick
 }) => {
     return (
         <div className="py-2 px-4 border-b border-white/10 bg-[#0a0a0a] flex flex-col gap-2 shrink-0 z-50 shadow-md relative transition-all">
@@ -117,6 +118,17 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                         <Ear className={`w-4 h-4 ${isSentinelMode ? 'animate-pulse' : ''}`} />
                     </button>
                     
+                    {onOpenBattleStation && (
+                        <button 
+                            onClick={onOpenBattleStation} 
+                            className="p-2 shrink-0 bg-gradient-to-r from-blue-600/30 via-cyan-500/30 to-emerald-500/30 hover:from-blue-600/50 hover:to-cyan-400/50 border border-cyan-400/60 text-cyan-200 rounded-full transition-all select-none shadow-[0_0_15px_rgba(6,182,212,0.35)] flex items-center gap-1.5 px-3 cursor-pointer" 
+                            title="محطة جارفيس للعمليات والفرز الذكي (Jarvis Battle Station)"
+                        >
+                            <Sparkles className="w-4 h-4 text-cyan-300 animate-pulse" />
+                            <span className="text-[11px] font-black text-cyan-100 whitespace-nowrap">⚡ محطة جارفيس</span>
+                        </button>
+                    )}
+
                     {setShowAutonomousManager && (
                         <button onClick={() => setShowAutonomousManager(true)} className={`relative p-2 shrink-0 rounded-full border transition-all flex items-center justify-center ${runningTasks > 0 ? 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-500/50 shadow-[0_0_10px_rgba(217,70,239,0.2)]' : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:border-white/20'}`} title="المهام الآلية المستقلة">
                             <Bot className={`w-4 h-4 ${runningTasks > 0 ? 'animate-pulse' : ''}`} />

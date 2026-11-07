@@ -80,11 +80,26 @@ export const NativeShadow = registerPlugin<NativeShadowPlugin>('NativeShadow', {
       return { success: true };
     },
     fastNativeTTS: async (opts: { text: string }) => {
-      console.log('[NativeShadow] Native TTS playing:', opts.text);
-      if ('speechSynthesis' in window) {
-          const m = new SpeechSynthesisUtterance(opts.text);
-          m.lang = 'ar-EG';
-          window.speechSynthesis.speak(m);
+      console.log('[NativeShadow] Human Neural TTS playing:', opts.text);
+      try {
+        const res = await fetch('/api/tts/edge-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: opts.text,
+            voice: 'ar-EG-ShakirNeural',
+            rate: '+0%',
+            pitch: '+0Hz',
+            format: 'audio-24khz-48kbitrate-mono-mp3'
+          })
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const audio = new Audio(URL.createObjectURL(blob));
+          audio.play().catch(() => {});
+        }
+      } catch (e) {
+        console.warn('[NativeShadow TTS error]:', e);
       }
       return { success: true };
     }

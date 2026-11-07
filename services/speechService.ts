@@ -398,14 +398,29 @@ export const playShadowVoice = async (
             onEnded?.();
         };
 
-        await audio.play();
+        try {
+            await audio.play();
+        } catch (playErr: any) {
+            console.warn("[TTS] Autoplay blocked by browser policy, queuing for next user interaction:", playErr);
+            const onUserInteract = () => {
+                if (currentHtmlAudio === audio) {
+                    audio.play().catch(() => {});
+                }
+                window.removeEventListener('click', onUserInteract);
+                window.removeEventListener('touchstart', onUserInteract);
+                window.removeEventListener('keydown', onUserInteract);
+            };
+            window.addEventListener('click', onUserInteract, { once: true });
+            window.addEventListener('touchstart', onUserInteract, { once: true });
+            window.addEventListener('keydown', onUserInteract, { once: true });
+        }
     } catch (e: any) { 
         console.error("[TTS] PlayShadowVoice Error:", e);
         onEnded?.();
     }
 };
 
-export const getShadowVoice = async (text: string, voice: string): Promise<string | null> => {
+export const getShadowVoice = async (text: string, voice: string, preferredEngine?: 'gemini' | 'edge'): Promise<string | null> => {
     const cleanText = text
         .replace(/[*_#\-`~>]/g, ' ')
         .replace(/https?:\/\/\S+/g, '')
@@ -418,8 +433,8 @@ export const getShadowVoice = async (text: string, voice: string): Promise<strin
 
     // Resolve active human voice persona for genuine Egyptian warmth & cadence
     let edgeVoiceName = voice === 'female' ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
-    let edgeRate = '+4%';
-    let edgePitch = '-2Hz';
+    let edgeRate = '+0%';
+    let edgePitch = '+0Hz';
 
     try {
         const { persona, config } = resolveVoicePersona(voice);
@@ -427,6 +442,50 @@ export const getShadowVoice = async (text: string, voice: string): Promise<strin
         if (persona?.edgeRate) edgeRate = persona.edgeRate;
         if (persona?.edgePitch) edgePitch = persona.edgePitch;
     } catch {}
+
+    // 1. PRIMARY & SOVEREIGN PATH: 100% Studio Human Egyptian Neural Voice (ar-EG-ShakirNeural / ar-EG-SalmaNeural)
+    // Authentic Egyptian dialect, human breathing, emotional resonance at 24kHz studio rate
+    const isArabic = /[\u0600-\u06FF]/.test(cleanText);
+    if (isArabic || preferredEngine !== 'gemini') {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+            const resp = await fetch('/api/tts/edge-proxy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: cleanText.substring(0, 1500),
+                    voice: edgeVoiceName,
+                    rate: edgeRate,
+                    pitch: edgePitch,
+                    format: 'audio-24khz-48kbitrate-mono-mp3'
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (resp.ok) {
+                const arrayBuffer = await resp.arrayBuffer();
+                if (arrayBuffer.byteLength > 100) {
+                    let binary = '';
+                    const bytes = new Uint8Array(arrayBuffer);
+                    const len = bytes.byteLength;
+                    const chunkSize = 8192;
+                    for (let i = 0; i < len; i += chunkSize) {
+                        const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+                        binary += String.fromCharCode.apply(null, chunk as any);
+                    }
+                    const base64Audio = btoa(binary);
+                    if (base64Audio && base64Audio.length > 100) {
+                        return base64Audio;
+                    }
+                }
+            }
+        } catch (e: any) {
+            console.warn("[TTS] Edge Egyptian Neural failed:", e?.message);
+        }
+    }
 
     // 1. PRIMARY PATH: High-Fidelity Human Egyptian Neural Voice (ar-EG-ShakirNeural / ar-EG-SalmaNeural)
     // 100% human studio recordings by native Egyptian speakers with authentic dialect, breath, and warmth
