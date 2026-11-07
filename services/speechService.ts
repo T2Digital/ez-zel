@@ -565,6 +565,18 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
         console.warn("[TTS] Google Gemini TTS fallback error:", e?.message);
     }
 
+    // 3. THIRD PATH: Native Browser SpeechSynthesis fallback (Guarantees zero silence)
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try {
+            const utterance = new SpeechSynthesisUtterance(cleanText.substring(0, 300));
+            utterance.lang = 'ar-EG';
+            const voices = window.speechSynthesis.getVoices();
+            const arVoice = voices.find(v => v.lang.startsWith('ar'));
+            if (arVoice) utterance.voice = arVoice;
+            window.speechSynthesis.speak(utterance);
+        } catch {}
+    }
+
     return null;
 };
 

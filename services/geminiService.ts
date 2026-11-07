@@ -529,7 +529,11 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
             };
         }
 
-        for (const model of MODEL_CHAIN) {
+        const effectiveModels = extraData?.type === 'audio' 
+            ? ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite']
+            : MODEL_CHAIN;
+
+        for (const model of effectiveModels) {
             try {
                 if (lastError) {
                     const isQuota = lastError.message?.includes('429') || lastError.status === 429;
