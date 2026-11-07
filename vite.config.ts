@@ -53,9 +53,19 @@ export default defineConfig(() => {
       },
       build: {
         sourcemap: false,
-        chunkSizeWarningLimit: 4000,
+        chunkSizeWarningLimit: 2000,
         rollupOptions: {
-          external: ['onnxruntime-web']
+          external: ['onnxruntime-web'],
+          output: {
+            manualChunks(id) {
+              if (id.includes('node_modules')) {
+                if (id.includes('firebase')) return 'vendor-firebase';
+                if (id.includes('lucide-react')) return 'vendor-lucide';
+                if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';
+                return 'vendor-libs';
+              }
+            }
+          }
         }
       }
     };

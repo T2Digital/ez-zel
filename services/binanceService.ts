@@ -99,6 +99,9 @@ export const getTechnicalAnalysis = async (symbol: string, interval: string = '5
             fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`)
         );
         const data = await response.json();
+        if (!Array.isArray(data) || data.length === 0) {
+            return null;
+        }
         
         const closes = data.map((d: any[]) => parseFloat(d[4])); // Closing prices
         const latestPrice = closes[closes.length - 1];

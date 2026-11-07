@@ -627,12 +627,13 @@ export function speakBrowserNaturalVoice(text: string, voice: string = 'male', o
         utterance.lang = 'ar-EG';
 
         const pickVoice = (vList: SpeechSynthesisVoice[]) => {
+            // ONLY accept real studio natural voices (Microsoft Shakir Online / Natural)
+            // NEVER accept local SAPI5 mechanical desktop robot voices
             return vList.find(v => 
                 v.lang.toLowerCase().replace('_', '-').includes('ar-eg') && (v.name.includes('Natural') || v.name.includes('Shakir') || v.name.includes('Salma') || v.name.includes('Online'))
             ) || vList.find(v => 
                 v.lang.toLowerCase().startsWith('ar') && (v.name.includes('Natural') || v.name.includes('Online'))
-            ) || vList.find(v => v.lang.toLowerCase().replace('_', '-').includes('ar-eg'))
-              || vList.find(v => v.lang.toLowerCase().startsWith('ar'));
+            );
         };
 
         let interval: any;
@@ -657,7 +658,14 @@ export function speakBrowserNaturalVoice(text: string, voice: string = 'male', o
         };
 
         const speakNow = (selectedVoice?: SpeechSynthesisVoice) => {
-            if (selectedVoice) utterance.voice = selectedVoice;
+            // Strictly require a verified natural voice
+            if (!selectedVoice) {
+                console.info("[TTS] No natural studio voice in browser speech synthesis. Aborting browser speech.");
+                clearInterval(interval);
+                onEnd?.();
+                return;
+            }
+            utterance.voice = selectedVoice;
             utterance.rate = 1.0;
             utterance.pitch = 1.0;
             window.speechSynthesis.speak(utterance);
@@ -679,9 +687,13 @@ export function speakBrowserNaturalVoice(text: string, voice: string = 'male', o
                 const freshVoices = window.speechSynthesis.getVoices();
                 if (freshVoices.length > 0) cachedBrowserVoices = freshVoices;
                 const freshMatch = pickVoice(freshVoices);
-                if (freshMatch || attempts >= 15) {
+                if (freshMatch) {
                     clearInterval(checkInterval);
                     speakNow(freshMatch);
+                } else if (attempts >= 10) {
+                    clearInterval(checkInterval);
+                    clearInterval(interval);
+                    onEnd?.();
                 }
             }, 100);
 

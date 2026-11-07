@@ -486,8 +486,15 @@ class ShadowDB {
              try {
                  snap = await getDocs(q);
              } catch (e: any) {
-                 console.warn("[Shadow Core] getDocs failed in downloadUserCloudData, fallback to server...", e);
-                 snap = await getDocsFromServer(q);
+                 if (e?.message?.includes('not found') || e?.code === 'not-found') {
+                     console.info("[Shadow Core] Firestore database '(default)' not found on Firebase. Using local IndexedDB cache.");
+                     return;
+                 }
+                 try {
+                     snap = await getDocsFromServer(q);
+                 } catch (err2: any) {
+                     return;
+                 }
              }
              for (const d of snap.docs) {
                 const item = d.data();
@@ -607,6 +614,16 @@ class ShadowDB {
           this.unsubscribeListeners.forEach(unsub => unsub());
           this.unsubscribeListeners = [];
           
+          const handleFsError = (err: any) => {
+              if (err?.message?.includes("not found") || err?.code === 'not-found') {
+                  this.unsubscribeRealtime();
+                  this.unsubscribeSystem();
+                  console.info("[Shadow Core] Firestore database '(default)' not found on Firebase. Switched exclusively to local IndexedDB.");
+              } else {
+                  console.warn("[Firebase] Sync error:", err?.message || err);
+              }
+          };
+
           const profileUnsub = onSnapshot(doc(db, "users", cleanEmail), (doc) => {
               if (doc.exists()) {
                   const data = doc.data();
@@ -627,7 +644,7 @@ class ShadowDB {
                   onUpdate('profiles', profile);
                   this.saveProfile(profile, true);
               }
-          }, (error) => { console.warn("[Firebase] Profile sync error:", error); });
+          }, handleFsError);
           this.unsubscribeListeners.push(profileUnsub);
 
           const historyQuery = query(collection(db, `users/${cleanEmail}/history`), where('timestamp', '>', Date.now() - 10000));
@@ -641,7 +658,7 @@ class ShadowDB {
                       });
                   }
               });
-          }, (error) => { console.warn("[Firebase] History sync error:", error); });
+          }, handleFsError);
           this.unsubscribeListeners.push(historyUnsub);
       } catch (e) { console.warn("[Firebase] Realtime sync init failed.", e); }
   }

@@ -292,54 +292,20 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   if (!isOpen) return null;
 
-  const handlePlayPersonaGreeting = (currentPersona: 'visitor' | 'trial' | 'client' | 'tito') => {
-    stopVoice();
-    setIsPlayingVoice(true);
+  const isContinuousLiveRef = useRef<boolean>(true);
+  const isPlayingVoiceRef = useRef<boolean>(false);
+  const isThinkingRef = useRef<boolean>(false);
 
-    const now = new Date();
-    const hours = now.getHours();
-    const timeGreeting = hours < 12 ? 'صباح الفل والجمال' : 'مساء الفل والجمال';
-    const brandsCount = realStats.totalVaultBrandsCount || 19;
-
-    let text = '';
-    if (currentPersona === 'visitor') {
-      text = `أهلاً بك في منصة الظل الرقمي السيادية. أنا جارفيس، سيب القيادة لي، قولي عندك نشاط قائم ولا فكرة جديدة من الصفر عشان نبدأ فوراً!`;
-    } else if (currentPersona === 'trial') {
-      text = `${timeGreeting} يا فندم في أسبوعك التجريبي المجاني. منظومتك مربوطة، وجارفيس جاهز لتنفيذ أي أوامر ومساعدتك فوراً.`;
-    } else if (currentPersona === 'client') {
-      text = `${timeGreeting} يا شريكنا العزيز. المنظومة مربوطة ووكيلك الذكي نشط وجاهز لخدمتك على مدار الساعة.`;
-    } else {
-      text = `${timeGreeting} عليك يا ماستر تيتو. كابينة قيادة جارفيس السيادية تحت إمرتك. الرادار والأنظمة الحية نشطة لعدد ${brandsCount} براند، تؤمرني بإيه يا باشا؟`;
-    }
-
-    setTranscript(text);
-    const spoken = speakBrowserNaturalVoice(text, 'male', () => {
-      setIsPlayingVoice(false);
-    });
-    if (!spoken) {
-      playShadowVoice(text, 'male', undefined, () => {
-        setIsPlayingVoice(false);
-      });
-    }
-  };
-
-  // Two-Way Live Speech Recognition Trigger
-  const handleToggleListening = () => {
-    if (isListening) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      setIsListening(false);
-      return;
-    }
-
+  const startListeningLoop = () => {
+    if (isPlayingVoiceRef.current || isThinkingRef.current) return;
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec) {
-      alert("متصفحك لا يدعم التعرف الصوتي المباشر (Web Speech API). يرجى استخدام Google Chrome.");
-      return;
-    }
+    if (!SpeechRec) return;
 
     try {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+      }
+
       const recognition = new SpeechRec();
       recognition.lang = 'ar-EG';
       recognition.continuous = false;
@@ -359,8 +325,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setTranscript(text);
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (e: any) => {
         setIsListening(false);
+        if (isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+          if (e.error === 'no-speech' || e.error === 'network') {
+            setTimeout(() => {
+              if (isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+                startListeningLoop();
+              }
+            }, 800);
+          }
+        }
       };
 
       recognition.onend = () => {
@@ -368,20 +343,76 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         const finalRecorded = transcriptRef.current;
         if (finalRecorded && finalRecorded !== 'استمع إليك يا ماستر.. اتفضل' && finalRecorded.trim().length > 0) {
           handleSendLiveCommand(finalRecorded);
+        } else if (isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+          setTimeout(() => {
+            if (isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+              startListeningLoop();
+            }
+          }, 500);
         }
       };
 
       recognitionRef.current = recognition;
       recognition.start();
     } catch (e) {
-      console.warn("Speech recognition error:", e);
       setIsListening(false);
+    }
+  };
+
+  const handlePlayPersonaGreeting = (currentPersona: 'visitor' | 'trial' | 'client' | 'tito') => {
+    stopVoice();
+    setIsPlayingVoice(true);
+    isPlayingVoiceRef.current = true;
+
+    const now = new Date();
+    const hours = now.getHours();
+    const timeGreeting = hours < 12 ? 'صباح الفل والجمال' : 'مساء الفل والجمال';
+    const brandsCount = realStats.totalVaultBrandsCount || 19;
+
+    let text = '';
+    if (currentPersona === 'visitor') {
+      text = `أهلاً بك في منصة الظل الرقمي السيادية. أنا جارفيس، سيب القيادة لي، قولي عندك نشاط قائم ولا فكرة جديدة من الصفر عشان نبدأ فوراً!`;
+    } else if (currentPersona === 'trial') {
+      text = `${timeGreeting} يا فندم في أسبوعك التجريبي المجاني. منظومتك مربوطة، وجارفيس جاهز لتنفيذ أي أوامر ومساعدتك فوراً.`;
+    } else if (currentPersona === 'client') {
+      text = `${timeGreeting} يا شريكنا العزيز. المنظومة مربوطة ووكيلك الذكي نشط وجاهز لخدمتك على مدار الساعة.`;
+    } else {
+      text = `${timeGreeting} عليك يا ماستر تيتو. كابينة قيادة جارفيس السيادية تحت إمرتك. الرادار والأنظمة الحية نشطة لعدد ${brandsCount} براند، تؤمرني بإيه يا باشا؟`;
+    }
+
+    setTranscript(text);
+    // Play ONLY 100% human neural studio voice via node-edge-tts (Shakir Egyptian)
+    playShadowVoice(text, 'male', undefined, () => {
+      setIsPlayingVoice(false);
+      isPlayingVoiceRef.current = false;
+      // Auto-resume continuous listening without pressing any buttons!
+      if (isContinuousLiveRef.current) {
+        setTimeout(startListeningLoop, 400);
+      }
+    });
+  };
+
+  // Two-Way Live Speech Recognition Trigger (Toggle Continuous Duplex Live Mode)
+  const handleToggleListening = () => {
+    if (isListening || isContinuousLiveRef.current) {
+      isContinuousLiveRef.current = false;
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+      }
+      setIsListening(false);
+      stopVoice();
+      setIsPlayingVoice(false);
+      isPlayingVoiceRef.current = false;
+    } else {
+      isContinuousLiveRef.current = true;
+      startListeningLoop();
     }
   };
 
   // Process Live Voice Command through Jarvis Brain & Edge TTS
   const handleSendLiveCommand = async (commandText: string) => {
     setIsThinking(true);
+    isThinkingRef.current = true;
     stopVoice();
     try {
       const res = await fetch('/api/system/jarvis-conversation', {
@@ -393,22 +424,31 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       if (data.success && data.replyText) {
         setTranscript(data.replyText);
 
+        const onSpeechEnd = () => {
+          setIsPlayingVoice(false);
+          isPlayingVoiceRef.current = false;
+          // Hands-free continuous duplex: automatically listen again!
+          if (isContinuousLiveRef.current) {
+            setTimeout(startListeningLoop, 400);
+          }
+        };
+
         // Play authentic Egyptian human voice reply
         setIsPlayingVoice(true);
+        isPlayingVoiceRef.current = true;
+
         if (data.audioBase64) {
           const mime = data.audioBase64.startsWith('UklGR') ? 'audio/wav' : 'audio/mp3';
           const audio = new Audio(`data:${mime};base64,${data.audioBase64}`);
-          audio.onended = () => setIsPlayingVoice(false);
+          audio.onended = onSpeechEnd;
           audio.onerror = () => {
-            playShadowVoice(data.replyText, 'male', undefined, () => setIsPlayingVoice(false));
+            playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
           };
           audio.play().catch(() => {
-            playShadowVoice(data.replyText, 'male', undefined, () => setIsPlayingVoice(false));
+            playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
           });
         } else {
-          playShadowVoice(data.replyText, 'male', undefined, () => {
-            setIsPlayingVoice(false);
-          });
+          playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
         }
 
         // LIVE VOICE-TO-ACTION EXECUTIVE CONTROLLER
@@ -443,8 +483,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       }
     } catch (err: any) {
       console.error("Jarvis conversation error:", err);
+      if (isContinuousLiveRef.current) {
+        setTimeout(startListeningLoop, 1000);
+      }
     } finally {
       setIsThinking(false);
+      isThinkingRef.current = false;
     }
   };
 
