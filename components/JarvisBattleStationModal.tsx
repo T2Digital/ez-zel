@@ -531,10 +531,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         isFullscreen ? 'h-screen rounded-none' : 'max-w-[1500px] h-[94vh] rounded-[36px]'
       }`}>
 
+        {/* 3D Cosmos Space Canvas Background (Earth, Stars, Constellations) */}
+        <div className="absolute inset-0 pointer-events-none z-0 opacity-50 overflow-hidden">
+          <SpaceCanvas interactive={false} showEarth={true} />
+        </div>
+
         {/* Ambient Holographic Glow & Tech Grid Background */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/15 via-[#03091e]/40 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/15 via-[#03091e]/40 to-transparent pointer-events-none z-0" />
         <div 
-          className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:4rem_4rem]" 
+          className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:4rem_4rem] z-0" 
         />
 
         {/* TOP STATUS BAR (Exact Sci-Fi HUD Header from Video) */}

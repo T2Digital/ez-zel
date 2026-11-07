@@ -1850,16 +1850,16 @@ async function startServer() {
               destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
               actionLabel = "فحص كارت Sale Gates Egypt والاستشارات العقارية (61 محادثة)";
           } else if (scenario === "alkhedr_booking") {
-              destUrl = targetUrl || "http://localhost:3000/apps/t2-agent/dashboard.html";
+              destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
               actionLabel = "حجز سيارة تويوتا فورتشنر 4x4 أوتوماتيك لشركة الخضر VIP";
           } else if (scenario === "clean_master_booking") {
-              destUrl = targetUrl || "http://localhost:3000/apps/t2-agent/dashboard.html";
+              destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
               actionLabel = "تأكيد طلب معاينة تنظيف فلل وقصور - كلين ماستر";
           } else if (scenario === "admin_audit") {
-              destUrl = targetUrl || "http://localhost:3000/apps/t2-agent/admin.html";
+              destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
               actionLabel = "فحص مباشر لرسائل الواتساب وحملات البرودكاست";
           } else if (!destUrl) {
-              destUrl = "http://localhost:3000/apps/t2-agent/dashboard.html";
+              destUrl = "https://khedr-bot-agent.onrender.com/dashboard";
           }
 
           addLog(`جاري التوجيه إلى الرابط: ${destUrl}`, "action");

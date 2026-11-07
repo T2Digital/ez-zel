@@ -50,6 +50,13 @@ export default defineConfig(() => {
       },
       optimizeDeps: {
         include: ['react', 'react-dom', 'react/jsx-runtime', 'react-is']
+      },
+      build: {
+        sourcemap: false,
+        chunkSizeWarningLimit: 4000,
+        rollupOptions: {
+          external: ['onnxruntime-web']
+        }
       }
     };
 });
