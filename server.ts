@@ -1563,6 +1563,28 @@ async function startServer() {
       }
   });
 
+  // --- OFFICIAL GEMINI NEURAL VOICE FALLBACK (100% Studio Quality, No 403) ---
+  async function synthesizeGeminiVoice(text: string, voice = "Puck"): Promise<Buffer> {
+      const ai = getServerAI();
+      const prompt = `Read the following text aloud with natural human warmth: ${text.substring(0, 800)}`;
+      const res = await ai.models.generateContent({
+          model: "gemini-2.5-flash-preview-tts",
+          contents: prompt,
+          config: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                  voiceConfig: {
+                      prebuiltVoiceConfig: { voiceName: voice === "female" ? "Aoede" : "Puck" }
+                  }
+              }
+          }
+      });
+      const b64 = res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!b64) throw new Error("No audio from Gemini TTS");
+      const pcmBuf = Buffer.from(b64, "base64");
+      return pcmToWav(pcmBuf, 24000);
+  }
+
   // --- SOVEREIGN TTS ENGINE: GOOGLE HUMAN PRIMARY, MICROSOFT EDGE FALLBACK ---
   async function synthesizeGoogleSpeech(text: string, lang = 'ar'): Promise<Buffer> {
       const cleanText = text
@@ -1659,17 +1681,7 @@ async function startServer() {
   }
 
   async function synthesizeSovereignSpeech(text: string, voice = "ar-EG-ShakirNeural"): Promise<Buffer> {
-      // 1. PRIMARY & SOVEREIGN: 100% Studio Human Egyptian Neural Voice (ar-EG-ShakirNeural)
-      try {
-          const buf = await synthesizeHumanEdgeVoice(text, voice);
-          if (buf && buf.length > 200) {
-              return buf;
-          }
-      } catch (edgeCliErr: any) {
-          console.warn("[TTS] Edge Human CLI warning:", edgeCliErr?.message);
-      }
-
-      // 2. SECONDARY: Microsoft Edge-TTS via internal WebSocket
+      // 1. PRIMARY & SOVEREIGN: 100% Studio Human Egyptian Neural Voice (ar-EG-ShakirNeural via edge-tts multi-path)
       try {
           const buf = await synthesizeEdgeSpeech({
               text: text.substring(0, 1500),
@@ -1681,9 +1693,22 @@ async function startServer() {
           if (buf && buf.length > 200) {
               return buf;
           }
-      } catch {}
+      } catch (edgeErr: any) {
+          console.warn("[TTS] Edge Speech failed, engaging Gemini Studio Neural Voice:", edgeErr?.message);
+      }
 
-      // 3. TERTIARY RESILIENT FALLBACK: Google TTS
+      // 2. SECONDARY: Official Google Gemini Neural TTS (100% Studio Human, zero 403, native Render cloud support)
+      try {
+          const geminiVoice = voice.includes("Salma") ? "Aoede" : "Puck";
+          const buf = await synthesizeGeminiVoice(text, geminiVoice);
+          if (buf && buf.length > 200) {
+              return buf;
+          }
+      } catch (geminiErr: any) {
+          console.warn("[TTS] Gemini Studio Voice also failed:", geminiErr?.message);
+      }
+
+      // 3. TERTIARY RESILIENT FALLBACK: Google Translate
       try {
           const buf = await synthesizeGoogleSpeech(text, 'ar');
           if (buf && buf.length > 200) {

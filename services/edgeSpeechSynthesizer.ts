@@ -457,48 +457,62 @@ function synthesizeViaEdgeTtsCli(text: string, voice: string, rate: string, pitc
         const tmpTxtFile = path.join(os.tmpdir(), `edge_tts_${uniqueId}.txt`);
         const tmpMp3File = path.join(os.tmpdir(), `edge_tts_${uniqueId}.mp3`);
 
-        // Write UTF-8 text file to eliminate Windows console encoding corruption on Arabic characters
         try {
             fs.writeFileSync(tmpTxtFile, text, { encoding: 'utf8' });
         } catch (writeErr) {
             return reject(writeErr);
         }
 
-        const args = [
+        const baseArgs = [
             '--file', tmpTxtFile,
             '--voice', voice,
             '--write-media', tmpMp3File
         ];
-        if (rate && rate !== '+0%') args.push(`--rate=${rate}`);
-        if (pitch && pitch !== '+0Hz') args.push(`--pitch=${pitch}`);
+        if (rate && rate !== '+0%') baseArgs.push(`--rate=${rate}`);
+        if (pitch && pitch !== '+0Hz') baseArgs.push(`--pitch=${pitch}`);
 
-        const proc = spawn('edge-tts', args);
-        let stderr = '';
-        proc.stderr.on('data', d => stderr += d.toString());
+        const candidates: Array<{ cmd: string; args: string[] }> = [
+            { cmd: 'edge-tts', args: baseArgs },
+            { cmd: path.join(os.homedir(), '.local', 'bin', 'edge-tts'), args: baseArgs },
+            { cmd: '/opt/render/.local/bin/edge-tts', args: baseArgs },
+            { cmd: 'python3', args: ['-m', 'edge_tts', ...baseArgs] },
+            { cmd: 'python', args: ['-m', 'edge_tts', ...baseArgs] }
+        ];
 
-        proc.on('close', code => {
-            // Clean up temporary text file
-            try { if (fs.existsSync(tmpTxtFile)) fs.unlinkSync(tmpTxtFile); } catch {}
-
-            if (code === 0 && fs.existsSync(tmpMp3File)) {
-                try {
-                    const buf = fs.readFileSync(tmpMp3File);
-                    try { if (fs.existsSync(tmpMp3File)) fs.unlinkSync(tmpMp3File); } catch {}
-                    resolve(buf);
-                } catch (readErr) {
-                    reject(readErr);
-                }
-            } else {
+        let idx = 0;
+        const tryCandidate = () => {
+            if (idx >= candidates.length) {
+                try { if (fs.existsSync(tmpTxtFile)) fs.unlinkSync(tmpTxtFile); } catch {}
                 try { if (fs.existsSync(tmpMp3File)) fs.unlinkSync(tmpMp3File); } catch {}
-                reject(new Error(`edge-tts CLI exited with code ${code}: ${stderr}`));
+                return reject(new Error('All edge-tts CLI execution candidates failed'));
             }
-        });
 
-        proc.on('error', err => {
-            try { if (fs.existsSync(tmpTxtFile)) fs.unlinkSync(tmpTxtFile); } catch {}
-            try { if (fs.existsSync(tmpMp3File)) fs.unlinkSync(tmpMp3File); } catch {}
-            reject(err);
-        });
+            const { cmd, args } = candidates[idx++];
+            const proc = spawn(cmd, args);
+            let stderr = '';
+            proc.stderr.on('data', d => stderr += d.toString());
+
+            proc.on('close', code => {
+                if (code === 0 && fs.existsSync(tmpMp3File)) {
+                    try { if (fs.existsSync(tmpTxtFile)) fs.unlinkSync(tmpTxtFile); } catch {}
+                    try {
+                        const buf = fs.readFileSync(tmpMp3File);
+                        try { if (fs.existsSync(tmpMp3File)) fs.unlinkSync(tmpMp3File); } catch {}
+                        return resolve(buf);
+                    } catch (readErr) {
+                        return reject(readErr);
+                    }
+                } else {
+                    tryCandidate();
+                }
+            });
+
+            proc.on('error', () => {
+                tryCandidate();
+            });
+        };
+
+        tryCandidate();
     });
 }
 

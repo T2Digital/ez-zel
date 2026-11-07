@@ -376,9 +376,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         // Play authentic Egyptian human voice reply
         setIsPlayingVoice(true);
         if (data.audioBase64) {
-          const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+          const mime = data.audioBase64.startsWith('UklGR') ? 'audio/wav' : 'audio/mp3';
+          const audio = new Audio(`data:${mime};base64,${data.audioBase64}`);
           audio.onended = () => setIsPlayingVoice(false);
-          audio.onerror = () => setIsPlayingVoice(false);
+          audio.onerror = () => {
+            playShadowVoice(data.replyText, 'male', undefined, () => setIsPlayingVoice(false));
+          };
           audio.play().catch(() => {
             playShadowVoice(data.replyText, 'male', undefined, () => setIsPlayingVoice(false));
           });
