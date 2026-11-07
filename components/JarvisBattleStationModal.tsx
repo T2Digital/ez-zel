@@ -8,7 +8,7 @@ import {
   Mic, MicOff, MousePointer, Monitor, Terminal, CheckCircle2, ChevronRight, Compass,
   Search, Sliders, PhoneCall, Trash2, Key, Bell, Copy, Check, ChevronDown
 } from 'lucide-react';
-import { playShadowVoice, stopVoice } from '../services/speechService';
+import { playShadowVoice, stopVoice, speakBrowserNaturalVoice } from '../services/speechService';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
@@ -313,9 +313,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
 
     setTranscript(text);
-    playShadowVoice(text, 'male', undefined, () => {
+    const spoken = speakBrowserNaturalVoice(text, 'male', () => {
       setIsPlayingVoice(false);
     });
+    if (!spoken) {
+      playShadowVoice(text, 'male', undefined, () => {
+        setIsPlayingVoice(false);
+      });
+    }
   };
 
   // Two-Way Live Speech Recognition Trigger

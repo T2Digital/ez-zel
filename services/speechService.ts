@@ -675,22 +675,40 @@ export function speakBrowserNaturalVoice(text: string, voice: string = 'male', o
             window.speechSynthesis.speak(utterance);
         };
 
-        let voices = cachedBrowserVoices.length > 0 ? cachedBrowserVoices : window.speechSynthesis.getVoices();
-        let chosen = pickVoice(voices);
+        const speakWithNaturalArabicVoice = () => {
+            let vList = cachedBrowserVoices.length > 0 ? cachedBrowserVoices : window.speechSynthesis.getVoices();
+            let matched = pickVoice(vList);
 
-        if (chosen) {
-            speakNow(chosen);
-        } else if (voices.length === 0) {
-            window.speechSynthesis.onvoiceschanged = () => {
-                const updated = window.speechSynthesis.getVoices();
-                cachedBrowserVoices = updated;
-                const matched = pickVoice(updated);
+            if (matched) {
                 speakNow(matched);
-            };
-        } else {
-            speakNow(undefined);
-        }
+                return;
+            }
 
+            // If natural Arabic voice has not fully loaded in Chromium yet, wait up to 1.5s for voiceschanged
+            let attempts = 0;
+            const checkInterval = setInterval(() => {
+                attempts++;
+                const freshVoices = window.speechSynthesis.getVoices();
+                if (freshVoices.length > 0) cachedBrowserVoices = freshVoices;
+                const freshMatch = pickVoice(freshVoices);
+                if (freshMatch || attempts >= 15) {
+                    clearInterval(checkInterval);
+                    speakNow(freshMatch);
+                }
+            }, 100);
+
+            window.speechSynthesis.onvoiceschanged = () => {
+                const freshVoices = window.speechSynthesis.getVoices();
+                cachedBrowserVoices = freshVoices;
+                const freshMatch = pickVoice(freshVoices);
+                if (freshMatch) {
+                    clearInterval(checkInterval);
+                    speakNow(freshMatch);
+                }
+            };
+        };
+
+        speakWithNaturalArabicVoice();
         return true;
     } catch {
         return false;
