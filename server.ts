@@ -1681,7 +1681,7 @@ async function startServer() {
   }
 
   async function synthesizeSovereignSpeech(text: string, voice = "ar-EG-ShakirNeural"): Promise<Buffer> {
-      // 1. PRIMARY & SOVEREIGN: 100% Studio Human Egyptian Neural Voice (ar-EG-ShakirNeural via edge-tts multi-path)
+      // 1. PRIMARY: 100% Studio Human Egyptian Neural Voice (ar-EG-ShakirNeural via edge-tts CLI)
       try {
           const buf = await synthesizeEdgeSpeech({
               text: text.substring(0, 1500),
@@ -1694,7 +1694,7 @@ async function startServer() {
               return buf;
           }
       } catch (edgeErr: any) {
-          console.warn("[TTS] Edge Speech failed, engaging Gemini Studio Neural Voice:", edgeErr?.message);
+          console.warn("[TTS] Edge Speech CLI failed, engaging Gemini Studio Voice:", edgeErr?.message);
       }
 
       // 2. SECONDARY: Official Google Gemini Neural TTS (100% Studio Human, zero 403, native Render cloud support)
@@ -1705,18 +1705,10 @@ async function startServer() {
               return buf;
           }
       } catch (geminiErr: any) {
-          console.warn("[TTS] Gemini Studio Voice also failed:", geminiErr?.message);
+          console.error("[TTS] Gemini Studio Voice also failed:", geminiErr?.message);
       }
 
-      // 3. TERTIARY RESILIENT FALLBACK: Google Translate
-      try {
-          const buf = await synthesizeGoogleSpeech(text, 'ar');
-          if (buf && buf.length > 200) {
-              return buf;
-          }
-      } catch {}
-
-      throw new Error("All TTS engines failed to synthesize speech");
+      throw new Error("All human neural TTS engines failed to synthesize speech");
   }
 
 
@@ -1834,10 +1826,12 @@ async function startServer() {
           // Check if message implies executive browser action
           const shouldTriggerBrowser = /احجز|افحص|ادخل|شغل البراوزر|دوس على|افتح الموقع|سيلينيوم|نفذ/i.test(message);
 
+          const isWav = audioBase64 && Buffer.from(audioBase64, "base64").toString("ascii", 0, 4) === "RIFF";
           res.json({
               success: true,
               replyText,
               audioBase64,
+              audioFormat: isWav ? "audio/wav" : "audio/mp3",
               action: executedAction,
               shouldTriggerBrowser,
               suggestedScenario: /عربية|سيارة|الخضر/i.test(message) ? 'alkhedr_booking' : 
@@ -2098,8 +2092,11 @@ async function startServer() {
           const edgeVoice = voice === "female" ? "ar-EG-SalmaNeural" : "ar-EG-ShakirNeural";
           const audioBuffer = await synthesizeSovereignSpeech(cleanText, edgeVoice);
 
+          const isWav = audioBuffer.toString('ascii', 0, 4) === 'RIFF';
+          const contentType = isWav ? "audio/wav" : "audio/mp3";
+
           res.set({
-              "Content-Type": "audio/mp3",
+              "Content-Type": contentType,
               "Content-Length": audioBuffer.length,
               "Cache-Control": "public, max-age=86400"
           });

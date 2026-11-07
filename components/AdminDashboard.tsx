@@ -797,11 +797,11 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                             <p className="text-xs text-white/60">Zain Copilot للإعلانات، الاسكربتات، وتصدير الـ Content Decks</p>
                         </div>
                     </div>
-                    <a href="http://localhost:3001?admin_bypass=vdgcwb4npax7k5me92futh0jq8orzi13y6sl" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-amber-500 text-black text-xs font-bold rounded-xl shadow-lg shadow-amber-500/30">
+                    <a href="https://t2-studio.vercel.app?admin_bypass=vdgcwb4npax7k5me92futh0jq8orzi13y6sl" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-amber-500 text-black text-xs font-bold rounded-xl shadow-lg shadow-amber-500/30">
                         فتح في نافذة كاملة ↗
                     </a>
                 </div>
-                <iframe src="http://localhost:3001?admin_bypass=vdgcwb4npax7k5me92futh0jq8orzi13y6sl" title="تيتو ستوديو" className="w-full h-[76vh] rounded-2xl border-2 border-amber-500/30 bg-[#070b14]" />
+                <iframe src="https://t2-studio.vercel.app?admin_bypass=vdgcwb4npax7k5me92futh0jq8orzi13y6sl" title="تيتو ستوديو" className="w-full h-[76vh] rounded-2xl border-2 border-amber-500/30 bg-[#070b14]" allow="clipboard-write; camera; microphone" />
             </div>
         )}
 
@@ -816,15 +816,40 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <a href="/apps/t2-agent/admin.html" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-emerald-500 text-black text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/30">
+                        <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-emerald-500 text-black text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/30">
                             لوحة الأدمن ↗
                         </a>
-                        <a href="/apps/t2-agent/dashboard.html" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl">
+                        <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl">
                             مساحة العميل ↗
                         </a>
                     </div>
                 </div>
-                <iframe src="/apps/t2-agent/admin.html" title="منصة الأجنت" className="w-full h-[76vh] rounded-2xl border-2 border-emerald-500/30 bg-[#070b14]" />
+                <div className="w-full h-[76vh] rounded-2xl border-2 border-emerald-500/30 bg-[#070b14] flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-950/40 via-transparent to-transparent pointer-events-none" />
+        <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-6 shadow-[0_0_50px_rgba(16,185,129,0.3)] animate-pulse">
+            <Bot className="w-10 h-10" />
+        </div>
+        <h4 className="text-xl font-black text-white mb-2">منصة أسطول الأجنت السيادية (T2 Agent Hub)</h4>
+        <p className="text-sm text-white/60 max-w-lg mb-6 leading-relaxed">
+            محطة القيادة المركزية لشات بوتات الواتساب، حملات البرودكاست، وخدمة العملاء الفورية 24/7.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-4 z-10">
+            <a 
+                href="https://khedr-bot-agent.onrender.com/dashboard" 
+                target="_blank" 
+                rel="noreferrer"
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-sm rounded-xl shadow-lg shadow-emerald-500/30 hover:scale-105 transition flex items-center gap-2"
+            >
+                <span>فتح لوحة تحكم الأجنت في نافذة كاملة</span>
+                <ExternalLink className="w-4 h-4" />
+            </a>
+            <iframe 
+                src="https://khedr-bot-agent.onrender.com/dashboard" 
+                title="T2 Agent Hub"
+                className="w-full mt-6 h-[48vh] rounded-xl border border-white/10 bg-black/50" 
+            />
+        </div>
+    </div>
             </div>
         )}
       </div>

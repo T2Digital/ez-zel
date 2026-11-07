@@ -577,29 +577,6 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         console.warn("[Edge TTS] WS fallback also failed:", wsErr?.message);
     }
 
-    // 3. Ultra-Reliable High-Speed Google Audio Fallback (Ensures 100% voice uptime on cloud servers)
-    try {
-        const chunks = splitTextForEdgeTts(text, 180);
-        const buffers: Buffer[] = [];
-        for (const chunk of chunks) {
-            if (!chunk.trim()) continue;
-            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=ar&client=tw-ob`;
-            const resp = await fetch(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            });
-            if (resp.ok) {
-                const ab = await resp.arrayBuffer();
-                buffers.push(Buffer.from(ab));
-            }
-        }
-        if (buffers.length > 0) {
-            return Buffer.concat(buffers);
-        }
-    } catch (gErr: any) {
-        console.warn("[TTS] Google fallback failed:", gErr?.message);
-    }
-
-    throw new Error("TTS synthesis failed across all primary and fallback engines.");
+    // Edge synthesis failed via CLI and WS, throw so caller can engage Gemini Studio Voice
+    throw new Error("Edge TTS unavailable on this environment");
 }
