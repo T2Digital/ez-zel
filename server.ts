@@ -1563,6 +1563,85 @@ async function startServer() {
       }
   });
 
+  // --- SOVEREIGN TTS ENGINE: GOOGLE HUMAN PRIMARY, MICROSOFT EDGE FALLBACK ---
+  async function synthesizeGoogleSpeech(text: string, lang = 'ar'): Promise<Buffer> {
+      const cleanText = text
+          .replace(/[*_#\-`~>]/g, ' ')
+          .replace(/https?:\/\/\S+/g, '')
+          .replace(/\[.*?\]/g, '')
+          .replace(/\{.*?\}/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      if (!cleanText) throw new Error("Empty text for Google TTS");
+
+      const rawChunks = cleanText.split(/([.!؟،;\n]+)/);
+      const sentences: string[] = [];
+      for (let i = 0; i < rawChunks.length; i += 2) {
+          const sentence = (rawChunks[i] + (rawChunks[i + 1] || '')).trim();
+          if (sentence) sentences.push(sentence);
+      }
+      if (sentences.length === 0) sentences.push(cleanText);
+
+      const parts: string[] = [];
+      for (const s of sentences) {
+          let remaining = s;
+          while (remaining.length > 180) {
+              let splitIdx = remaining.lastIndexOf(' ', 180);
+              if (splitIdx <= 20) splitIdx = 180;
+              parts.push(remaining.substring(0, splitIdx).trim());
+              remaining = remaining.substring(splitIdx).trim();
+          }
+          if (remaining) parts.push(remaining);
+      }
+
+      const buffers: Buffer[] = [];
+      for (const part of parts) {
+          if (!part) continue;
+          const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(part)}&tl=${lang}&client=tw-ob`;
+          const resp = await fetch(url, {
+              headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+              }
+          });
+          if (!resp.ok) {
+              throw new Error(`Google TTS HTTP error: ${resp.status}`);
+          }
+          const ab = await resp.arrayBuffer();
+          buffers.push(Buffer.from(ab));
+      }
+      return Buffer.concat(buffers);
+  }
+
+  async function synthesizeSovereignSpeech(text: string, voice = "ar-EG-ShakirNeural"): Promise<Buffer> {
+      // 1. PRIMARY SOVEREIGN ENGINE: Google Human Voice (Zero latency, authentic human warm Arabic)
+      try {
+          const buf = await synthesizeGoogleSpeech(text, 'ar');
+          if (buf && buf.length > 200) {
+              return buf;
+          }
+      } catch (gErr: any) {
+          console.warn("[TTS] Google Human TTS warning, falling back to Microsoft Edge:", gErr?.message);
+      }
+
+      // 2. SECONDARY FALLBACK: Microsoft Edge-TTS (ar-EG-ShakirNeural)
+      try {
+          const buf = await synthesizeEdgeSpeech({
+              text: text.substring(0, 1500),
+              voice,
+              rate: "+0%",
+              pitch: "+0Hz",
+              outputFormat: "audio-24khz-48kbitrate-mono-mp3"
+          });
+          if (buf && buf.length > 200) {
+              return buf;
+          }
+      } catch (edgeErr: any) {
+          console.warn("[TTS] Microsoft Edge-TTS fallback error:", edgeErr?.message);
+      }
+
+      throw new Error("Both Google and Microsoft TTS failed to synthesize speech");
+  }
+
   // --- EXECUTIVE DAILY BRIEFING (FOR TELEGRAM / WHATSAPP DISPATCH) ---
   app.get("/api/system/daily-executive-briefing", async (req, res) => {
       try {
@@ -1578,13 +1657,7 @@ async function startServer() {
 
           let audioBase64 = null;
           try {
-              const audioBuffer = await synthesizeEdgeSpeech({
-                  text: briefingText,
-                  voice: "ar-EG-ShakirNeural",
-                  rate: "+0%",
-                  pitch: "+0Hz",
-                  outputFormat: "audio-24khz-48kbitrate-mono-mp3"
-              });
+              const audioBuffer = await synthesizeSovereignSpeech(briefingText, "ar-EG-ShakirNeural");
               audioBase64 = audioBuffer.toString("base64");
           } catch {}
 
@@ -1649,13 +1722,7 @@ async function startServer() {
           // Synthesize response in studio Egyptian human voice
           let audioBase64 = null;
           try {
-              const audioBuffer = await synthesizeEdgeSpeech({
-                  text: replyText,
-                  voice: "ar-EG-ShakirNeural",
-                  rate: "+0%",
-                  pitch: "+0Hz",
-                  outputFormat: "audio-24khz-48kbitrate-mono-mp3"
-              });
+              const audioBuffer = await synthesizeSovereignSpeech(replyText, "ar-EG-ShakirNeural");
               audioBase64 = audioBuffer.toString("base64");
           } catch (ttsErr: any) {
               console.warn("[Jarvis Live Voice TTS Warning]:", ttsErr?.message);
@@ -1937,9 +2004,9 @@ async function startServer() {
   }
 
   // --- LATEST GOOGLE GEMINI NEURAL TTS ENDPOINT (gemini-2.5-flash-preview-tts) ---
-  app.post(["/api/tts/gemini", "/api/tts/google"], async (req, res) => {
+  app.post(["/api/tts/google", "/api/tts/gemini"], async (req, res) => {
       try {
-          const { text, voice, engine } = req.body;
+          const { text, voice } = req.body;
           if (!text) return res.status(400).json({ error: "Text is required" });
 
           const cleanText = text
@@ -1950,68 +2017,18 @@ async function startServer() {
               .replace(/\s+/g, ' ')
               .trim();
 
-          const isArabic = /[\u0600-\u06FF]/.test(cleanText);
-
-          // For Arabic speech, deliver authentic human Egyptian neural voice (ar-EG-ShakirNeural / ar-EG-SalmaNeural)
-          // Google Gemini TTS currently only has English voice models (Puck/Aoede) that sound robotic on Arabic
-          if (isArabic && engine !== "google_raw") {
-              try {
-                  const edgeVoice = voice === "female" ? "ar-EG-SalmaNeural" : "ar-EG-ShakirNeural";
-                  const audioBuffer = await synthesizeEdgeSpeech({
-                      text: cleanText.substring(0, 1500),
-                      voice: edgeVoice,
-                      rate: "+0%",
-                      pitch: "+0Hz",
-                      outputFormat: "audio-24khz-48kbitrate-mono-mp3"
-                  });
-
-                  res.set({
-                      "Content-Type": "audio/mp3",
-                      "Content-Length": audioBuffer.length,
-                      "Cache-Control": "public, max-age=86400"
-                  });
-                  return res.send(audioBuffer);
-              } catch (edgeErr: any) {
-                  console.warn("[TTS] Edge Egyptian neural fallback to Gemini TTS:", edgeErr.message);
-              }
-          }
-
-          const ai = getServerAI();
-          const voiceName = voice === "female" ? "Aoede" : (voice === "charon" ? "Charon" : "Puck");
-          const prompt = `Read the following text aloud: ${cleanText.substring(0, 1000)}`;
-
-          const geminiRes = await ai.models.generateContent({
-              model: "gemini-2.5-flash-preview-tts",
-              contents: prompt,
-              config: {
-                  responseModalities: ["AUDIO"],
-                  speechConfig: {
-                      voiceConfig: {
-                          prebuiltVoiceConfig: {
-                              voiceName
-                          }
-                      }
-                  }
-              }
-          });
-
-          const rawBase64 = geminiRes.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-          if (!rawBase64) {
-              throw new Error("No audio returned from Google Gemini TTS");
-          }
-
-          const pcmBuf = Buffer.from(rawBase64, "base64");
-          const wavBuf = pcmToWav(pcmBuf, 24000);
+          const edgeVoice = voice === "female" ? "ar-EG-SalmaNeural" : "ar-EG-ShakirNeural";
+          const audioBuffer = await synthesizeSovereignSpeech(cleanText, edgeVoice);
 
           res.set({
-              "Content-Type": "audio/wav",
-              "Content-Length": wavBuf.length,
+              "Content-Type": "audio/mp3",
+              "Content-Length": audioBuffer.length,
               "Cache-Control": "public, max-age=86400"
           });
-          res.send(wavBuf);
+          return res.send(audioBuffer);
       } catch (err: any) {
-          console.error("[Google Gemini TTS Error]:", err?.message || err);
-          res.status(500).json({ error: err?.message || "Google Gemini TTS failed" });
+          console.error("[Sovereign TTS Error]:", err?.message || err);
+          res.status(500).json({ error: err?.message || "TTS synthesis failed" });
       }
   });
 
@@ -2021,13 +2038,19 @@ async function startServer() {
           const { text, voice, rate, pitch, format } = req.body;
           if (!text) return res.status(400).json({ error: "Text is required" });
 
-          const audioBuffer = await synthesizeEdgeSpeech({
-              text,
-              voice: voice || "ar-EG-ShakirNeural",
-              rate: rate || "+0%",
-              pitch: pitch || "+0Hz",
-              outputFormat: format || "audio-24khz-48kbitrate-mono-mp3"
-          });
+          let audioBuffer: Buffer;
+          try {
+              audioBuffer = await synthesizeEdgeSpeech({
+                  text,
+                  voice: voice || "ar-EG-ShakirNeural",
+                  rate: rate || "+0%",
+                  pitch: pitch || "+0Hz",
+                  outputFormat: format || "audio-24khz-48kbitrate-mono-mp3"
+              });
+          } catch (edgeErr: any) {
+              console.warn("[Edge TTS Proxy Fallback to Google]:", edgeErr?.message);
+              audioBuffer = await synthesizeGoogleSpeech(text, 'ar');
+          }
 
           res.set({
               "Content-Type": "audio/mp3",

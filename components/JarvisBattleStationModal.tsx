@@ -12,7 +12,7 @@ import { playShadowVoice, stopVoice } from '../services/speechService';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
-import { Cosmos3DBackground } from './Cosmos3DBackground';
+import SpaceCanvas from './SpaceCanvas';
 import { BRAND_VAULT } from '../services/brandVault';
 
 interface JarvisBattleStationModalProps {
@@ -500,21 +500,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center font-['Cairo'] transition-all duration-300 ${
-      isFullscreen ? 'p-0 bg-black' : 'p-2 md:p-4 bg-black/95 backdrop-blur-3xl'
+      isFullscreen ? 'p-0 bg-transparent' : 'p-2 md:p-4 bg-black/40'
     }`} dir="rtl">
       
       {/* Sci-Fi Cinematic HUD Container */}
-      <div className={`relative w-full bg-[#020617] border-2 border-cyan-500/40 shadow-[0_0_120px_rgba(6,182,212,0.35)] flex flex-col overflow-hidden transition-all duration-300 ${
+      <div className={`relative w-full bg-[#020617]/75 backdrop-blur-md border-2 border-cyan-500/40 shadow-[0_0_120px_rgba(6,182,212,0.35)] flex flex-col overflow-hidden transition-all duration-300 ${
         isFullscreen ? 'h-screen rounded-none' : 'max-w-[1500px] h-[94vh] rounded-[36px]'
       }`}>
 
-        {/* 3D Living Cosmos Earth & Stars Background */}
-        <Cosmos3DBackground className="absolute inset-0 pointer-events-none z-0 opacity-75" />
-
         {/* Ambient Holographic Glow & Tech Grid Background */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-[#03091e]/60 to-[#01040d]/80 pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/15 via-[#03091e]/40 to-transparent pointer-events-none" />
         <div 
-          className="absolute inset-0 opacity-[0.05] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:4rem_4rem]" 
+          className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:4rem_4rem]" 
         />
 
         {/* TOP STATUS BAR (Exact Sci-Fi HUD Header from Video) */}
