@@ -12,6 +12,7 @@ import { playShadowVoice, stopVoice } from '../services/speechService';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
+import { Cosmos3DBackground } from './Cosmos3DBackground';
 import { BRAND_VAULT } from '../services/brandVault';
 
 interface JarvisBattleStationModalProps {
@@ -72,6 +73,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   // Two-Way Live Conversation State
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const transcriptRef = useRef<string>('');
   const [isThinking, setIsThinking] = useState(false);
   const recognitionRef = useRef<any>(null);
 
@@ -101,6 +103,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     baraka_motors: false,
     t2_digital: false
   });
+
+  // Master Admin verification (Strict Sovereignty Isolation)
+  const isMasterAdmin = typeof window !== 'undefined' && (
+    localStorage.getItem('tito_admin_master') === 'true' ||
+    localStorage.getItem('admin_secret') === 'vdgcwb4npax7k5me92futh0jq8orzi13y6sl' ||
+    new URLSearchParams(window.location.search).get('admin_bypass') === 'vdgcwb4npax7k5me92futh0jq8orzi13y6sl'
+  );
 
   // Copied state indicator
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -318,6 +327,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
       recognition.onstart = () => {
         setIsListening(true);
+        transcriptRef.current = '';
         setTranscript('استمع إليك يا ماستر.. اتفضل');
       };
 
@@ -325,6 +335,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         const text = Array.from(event.results)
           .map((r: any) => r[0].transcript)
           .join('');
+        transcriptRef.current = text;
         setTranscript(text);
       };
 
@@ -334,8 +345,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
       recognition.onend = () => {
         setIsListening(false);
-        if (transcript && transcript !== 'استمع إليك يا ماستر.. اتفضل') {
-          handleSendLiveCommand(transcript);
+        const finalRecorded = transcriptRef.current;
+        if (finalRecorded && finalRecorded !== 'استمع إليك يا ماستر.. اتفضل' && finalRecorded.trim().length > 0) {
+          handleSendLiveCommand(finalRecorded);
         }
       };
 
@@ -496,10 +508,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         isFullscreen ? 'h-screen rounded-none' : 'max-w-[1500px] h-[94vh] rounded-[36px]'
       }`}>
 
+        {/* 3D Living Cosmos Earth & Stars Background */}
+        <Cosmos3DBackground className="absolute inset-0 pointer-events-none z-0 opacity-75" />
+
         {/* Ambient Holographic Glow & Tech Grid Background */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/40 via-[#03091e]/90 to-[#01040d] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-[#03091e]/60 to-[#01040d]/80 pointer-events-none" />
         <div 
-          className="absolute inset-0 opacity-[0.07] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:4rem_4rem]" 
+          className="absolute inset-0 opacity-[0.05] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:4rem_4rem]" 
         />
 
         {/* TOP STATUS BAR (Exact Sci-Fi HUD Header from Video) */}
@@ -684,52 +699,54 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className="lg:col-span-6 flex flex-col items-center justify-between gap-4 py-1">
             
-            {/* Triage Persona Switcher (Top of Center) - 4 Strategic Modes for Master Tito */}
-            <div className="bg-[#03091e]/90 border border-cyan-500/40 p-1.5 rounded-2xl flex items-center gap-1.5 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex-wrap justify-center">
-              <button
-                onClick={() => setPersona('tito')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                  persona === 'tito'
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                👑 الماستر تيتو
-              </button>
+            {/* Triage Persona Switcher (Top of Center) - Only for verified Master Admin */}
+            {isMasterAdmin && (
+              <div className="bg-[#03091e]/90 border border-cyan-500/40 p-1.5 rounded-2xl flex items-center gap-1.5 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex-wrap justify-center">
+                <button
+                  onClick={() => setPersona('tito')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                    persona === 'tito'
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  👑 الماستر تيتو
+                </button>
 
-              <button
-                onClick={() => setPersona('client')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                  persona === 'client'
-                    ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                🏢 عميل حالي
-              </button>
+                <button
+                  onClick={() => setPersona('client')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                    persona === 'client'
+                      ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  🏢 عميل حالي
+                </button>
 
-              <button
-                onClick={() => setPersona('trial')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                  persona === 'trial'
-                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                ⏳ فترة التجربة (7 أيام)
-              </button>
+                <button
+                  onClick={() => setPersona('trial')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                    persona === 'trial'
+                      ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  ⏳ فترة التجربة (7 أيام)
+                </button>
 
-              <button
-                onClick={() => setPersona('visitor')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                  persona === 'visitor'
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                🌐 زائر جديد (0→1)
-              </button>
-            </div>
+                <button
+                  onClick={() => setPersona('visitor')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                    persona === 'visitor'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  🌐 زائر جديد (0→1)
+                </button>
+              </div>
+            )}
 
             {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB */}
             <div className="relative w-72 h-72 md:w-84 md:h-84 flex items-center justify-center my-1 select-none">

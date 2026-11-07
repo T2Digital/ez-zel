@@ -93,9 +93,10 @@ interface Props {
   onSelectPlan: (plan: string, cycle: 'monthly' | 'yearly') => void;
   onTrialStart: () => void;
   onAffiliateStart: () => void;
+  onLoginClick?: () => void;
 }
 
-const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart }) => {
+const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart, onLoginClick }) => {
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [showWhitePaper, setShowWhitePaper] = useState(false);
   const [showBattleStation, setShowBattleStation] = useState(false);
@@ -314,7 +315,13 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                     <button onClick={() => onSelectPlan(selectedTier, billingCycle)} className="flex-[2] py-3.5 bg-[#151515] hover:bg-[#1a1a1a] text-purple-400 border border-white/10 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2 hover:border-purple-500/30">
                         <Zap className="w-4 h-4" /> تفعيل الاشتراك المباشر
                     </button>
-                    <button onClick={() => setShowBattleStation(true)} className="flex-1 py-3.5 bg-transparent hover:bg-white/5 text-white/40 hover:text-white border border-white/5 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2">
+                    <button 
+                      onClick={() => {
+                        if (onLoginClick) onLoginClick();
+                        else onSelectPlan(selectedTier, billingCycle);
+                      }} 
+                      className="flex-1 py-3.5 bg-transparent hover:bg-white/5 text-white/40 hover:text-white border border-white/5 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
                         <UserCheck className="w-4 h-4" /> دخول
                     </button>
                 </div>

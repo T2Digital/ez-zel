@@ -1,0 +1,467 @@
+{
+  "AdminDashboard.tsx": {
+    "status": "LIVE",
+    "size": 68330,
+    "lines": 859
+  },
+  "AffiliateDashboard.tsx": {
+    "status": "LIVE",
+    "size": 13929,
+    "lines": 255
+  },
+  "AppRoutes.tsx": {
+    "status": "LIVE",
+    "size": 14811,
+    "lines": 441
+  },
+  "ArchitectureMap.tsx": {
+    "status": "SIMULATED",
+    "size": 38148,
+    "lines": 360
+  },
+  "AssistantWidget.tsx": {
+    "status": "LIVE",
+    "size": 7536,
+    "lines": 187
+  },
+  "AudioUnlocker.tsx": {
+    "status": "LIVE",
+    "size": 853,
+    "lines": 25
+  },
+  "Auth.tsx": {
+    "status": "LIVE",
+    "size": 13894,
+    "lines": 249
+  },
+  "AutonomousManager.tsx": {
+    "status": "LIVE",
+    "size": 78903,
+    "lines": 1433
+  },
+  "CapabilitiesGuide.tsx": {
+    "status": "LIVE",
+    "size": 8512,
+    "lines": 155
+  },
+  "ChatInterface.tsx": {
+    "status": "LIVE",
+    "size": 73497,
+    "lines": 1653
+  },
+  "CyberShadowGame3D.tsx": {
+    "status": "SIMULATED",
+    "size": 38999,
+    "lines": 838
+  },
+  "Dashboard.tsx": {
+    "status": "LIVE",
+    "size": 40656,
+    "lines": 725
+  },
+  "FloatingPillars.tsx": {
+    "status": "SIMULATED",
+    "size": 4119,
+    "lines": 86
+  },
+  "FloatingShadowAvatar.tsx": {
+    "status": "LIVE",
+    "size": 32321,
+    "lines": 657
+  },
+  "FluidLuminescentOrb.tsx": {
+    "status": "SIMULATED",
+    "size": 10464,
+    "lines": 292
+  },
+  "InstallPrompt.tsx": {
+    "status": "SIMULATED",
+    "size": 2406,
+    "lines": 58
+  },
+  "JarvisBattleStationModal.tsx": {
+    "status": "HYBRID",
+    "size": 114784,
+    "lines": 2089
+  },
+  "LiveAgentAction.tsx": {
+    "status": "LIVE",
+    "size": 16569,
+    "lines": 323
+  },
+  "LiveAPIMode.tsx": {
+    "status": "LIVE",
+    "size": 28327,
+    "lines": 590
+  },
+  "LiveTickers.tsx": {
+    "status": "LIVE",
+    "size": 8024,
+    "lines": 177
+  },
+  "LiveTradingBoard.tsx": {
+    "status": "SIMULATED",
+    "size": 16895,
+    "lines": 253
+  },
+  "LocalDeepDive.tsx": {
+    "status": "HYBRID",
+    "size": 40401,
+    "lines": 573
+  },
+  "MediaStudioModal.tsx": {
+    "status": "HYBRID",
+    "size": 28594,
+    "lines": 477
+  },
+  "MemoryVault.tsx": {
+    "status": "HYBRID",
+    "size": 31484,
+    "lines": 464
+  },
+  "MusicStudio.tsx": {
+    "status": "SIMULATED",
+    "size": 26463,
+    "lines": 503
+  },
+  "NativeSettings.tsx": {
+    "status": "SIMULATED",
+    "size": 14159,
+    "lines": 198
+  },
+  "NotificationManager.tsx": {
+    "status": "LIVE",
+    "size": 6730,
+    "lines": 185
+  },
+  "Payment.tsx": {
+    "status": "LIVE",
+    "size": 13870,
+    "lines": 257
+  },
+  "PillarDetail.tsx": {
+    "status": "SIMULATED",
+    "size": 4110,
+    "lines": 75
+  },
+  "Pricing.tsx": {
+    "status": "SIMULATED",
+    "size": 18570,
+    "lines": 329
+  },
+  "ProactiveNotification.tsx": {
+    "status": "SIMULATED",
+    "size": 3530,
+    "lines": 81
+  },
+  "SecurityGate.tsx": {
+    "status": "LIVE",
+    "size": 7867,
+    "lines": 187
+  },
+  "SensoryHUD.tsx": {
+    "status": "SIMULATED",
+    "size": 3561,
+    "lines": 88
+  },
+  "ShadowFace.tsx": {
+    "status": "SIMULATED",
+    "size": 10561,
+    "lines": 273
+  },
+  "ShadowMeshSync.tsx": {
+    "status": "LIVE",
+    "size": 19299,
+    "lines": 338
+  },
+  "ShadowVisual.tsx": {
+    "status": "LIVE",
+    "size": 2756,
+    "lines": 58
+  },
+  "SovereignOSArchitectureHub.tsx": {
+    "status": "LIVE",
+    "size": 49301,
+    "lines": 741
+  },
+  "SovereignVault.tsx": {
+    "status": "HYBRID",
+    "size": 21288,
+    "lines": 376
+  },
+  "SovereignVirtualWorld3D.tsx": {
+    "status": "SIMULATED",
+    "size": 61291,
+    "lines": 1348
+  },
+  "SpaceCanvas.tsx": {
+    "status": "HYBRID",
+    "size": 29029,
+    "lines": 604
+  },
+  "TafraDashboard.tsx": {
+    "status": "SIMULATED",
+    "size": 101886,
+    "lines": 1892
+  },
+  "TenantFactoryView.tsx": {
+    "status": "SIMULATED",
+    "size": 15747,
+    "lines": 343
+  },
+  "VoiceBiometricsManager.tsx": {
+    "status": "SIMULATED",
+    "size": 6422,
+    "lines": 144
+  },
+  "VoiceCommandListener.tsx": {
+    "status": "LIVE",
+    "size": 38837,
+    "lines": 854
+  },
+  "VoiceSecurityGate.tsx": {
+    "status": "SIMULATED",
+    "size": 3731,
+    "lines": 82
+  },
+  "WhitePaper.tsx": {
+    "status": "LIVE",
+    "size": 9769,
+    "lines": 132
+  },
+  "WorkspaceExplorer.tsx": {
+    "status": "LIVE",
+    "size": 29156,
+    "lines": 630
+  },
+  "ZeroMistakeGuardrailModal.tsx": {
+    "status": "SIMULATED",
+    "size": 7921,
+    "lines": 201
+  },
+  "AGIReasoningTrace.tsx": {
+    "status": "SIMULATED",
+    "size": 6761,
+    "lines": 154
+  },
+  "AutonomousDashboard.tsx": {
+    "status": "SIMULATED",
+    "size": 3814,
+    "lines": 57
+  },
+  "BoardroomMeetingCard.tsx": {
+    "status": "LIVE",
+    "size": 18307,
+    "lines": 373
+  },
+  "BrandAccountManagerCard.tsx": {
+    "status": "SIMULATED",
+    "size": 15968,
+    "lines": 330
+  },
+  "ChatCardsRenderer.tsx": {
+    "status": "LIVE",
+    "size": 52516,
+    "lines": 817
+  },
+  "ChatInputArea.tsx": {
+    "status": "LIVE",
+    "size": 7301,
+    "lines": 90
+  },
+  "ClientOnboardingModal.tsx": {
+    "status": "LIVE",
+    "size": 31179,
+    "lines": 621
+  },
+  "CommandCenterCard.tsx": {
+    "status": "LIVE",
+    "size": 6955,
+    "lines": 141
+  },
+  "ContentMachineCard.tsx": {
+    "status": "LIVE",
+    "size": 19958,
+    "lines": 348
+  },
+  "CyberDefenseMapCard.tsx": {
+    "status": "LIVE",
+    "size": 10227,
+    "lines": 211
+  },
+  "ExpenseTrackerCard.tsx": {
+    "status": "LIVE",
+    "size": 5112,
+    "lines": 100
+  },
+  "HumanVoiceToneModal.tsx": {
+    "status": "LIVE",
+    "size": 18128,
+    "lines": 347
+  },
+  "InlineVoicePlayer.tsx": {
+    "status": "LIVE",
+    "size": 14923,
+    "lines": 360
+  },
+  "InteractiveEducator.tsx": {
+    "status": "SIMULATED",
+    "size": 6072,
+    "lines": 134
+  },
+  "LeadGeneratorCard.tsx": {
+    "status": "LIVE",
+    "size": 15385,
+    "lines": 274
+  },
+  "ListeningOverlay.tsx": {
+    "status": "SIMULATED",
+    "size": 4473,
+    "lines": 68
+  },
+  "MemoryConstellationCard.tsx": {
+    "status": "LIVE",
+    "size": 12986,
+    "lines": 265
+  },
+  "MessageBubble.tsx": {
+    "status": "LIVE",
+    "size": 13661,
+    "lines": 197
+  },
+  "MuslimCompanionCard.tsx": {
+    "status": "LIVE",
+    "size": 9727,
+    "lines": 174
+  },
+  "OfflineGhostModeCard.tsx": {
+    "status": "SIMULATED",
+    "size": 4951,
+    "lines": 98
+  },
+  "PersonalKeysManager.tsx": {
+    "status": "LIVE",
+    "size": 15085,
+    "lines": 195
+  },
+  "PodcastStudioCard.tsx": {
+    "status": "LIVE",
+    "size": 16896,
+    "lines": 334
+  },
+  "PredictiveAnalyticsBoard.tsx": {
+    "status": "SIMULATED",
+    "size": 4322,
+    "lines": 82
+  },
+  "RevenueMatrixCard.tsx": {
+    "status": "LIVE",
+    "size": 6132,
+    "lines": 117
+  },
+  "ToolCardRenderer.tsx": {
+    "status": "LIVE",
+    "size": 17389,
+    "lines": 271
+  },
+  "TopNavigation.tsx": {
+    "status": "SIMULATED",
+    "size": 18221,
+    "lines": 249
+  },
+  "TradingViewChart.tsx": {
+    "status": "SIMULATED",
+    "size": 2969,
+    "lines": 72
+  },
+  "TrendHunterCard.tsx": {
+    "status": "LIVE",
+    "size": 4677,
+    "lines": 88
+  },
+  "VideoDisplay.tsx": {
+    "status": "SIMULATED",
+    "size": 2675,
+    "lines": 53
+  },
+  "VisitorIntelligenceOnboarding.tsx": {
+    "status": "HYBRID",
+    "size": 24439,
+    "lines": 475
+  },
+  "VoiceShareDialog.tsx": {
+    "status": "SIMULATED",
+    "size": 2644,
+    "lines": 56
+  },
+  "WorkspaceFileViewer.tsx": {
+    "status": "SIMULATED",
+    "size": 22284,
+    "lines": 311
+  },
+  "ApiKeysVault.tsx": {
+    "status": "LIVE",
+    "size": 9095,
+    "lines": 167
+  },
+  "BrainRouterModal.tsx": {
+    "status": "SIMULATED",
+    "size": 12762,
+    "lines": 222
+  },
+  "BrandManagerModal.tsx": {
+    "status": "LIVE",
+    "size": 11432,
+    "lines": 204
+  },
+  "ContactsManagerModal.tsx": {
+    "status": "LIVE",
+    "size": 7376,
+    "lines": 183
+  },
+  "LiveSessionModal.tsx": {
+    "status": "LIVE",
+    "size": 19256,
+    "lines": 425
+  },
+  "MissingFeaturesModals.tsx": {
+    "status": "SIMULATED",
+    "size": 3506,
+    "lines": 57
+  },
+  "MusicVaultModal.tsx": {
+    "status": "LIVE",
+    "size": 19289,
+    "lines": 330
+  },
+  "ProactiveReportsModal.tsx": {
+    "status": "SIMULATED",
+    "size": 6566,
+    "lines": 120
+  },
+  "ShadowWalletModal.tsx": {
+    "status": "SIMULATED",
+    "size": 22575,
+    "lines": 352
+  },
+  "SocialMatrixModal.tsx": {
+    "status": "HYBRID",
+    "size": 11764,
+    "lines": 169
+  },
+  "SystemOverride.tsx": {
+    "status": "LIVE",
+    "size": 10464,
+    "lines": 168
+  },
+  "TasksModal.tsx": {
+    "status": "LIVE",
+    "size": 8231,
+    "lines": 119
+  },
+  "WorkspaceModal.tsx": {
+    "status": "LIVE",
+    "size": 1751,
+    "lines": 31
+  }
+}

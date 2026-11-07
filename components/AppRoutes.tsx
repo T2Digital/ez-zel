@@ -239,6 +239,10 @@ export const AppRoutes: React.FC = () => {
               setAuthDefaultTab("register");
               navigateToView("auth");
             }}
+            onLoginClick={() => {
+              setAuthDefaultTab("login");
+              navigateToView("auth");
+            }}
           />
         }
       />
