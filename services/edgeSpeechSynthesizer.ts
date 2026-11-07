@@ -33,30 +33,47 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         throw new Error("Empty text after sanitization");
     }
 
-    const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const tmpMp3Path = path.join(os.tmpdir(), `node_edge_${uniqueId}.mp3`);
+    const trySynthesize = async (voiceName: string): Promise<Buffer> => {
+        const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const tmpMp3Path = path.join(os.tmpdir(), `node_edge_${uniqueId}.mp3`);
+        try {
+            const tts = new EdgeTTS({
+                voice: voiceName,
+                outputFormat: options.outputFormat || 'audio-24khz-48kbitrate-mono-mp3',
+                timeout: 15000
+            });
 
-    try {
-        const tts = new EdgeTTS({
-            voice: voice,
-            outputFormat: options.outputFormat || 'audio-24khz-48kbitrate-mono-mp3'
-        });
+            await Promise.race([
+                tts.ttsPromise(cleanText, tmpMp3Path),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('TTS_TIMEOUT')), 16000))
+            ]);
 
-        await Promise.race([
-            tts.ttsPromise(cleanText, tmpMp3Path),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('TTS_TIMEOUT')), 12000))
-        ]);
-
-        if (fs.existsSync(tmpMp3Path)) {
-            const buf = fs.readFileSync(tmpMp3Path);
-            try { fs.unlinkSync(tmpMp3Path); } catch {}
-            return buf;
+            if (fs.existsSync(tmpMp3Path)) {
+                const buf = fs.readFileSync(tmpMp3Path);
+                try { fs.unlinkSync(tmpMp3Path); } catch {}
+                if (buf && buf.length > 200) {
+                    return buf;
+                }
+            }
+            throw new Error("Edge TTS generated audio file not found or empty");
+        } catch (err: any) {
+            try { if (fs.existsSync(tmpMp3Path)) fs.unlinkSync(tmpMp3Path); } catch {}
+            throw err;
         }
+    };
 
-        throw new Error("Edge TTS generated audio file not found");
+    // 1. Try Primary Egyptian Voice
+    try {
+        return await trySynthesize(voice);
     } catch (err: any) {
-        try { if (fs.existsSync(tmpMp3Path)) fs.unlinkSync(tmpMp3Path); } catch {}
-        console.error("[node-edge-tts synthesis error]:", err?.message);
-        throw err;
+        // 2. Fallback to alternate Egyptian voice (e.g. Salma <-> Shakir)
+        const altVoice = voice.includes('Salma') ? 'ar-EG-ShakirNeural' : 'ar-EG-SalmaNeural';
+        try {
+            console.warn(`[Edge TTS] Primary voice (${voice}) timed out, attempting alternate voice (${altVoice})...`);
+            return await trySynthesize(altVoice);
+        } catch (altErr: any) {
+            console.error("[node-edge-tts synthesis error]:", altErr?.message || err?.message);
+            throw altErr;
+        }
     }
 }

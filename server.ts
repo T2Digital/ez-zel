@@ -14,13 +14,29 @@ import { synthesizeTrack } from "./services/musicSynthesizer";
 import { synthesizeEdgeSpeech } from "./services/edgeSpeechSynthesizer";
 import { BRAND_VAULT } from "./services/brandVault";
 
-function getCleanServerGeminiKey(): string {
-    const rawKey = process.env.GEMINI_API_KEY;
-    const apiKey = rawKey ? rawKey.replace(/^["']|["']$/g, '').trim() : '';
-    if (!apiKey || apiKey === "dummy" || apiKey === "AIzaSyDummy" || apiKey === "MISSING_KEY_ERROR_WILL_BE_THROWN_ON_USE" || apiKey === "undefined" || apiKey === "null") {
-        return '';
+function getCandidateGeminiKeys(): string[] {
+    const rawKeys = [
+        process.env.GEMINI_API_KEY,
+        process.env.GEMINI_API_KEYS,
+        process.env.VITE_GEMINI_API_KEY
+    ].filter(Boolean);
+
+    const keys: string[] = [];
+    for (const raw of rawKeys) {
+        if (!raw) continue;
+        const parts = raw.split(/[,;\n]/).map(k => k.replace(/^["']|["']$/g, '').trim()).filter(Boolean);
+        for (const p of parts) {
+            if (p && !keys.includes(p) && p !== "dummy" && p !== "AIzaSyDummy" && p !== "undefined" && p !== "null" && p.length > 20) {
+                keys.push(p);
+            }
+        }
     }
-    return apiKey;
+    return keys;
+}
+
+function getCleanServerGeminiKey(): string {
+    const candidateKeys = getCandidateGeminiKeys();
+    return candidateKeys.length > 0 ? candidateKeys[0] : '';
 }
 
 function getServerAI(): GoogleGenAI {
@@ -1572,26 +1588,55 @@ async function startServer() {
       }
   });
 
-  // --- OFFICIAL GEMINI NEURAL VOICE FALLBACK (100% Studio Quality, No 403) ---
+  // --- OFFICIAL GEMINI NEURAL VOICE FALLBACK (100% Studio Quality with Key Rotation Pool) ---
   async function synthesizeGeminiVoice(text: string, voice = "Puck"): Promise<Buffer> {
-      const ai = getServerAI();
+      const candidateKeys = getCandidateGeminiKeys();
+      if (candidateKeys.length === 0) {
+          throw new Error("No Gemini API keys configured on server");
+      }
+
       const prompt = `Read the following text aloud with natural human warmth: ${text.substring(0, 800)}`;
-      const res = await ai.models.generateContent({
-          model: "gemini-2.5-flash-preview-tts",
-          contents: prompt,
-          config: {
-              responseModalities: ["AUDIO"],
-              speechConfig: {
-                  voiceConfig: {
-                      prebuiltVoiceConfig: { voiceName: voice === "female" ? "Aoede" : "Puck" }
+      const voiceName = voice === "female" || voice.includes("Salma") ? "Aoede" : "Puck";
+      const models = ["gemini-2.5-flash-preview-tts", "gemini-2.0-flash"];
+
+      let lastError: any = null;
+      for (let i = 0; i < candidateKeys.length; i++) {
+          const key = candidateKeys[i];
+          const ai = new GoogleGenAI({
+              apiKey: key,
+              httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+          });
+
+          for (const model of models) {
+              try {
+                  const res = await ai.models.generateContent({
+                      model,
+                      contents: prompt,
+                      config: {
+                          responseModalities: ["AUDIO"],
+                          speechConfig: {
+                              voiceConfig: {
+                                  prebuiltVoiceConfig: { voiceName }
+                              }
+                          }
+                      }
+                  });
+                  const b64 = res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                  if (b64) {
+                      const pcmBuf = Buffer.from(b64, "base64");
+                      return pcmToWav(pcmBuf, 24000);
+                  }
+              } catch (err: any) {
+                  lastError = err;
+                  if (err?.status === 429 || err?.message?.includes("quota") || err?.message?.includes("RESOURCE_EXHAUSTED")) {
+                      console.warn(`[TTS Pool] Key index ${i} quota reached, rotating to next key in pool...`);
+                      break; // Break inner loop to try next key in pool
                   }
               }
           }
-      });
-      const b64 = res.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!b64) throw new Error("No audio from Gemini TTS");
-      const pcmBuf = Buffer.from(b64, "base64");
-      return pcmToWav(pcmBuf, 24000);
+      }
+
+      throw lastError || new Error("Failed to synthesize audio from all Gemini keys in pool");
   }
 
   // --- SOVEREIGN TTS ENGINE: ZERO ROBOTIC VOICES (100% Studio Human Egyptian Shakir/Salma) ---
