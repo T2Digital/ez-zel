@@ -59,9 +59,10 @@ export default defineConfig(() => {
             manualChunks(id) {
               if (id.includes('node_modules')) {
                 if (id.includes('firebase')) return 'vendor-firebase';
+                if (id.includes('@xenova') || id.includes('onnxruntime-web')) return 'vendor-ai';
+                if (id.includes('three') || id.includes('@react-three')) return 'vendor-three';
+                if (id.includes('ethers')) return 'vendor-ethers';
                 if (id.includes('lucide-react')) return 'vendor-lucide';
-                if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';
-                return 'vendor-libs';
               }
             }
           }
