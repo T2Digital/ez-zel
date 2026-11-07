@@ -532,18 +532,6 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
         console.warn("[TTS] Sovereign fallback failed:", gErr?.message);
     }
 
-    // 3. FINAL PATH: Browser Native SpeechSynthesis
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        try {
-            const utterance = new SpeechSynthesisUtterance(cleanText.substring(0, 300));
-            utterance.lang = 'ar-EG';
-            const voices = window.speechSynthesis.getVoices();
-            const arVoice = voices.find(v => v.lang.startsWith('ar'));
-            if (arVoice) utterance.voice = arVoice;
-            window.speechSynthesis.speak(utterance);
-        } catch {}
-    }
-
     return null;
 };
 
