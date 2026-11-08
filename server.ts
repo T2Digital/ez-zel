@@ -15,6 +15,7 @@ import { synthesizeEdgeSpeech } from "./services/edgeSpeechSynthesizer";
 import { BRAND_VAULT } from "./services/brandVault";
 import { setupMicroservicesGateway } from "./services/microservicesGateway";
 import { cloneOrSynthesizeBrand, getClonedBrandByIdOrSlug } from "./services/appClonerCrawlerService";
+import { publishBrandPost, launchAdCampaign, runSelfOptimizingLoop, setupAutonomousAgencyCron, getPublishedLogs } from "./services/growthAgencyEngine";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -355,6 +356,7 @@ async function startServer() {
 
   // Mount Sovereign Microservices API Gateway (Webhooks, Realtime SSE & Service Fleet Orchestrator)
   setupMicroservicesGateway(app);
+  setupAutonomousAgencyCron();
 
   // --- API ROUTES --- //
 
@@ -455,6 +457,73 @@ async function startServer() {
 </body>
 </html>`;
       res.send(html);
+  });
+
+  // --- SOVEREIGN GROWTH AGENCY PIPELINE (Bridges 2, 3 & 4) --- //
+  app.post("/api/growth/publish-post", async (req, res) => {
+      try {
+          const { brandId, postIndex } = req.body || {};
+          if (!brandId) return res.status(400).json({ error: "brandId is required" });
+          const result = await publishBrandPost(brandId, postIndex || 0);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.post("/api/growth/launch-campaign", async (req, res) => {
+      try {
+          const { brandId, budgetEgp, platform, objective, customHook } = req.body || {};
+          if (!brandId) return res.status(400).json({ error: "brandId is required" });
+          const campaign = await launchAdCampaign({
+              brandId,
+              budgetEgp: budgetEgp || 2500,
+              platform: platform || 'meta',
+              objective: objective || 'click_to_whatsapp',
+              customHook
+          });
+          res.json({ success: true, campaign });
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.post("/api/growth/optimize-loop", async (req, res) => {
+      try {
+          const { brandId } = req.body || {};
+          if (!brandId) return res.status(400).json({ error: "brandId is required" });
+          const result = await runSelfOptimizingLoop(brandId);
+          res.json({ success: true, result });
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.get("/api/growth/agency-status", (_req, res) => {
+      try {
+          const filePath = path.join(process.cwd(), "data", "brands.json");
+          const brands = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, "utf8")) : {};
+          const logs = getPublishedLogs();
+          const campsPath = path.join(process.cwd(), "data", "campaigns.json");
+          const campaigns = fs.existsSync(campsPath) ? JSON.parse(fs.readFileSync(campsPath, "utf8")) : [];
+
+          res.json({
+              success: true,
+              agencyStatus: "AUTONOMOUS_OPERATIONAL",
+              totalActiveBrands: Object.keys(brands).length,
+              totalCampaignsLaunched: campaigns.length,
+              totalPublishedPosts: logs.length,
+              recentPublishedLogs: logs.slice(0, 10),
+              activeCampaigns: campaigns.slice(0, 10),
+              timestamp: new Date().toISOString()
+          });
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.get("/api/growth/published-logs", (_req, res) => {
+      res.json({ success: true, logs: getPublishedLogs() });
   });
 
   // --- SERVER-SIDE GEMINI API ENDPOINTS --- //

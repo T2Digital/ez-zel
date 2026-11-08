@@ -31,11 +31,11 @@ interface JarvisBattleStationModalProps {
 export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> = ({
   isOpen,
   onClose,
-  initialPersona = 'visitor',
+  initialPersona = 'tito',
   onNavigateTo
 }) => {
-  // Triage Persona (4 modes for master testing: Tito, Client, Trial 7-Days, Visitor 0->1)
-  const [persona, setPersona] = useState<'visitor' | 'trial' | 'client' | 'tito'>(initialPersona);
+  // Master Tito is the Sovereign Commander: Default strictly to 'tito'
+  const [persona, setPersona] = useState<'visitor' | 'trial' | 'client' | 'tito'>('tito');
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -392,7 +392,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const handlePlayPersonaGreeting = (currentPersona: 'visitor' | 'trial' | 'client' | 'tito') => {
+  const handlePlayPersonaGreeting = (_currentPersona: 'visitor' | 'trial' | 'client' | 'tito') => {
     stopVoice();
     setIsPlayingVoice(true);
     isPlayingVoiceRef.current = true;
@@ -402,16 +402,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     const timeGreeting = hours < 12 ? 'صباح الفل والجمال' : 'مساء الفل والجمال';
     const brandsCount = realStats.totalVaultBrandsCount || 19;
 
-    let text = '';
-    if (currentPersona === 'visitor') {
-      text = `أهلاً بك في منصة الظل الرقمي السيادية. أنا جارفيس، سيب القيادة لي، قولي عندك نشاط قائم ولا فكرة جديدة من الصفر عشان نبدأ فوراً!`;
-    } else if (currentPersona === 'trial') {
-      text = `${timeGreeting} يا فندم في أسبوعك التجريبي المجاني. منظومتك مربوطة، وجارفيس جاهز لتنفيذ أي أوامر ومساعدتك فوراً.`;
-    } else if (currentPersona === 'client') {
-      text = `${timeGreeting} يا شريكنا العزيز. المنظومة مربوطة ووكيلك الذكي نشط وجاهز لخدمتك على مدار الساعة.`;
-    } else {
-      text = `${timeGreeting} عليك يا ماستر تيتو. كابينة قيادة جارفيس السيادية تحت إمرتك. الرادار والأنظمة الحية نشطة لعدد ${brandsCount} براند، تؤمرني بإيه يا باشا؟`;
-    }
+    // Supreme Executive Greeting Exclusively for Master Tito!
+    const text = `${timeGreeting} عليك يا ماستر تيتو! كابينة قيادة جارفيس السيادية تحت إمرتك بالكامل. أسطول الـ ${brandsCount} براند، وبوابة الـ Microservices، وماكينة المحتوى، وإعلانات السوشيال شغالين في أتم الجاهزية.. تؤمرني بإيه يا باشا وتحب نعمل إيه دلوقتي؟`;
 
     setTranscript(text);
     // Play ONLY 100% human neural studio voice via node-edge-tts (Shakir Egyptian)
