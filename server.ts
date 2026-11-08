@@ -14,6 +14,7 @@ import { synthesizeTrack } from "./services/musicSynthesizer";
 import { synthesizeEdgeSpeech } from "./services/edgeSpeechSynthesizer";
 import { BRAND_VAULT } from "./services/brandVault";
 import { setupMicroservicesGateway } from "./services/microservicesGateway";
+import { cloneOrSynthesizeBrand, getClonedBrandByIdOrSlug } from "./services/appClonerCrawlerService";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -359,6 +360,101 @@ async function startServer() {
 
   app.get("/api/health", (_req, res) => {
       res.json({ ok: true, uptime: process.uptime() });
+  });
+
+  // --- AUTOMATED APP CLONER & MARKET CRAWLER API --- //
+  app.post("/api/cloner/clone-brand", async (req, res) => {
+      try {
+          const { name, industry, websiteUrl, phone, ownerEmail } = req.body || {};
+          if (!name) return res.status(400).json({ error: "اسم النشاط مطلوب" });
+
+          const brand = await cloneOrSynthesizeBrand({
+              name,
+              industry,
+              websiteUrl,
+              phone,
+              ownerEmail
+          });
+
+          res.json({ success: true, brand });
+      } catch (err: any) {
+          console.error("[Cloner API Error]:", err?.message);
+          res.status(500).json({ error: err?.message || "فشل استنساخ البراند" });
+      }
+  });
+
+  app.get("/api/cloner/brands/:slug", (req, res) => {
+      const brand = getClonedBrandByIdOrSlug(req.params.slug);
+      if (!brand) return res.status(404).json({ error: "البراند غير موجود" });
+      res.json({ success: true, brand });
+  });
+
+  app.get("/api/cloner/brands", (_req, res) => {
+      try {
+          const filePath = path.join(process.cwd(), "data", "brands.json");
+          const brands = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, "utf8")) : {};
+          res.json({ success: true, count: Object.keys(brands).length, brands: Object.values(brands) });
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // --- CLIENT LIVE STOREFRONT VIEW (Branded PWA Showcase) --- //
+  app.get(["/store/:slug", "/app/:slug"], (req, res) => {
+      const brand = getClonedBrandByIdOrSlug(req.params.slug);
+      if (!brand) {
+          return res.status(404).send("<h1 style='color:#fff;background:#050505;font-family:sans-serif;text-align:center;padding:50px;'>البراند المطلوب غير مسجل في المنظومة</h1>");
+      }
+
+      const servicesHtml = (brand.productsCatalog || []).map(p => `
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:18px;padding:16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="flex:1;padding-left:12px;">
+            <h3 style="margin:0 0 6px;color:#fff;font-size:16px;">${p.name}</h3>
+            <p style="margin:0;color:#888;font-size:12px;line-height:1.5;">${p.description || ''}</p>
+          </div>
+          <div style="text-align:left;">
+            <span style="display:inline-block;background:#10b981;color:#000;font-weight:900;padding:6px 12px;border-radius:12px;font-size:13px;">${p.price}</span>
+          </div>
+        </div>
+      `).join('');
+
+      const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${brand.name} | تطبيق الحجز المباشر</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+      body { margin:0; padding:16px; background:#040711; color:#fff; font-family:'Cairo',sans-serif; text-align:right; }
+      .container { max-width:540px; margin:0 auto; }
+      .header { text-align:center; padding:24px 0 16px; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:20px; }
+      .btn { display:block; width:100%; box-sizing:border-box; background:#25D366; color:#000; font-weight:900; text-align:center; text-decoration:none; padding:14px; border-radius:14px; font-size:15px; margin-top:20px; }
+      .badge { display:inline-block; padding:4px 10px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#10b981; border-radius:20px; font-size:11px; font-weight:700; margin-bottom:8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="badge">تطبيق PWA مستقل • مربوط بالذكاء الاصطناعي</span>
+            <h1 style="margin:8px 0;font-size:24px;font-weight:900;color:#fff;">${brand.name}</h1>
+            <p style="color:#aaa;font-size:13px;margin:0;">${brand.directKnowledge || brand.businessType}</p>
+        </div>
+        <div>
+            <h2 style="font-size:16px;color:#38bdf8;margin-bottom:12px;">قائمة الخدمات والحجز الفوري:</h2>
+            ${servicesHtml}
+        </div>
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:16px;padding:14px;margin-top:16px;">
+            <p style="margin:0;font-size:12px;color:#f59e0b;font-weight:bold;">💡 خصم 10% فوري للدفع الإلكتروني مع سداد 25% عربون جدية حجز عبر إنستاباي أو فودافون كاش على ${brand.phone} والباقي عند الاستلام.</p>
+        </div>
+        <a href="https://wa.me/2${brand.phone.replace(/^0/, '')}?text=${encodeURIComponent(`مرحباً ${brand.name}، أود الاستفسار والحجز`)}" class="btn" target="_blank">
+            💬 تحدث مع وكيل ${brand.name} الذكي على واتساب فوراً
+        </a>
+        <p style="text-align:center;font-size:10px;color:#555;margin-top:24px;">Powered by T2 Digital & Sovereign Growth Hub</p>
+    </div>
+</body>
+</html>`;
+      res.send(html);
   });
 
   // --- SERVER-SIDE GEMINI API ENDPOINTS --- //

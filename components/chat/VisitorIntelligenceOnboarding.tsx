@@ -75,34 +75,41 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   const handleLaunchScratchBrand = async () => {
     setIsGenerating(true);
     const cleanSlug = brandName.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-    const appUrl = `https://${cleanSlug || 'elite-brand'}.t2-client.vercel.app`;
-    setGeneratedAppUrl(appUrl);
+    const localStoreUrl = `${window.location.origin}/store/${cleanSlug || 'elite-brand'}`;
+    setGeneratedAppUrl(localStoreUrl);
 
-    // Mock 1-Week Launch Strategy with Hooks & Video Prompts
-    const plan = [
-      { day: 'السبت (اليوم 1)', type: 'بوست إطلاق رسمي (Feed 1:1)', hook: `فخامة تليق بمقامك - رسمياً انطلاق أحدث خدمات ${brandName} في مصر!`, cta: 'حجز فوري بخصم 10%' },
-      { day: 'الأحد (اليوم 2)', type: 'فيديو ريلز طرش (Reels 9:16)', hook: `ليه تدفع أكتر لما تقدر تستمتع بأعلى جودة مع ${brandName}؟`, cta: 'شاهد التجربة كاملة' },
-      { day: 'الثلاثاء (اليوم 3)', type: 'كاروسيل تعليمي (Carousel)', hook: `3 أخطاء شائعة تجنبها تماماً قبل ما تختار خدمتك!`, cta: 'استشارة مجانية بالواتساب' },
-      { day: 'الخميس (اليوم 4)', type: 'عرض نهاية الأسبوع (Story 9:16)', hook: `عرض حصري لـ 24 ساعة فقط - خصم فوري مع سداد 25% عربون جدية!`, cta: 'احجز مكانك الآن' }
-    ];
-    setWeekPlan(plan);
-
-    // Register into the Universal Backend
     try {
-      await fetch('/api/vault/register-brand', {
+      const res = await fetch('/api/cloner/clone-brand', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: brandName,
-          category: industry || 'خدمات عامة',
+          industry: industry || 'خدمات عامة',
           phone: phone || '01013373634',
-          whatsapp: phone || '01013373634',
-          planType: 5000,
-          adBudgetRatio: 0.5,
-          websiteUrl: appUrl
+          ownerEmail: 'client@t2digital.com'
         })
       });
-    } catch {}
+      const data = await res.json();
+      if (data.success && data.brand) {
+        if (data.brand.weekContentPlan && data.brand.weekContentPlan.length > 0) {
+          setWeekPlan(data.brand.weekContentPlan.map((p: any) => ({
+            day: p.day,
+            type: p.contentType,
+            hook: p.hook,
+            cta: p.caption
+          })));
+        }
+      }
+    } catch {
+      // Fallback 1-Week Launch Strategy
+      const plan = [
+        { day: 'السبت (اليوم 1)', type: 'بوست إطلاق رسمي (Feed 1:1)', hook: `فخامة تليق بمقامك - رسمياً انطلاق أحدث خدمات ${brandName} في مصر!`, cta: 'حجز فوري بخصم 10%' },
+        { day: 'الأحد (اليوم 2)', type: 'فيديو ريلز طرش (Reels 9:16)', hook: `ليه تدفع أكتر لما تقدر تستمتع بأعلى جودة مع ${brandName}؟`, cta: 'شاهد التجربة كاملة' },
+        { day: 'الثلاثاء (اليوم 3)', type: 'كاروسيل تعليمي (Carousel)', hook: `3 أخطاء شائعة تجنبها تماماً قبل ما تختار خدمتك!`, cta: 'استشارة مجانية بالواتساب' },
+        { day: 'الخميس (اليوم 4)', type: 'عرض نهاية الأسبوع (Story 9:16)', hook: `عرض حصري لـ 24 ساعة فقط - خصم فوري مع سداد 25% عربون جدية!`, cta: 'احجز مكانك الآن' }
+      ];
+      setWeekPlan(plan);
+    }
 
     setIsGenerating(false);
     setStep(3);
@@ -115,16 +122,18 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
     setIsGenerating(true);
 
     try {
-      await fetch('/api/vault/register-brand', {
+      const cleanSlug = (brandName || 't2-partner').toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      const localStoreUrl = `${window.location.origin}/store/${cleanSlug}`;
+      setGeneratedAppUrl(localStoreUrl);
+
+      await fetch('/api/cloner/clone-brand', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: brandName || 'براند شريك T2',
-          category: 'نشاط قائم',
+          industry: 'نشاط قائم - مبيعات وسوشيال',
           phone: phone || '01013373634',
-          whatsapp: phone || '01013373634',
-          planType: 5000,
-          adBudgetRatio: 0.5
+          ownerEmail: 'client@t2digital.com'
         })
       });
     } catch {}
