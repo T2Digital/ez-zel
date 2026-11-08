@@ -13,6 +13,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { synthesizeTrack } from "./services/musicSynthesizer";
 import { synthesizeEdgeSpeech } from "./services/edgeSpeechSynthesizer";
 import { BRAND_VAULT } from "./services/brandVault";
+import { setupMicroservicesGateway } from "./services/microservicesGateway";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -350,6 +351,9 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   app.use(express.json({ limit: '50mb' }));
+
+  // Mount Sovereign Microservices API Gateway (Webhooks, Realtime SSE & Service Fleet Orchestrator)
+  setupMicroservicesGateway(app);
 
   // --- API ROUTES --- //
 
