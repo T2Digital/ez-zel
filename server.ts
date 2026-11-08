@@ -1977,25 +1977,32 @@ async function startServer() {
           let executedAction: any = null;
           const msg = message.toLowerCase();
 
-          if (/كلين ماستر|سيل جيت|الخضر|بطاح|بركة|الأسطول|الأجنت|بوتات/i.test(msg)) {
-              const targetBrand = /سيل جيت/i.test(msg) ? 'besho' :
-                                  /الخضر/i.test(msg) ? 'alkhedr_car_rental' :
-                                  /بطاح/i.test(msg) ? 'battah_system' :
-                                  /بركة/i.test(msg) ? 'baraka_motors' : 'clean_master';
-              executedAction = { type: 'SWITCH_TAB', tab: 'agent_fleet', brandId: targetBrand };
-          } else if (/ستوديو|استوديو|المحفظة|العيادات|كريستال|سقطرى/i.test(msg)) {
-              const targetBrand = /سقطرى/i.test(msg) ? 'socotra_dental' : 'crystal_teeth';
-              executedAction = { type: 'SWITCH_TAB', tab: 'studio_portfolio', brandId: targetBrand };
-          } else if (/ولد بوست|ساندبوكس|إعلان|صمم|ريلز|ستوري/i.test(msg)) {
-              const brandName = /كريستال/i.test(msg) ? 'عيادة كريستال لطب الأسنان' :
-                                /سيل جيت/i.test(msg) ? 'منصة Sale Gates للتسويق العقاري' :
-                                /نظافة|كلين/i.test(msg) ? 'كلين ماستر لخدمات النظافة' : 'الخضر لتأجير السيارات الفاخرة';
-              executedAction = { type: 'RUN_SANDBOX', companyName: brandName };
-          } else if (/حجز|حجوزات|أحمد محمود|مبيعات|أرباح|فلوس|crm/i.test(msg)) {
+          // Detect brand if mentioned
+          let detectedBrand = 'clean_master';
+          if (/سيل جيت|besho/i.test(msg)) detectedBrand = 'besho';
+          else if (/الخضر|تأجير/i.test(msg)) detectedBrand = 'alkhedr_car_rental';
+          else if (/بطاح/i.test(msg)) detectedBrand = 'battah_system';
+          else if (/بركة/i.test(msg)) detectedBrand = 'baraka_motors';
+          else if (/كريستال|أسنان|دكتور نور|نور/i.test(msg)) detectedBrand = 'crystal_teeth';
+
+          if (/انشر|نزل بوست|publish|انشر البوست/i.test(msg)) {
+              executedAction = { type: 'TRIGGER_ACTION', action: 'PUBLISH_POST', brandId: detectedBrand };
+          } else if (/أطلق إعلان|اطلق اعلان|شغل إعلان|حملة ممولة|كامبين|واتساب إعلان/i.test(msg)) {
+              executedAction = { type: 'TRIGGER_ACTION', action: 'LAUNCH_CAMPAIGN', brandId: detectedBrand };
+          } else if (/تقويم|جدول المحتوى|خطة المحتوى|أسبوع|calendar/i.test(msg)) {
+              executedAction = { type: 'SWITCH_TAB', tab: 'studio_calendar', brandId: detectedBrand };
+          } else if (/بطاقة|منشور|كارت البوست|محتوى منشور|بوست فيسبوك/i.test(msg)) {
+              executedAction = { type: 'SWITCH_TAB', tab: 'content_post_card', brandId: detectedBrand };
+          } else if (/مستنسخ|استنسخ|متجر|pwa|تطبيق عميل|تطبيق جديد/i.test(msg)) {
+              executedAction = { type: 'SWITCH_TAB', tab: 'app_cloner', brandId: detectedBrand };
+          } else if (/إعلانات|كامبينات|حملات/i.test(msg)) {
+              executedAction = { type: 'SWITCH_TAB', tab: 'ad_launcher', brandId: detectedBrand };
+          } else if (/واتساب|crm|محادثات|شات العميل|الأجنت|بوتات/i.test(msg)) {
+              executedAction = { type: 'SWITCH_TAB', tab: 'agent_fleet', brandId: detectedBrand };
+          } else if (/حجز|حجوزات|أحمد محمود|مبيعات|أرباح|فلوس/i.test(msg)) {
               executedAction = { type: 'SWITCH_TAB', tab: 'vault_crm' };
           } else if (/وقف بوت|علق رد|عطل بوت/i.test(msg)) {
-              const targetBrand = /الخضر/i.test(msg) ? 'alkhedr_car_rental' : 'clean_master';
-              executedAction = { type: 'TOGGLE_BOT', brandId: targetBrand, status: 'paused' };
+              executedAction = { type: 'TOGGLE_BOT', brandId: detectedBrand, status: 'paused' };
           }
 
           // Check if message implies executive browser action

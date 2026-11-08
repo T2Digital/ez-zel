@@ -6,7 +6,8 @@ import {
   CheckCircle, Play, Pause, RefreshCw, Layers, TrendingUp,
   Video, Share2, MessageSquare, Bot, FileText, Send, Radio, Maximize2, Minimize2,
   Mic, MicOff, MousePointer, Monitor, Terminal, CheckCircle2, ChevronRight, Compass,
-  Search, Sliders, PhoneCall, Trash2, Key, Bell, Copy, Check, ChevronDown, Server
+  Search, Sliders, PhoneCall, Trash2, Key, Bell, Copy, Check, ChevronDown, Server,
+  Calendar, CalendarDays, Clock, Megaphone
 } from 'lucide-react';
 import { playShadowVoice, stopVoice, speakBrowserNaturalVoice } from '../services/speechService';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
@@ -103,8 +104,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 });
   const [isClickingCursor, setIsClickingCursor] = useState(false);
 
-  // Active Command Deck Tab: 'agent_fleet' | 'studio_portfolio' | 'sandbox_generator' | 'vault_crm'
-  const [activeDeckTab, setActiveDeckTab] = useState<'agent_fleet' | 'studio_portfolio' | 'sandbox_generator' | 'vault_crm' | 'microservices_gateway'>('agent_fleet');
+  // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway'
+  const [activeDeckTab, setActiveDeckTab] = useState<'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway'>('studio_calendar');
+  
+  // Selected Brand for Active Deep Interaction across all 3 Apps
+  const [selectedBrandId, setSelectedBrandId] = useState<string>('clean_master');
+  const [allBrandsList, setAllBrandsList] = useState<any[]>([]);
+  const [selectedPost, setSelectedPost] = useState<any>(null);
+  const [isPublishingPost, setIsPublishingPost] = useState<boolean>(false);
+  const [isLaunchingCampaign, setIsLaunchingCampaign] = useState<boolean>(false);
+  const [isCloningBrand, setIsCloningBrand] = useState<boolean>(false);
+  const [cloneInputName, setCloneInputName] = useState<string>('');
+  const [cloneInputCategory, setCloneInputCategory] = useState<string>('');
   
   // Studio Hub category filter & search
   const [studioCategory, setStudioCategory] = useState<string>('all');
@@ -289,6 +300,25 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       })
       .catch(() => {});
 
+    // Fetch all brands with their weekly content plans
+    fetch('/api/cloner/brands')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && Array.isArray(d.brands) && d.brands.length > 0) {
+          setAllBrandsList(d.brands);
+          if (d.brands[0]?.weekContentPlan?.[0]) {
+            setSelectedPost({
+              ...d.brands[0].weekContentPlan[0],
+              brandId: d.brands[0].id,
+              brandName: d.brands[0].name,
+              platform: 'Instagram & Facebook (Meta Graph)',
+              status: 'PUBLISHED'
+            });
+          }
+        }
+      })
+      .catch(() => {});
+
     // Trigger voice greeting tailored to current persona
     const activeInitial = initialPersona || persona;
     if (initialPersona && initialPersona !== persona) {
@@ -331,6 +361,110 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   }, [isOpen, persona]);
 
   if (!isOpen) return null;
+
+  const currentSelectedBrand = allBrandsList.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) || allBrandsList[0] || {
+    id: 'clean_master',
+    name: 'كلين ماستر لخدمات النظافة والتعقيم',
+    businessType: 'خدمات نظافة وتعقيم',
+    phone: '01013373634',
+    weekContentPlan: []
+  };
+
+  const handleSelectBrand = (brandId: string) => {
+    setSelectedBrandId(brandId);
+    const b = allBrandsList.find(x => x.id === brandId || x.slug === brandId);
+    if (b) {
+      if (b.weekContentPlan?.[0]) {
+        setSelectedPost({
+          ...b.weekContentPlan[0],
+          brandId: b.id,
+          brandName: b.name,
+          platform: 'Instagram & Facebook (Meta Graph)',
+          status: 'PUBLISHED'
+        });
+      }
+      playShadowVoice(`تم اختيار براند ${b.name} وتحديث التقويم الأسبوعي بالكامل يا ماستر.`, 'male');
+    }
+  };
+
+  const handlePublishPost = async (brandId: string, postIndex: number = 0) => {
+    setIsPublishingPost(true);
+    try {
+      const res = await fetch('/api/growth/publish-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId, postIndex })
+      });
+      const d = await res.json();
+      if (d.success && d.post) {
+        setSelectedPost(d.post);
+        setActiveDeckTab('content_post_card');
+        playShadowVoice(`تم نشر بوست ${d.post.day} بنجاح يا ماستر وتوجيهه لخوارزميات ميتا وتيتو ستوديو!`, 'male');
+      }
+    } catch (err) {
+      console.error('Publish error:', err);
+    } finally {
+      setIsPublishingPost(false);
+    }
+  };
+
+  const handleLaunchAdForPost = async (post: any) => {
+    setIsLaunchingCampaign(true);
+    try {
+      const res = await fetch('/api/growth/launch-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: currentSelectedBrand.id,
+          budgetEgp: 2000,
+          platform: 'meta',
+          objective: 'click_to_whatsapp',
+          customHook: post?.hook || currentSelectedBrand.marketAnalysis?.irresistibleHooks?.[0]
+        })
+      });
+      const d = await res.json();
+      if (d && d.id) {
+        setActiveDeckTab('ad_launcher');
+        playShadowVoice(`تم إطلاق حملة كليك تو واتساب بنجاح بميزانية 2000 جنيه يا ماستر!`, 'male');
+      }
+    } catch (err) {
+      console.error('Campaign launch error:', err);
+    } finally {
+      setIsLaunchingCampaign(false);
+    }
+  };
+
+  const handleCloneBrand = async (name: string, category: string) => {
+    if (!name.trim()) {
+      toast.error('يرجى إدخال اسم النشاط أو البراند');
+      return;
+    }
+    setIsCloningBrand(true);
+    playShadowVoice(`جاري استنساخ وتوليد تطبيق متكامل لـ ${name} فوراً يا ماستر!`, 'male');
+    try {
+      const res = await fetch('/api/cloner/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, industry: category || 'متجر إلكتروني' })
+      });
+      const d = await res.json();
+      if (d.success && d.brand) {
+        setAllBrandsList(prev => [d.brand, ...prev]);
+        setSelectedBrandId(d.brand.id);
+        toast.success(`تم استنساخ تطبيق ${d.brand.name} بنجاح!`);
+        playShadowVoice(`ألف مبروك يا ماستر، تم استنساخ متجر ${d.brand.name} وكتالوجه جاهز للربط والتشغيل!`, 'male');
+        setCloneInputName('');
+        setCloneInputCategory('');
+      } else {
+        toast.error('حدث خطأ أثناء الاستنساخ');
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('تعذر الاتصال بخدمة الاستنساخ');
+    } finally {
+      setIsCloningBrand(false);
+    }
+  };
 
   const isContinuousLiveRef = useRef<boolean>(true);
   const isPlayingVoiceRef = useRef<boolean>(false);
@@ -497,19 +631,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         if (data.action) {
           if (data.action.type === 'SWITCH_TAB' && data.action.tab) {
             setActiveDeckTab(data.action.tab);
+            if (data.action.brandId) handleSelectBrand(data.action.brandId);
+          } else if (data.action.type === 'TRIGGER_ACTION') {
+            if (data.action.action === 'PUBLISH_POST') {
+              handlePublishPost(data.action.brandId || selectedBrandId, 0);
+            } else if (data.action.action === 'LAUNCH_CAMPAIGN') {
+              handleLaunchAdForPost(selectedPost);
+            }
           } else if (data.action.type === 'RUN_SANDBOX') {
-            setActiveDeckTab('sandbox_generator');
-            const targetCo = data.action.companyName || 'عيادة كريستال لطب الأسنان';
-            setSandboxForm(prev => ({ ...prev, companyName: targetCo, isGenerating: true }));
-            setTimeout(() => {
-              setSandboxForm(prev => ({
-                ...prev,
-                isGenerating: false,
-                generatedHook: `فخامة واحترافية لا مثيل لها - حجز مباشر وفوري مع ${targetCo}`,
-                generatedCaption: `خدمة متميزة بأحدث تقنيات 2026. فريق عمل مؤهل، رد فوري ومتابعة مستمرة 24 ساعة عبر الذكاء الاصطناعي مع تأكيد العربون أونلاين.`,
-                generatedTags: `#${targetCo.replace(/\s+/g, '_')} #خدمة_ممتازة #حجز_فوري #ذكاء_اصطناعي`
-              }));
-            }, 1000);
+            setActiveDeckTab('studio_calendar');
+            if (data.action.companyName) {
+              const matched = allBrandsList.find(b => (b.name || '').includes(data.action.companyName));
+              if (matched) handleSelectBrand(matched.id || matched.slug);
+            }
           } else if (data.action.type === 'TOGGLE_BOT') {
             setBotStates(prev => ({ ...prev, [data.action.brandId]: data.action.status !== 'paused' }));
           }
@@ -727,61 +861,100 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className="lg:col-span-3 flex flex-col gap-4">
             
-            {/* System Diagnostics Box */}
-            <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-3">
+            {/* ACTION ACTUATOR: Quick Executive Command Hub */}
+            <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
               <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
-                <span className="text-xs font-mono font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                  System Diagnostics
+                <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  متحكم الإجراءات والربط
                 </span>
-                <span className="text-[10px] font-mono text-emerald-400">REAL DATA SYNCED</span>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  REAL-TIME
+                </span>
               </div>
 
-              {/* Metric 1: Neural Compute Load */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px] font-mono text-white/80">
-                  <span>Neural Core Load</span>
-                  <span className="text-cyan-300 font-bold">{Math.round(48 + audioLevel * 45)}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-cyan-950/80 rounded-full overflow-hidden border border-cyan-500/30">
-                  <div 
-                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-150"
-                    style={{ width: `${Math.min(100, Math.round(48 + audioLevel * 45))}%` }}
-                  />
-                </div>
+              {/* 6 High-Power Quick Action Buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setActiveDeckTab('studio_calendar')}
+                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                    activeDeckTab === 'studio_calendar'
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-cyan-500/10 hover:border-cyan-500/30'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-bold">تقويم ستوديو</span>
+                  <span className="text-[9px] text-white/40">7 أيام خوارزميات</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('content_post_card')}
+                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                    activeDeckTab === 'content_post_card'
+                      ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-purple-500/10 hover:border-purple-500/30'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs font-bold">بطاقة المنشور</span>
+                  <span className="text-[9px] text-white/40">معاينة وإطلاق</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('agent_fleet')}
+                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                    activeDeckTab === 'agent_fleet'
+                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-emerald-500/10 hover:border-emerald-500/30'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold">شات الواتساب</span>
+                  <span className="text-[9px] text-white/40">محادثات وCRM</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('app_cloner')}
+                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                    activeDeckTab === 'app_cloner'
+                      ? 'bg-blue-500/20 border-blue-400 text-blue-200 shadow-[0_0_15px_rgba(59,130,246,0.3)]'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-blue-500/10 hover:border-blue-500/30'
+                  }`}
+                >
+                  <Smartphone className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs font-bold">مستنسخ PWA</span>
+                  <span className="text-[9px] text-white/40">متاجر فورية</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('ad_launcher')}
+                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                    activeDeckTab === 'ad_launcher'
+                      ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-amber-500/10 hover:border-amber-500/30'
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold">إعلانات واتساب</span>
+                  <span className="text-[9px] text-white/40">حملات ممولة</span>
+                </button>
+
+                <button
+                  onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
+                  disabled={isPublishingPost}
+                  className="p-2.5 rounded-2xl border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-right transition-all flex flex-col items-start gap-1"
+                >
+                  <Send className="w-4 h-4 text-rose-400" />
+                  <span className="text-xs font-bold">{isPublishingPost ? 'جاري النشر...' : 'نشر فوري الآن'}</span>
+                  <span className="text-[9px] text-white/40">Meta Graph مباشر</span>
+                </button>
               </div>
 
-              {/* Metric 2: Real Deals & Bookings Counter */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px] font-mono text-white/80">
-                  <span>الصفقات والحجوزات المؤكدة</span>
-                  <span className="text-emerald-400 font-bold">{realStats.totalDeals} حجز مؤكد</span>
-                </div>
-                <div className="w-full h-1.5 bg-cyan-950/80 rounded-full overflow-hidden border border-cyan-500/30">
-                  <div className="h-full bg-emerald-400 w-full" />
-                </div>
-                <div className="text-[9px] font-mono text-cyan-400/60 truncate">
-                  clean_master: 2 bookings • alkhedr: 14 deals
-                </div>
-              </div>
-
-              {/* Metric 3: Real WhatsApp Sessions */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px] font-mono text-white/80">
-                  <span>محادثات الواتساب الآلية</span>
-                  <span className="text-cyan-300 font-bold">{realStats.totalHandledMessages} رسالة مسجلة</span>
-                </div>
-                <div className="flex items-center gap-1 pt-1">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                    ar-EG-Shakir
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    24kHz Raw PCM
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                    0% Pitch Distortion
-                  </span>
-                </div>
+              {/* Active Brand Snippet */}
+              <div className="pt-2 border-t border-cyan-500/20 flex items-center justify-between text-[11px]">
+                <span className="text-white/50">البراند النشط حالياً:</span>
+                <span className="text-cyan-300 font-bold truncate max-w-[130px]">{currentSelectedBrand.name}</span>
               </div>
             </div>
 
@@ -961,66 +1134,84 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 )}
               </div>
 
-              {/* 2. Unified Operational Mode Tabs (Matches Real Dashboard Screenshots) */}
-              <div className="grid grid-cols-5 gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[10px] font-bold select-none">
+              {/* 2. Unified Operational Mode Tabs (Deep Multi-App Integration) */}
+              <div className="grid grid-cols-6 gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[10px] font-bold select-none font-['Cairo']">
                 <button
-                  onClick={() => setActiveDeckTab('agent_fleet')}
+                  onClick={() => setActiveDeckTab('studio_calendar')}
                   className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'agent_fleet'
-                      ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <Bot className="w-3.5 h-3.5" />
-                  <span>الأيجنت (6)</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveDeckTab('studio_portfolio')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'studio_portfolio'
+                    activeDeckTab === 'studio_calendar'
                       ? 'bg-cyan-500 text-black font-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>البراندات (19)</span>
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">تقويم ستوديو</span>
+                  <span className="sm:hidden">تقويم</span>
                 </button>
 
                 <button
-                  onClick={() => setActiveDeckTab('sandbox_generator')}
+                  onClick={() => setActiveDeckTab('content_post_card')}
                   className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'sandbox_generator'
+                    activeDeckTab === 'content_post_card'
                       ? 'bg-purple-500 text-white font-black shadow-[0_0_15px_rgba(168,85,247,0.5)]'
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>المختبر</span>
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">بطاقة المنشور</span>
+                  <span className="sm:hidden">منشور</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('agent_fleet')}
+                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                    activeDeckTab === 'agent_fleet'
+                      ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">تيتو أيدجنت</span>
+                  <span className="sm:hidden">أيدجنت</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('app_cloner')}
+                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                    activeDeckTab === 'app_cloner'
+                      ? 'bg-blue-500 text-white font-black shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">مستنسخ التطبيقات</span>
+                  <span className="sm:hidden">مستنسخ</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('ad_launcher')}
+                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                    activeDeckTab === 'ad_launcher'
+                      ? 'bg-amber-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">ماكينة الإعلانات</span>
+                  <span className="sm:hidden">إعلانات</span>
                 </button>
 
                 <button
                   onClick={() => setActiveDeckTab('vault_crm')}
                   className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
                     activeDeckTab === 'vault_crm'
-                      ? 'bg-amber-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>حجوزات CRM</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveDeckTab('microservices_gateway')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'microservices_gateway'
-                      ? 'bg-blue-500 text-white font-black shadow-[0_0_15px_rgba(59,130,246,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <Server className="w-3.5 h-3.5" />
-                  <span>الـ Gateway</span>
+                  <span className="hidden sm:inline">حجوزات CRM</span>
+                  <span className="sm:hidden">حجوزات</span>
                 </button>
               </div>
             </div>
@@ -1116,6 +1307,175 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             ) : (
               <>
+
+            {/* TAB 1: TITO STUDIO 7-DAY CONTENT CALENDAR */}
+            {activeDeckTab === 'studio_calendar' && (
+              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(6,182,212,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
+                {/* Calendar Header with Selected Brand Info */}
+                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                    <div>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        تقويم تيتو ستوديو: <span className="text-cyan-300">{currentSelectedBrand.name}</span>
+                      </h4>
+                      <p className="text-[10px] text-white/50">جدولة 7 أيام محتوى ذكية موزعة على أوقات ذروة الخوارزميات</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
+                    disabled={isPublishingPost}
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-xs font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition flex items-center gap-1"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{isPublishingPost ? 'جاري النشر...' : 'نشر بوست اليوم'}</span>
+                  </button>
+                </div>
+
+                {/* 7-Day Interactive Schedule Cards */}
+                <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-1">
+                  {(currentSelectedBrand.weekContentPlan || []).map((item: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-2xl bg-white/[0.03] border border-cyan-500/20 hover:border-cyan-400/50 hover:bg-cyan-500/[0.05] transition-all flex flex-col gap-1.5 group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded-lg border border-cyan-500/30">
+                            {item.day}
+                          </span>
+                          <span className="text-[10px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/20">
+                            {item.contentType}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-white/50 font-mono">
+                          <Clock className="w-3 h-3 text-amber-400" />
+                          <span>{item.bestTime || '20:00'}</span>
+                        </div>
+                      </div>
+
+                      {/* Hook */}
+                      <div className="text-xs font-bold text-white leading-relaxed">
+                        🎯 "{item.hook}"
+                      </div>
+
+                      {/* Caption Preview */}
+                      <div className="text-[11px] text-white/60 line-clamp-2 leading-normal">
+                        {item.caption}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/5">
+                        <button
+                          onClick={() => {
+                            setSelectedPost({
+                              ...item,
+                              brandId: currentSelectedBrand.id,
+                              brandName: currentSelectedBrand.name,
+                              platform: 'Instagram & Facebook (Meta Graph)',
+                              status: 'SCHEDULED'
+                            });
+                            setActiveDeckTab('content_post_card');
+                          }}
+                          className="text-[10px] text-cyan-300 hover:text-white flex items-center gap-1 font-bold"
+                        >
+                          👁️ فتح بطاقة المنشور
+                        </button>
+                        <button
+                          onClick={() => handlePublishPost(currentSelectedBrand.id, idx)}
+                          disabled={isPublishingPost}
+                          className="text-[10px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-bold transition flex items-center gap-1"
+                        >
+                          🚀 نشر فوري بالـ Meta Graph
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: PUBLISHED CONTENT SHOWCASE CARD */}
+            {activeDeckTab === 'content_post_card' && (
+              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-purple-500/40 shadow-[0_0_35px_rgba(168,85,247,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-purple-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
+                    <div>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        بطاقة المحتوى: <span className="text-purple-300">{selectedPost?.brandName || currentSelectedBrand.name}</span>
+                      </h4>
+                      <p className="text-[10px] text-white/50">معاينة تفاعلية كاملة للمنشور الموجه لخوارزميات السوشيال</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    {selectedPost?.status === 'PUBLISHED' ? 'منشور بنجاح' : 'جاهز للنشر'}
+                  </span>
+                </div>
+
+                {/* The Social Post Preview Mock */}
+                <div className="rounded-2xl bg-black/60 border border-purple-500/30 p-3.5 flex flex-col gap-3">
+                  {/* Brand Profile Bar */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-cyan-500 flex items-center justify-center text-xs font-black text-white">
+                        {(selectedPost?.brandName || currentSelectedBrand.name || 'T2').slice(0, 2)}
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-white flex items-center gap-1">
+                          {selectedPost?.brandName || currentSelectedBrand.name}
+                          <span className="text-cyan-400 text-[10px]">✔</span>
+                        </div>
+                        <div className="text-[9px] text-white/40">
+                          {selectedPost?.platform || 'Instagram & Facebook (Meta Graph)'} • {selectedPost?.day || 'اليوم'} ({selectedPost?.bestTime || '20:00'})
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-purple-400/80 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
+                      {selectedPost?.id || 'post_meta_active'}
+                    </span>
+                  </div>
+
+                  {/* Visual Media Placeholder Box with Sci-Fi Creative Gradient */}
+                  <div className="relative w-full h-40 rounded-xl overflow-hidden bg-gradient-to-br from-purple-950/60 via-[#070e28] to-cyan-950/60 border border-purple-500/20 flex flex-col items-center justify-center text-center p-4">
+                    <Sparkles className="w-6 h-6 text-purple-400 animate-pulse mb-1" />
+                    <div className="text-sm font-black text-white max-w-sm leading-snug">
+                      "{selectedPost?.hook || 'ابتسامتك هوليودية بأحدث تقنيات الليزر في مصر!'}"
+                    </div>
+                    <span className="mt-2 text-[9px] text-cyan-300 bg-black/40 px-3 py-1 rounded-full border border-cyan-500/30 font-bold">
+                      {selectedPost?.contentType || 'Reel فيديو (9:16)'}
+                    </span>
+                  </div>
+
+                  {/* Caption & Copywriting */}
+                  <div className="text-xs text-white/80 leading-relaxed bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
+                    {selectedPost?.caption || 'احجز كشفك الآن واستمتع بفحص شامل ومجاني مع خطة تقسيط مريحة بدون فوائد. تواصل معنا على الواتساب فوراً!'}
+                  </div>
+
+                  {/* Dual Action Boosters */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      onClick={() => handleLaunchAdForPost(selectedPost)}
+                      disabled={isLaunchingCampaign}
+                      className="py-2.5 px-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-xs font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] transition flex items-center justify-center gap-1.5"
+                    >
+                      <TrendingUp className="w-3.5 h-3.5" />
+                      <span>{isLaunchingCampaign ? 'جاري الإطلاق...' : 'إطلاق كإعلان واتساب (2000 ج)'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveDeckTab('studio_calendar')}
+                      className="py-2.5 px-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-xs font-bold transition flex items-center justify-center gap-1"
+                    >
+                      <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>العودة لتقويم ستوديو</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* TAB 1: T2 AI AGENT FLEET (MATCHES khedr-bot-agent.onrender.com/dashboard) */}
             {activeDeckTab === 'agent_fleet' && (
@@ -1344,338 +1704,171 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* TAB 2: T2 CONTENT STUDIO 19 BRANDS (MATCHES t2-studio.vercel.app Screenshot) */}
-            {activeDeckTab === 'studio_portfolio' && (
-              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(6,182,212,0.2)] p-3 flex flex-col gap-2.5 backdrop-blur-md animate-in fade-in duration-200">
+            {/* TAB 4: APP CLONER & STOREFRONT FACTORY */}
+            {activeDeckTab === 'app_cloner' && (
+              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-blue-500/40 shadow-[0_0_35px_rgba(59,130,246,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
                 
-                {/* Studio Portfolio Subheader */}
-                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
-                  <div>
-                    <span className="text-xs font-bold text-white block">استوديو الإدارة والمحفظة • Executive Hub</span>
-                    <span className="text-[9px] text-cyan-300/80 font-mono">إدارة مركزية لـ 19 براند وعزل الصلاحيات وحماية الهوية</span>
+                {/* Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-blue-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse" />
+                    <div>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        مصنع استنساخ التطبيقات والمتاجر: <span className="text-blue-300">{currentSelectedBrand.name}</span>
+                      </h4>
+                      <p className="text-[10px] text-white/50">توليد متجر PWA كامل، كتالوج عروض، وربط تلقائي مع واتساب ميتا</p>
+                    </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[9px] font-mono">
-                    19 BRANDS ONLINE
+                  <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold">
+                    PWA LIVE READY
                   </span>
                 </div>
 
-                {/* Category Filter Pills (Matches Screenshot 2) */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[9.5px] font-bold select-none scrollbar-none">
-                  <button
-                    onClick={() => setStudioCategory('all')}
-                    className={`px-3 py-1 rounded-xl transition whitespace-nowrap ${
-                      studioCategory === 'all'
-                        ? 'bg-cyan-500 text-black font-black shadow-md shadow-cyan-500/40'
-                        : 'bg-black/40 text-white/60 hover:text-white border border-white/5'
-                    }`}
-                  >
-                    الكل (19)
-                  </button>
+                {/* Active Cloned Store Preview Card */}
+                <div className="p-3.5 rounded-2xl bg-black/60 border border-blue-500/30 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-black text-white block">{currentSelectedBrand.name}</span>
+                      <span className="text-[10px] text-blue-300 font-mono">
+                        المسار: /store/{currentSelectedBrand.slug || currentSelectedBrand.id}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const url = `/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`;
+                        window.open(url, '_blank');
+                        playShadowVoice(`تم فتح تطبيق ومتجر ${currentSelectedBrand.name} في نافذة جديدة للمعاينة يا ماستر!`, 'male');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white text-xs font-black transition flex items-center gap-1 shadow-md shadow-blue-500/30"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>فتح متجر العميل PWA</span>
+                    </button>
+                  </div>
 
-                  <button
-                    onClick={() => setStudioCategory('dental')}
-                    className={`px-3 py-1 rounded-xl transition whitespace-nowrap ${
-                      studioCategory === 'dental'
-                        ? 'bg-cyan-500 text-black font-black'
-                        : 'bg-black/40 text-white/60 hover:text-white border border-white/5'
-                    }`}
-                  >
-                    طب وتجميل أسنان (6)
-                  </button>
-
-                  <button
-                    onClick={() => setStudioCategory('leading')}
-                    className={`px-3 py-1 rounded-xl transition whitespace-nowrap ${
-                      studioCategory === 'leading'
-                        ? 'bg-cyan-500 text-black font-black'
-                        : 'bg-black/40 text-white/60 hover:text-white border border-white/5'
-                    }`}
-                  >
-                    علامة تجارية رائدة (6)
-                  </button>
-
-                  <button
-                    onClick={() => setStudioCategory('marketing')}
-                    className={`px-3 py-1 rounded-xl transition whitespace-nowrap ${
-                      studioCategory === 'marketing'
-                        ? 'bg-cyan-500 text-black font-black'
-                        : 'bg-black/40 text-white/60 hover:text-white border border-white/5'
-                    }`}
-                  >
-                    وكالة تسويق رقمي (2)
-                  </button>
-
-                  <button
-                    onClick={() => setStudioCategory('ecommerce')}
-                    className={`px-3 py-1 rounded-xl transition whitespace-nowrap ${
-                      studioCategory === 'ecommerce'
-                        ? 'bg-cyan-500 text-black font-black'
-                        : 'bg-black/40 text-white/60 hover:text-white border border-white/5'
-                    }`}
-                  >
-                    متاجر إلكترونية (3)
-                  </button>
-
-                  <button
-                    onClick={() => setStudioCategory('cars')}
-                    className={`px-3 py-1 rounded-xl transition whitespace-nowrap ${
-                      studioCategory === 'cars'
-                        ? 'bg-cyan-500 text-black font-black'
-                        : 'bg-black/40 text-white/60 hover:text-white border border-white/5'
-                    }`}
-                  >
-                    تأجير سيارات (2)
-                  </button>
+                  {/* Highlights Grid */}
+                  <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+                      <span className="text-white/40 block text-[8.5px]">نوع النشاط</span>
+                      <span className="text-cyan-300 font-bold truncate block">{currentSelectedBrand.businessType || currentSelectedBrand.category || 'تجارة وخدمات'}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+                      <span className="text-white/40 block text-[8.5px]">رقم الواتساب المربوط</span>
+                      <span className="text-emerald-400 font-bold block">{currentSelectedBrand.phone || '01013373634'}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+                      <span className="text-white/40 block text-[8.5px]">حالة الربط الذاتي</span>
+                      <span className="text-amber-300 font-bold block">متصل 100% ⚡</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Search Input Bar */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-white/40 absolute right-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={brandSearch}
-                    onChange={(e) => setBrandSearch(e.target.value)}
-                    placeholder="ابحث عن أي براند بالاسم أو المجال..."
-                    className="w-full pr-8 pl-3 py-1.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs placeholder:text-white/30 focus:outline-none focus:border-cyan-400 font-sans"
-                  />
-                </div>
+                {/* Instant Brand Cloner Input */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-950/30 to-black/80 border border-blue-500/20 flex flex-col gap-2">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                    استنساخ نشاط جديد بالذكاء الاصطناعي (AI Autonomous Cloner)
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-right">
+                    <div>
+                      <label className="text-[10px] text-white/60 block mb-1">اسم البراند / النشاط الجديد:</label>
+                      <input
+                        type="text"
+                        placeholder="مثال: مطعم شاورما الريف، كافيه روما..."
+                        value={cloneInputName}
+                        onChange={(e) => setCloneInputName(e.target.value)}
+                        className="w-full px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-white text-xs placeholder:text-white/30 focus:outline-none focus:border-blue-400 font-sans"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-white/60 block mb-1">المجال / التخصص:</label>
+                      <input
+                        type="text"
+                        placeholder="مثال: مأكولات سورية، كافيه وعصائر..."
+                        value={cloneInputCategory}
+                        onChange={(e) => setCloneInputCategory(e.target.value)}
+                        className="w-full px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-white text-xs placeholder:text-white/30 focus:outline-none focus:border-blue-400 font-sans"
+                      />
+                    </div>
+                  </div>
 
-                {/* 19 BRANDS CARDS GRID (From BRAND_VAULT) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[360px] overflow-y-auto pr-1">
-                  {Object.values(BRAND_VAULT)
-                    .filter((b: any) => {
-                      const matchesSearch = !brandSearch || b.name.includes(brandSearch) || (b.englishName && b.englishName.toLowerCase().includes(brandSearch.toLowerCase()));
-                      if (!matchesSearch) return false;
-                      if (studioCategory === 'all') return true;
-                      if (studioCategory === 'dental') return b.category.includes('أسنان') || b.id.includes('dental') || b.id.includes('teeth');
-                      if (studioCategory === 'leading') return b.category.includes('رائدة') || b.id.includes('mousa') || b.id.includes('crypto');
-                      if (studioCategory === 'marketing') return b.category.includes('تسويق') || b.id.includes('media');
-                      if (studioCategory === 'cars') return b.category.includes('سيارات') || b.id.includes('car');
-                      if (studioCategory === 'ecommerce') return b.category.includes('متاجر') || b.id.includes('system') || b.id.includes('shop');
-                      return true;
-                    })
-                    .map((brand: any) => (
-                      <div
-                        key={brand.id}
-                        className="p-3 rounded-2xl bg-gradient-to-br from-[#051126] to-[#020612] border border-cyan-500/30 flex flex-col justify-between gap-2 hover:border-cyan-400 transition shadow-md"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="font-bold text-white text-xs block">{brand.name}</span>
-                              {brand.englishName && (
-                                <span className="text-[9px] font-mono text-cyan-300/70 block">{brand.englishName}</span>
-                              )}
-                            </div>
-                            <span className="text-[8px] bg-cyan-500/15 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-500/20 font-bold whitespace-nowrap">
-                              {brand.category}
-                            </span>
-                          </div>
-                          <p className="text-[8.5px] text-white/50 mt-1">براند متميز قيد التطوير وصناعة المحتوى الرقمي</p>
-                        </div>
-
-                        {/* Counters: محتوى 0 | مجدول 0 | أفكار 0 */}
-                        <div className="grid grid-cols-3 gap-1 text-[8.5px] font-mono text-center bg-black/40 p-1 rounded-xl border border-white/5">
-                          <div>
-                            <span className="text-white/40 block">محتوى</span>
-                            <span className="text-cyan-400 font-bold">0</span>
-                          </div>
-                          <div>
-                            <span className="text-white/40 block">مجدول</span>
-                            <span className="text-emerald-400 font-bold">0</span>
-                          </div>
-                          <div>
-                            <span className="text-white/40 block">أفكار</span>
-                            <span className="text-purple-400 font-bold">0</span>
-                          </div>
-                        </div>
-
-                        {/* Direct Launch Button */}
-                        <button
-                          onClick={() => {
-                            playShadowVoice(`أمرك يا ماستر، تم اختيار براند ${brand.name} وجاري تفعيل أدوات النشر وصناعة المحتوى بالذكاء الاصطناعي!`, 'male');
-                            toast.success(`تم اختيار براند ${brand.name} في تيتو ستوديو`);
-                            if (onNavigateTo) onNavigateTo('studio');
-                          }}
-                          className="w-full py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold transition flex items-center justify-center gap-1.5"
-                        >
-                          <span>دخول وإدارة البراند</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                  <button
+                    onClick={() => handleCloneBrand(cloneInputName, cloneInputCategory)}
+                    disabled={isCloningBrand || !cloneInputName.trim()}
+                    className="w-full py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-40"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>{isCloningBrand ? 'جاري استنساخ وتوليد التطبيق...' : 'استنساخ وتوليد التطبيق والكتالوج فوراً ⚡'}</span>
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* TAB 3: LIVE AI SANDBOX GENERATOR (MATCHES Screenshot 3 & 4) */}
-            {activeDeckTab === 'sandbox_generator' && (
-              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-purple-500/40 shadow-[0_0_35px_rgba(168,85,247,0.2)] p-3 flex flex-col gap-2.5 backdrop-blur-md animate-in fade-in duration-200">
+            {/* TAB 5: CLICK-TO-WHATSAPP ADS LAUNCHER */}
+            {activeDeckTab === 'ad_launcher' && (
+              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-amber-500/40 shadow-[0_0_35px_rgba(245,158,11,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
                 
-                {/* Header & Super Admin VIP Pill */}
-                <div className="text-center space-y-1 pb-1 border-b border-purple-500/20">
-                  <span className="text-[10px] font-mono text-purple-400 font-bold flex items-center justify-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    مختبر التوليد التفاعلي الحي (Live AI Sandbox)
+                {/* Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                    <div>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        ماكينة إعلانات ميتا وواتساب: <span className="text-amber-300">{currentSelectedBrand.name}</span>
+                      </h4>
+                      <p className="text-[10px] text-white/50">تحويل مباشر للعملاء بنظام Click-to-WhatsApp وربط الـ Leads بأجنت الرد الفوري</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold">
+                    META API v21.0
                   </span>
-                  <h4 className="text-sm font-black text-white">جرّب صناعة المحتوى لنشاطك التجاري في ثوانٍ</h4>
-                  <div className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/40 px-2.5 py-0.5 rounded-full text-[9px] text-amber-300 font-bold">
-                    👑 مرحباً بك يا صاحب المنصة (Super Admin) - تجاربك غير محدودة (∞) وتوليد مفتوح بالكامل
-                  </div>
                 </div>
 
-                {/* Quick Preset Chips */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[9px] font-bold select-none scrollbar-none">
-                  <span className="text-white/40">أمثلة سريعة:</span>
-                  <button
-                    onClick={() => setSandboxForm(prev => ({ ...prev, companyName: 'الخضر لتأجير السيارات الفاخرة', category: 'تأجير سيارات سياحية وليموزين VIP' }))}
-                    className="px-2 py-0.5 rounded-lg bg-black/40 text-cyan-300 border border-cyan-500/30 whitespace-nowrap"
-                  >
-                    الخضر للسيارات
-                  </button>
-                  <button
-                    onClick={() => setSandboxForm(prev => ({ ...prev, companyName: 'عيادة كريستال لطب الأسنان', category: 'زراعة وتجميل الأسنان وابتسامة هوليود' }))}
-                    className="px-2 py-0.5 rounded-lg bg-black/40 text-purple-300 border border-purple-500/30 whitespace-nowrap"
-                  >
-                    كريستال كلينك
-                  </button>
-                  <button
-                    onClick={() => setSandboxForm(prev => ({ ...prev, companyName: 'كافيه أرابيكا الفاخر', category: 'مشروبات وبن برازيلي مختص' }))}
-                    className="px-2 py-0.5 rounded-lg bg-black/40 text-amber-300 border border-amber-500/30 whitespace-nowrap"
-                  >
-                    كافيه أرابيكا
-                  </button>
-                  <button
-                    onClick={() => setSandboxForm(prev => ({ ...prev, companyName: 'رواد العقار للاستثمار', category: 'شقق وفيلات التجمع والعاصمة الإدارية' }))}
-                    className="px-2 py-0.5 rounded-lg bg-black/40 text-emerald-300 border border-emerald-500/30 whitespace-nowrap"
-                  >
-                    رواد العقار
-                  </button>
-                </div>
-
-                {/* Format Pills (Feed 1:1 vs Story 9:16 vs Reels) */}
-                <div className="grid grid-cols-3 gap-1 text-[9.5px] font-bold select-none">
-                  <button
-                    onClick={() => setSandboxForm(prev => ({ ...prev, format: 'feed' }))}
-                    className={`py-1 rounded-xl transition ${sandboxForm.format === 'feed' ? 'bg-cyan-500 text-black font-black' : 'bg-black/40 text-white/60'}`}
-                  >
-                    منشور مربع (1:1 Feed)
-                  </button>
-                  <button
-                    onClick={() => setSandboxForm(prev => ({ ...prev, format: 'story' }))}
-                    className={`py-1 rounded-xl transition ${sandboxForm.format === 'story' ? 'bg-cyan-500 text-black font-black' : 'bg-black/40 text-white/60'}`}
-                  >
-                    إعلان ستوري (9:16 Story)
-                  </button>
-                  <button
-                    onClick={() => setSandboxForm(prev => ({ ...prev, format: 'reels' }))}
-                    className={`py-1 rounded-xl transition ${sandboxForm.format === 'reels' ? 'bg-cyan-500 text-black font-black' : 'bg-black/40 text-white/60'}`}
-                  >
-                    ريلز وفيديو (9:16 Reels)
-                  </button>
-                </div>
-
-                {/* Form & Output Preview Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-right">
-                  
-                  {/* Form Controls */}
-                  <div className="space-y-1.5 text-[9.5px]">
+                {/* Campaign Configuration Card */}
+                <div className="p-3.5 rounded-2xl bg-black/60 border border-amber-500/30 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-white/60 block font-bold mb-0.5">اسم شركتك أو براندك:</label>
-                      <input
-                        type="text"
-                        value={sandboxForm.companyName}
-                        onChange={(e) => setSandboxForm({ ...sandboxForm, companyName: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded-xl bg-black/50 border border-white/10 text-white focus:outline-none focus:border-purple-400"
-                      />
+                      <span className="text-xs font-bold text-white block">حملة تحويلات ورسائل بيعية مؤكدة</span>
+                      <span className="text-[10px] text-white/50">موجّهة لأعلى الفئات الشرائية المستهدفة</span>
                     </div>
-
-                    <div>
-                      <label className="text-white/60 block font-bold mb-0.5">مجال النشاط والخدمة:</label>
-                      <input
-                        type="text"
-                        value={sandboxForm.category}
-                        onChange={(e) => setSandboxForm({ ...sandboxForm, category: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded-xl bg-black/50 border border-white/10 text-white focus:outline-none focus:border-purple-400"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-white/60 block font-bold mb-0.5">اللهجة التسويقية:</label>
-                      <select
-                        value={sandboxForm.dialect}
-                        onChange={(e) => setSandboxForm({ ...sandboxForm, dialect: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded-xl bg-black/70 border border-white/10 text-white focus:outline-none focus:border-purple-400"
-                      >
-                        <option value="مصرية تسويقية (ابن بلد)">مصرية تسويقية (ابن بلد)</option>
-                        <option value="خليجية بيضاء راقية">خليجية بيضاء راقية</option>
-                        <option value="فصحى عصرية احترافية">فصحى عصرية احترافية</option>
-                      </select>
-                    </div>
-
-                    <button
-                      onClick={async () => {
-                        setSandboxForm(prev => ({ ...prev, isGenerating: true }));
-                        playShadowVoice(`جاري توليد التصميم والخطاف التسويقي لـ ${sandboxForm.companyName} فوراً يا ماستر!`, 'male');
-                        setTimeout(() => {
-                          setSandboxForm(prev => ({
-                            ...prev,
-                            isGenerating: false,
-                            generatedHook: `أقوى عروض ${prev.companyName} لعام 2026 - جودة تفوق التوقعات!`,
-                            generatedCaption: `خدمة احترافية وضمان شامل مع ${prev.companyName}. تواصل معنا الآن واحصل على خصم فوري ومتابعة 24 ساعة عبر واتساب وميتا.`,
-                            generatedTags: `#${prev.companyName.replace(/\s+/g, '_')} #عروض_2026 #خدمات_متميزة`
-                          }));
-                        }, 1200);
-                      }}
-                      disabled={sandboxForm.isGenerating}
-                      className="w-full py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black rounded-xl text-xs shadow-lg shadow-purple-500/30 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {sandboxForm.isGenerating ? 'جاري التوليد بالذكاء الاصطناعي...' : 'توليد تصميم فعلي للبراند (VIP) ✨'}
-                    </button>
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                      ميزانية الانطلاق: 2,000 ج.م
+                    </span>
                   </div>
 
-                  {/* Output Live Preview Card */}
-                  <div className="p-2.5 rounded-2xl bg-black/60 border border-purple-500/30 flex flex-col justify-between gap-1.5 text-[9px]">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-1">
-                      <span className="font-bold text-cyan-300">{sandboxForm.companyName} • مموّل Sponsored</span>
-                      <span className="text-[8px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded font-mono">1080p PREVIEW</span>
+                  {/* Hook preview */}
+                  <div className="p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-1">
+                    <span className="text-[9px] text-amber-400/80 font-bold block">الخطاف الإعلاني (Creative Hook):</span>
+                    <p className="text-xs font-bold text-white leading-relaxed">
+                      "{selectedPost?.hook || currentSelectedBrand.marketAnalysis?.irresistibleHooks?.[0] || 'أقوى العروض الحصرية مع خصم فوري ومتابعة 24 ساعة عبر الواتساب!'}"
+                    </p>
+                  </div>
+
+                  {/* ROI & Target Matrix */}
+                  <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+                      <span className="text-white/40 block text-[8.5px]">الاستهداف الجغرافي</span>
+                      <span className="text-white font-bold block">القاهرة والجيزة</span>
                     </div>
-
-                    {/* Hook & Caption */}
-                    <div className="space-y-1">
-                      <div className="p-1 rounded bg-white/5 border border-white/5">
-                        <span className="text-white/40 block text-[8px]">الخطاف التسويقي (Hook):</span>
-                        <span className="font-bold text-amber-300">{sandboxForm.generatedHook}</span>
-                      </div>
-                      <p className="text-white/70 text-[8.5px] line-clamp-2">{sandboxForm.generatedCaption}</p>
-                      <p className="text-cyan-400 font-mono text-[8px]">{sandboxForm.generatedTags}</p>
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+                      <span className="text-white/40 block text-[8.5px]">محادثات متوقعة</span>
+                      <span className="text-emerald-400 font-bold block">180 - 240 عميل 💬</span>
                     </div>
-
-                    {/* Copy & Save Actions */}
-                    <div className="flex items-center gap-1 pt-1 border-t border-white/10">
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${sandboxForm.generatedHook}\n\n${sandboxForm.generatedCaption}\n\n${sandboxForm.generatedTags}`);
-                          setCopiedKey('post');
-                          setTimeout(() => setCopiedKey(null), 2000);
-                          toast.success("تم نسخ النص والكابشن بنجاح!");
-                        }}
-                        className="flex-1 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white font-bold transition flex items-center justify-center gap-1 text-[8.5px]"
-                      >
-                        {copiedKey === 'post' ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
-                        {copiedKey === 'post' ? 'تم النسخ!' : 'نسخ النص والكابشن'}
-                      </button>
-
-                      <button
-                        onClick={() => toast.success("تم حفظ التصميم في بوابتك السحابية!")}
-                        className="flex-1 py-1 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-500/20 hover:from-cyan-500/30 hover:to-purple-500/30 text-cyan-300 border border-cyan-500/30 font-bold transition text-[8.5px]"
-                      >
-                        حفظ التصميم بالبوابة ☁️
-                      </button>
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+                      <span className="text-white/40 block text-[8.5px]">عوائد بيع تقديرية</span>
+                      <span className="text-amber-300 font-bold block">~8,500 ج.م 💰</span>
                     </div>
                   </div>
 
+                  {/* Launch Campaign Button */}
+                  <button
+                    onClick={() => handleLaunchAdForPost(selectedPost)}
+                    disabled={isLaunchingCampaign}
+                    className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black rounded-xl text-xs shadow-lg shadow-amber-500/30 transition flex items-center justify-center gap-1.5 disabled:opacity-40"
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    <span>{isLaunchingCampaign ? 'جاري التوجيه والإطلاق عبر ميتا...' : 'إطلاق الحملة الآن وربطها بوكلاء الواتساب 🚀'}</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -1963,70 +2156,60 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className="lg:col-span-3 flex flex-col gap-4">
             
-            {/* Tactical Circular Radar PPI Scanner */}
-            <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col items-center gap-3">
+            {/* RIGHT COLUMN: ACTIVE BRAND FLEET RADAR & SELECTOR */}
+            <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
               <div className="w-full flex items-center justify-between pb-2 border-b border-cyan-500/20">
-                <span className="text-xs font-mono font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                  Tactical Radar PPI
+                <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                  أسطول البراندات ({allBrandsList.length || realStats.totalVaultBrandsCount || 19})
                 </span>
-                <span className="text-[10px] font-mono text-cyan-400">RANGE: 25KM</span>
+                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  متزامن 100%
+                </span>
               </div>
 
-              {/* Circular Radar Screen */}
-              <div className="relative w-44 h-44 rounded-full border-2 border-cyan-500/40 bg-[#020512] overflow-hidden flex items-center justify-center shadow-inner">
-                {/* Radar Grid Circles */}
-                <div className="absolute inset-4 rounded-full border border-cyan-500/20" />
-                <div className="absolute inset-10 rounded-full border border-cyan-500/20" />
-                <div className="absolute inset-16 rounded-full border border-cyan-500/20" />
-                <div className="absolute w-full h-[1px] bg-cyan-500/20" />
-                <div className="absolute h-full w-[1px] bg-cyan-500/20" />
-
-                {/* Rotating Conic Gradient Radar Beam Sweep */}
-                <div 
-                  className="absolute inset-0 rounded-full animate-[spin_6s_linear_infinite]"
-                  style={{
-                    background: 'conic-gradient(from 0deg, rgba(0, 240, 255, 0.45) 0deg, transparent 65deg, transparent 360deg)',
-                    transformOrigin: 'center'
-                  }}
+              {/* Quick Brand Search Filter */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="ابحث عن براند لتشغيله..."
+                  value={brandSearch}
+                  onChange={(e) => setBrandSearch(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl bg-black/40 border border-cyan-500/30 text-xs text-white placeholder-white/40 focus:outline-none focus:border-cyan-400 text-right"
                 />
-
-                {/* Target Blip 1: Clean Master (297 Chats - Active) */}
-                <div className="absolute bottom-8 left-6 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping absolute" />
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f0ff]" />
-                  <span className="text-[8px] font-mono text-cyan-300">CM-297</span>
-                </div>
-
-                {/* Target Blip 2: Sale Gates (61 Chats - Active) */}
-                <div className="absolute top-10 left-8 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute" />
-                  <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b]" />
-                  <span className="text-[8px] font-mono text-amber-300">SALEGATES-61</span>
-                </div>
-
-                {/* Target Blip 3: Alkhedr Cars (10 Chats) */}
-                <div className="absolute top-6 right-10 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
-                  <span className="text-[7px] font-mono text-emerald-300">KHEDR-10</span>
-                </div>
-
-                {/* Target Blip 4: Crystal Teeth (Meta Active) */}
-                <div className="absolute bottom-12 right-8 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_6px_#60a5fa]" />
-                  <span className="text-[7px] font-mono text-blue-300">CRYSTAL</span>
-                </div>
-
-                {/* Target Blip 5: Battah System */}
-                <div className="absolute top-1/2 right-4 flex items-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-purple-400 shadow-[0_0_4px_#c084fc]" />
-                  <span className="text-[7px] font-mono text-purple-300">BATTAH</span>
-                </div>
               </div>
 
-              <div className="w-full flex items-center justify-between text-[10px] font-mono text-cyan-400/70 pt-1">
-                <span>ACTIVE FLEET: {realStats.totalVaultBrandsCount || 19} TENANTS</span>
-                <span className="text-emerald-400 font-bold">100% UNIFIED LOCK</span>
+              {/* Interactive Brands List - Click to Select Brand */}
+              <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto pr-1">
+                {(allBrandsList.length > 0 ? allBrandsList : (realStats.allVaultBrands || [])).filter((b: any) => 
+                  !brandSearch || (b.name || '').toLowerCase().includes(brandSearch.toLowerCase())
+                ).slice(0, 10).map((brand: any) => {
+                  const isSelected = brand.id === currentSelectedBrand.id || brand.slug === currentSelectedBrand.slug;
+                  return (
+                    <button
+                      key={brand.id || brand.slug}
+                      onClick={() => handleSelectBrand(brand.id || brand.slug)}
+                      className={`p-2.5 rounded-xl border text-right transition-all flex items-center justify-between gap-2 ${
+                        isSelected
+                          ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                          : 'bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400'}`} />
+                        <span className="text-xs font-bold truncate">{brand.name}</span>
+                      </div>
+                      <span className="text-[9px] font-mono text-cyan-300/60 shrink-0">
+                        {brand.weekContentPlan?.length ? `${brand.weekContentPlan.length} بوستات` : 'نشط'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="w-full flex items-center justify-between text-[10px] font-mono text-cyan-400/70 pt-1 border-t border-cyan-500/10">
+                <span>البراند المختار:</span>
+                <span className="text-emerald-400 font-bold truncate max-w-[140px]">{currentSelectedBrand.name}</span>
               </div>
             </div>
 
