@@ -627,13 +627,30 @@ export function speakBrowserNaturalVoice(text: string, voice: string = 'male', o
         utterance.lang = 'ar-EG';
 
         const pickVoice = (vList: SpeechSynthesisVoice[]) => {
-            // ONLY accept real studio natural voices (Microsoft Shakir Online / Natural)
-            // NEVER accept local SAPI5 mechanical desktop robot voices
-            return vList.find(v => 
+            // 1. Prefer authentic human studio Egyptian voice (Microsoft Shakir / Salma Online / Natural)
+            const naturalEg = vList.find(v => 
                 v.lang.toLowerCase().replace('_', '-').includes('ar-eg') && (v.name.includes('Natural') || v.name.includes('Shakir') || v.name.includes('Salma') || v.name.includes('Online'))
-            ) || vList.find(v => 
+            );
+            if (naturalEg) return naturalEg;
+
+            // 2. Prefer any online/natural Arabic voice
+            const naturalAr = vList.find(v => 
                 v.lang.toLowerCase().startsWith('ar') && (v.name.includes('Natural') || v.name.includes('Online'))
             );
+            if (naturalAr) return naturalAr;
+
+            // 3. Fallback to Google Arabic (Google العربية - high quality neural on Chrome/Android)
+            const googleAr = vList.find(v => 
+                v.lang.toLowerCase().startsWith('ar') && v.name.toLowerCase().includes('google')
+            );
+            if (googleAr) return googleAr;
+
+            // 4. Fallback to any Egyptian Arabic voice
+            const egVoice = vList.find(v => v.lang.toLowerCase().replace('_', '-').includes('ar-eg'));
+            if (egVoice) return egVoice;
+
+            // 5. Fallback to any Arabic voice available in the browser
+            return vList.find(v => v.lang.toLowerCase().startsWith('ar'));
         };
 
         let interval: any;

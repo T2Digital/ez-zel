@@ -31,11 +31,21 @@ interface JarvisBattleStationModalProps {
 export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> = ({
   isOpen,
   onClose,
-  initialPersona = 'tito',
+  initialPersona,
   onNavigateTo
 }) => {
-  // Master Tito is the Sovereign Commander: Default strictly to 'tito'
-  const [persona, setPersona] = useState<'visitor' | 'trial' | 'client' | 'tito'>('tito');
+  // Master Admin verification (Strict Sovereignty Isolation)
+  const isMasterAdmin = typeof window !== 'undefined' && (
+    localStorage.getItem('tito_admin_master') === 'true' ||
+    localStorage.getItem('admin_secret') === 'vdgcwb4npax7k5me92futh0jq8orzi13y6sl' ||
+    new URLSearchParams(window.location.search).get('admin_bypass') === 'vdgcwb4npax7k5me92futh0jq8orzi13y6sl'
+  );
+
+  // Active Persona: Initialized to passed prop, or 'tito' for master admin, or 'visitor' for guests
+  const [persona, setPersona] = useState<'visitor' | 'trial' | 'client' | 'tito'>(() => {
+    if (initialPersona) return initialPersona;
+    return isMasterAdmin ? 'tito' : 'visitor';
+  });
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -109,13 +119,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     baraka_motors: false,
     t2_digital: false
   });
-
-  // Master Admin verification (Strict Sovereignty Isolation)
-  const isMasterAdmin = typeof window !== 'undefined' && (
-    localStorage.getItem('tito_admin_master') === 'true' ||
-    localStorage.getItem('admin_secret') === 'vdgcwb4npax7k5me92futh0jq8orzi13y6sl' ||
-    new URLSearchParams(window.location.search).get('admin_bypass') === 'vdgcwb4npax7k5me92futh0jq8orzi13y6sl'
-  );
 
   // Copied state indicator
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -287,7 +290,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       .catch(() => {});
 
     // Trigger voice greeting tailored to current persona
-    handlePlayPersonaGreeting(persona);
+    const activeInitial = initialPersona || persona;
+    if (initialPersona && initialPersona !== persona) {
+      setPersona(initialPersona);
+    }
+    handlePlayPersonaGreeting(activeInitial);
 
     // Live Server-Sent Events (SSE) Stream from Sovereign Microservices Gateway
     let eventSource: EventSource | null = null;
@@ -392,7 +399,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const handlePlayPersonaGreeting = (_currentPersona: 'visitor' | 'trial' | 'client' | 'tito') => {
+  const handlePlayPersonaGreeting = (targetPersona?: 'visitor' | 'trial' | 'client' | 'tito') => {
+    const activeP = targetPersona || persona;
     stopVoice();
     setIsPlayingVoice(true);
     isPlayingVoiceRef.current = true;
@@ -402,8 +410,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     const timeGreeting = hours < 12 ? 'صباح الفل والجمال' : 'مساء الفل والجمال';
     const brandsCount = realStats.totalVaultBrandsCount || 19;
 
-    // Supreme Executive Greeting Exclusively for Master Tito!
-    const text = `${timeGreeting} عليك يا ماستر تيتو! كابينة قيادة جارفيس السيادية تحت إمرتك بالكامل. أسطول الـ ${brandsCount} براند، وبوابة الـ Microservices، وماكينة المحتوى، وإعلانات السوشيال شغالين في أتم الجاهزية.. تؤمرني بإيه يا باشا وتحب نعمل إيه دلوقتي؟`;
+    let text = '';
+    if (activeP === 'visitor') {
+      text = `أهلاً بك في منصة الظل الرقمي السيادية! أنا جارفيس، سيب القيادة لي تماماً. قولي عندك نشاط تجاري قائم ولا فكرة جديدة من الصفر؟ هنولدلك تطبيقك ونربط وكيل مبيعات الواتساب في ثواني!`;
+    } else if (activeP === 'trial') {
+      text = `أهلاً بك في أسبوع التجربة السيادية المجانية لـ 7 أيام! تطبيقك متصل الآن والأجنت جاهز لاستقبال العملاء وتأكيد الحجوزات.. تحب نستعرض خطة النشر ولا نطلق حملة واتساب دلوقتي؟`;
+    } else if (activeP === 'client') {
+      text = `أهلاً بك يا شريك النجاح! جميع قنواتك متزامنة، ماكينة المحتوى والأجنت شغالين 24 ساعة بأعلى كفاءة لزيادة مبيعاتك.. تحب تراجع تقرير الحجوزات ولا نضيف عروض جديدة اليوم؟`;
+    } else {
+      // Supreme Executive Greeting Exclusively for Master Tito!
+      text = `${timeGreeting} عليك يا ماستر تيتو! كابينة قيادة جارفيس السيادية تحت إمرتك بالكامل. أسطول الـ ${brandsCount} براند، وبوابة الـ Microservices، وماكينة المحتوى، وإعلانات السوشيال شغالين في أتم الجاهزية.. تؤمرني بإيه يا باشا وتحب نعمل إيه دلوقتي؟`;
+    }
 
     setTranscript(text);
     // Play ONLY 100% human neural studio voice via node-edge-tts (Shakir Egyptian)
@@ -793,54 +810,52 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className="lg:col-span-6 flex flex-col items-center justify-between gap-4 py-1">
             
-            {/* Triage Persona Switcher (Top of Center) - Only for verified Master Admin */}
-            {isMasterAdmin && (
-              <div className="bg-[#03091e]/90 border border-cyan-500/40 p-1.5 rounded-2xl flex items-center gap-1.5 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex-wrap justify-center">
-                <button
-                  onClick={() => setPersona('tito')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                    persona === 'tito'
-                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  👑 الماستر تيتو
-                </button>
+            {/* Triage Persona Switcher (Top of Center) */}
+            <div className="bg-[#03091e]/90 border border-cyan-500/40 p-1.5 rounded-2xl flex items-center gap-1.5 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex-wrap justify-center">
+              <button
+                onClick={() => { setPersona('tito'); handlePlayPersonaGreeting('tito'); }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                  persona === 'tito'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                👑 الماستر تيتو
+              </button>
 
-                <button
-                  onClick={() => setPersona('client')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                    persona === 'client'
-                      ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  🏢 عميل حالي
-                </button>
+              <button
+                onClick={() => { setPersona('client'); handlePlayPersonaGreeting('client'); }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                  persona === 'client'
+                    ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                🏢 عميل حالي
+              </button>
 
-                <button
-                  onClick={() => setPersona('trial')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                    persona === 'trial'
-                      ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  ⏳ فترة التجربة (7 أيام)
-                </button>
+              <button
+                onClick={() => { setPersona('trial'); handlePlayPersonaGreeting('trial'); }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                  persona === 'trial'
+                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                ⏳ فترة التجربة (7 أيام)
+              </button>
 
-                <button
-                  onClick={() => setPersona('visitor')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                    persona === 'visitor'
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  🌐 زائر جديد (0→1)
-                </button>
-              </div>
-            )}
+              <button
+                onClick={() => { setPersona('visitor'); handlePlayPersonaGreeting('visitor'); }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                  persona === 'visitor'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                🌐 زائر جديد (0→1)
+              </button>
+            </div>
 
             {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB */}
             <div className="relative w-72 h-72 md:w-84 md:h-84 flex items-center justify-center my-1 select-none">

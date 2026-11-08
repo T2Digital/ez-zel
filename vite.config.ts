@@ -52,9 +52,11 @@ export default defineConfig(() => {
         include: ['react', 'react-dom', 'react/jsx-runtime', 'react-is']
       },
       build: {
+        target: 'esnext',
         sourcemap: false,
-        chunkSizeWarningLimit: 2000,
+        chunkSizeWarningLimit: 3000,
         rollupOptions: {
+          maxParallelFileOps: 2,
           output: {
             manualChunks(id) {
               if (id.includes('node_modules')) {
