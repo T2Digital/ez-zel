@@ -1,5 +1,20 @@
 [
   {
+    "id": "book_1794176185499",
+    "brandId": "brand_mw8e6cft",
+    "customerName": "مريم الشريف",
+    "customerPhone": "01012345678",
+    "service": "جلسة هوليود سمايل ليزر VIP",
+    "price": "1,500 ج.م",
+    "depositAmount": "375 ج.م (25%)",
+    "remainingAmount": "1,125 ج.م",
+    "address": "التجمع الخامس - القاهرة الجديدة",
+    "status": "CONFIRMED",
+    "source": "t2_agent_whatsapp_closer",
+    "createdAt": "2026-11-08T22:16:25.499Z",
+    "updatedAt": "2026-11-08T22:16:25.499Z"
+  },
+  {
     "id": "book_1793606625664",
     "status": "CONFIRMED",
     "reminderSent": false,

@@ -1,5 +1,31 @@
 [
   {
+    "id": "brand_mw8e6cft",
+    "name": "عيادة د. نور لطب وزراعة الأسنان",
+    "slug": "brand-mw8e6cft",
+    "industry": "عيادات طبية وتجميل",
+    "domain": "https://brand-mw8e6cft.t2-client.vercel.app",
+    "phone": "01099887766",
+    "tier": "vip_autonomous",
+    "mrrEgp": 5000,
+    "status": "ACTIVE",
+    "agentConnected": true,
+    "createdAt": "2026-11-08T22:16:25.485Z"
+  },
+  {
+    "id": "brand_mw8e5agd",
+    "name": "عيادة د. نور لطب وزراعة الأسنان",
+    "slug": "brand-mw8e5agd",
+    "industry": "عيادات طبية وتجميل",
+    "domain": "https://brand-mw8e5agd.t2-client.vercel.app",
+    "phone": "01099887766",
+    "tier": "vip_autonomous",
+    "mrrEgp": 5000,
+    "status": "ACTIVE",
+    "agentConnected": true,
+    "createdAt": "2026-11-08T22:15:36.309Z"
+  },
+  {
     "id": "tenant_brand_1794047682863",
     "brandId": "brand_1794047682863",
     "clientName": "أورينت كارز مصر",

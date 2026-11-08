@@ -1857,7 +1857,7 @@ async function startServer() {
   }
 
   async function synthesizeSovereignSpeech(text: string, voice = "ar-EG-ShakirNeural"): Promise<Buffer> {
-      // 1. PRIMARY: 100% Studio Human Egyptian Neural Voice (ar-EG-ShakirNeural via edge-tts CLI)
+      // 1. PRIMARY: 100% Studio Human Egyptian Neural Voice (ar-EG-ShakirNeural / Salma via node-edge-tts)
       try {
           const buf = await synthesizeEdgeSpeech({
               text: text.substring(0, 1500),
@@ -1870,25 +1870,20 @@ async function startServer() {
               return buf;
           }
       } catch (edgeErr: any) {
-          console.warn("[TTS] Edge Speech CLI failed, engaging Gemini Studio Voice:", edgeErr?.message);
+          console.warn("[TTS] node-edge-tts failed, trying direct Python edge-tts CLI:", edgeErr?.message);
       }
 
-      // 2. SECONDARY: Official Google Gemini Neural TTS (100% Studio Human)
+      // 2. SECONDARY: Direct Python edge-tts CLI (Pure human Egyptian voice, zero Gemini robot, zero daily limit)
       try {
-          const geminiVoice = voice.includes("Salma") ? "Aoede" : "Puck";
-          const buf = await synthesizeGeminiVoice(text, geminiVoice);
+          const buf = await synthesizeHumanEdgeVoice(text, voice);
           if (buf && buf.length > 200) {
               return buf;
           }
-      } catch (geminiErr: any) {
-          if (geminiErr?.status === 429 || geminiErr?.message?.includes("quota") || geminiErr?.message?.includes("RESOURCE_EXHAUSTED")) {
-              console.warn("[TTS] Gemini Free Tier TTS daily limit reached (10/day). Delegating to browser native natural voice.");
-          } else {
-              console.warn("[TTS] Gemini Studio Voice error:", geminiErr?.message);
-          }
+      } catch (cliErr: any) {
+          console.warn("[TTS] Python edge-tts CLI unavailable:", cliErr?.message);
       }
 
-      throw new Error("Cloud TTS engines quota exhausted; client will play natural voice directly.");
+      throw new Error("Server Edge TTS unavailable; delegating seamlessly to client natural Egyptian voice.");
   }
 
 

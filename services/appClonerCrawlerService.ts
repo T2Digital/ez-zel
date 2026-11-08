@@ -4,8 +4,10 @@ import { GoogleGenAI } from '@google/genai';
 import { broadcastGatewayEvent } from './microservicesGateway';
 
 export interface CloneBrandInput {
-    name: string;
+    name?: string;
+    businessName?: string;
     industry?: string;
+    category?: string;
     websiteUrl?: string;
     phone?: string;
     ownerEmail?: string;
@@ -49,6 +51,23 @@ export interface ClonedBrandOutput {
 }
 
 function getGeminiClient(): GoogleGenAI {
+    // Attempt lazy loading of .env if running outside server context
+    if (!process.env.GEMINI_API_KEY && fs.existsSync(path.join(process.cwd(), '.env'))) {
+        try {
+            const dotenvContent = fs.readFileSync(path.join(process.cwd(), '.env'), 'utf8');
+            dotenvContent.split('\n').forEach(line => {
+                const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+                if (match) {
+                    const key = match[1];
+                    let val = (match[2] || '').trim();
+                    if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+                    if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1);
+                    if (!process.env[key]) process.env[key] = val;
+                }
+            });
+        } catch {}
+    }
+
     const rawKeys = [
         process.env.GEMINI_API_KEY,
         process.env.GEMINI_API_KEYS,
@@ -76,6 +95,68 @@ function getGeminiClient(): GoogleGenAI {
         apiKey,
         httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
     });
+}
+
+function generateSyntheticEgyptianBlueprint(name: string, industry: string, phone: string): any {
+    return {
+        summary: `${name} هي العلامة الرائدة في مصر لتقديم خدمات ${industry} بأعلى مقاييس الجودة والسرعة والضمان المعتمد.`,
+        knowledgeText: `مرحباً بك في ${name}.\nنحن متخصصون في ${industry}.\nمواعيد العمل: يومياً من 10 صباحاً حتى 10 مساءً.\nطرق الدفع: كاش، إنستاباي، فودافون كاش، وفيزا.\nالعربون لتأكيد الحجز: 25% مع خصم فوري 10% عند الحجز الإلكتروني.\nرقم التواصل والواتساب: ${phone}.`,
+        systemPrompt: `أنت وكيل المبيعات وخدمة العملاء الذكي لبراند "${name}" المتخصص في "${industry}".\nتتحدث بالعامية المصرية الودودة، الذكية والمحترفة جداً.\nهدفك الأساسي هو الرد الفوري، حل أي تردد، وعرض خصم 10% عند تأكيد الحجز بعربون 25% عبر إنستاباي أو فودافون كاش لتثبيت الموعد.`,
+        productsCatalog: [
+            {
+                id: 'srv_1',
+                name: `جلسة / خدمة ${name} الأساسية المميزة`,
+                price: '650 ج.م',
+                unitPrice: 650,
+                category: 'خدمات أساسية',
+                description: 'كشف وفحص شامل مع تقرير مفصل وخطة عمل دقيقة بأحدث التقنيات.',
+                imageUrl: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&auto=format&fit=crop&q=80'
+            },
+            {
+                id: 'srv_2',
+                name: `باقة VIP المتكاملة من ${name}`,
+                price: '1,400 ج.م',
+                unitPrice: 1400,
+                category: 'باقات VIP',
+                description: 'خدمة كاملة وشاملة المتابعة الدورية مجاناً لمدة 3 شهور وضمان معتمد.',
+                imageUrl: 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?w=600&auto=format&fit=crop&q=80'
+            },
+            {
+                id: 'srv_3',
+                name: `العرض الأسبوعي الحصري`,
+                price: '950 ج.م',
+                unitPrice: 950,
+                category: 'عروض حصرية',
+                description: 'خصم 20% لفترة محدودة مع إمكانية التقسيط بدون فوائد.',
+                imageUrl: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=600&auto=format&fit=crop&q=80'
+            }
+        ],
+        marketAnalysis: {
+            competitorGaps: [
+                'بطء الرد على الواتساب والمحادثات لدى المنافسين (نحن نرد في 3 ثوانٍ 24/7)',
+                'عدم وضوح الأسعار والمصاريف المخفية (نحن نوضح الأسعار بالكامل بالجنيه المصري)',
+                'غياب المتابعة بعد تقديم الخدمة (نحن نوفر متابعة وضمان معتمد)'
+            ],
+            topObjections: [
+                'هل الأسعار شاملة كل شيء؟ -> نعم الأسعار شاملة ومحددة ولا توجد أي رسوم خفية.',
+                'هل يوجد ضمان على الخدمة؟ -> نعم يوجد ضمان معتمد ومتابعة مجانية.',
+                'كيف أضمن موعدي؟ -> دفع عربون 25% يثبت لك الموعد فوراً مع خصم 10% إضافي.'
+            ],
+            irresistibleHooks: [
+                `عرض خاص من ${name}: احجز الآن واحصل على خصم 10% وكشف مجاني!`,
+                `ليه تنتظر؟ مع ${name} حجزك مؤكد في 30 ثانية بدون أي تعقيد!`
+            ]
+        },
+        weekContentPlan: [
+            { day: 'السبت', contentType: 'Reel فيديو', hook: `سر التميز مع ${name} في 30 ثانية!`, caption: 'فيديو يوضح طريقة العمل والاحترافية.', bestTime: '14:00' },
+            { day: 'الأحد', contentType: 'بوست كاروسيل', hook: '3 نصائح ذهبية قبل أن تختار خدمتك', caption: 'دليل شامل لاختيار الأنسب لك بجودة عالية.', bestTime: '20:00' },
+            { day: 'الإثنين', contentType: 'شهادات عملاء', hook: 'رأي عملائنا بعد تجربة الخدمة', caption: 'قصص نجاح حقيقية وثقة عملائنا في مصر.', bestTime: '19:00' },
+            { day: 'الثلاثاء', contentType: 'عرض تفاعلي', hook: 'جاوب واكسب خصم 20% فوري!', caption: 'سؤال سريع لكل متابعينا مع كود خصم حصري.', bestTime: '21:00' },
+            { day: 'الأربعاء', contentType: 'إنفوجرافيك مقارنة', hook: 'الفرق بين الخدمة العادية وباقة الـ VIP', caption: 'تفاصيل ومقارنة واضحة توفر عليك الوقت والمال.', bestTime: '16:00' },
+            { day: 'الخميس', contentType: 'عرض نهاية الأسبوع', hook: 'عرض الويك إند المحدود وصل!', caption: 'احجز قبل اكتمال المواعيد واستمتع بخصم الحجز المسبق.', bestTime: '20:00' },
+            { day: 'الجمعة', contentType: 'ستوري لايف واستفسارات', hook: 'استفساراتكم نجاوب عليها مباشرة', caption: 'متابعة أسبوعية وتفاعل مباشر مع العملاء.', bestTime: '15:00' }
+        ]
+    };
 }
 
 function cleanHtmlToText(html: string): string {
@@ -117,9 +198,8 @@ export async function crawlUrlContent(targetUrl: string): Promise<string> {
 }
 
 export async function cloneOrSynthesizeBrand(input: CloneBrandInput): Promise<ClonedBrandOutput> {
-    const ai = getGeminiClient();
-    const name = input.name.trim();
-    const industry = input.industry?.trim() || 'خدمات وأعمال عامة';
+    const name = (input.name || input.businessName || 'براند رائد').trim();
+    const industry = (input.industry || input.category || 'خدمات وأعمال عامة').trim();
     const phone = input.phone?.trim() || '01013373634';
     const ownerEmail = input.ownerEmail?.trim() || 'client@t2digital.com';
     const websiteUrl = input.websiteUrl?.trim() || '';
@@ -198,22 +278,28 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
 }
 يجب أن تعيد كائن JSON صالح فقط دون كود ماركداون خارجي.`;
 
-    const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            temperature: 0.3,
-            responseMimeType: 'application/json'
-        }
-    });
-
-    const rawJson = res.text || '{}';
-    let parsed: any = {};
+    let parsed: any = null;
     try {
-        parsed = JSON.parse(rawJson);
-    } catch {
-        const clean = rawJson.replace(/```json/gi, '').replace(/```/g, '').trim();
-        parsed = JSON.parse(clean);
+        const ai = getGeminiClient();
+        const res = await ai.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: prompt,
+            config: {
+                temperature: 0.3,
+                responseMimeType: 'application/json'
+            }
+        });
+
+        const rawJson = res.text || '{}';
+        try {
+            parsed = JSON.parse(rawJson);
+        } catch {
+            const clean = rawJson.replace(/```json/gi, '').replace(/```/g, '').trim();
+            parsed = JSON.parse(clean);
+        }
+    } catch (aiErr: any) {
+        console.warn(`[App Cloner] Gemini blueprint fallback activated (${aiErr?.message})`);
+        parsed = generateSyntheticEgyptianBlueprint(name, industry, phone);
     }
 
     const appUrl = `https://${slug}.t2-client.vercel.app`;
