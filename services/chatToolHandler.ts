@@ -1492,7 +1492,7 @@ export const processToolActions = async (
                           uiCards.push({
                               cardType: 'task_success',
                               title: `📅 خطة محتوى أول أسبوع (${d.brand?.name || brandName}) — جاهزة في التقويم`,
-                              description: `${d.message || ''}\n\n${planLines}\n\n✅ قل للظل: "اعتمد الجدولة بناء على الخطة" لجدولتها تلقائياً أو "انشر منشور يوم السبت" للنشر الفوري!`
+                              description: `${d.message || ''}\n\n${planLines}\n\n✅ قل للظل: "اعتمد الجدولة بناء على الخطة" لجدولتها تلقائياً أو "انشر منشور يوم الأحد" للنشر الفوري!`
                           });
                           window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'week_plan', data: d } }));
                       } else if (action === 'approve_schedule') {
@@ -1586,7 +1586,7 @@ export const processToolActions = async (
                           uiCards.push({
                               cardType: 'task_success',
                               title: `✨ تم تأسيس حقيبة البراند وتجهيز الصفحات: ${kit.brandName}`,
-                              description: `الشعار: "${kit.slogan}"\nالألوان: ${kit.colors?.primary} / ${kit.colors?.accent}\n\n📘 فيسبوك: ${kit.socialKits?.facebook?.title}\n📸 إنستجرام: ${kit.socialKits?.instagram?.title}\n🎵 تيك توك: ${kit.socialKits?.tiktok?.title}\n\n📅 أسبوع التجربة المجانية (3 منشورات: السبت تصميم، الإثنين فيديو، الأربعاء عرض خاص) جاهزة في التقويم!`
+                              description: `الشعار: "${kit.slogan}"\nالألوان: ${kit.colors?.primary} / ${kit.colors?.accent}\n\n📘 فيسبوك: ${kit.socialKits?.facebook?.title}\n📸 إنستجرام: ${kit.socialKits?.instagram?.title}\n🎵 تيك توك: ${kit.socialKits?.tiktok?.title}\n\n📅 أسبوع التجربة المجانية (3 منشورات: الأحد تصميم، الثلاثاء فيديو، الخميس عرض خاص) جاهزة في التقويم!`
                           });
 
                           const hiddenPrompt = `[BRAND_SOCIAL_LAUNCH_KIT_GENERATED]\n${JSON.stringify(kit, null, 2)}\n\n[INSTRUCTION]: بارك للعميل بأسلوب راقٍ ومحفز باللهجة المصرية، واعرض عليه تفاصيل الهوية والبايو لكل منصة (فيسبوك، إنستجرام، وتيك توك) وخطة المنشورات الـ 3 المجانية، وشجعه على بدء توليد أول تصميم في تيتو ستوديو أو ربط الواتساب فوراً.`;

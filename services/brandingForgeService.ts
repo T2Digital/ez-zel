@@ -140,7 +140,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
   },
   "trialContentPlan": [
     {
-      "day": "السبت",
+      "day": "الأحد",
       "type": "image_feed",
       "formatName": "بوست تصميم Feed (1:1)",
       "hook": "عنوان إعلاني صاعق لجذب العميل وحثه على الشراء أو الحجز",
@@ -150,7 +150,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
       "callToAction": "احجز الآن عبر واتساب واستفد من خصم التجربة"
     },
     {
-      "day": "الإثنين",
+      "day": "الثلاثاء",
       "type": "video_reels",
       "formatName": "فيديو ريلز وتيك توك (9:16)",
       "hook": "أول 3 ثواني تخطف الأنظار في الريلز",
@@ -160,7 +160,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
       "callToAction": "شارك الفيديو مع أصحابك واطلب عبر رسائل الصفحة"
     },
     {
-      "day": "الأربعاء",
+      "day": "الخميس",
       "type": "conversion_offer",
       "formatName": "بوست عرض خاص وحجز فوري (1:1)",
       "hook": "عرض استثنائي ومحدود لعملاء الأسبوع المجاني",
@@ -237,7 +237,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
             },
             trialContentPlan: [
                 {
-                    day: "السبت",
+                    day: "الأحد",
                     type: "image_feed",
                     formatName: "بوست تصميم Feed (1:1)",
                     hook: `أقوى انطلاقة لـ ${brandName} في عالم ${category}! خصم خاص للحجوزات المبكرة.`,
@@ -247,7 +247,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
                     callToAction: "احجز الآن عبر واتساب"
                 },
                 {
-                    day: "الإثنين",
+                    day: "الثلاثاء",
                     type: "video_reels",
                     formatName: "فيديو ريلز وتيك توك (9:16)",
                     hook: `ليه ${brandName} اختيارك الأول دائماً؟ شاهد النتيجة بنفسك!`,
@@ -257,7 +257,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
                     callToAction: "تابع حسابنا لمعرفة جديدنا"
                 },
                 {
-                    day: "الأربعاء",
+                    day: "الخميس",
                     type: "conversion_offer",
                     formatName: "بوست عرض خاص وحجز فوري (1:1)",
                     hook: `عرض نهاية الأسبوع الاستثنائي من ${brandName} — العدد محدود للحجز اليوم!`,
@@ -267,7 +267,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
                     callToAction: "اضغط وتواصل مع خدمة العملاء"
                 }
             ],
-            recommendedNextStep: "توليد تصميمات الخطة واعتماد نشر منشور يوم السبت"
+            recommendedNextStep: "توليد تصميمات الخطة واعتماد نشر منشور يوم الأحد"
         };
     }
 }

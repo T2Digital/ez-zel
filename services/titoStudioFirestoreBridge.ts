@@ -632,17 +632,17 @@ export function buildOmniChannelWeekPlan(brand: {
         },
         {
             day: 'الأحد',
-            mediaFormat: 'video',
-            pillar: 'events_seasons',
-            pillarLabel: 'ريلز سينمائي (Turbo Flow / Google Flow)',
-            contentType: 'فيديو ريلز Google Flow (Reels 9:16)',
-            defaultHook: customHooks[1] || `عندك استفسار؟ وكيل ${brand.name} الذكي يرد عليك بصوت بشري في 3 ثوانٍ على واتساب!`,
-            ctaType: 'WHATSAPP_VOICE_AGENT',
-            ctaBadge: '💬 تواصل واتساب فوري (رد صوتي ذكي)',
-            ctaActionText: `اضغط لمحادثة واتساب المباشرة: ${brand.phone || '01013373634'}`,
-            ctaTargetUrl: waLink,
-            bestTime: '9:00 مساءً',
-            omniPrompt: `Vertical 9:16 cinematic commercial reel for ${brand.name} (${brand.businessType || 'modern service business'}), smooth gimbal camera movement entering a high-end modern space, warm welcoming atmosphere with subtle cyan fiber-optic rim lighting, happy client experiencing top-tier service, photorealistic 4K Veo 3.1 commercial quality, no text overlay.`
+            mediaFormat: 'image',
+            pillar: 'product_marketing',
+            pillarLabel: 'تسويق المنتجات والخدمات (Feed 1:1)',
+            contentType: 'تصميم تيتو ستوديو (Feed 1:1)',
+            defaultHook: customHooks[0] || `احجز خدمتك الآن من تطبيق ${brand.name} الرسمي بخصم 10% فوري بدون انتظار!`,
+            ctaType: 'APP_CONVERSION',
+            ctaBadge: '🛒 احجز من التطبيق بخصم 10% فوري',
+            ctaActionText: `افتح المتجر واحجز في 30 ثانية: ${storePath}`,
+            ctaTargetUrl: storePath,
+            bestTime: '8:00 مساءً',
+            omniPrompt: `Ultra-luxury commercial photography for ${brand.name} (${brand.businessType || 'premium brand'}), dramatic studio lighting, cyan and deep navy accents, 8k photorealistic.`
         },
         {
             day: 'الإثنين',
@@ -650,7 +650,7 @@ export function buildOmniChannelWeekPlan(brand: {
             pillar: 'educational_loyalty',
             pillarLabel: 'تفاعل وولاء (Auto-DM)',
             contentType: 'تصميم تفاعلي تيتو ستوديو (Auto-DM)',
-            defaultHook: customHooks[2] || `اكتب كلمة "عرض" في تعليق وهيوصلك كتالوج أسعار ${brand.name} وكود الخصم في رسالة فوراً!`,
+            defaultHook: customHooks[1] || `اكتب كلمة "عرض" في تعليق وهيوصلك كتالوج أسعار ${brand.name} وكود الخصم في رسالة فوراً!`,
             ctaType: 'COMMENT_TO_MESSENGER',
             ctaBadge: '🤖 اكتب "عرض" في تعليق لاستلام الكتالوج',
             ctaActionText: 'رد تلقائي على التعليق + رسالة ماسنجر فورية بالكتالوج',
@@ -662,16 +662,16 @@ export function buildOmniChannelWeekPlan(brand: {
         {
             day: 'الثلاثاء',
             mediaFormat: 'video',
-            pillar: 'product_marketing',
-            pillarLabel: 'ريلز تحويل مباشر (Turbo Flow)',
+            pillar: 'events_seasons',
+            pillarLabel: 'ريلز سينمائي (Turbo Flow / Google Flow)',
             contentType: 'فيديو ريلز Google Flow (Reels 9:16)',
-            defaultHook: customHooks[3] || `شوف النتيجة بنفسك مع ${brand.name} — ثبت موعدك الآن من التطبيق بعربون 25%!`,
-            ctaType: 'APP_CONVERSION',
-            ctaBadge: '🛒 ثبت حجزك من التطبيق (خصم 10%)',
-            ctaActionText: `احجز الباقة المناسبة من التطبيق: ${storePath}`,
-            ctaTargetUrl: storePath,
-            bestTime: '7:30 مساءً',
-            omniPrompt: `Vertical 9:16 dynamic transformation and showcase video for ${brand.name} (${brand.businessType || 'premium brand'}), macro close-up shots transitioning to a wide hero reveal, luxury commercial lighting, 60fps slow-motion details, photorealistic Veo 3.1 style, no text.`
+            defaultHook: customHooks[2] || `عندك استفسار؟ وكيل ${brand.name} الذكي يرد عليك بصوت بشري في 3 ثوانٍ على واتساب!`,
+            ctaType: 'WHATSAPP_VOICE_AGENT',
+            ctaBadge: '💬 تواصل واتساب فوري (رد صوتي ذكي)',
+            ctaActionText: `اضغط لمحادثة واتساب المباشرة: ${brand.phone || '01013373634'}`,
+            ctaTargetUrl: waLink,
+            bestTime: '9:00 مساءً',
+            omniPrompt: `Vertical 9:16 cinematic commercial reel for ${brand.name} (${brand.businessType || 'modern service business'}), smooth gimbal camera movement entering a high-end modern space, warm welcoming atmosphere with subtle cyan fiber-optic rim lighting, happy client experiencing top-tier service, photorealistic 4K Veo 3.1 commercial quality, no text overlay.`
         },
         {
             day: 'الأربعاء',
@@ -719,7 +719,7 @@ export function buildOmniChannelWeekPlan(brand: {
     ];
 
     const activeSlots = brand.isTrial
-        ? baseDays.filter(s => ['السبت', 'الإثنين', 'الأربعاء'].includes(s.day))
+        ? baseDays.filter(s => ['الأحد', 'الثلاثاء', 'الخميس'].includes(s.day))
         : baseDays;
 
     return activeSlots.map((slot, idx) => {

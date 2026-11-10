@@ -938,7 +938,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     if (activeP === 'visitor') {
       text = `يا هلا بيك في منظومة T2 ديجيتال للنمو الشامل! أنا جارفيس المستشار التنفيذي لأعمالك.. قولي عشان أحلل موقفك صح: نشاطك التجاري شغال حالياً في السوق وفيه عملاء ومبيعات؟ ولا دي فكرة جديدة بتنطلق فيها من الصفر؟`;
     } else if (activeP === 'trial') {
-      text = `أهلاً بيك يا فندم في أسبوع التجربة المجانية لـ ${currentSelectedBrand.name}! خطتك من 3 منشورات حقيقية (يوم ويوم: السبت، الإثنين، والأربعاء) جاهزة، والوكيل الذكي متصل بيرد 24 ساعة.. تحب نولد أول تصميم في تيتو ستوديو دلوقتي؟`;
+      text = `أهلاً بيك يا فندم في أسبوع التجربة المجانية لـ ${currentSelectedBrand.name}! خطتك من 3 منشورات حقيقية (يوم ويوم: الأحد، الثلاثاء، والخميس) جاهزة، والوكيل الذكي متصل بيرد 24 ساعة.. تحب نولد أول تصميم في تيتو ستوديو دلوقتي؟`;
     } else if (activeP === 'client') {
       text = `نورت كابينة قيادة براندك يا شريك النجاح! أنا معاك كمدير تنفيذي وسكرتير ذكي لمتابعة المحتوى والواتساب والحجوزات لحظة بلحظة.. تحب ننفذ إيه دلوقتي؟`;
     } else {
@@ -3546,16 +3546,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </span>
                   <div className="space-y-1.5 text-[10px]">
                     <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between">
-                      <span className="font-bold text-white">السبت:</span>
-                      <span className="text-white/70">تصميم بصري احترافي (تيتو ستوديو)</span>
+                      <span className="font-bold text-white">الأحد:</span>
+                      <span className="text-white/70">تصميم بصري احترافي (تيتو ستوديو Feed 1:1)</span>
                     </div>
                     <div className="p-1.5 rounded-lg bg-cyan-950/30 border border-cyan-500/20 flex items-center justify-between">
-                      <span className="font-bold text-cyan-300">الإثنين:</span>
+                      <span className="font-bold text-cyan-300">الثلاثاء:</span>
                       <span className="text-cyan-200">فيديو ريلز/تيك توك (Google Flow × Turbo)</span>
                     </div>
                     <div className="p-1.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20 flex items-center justify-between">
-                      <span className="font-bold text-emerald-300">الأربعاء:</span>
-                      <span className="text-emerald-200">بوست عرض خاص وحجز فوري (CTA)</span>
+                      <span className="font-bold text-emerald-300">الخميس:</span>
+                      <span className="text-emerald-200">بوست عرض خاص وحجز فوري بنهاية الأسبوع (CTA)</span>
                     </div>
                   </div>
                 </div>
@@ -4328,7 +4328,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                 </div>
 
-                {/* 3-Post Day-On-Day Trial Plan (السبت، الإثنين، الأربعاء) */}
+                {/* 3-Post Day-On-Day Trial Plan (الأحد، الثلاثاء، الخميس) */}
                 <div className="p-3 rounded-2xl bg-black/60 border border-amber-500/30 space-y-2">
                   <div className="flex items-center justify-between text-xs font-bold text-amber-300">
                     <span>📅 خطة أسبوع التجربة المجانية (3 منشورات يوم ويوم):</span>
