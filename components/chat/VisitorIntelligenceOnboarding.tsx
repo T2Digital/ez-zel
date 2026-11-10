@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Sparkles, Building2, Rocket, Globe, Smartphone, ArrowRight, 
-  CheckCircle, Play, RefreshCw, Send, DollarSign, Share2, Layers, Bot
+  CheckCircle, Play, RefreshCw, Send, DollarSign, Share2, Layers, Bot, QrCode, Link2, CheckCircle2, ExternalLink
 } from 'lucide-react';
 import { playShadowVoice } from '../../services/speechService';
 
@@ -14,13 +14,6 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   onComplete,
   onSwitchToAdmin
 }) => {
-  // Current Conversation Step in the Intelligence Interrogation
-  // 1: Has Business? (from scratch vs existing)
-  // 2A: From Scratch -> Industry & Name Generation
-  // 3A: From Scratch -> Brand Identity, App Link & 1-Week Launch Plan
-  // 2B: Existing Business -> Sales Channels (Store / Page / Web / WhatsApp)
-  // 3B: Existing Business -> Connect & Growth Package (5,000 EGP Bundled)
-  // 4: Complete & Trial Activation + Viral "اعمل فلوس" Loop
   const [step, setStep] = useState<number>(1);
   const [hasExistingBusiness, setHasExistingBusiness] = useState<boolean | null>(null);
 
@@ -28,24 +21,33 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   const [industry, setIndustry] = useState('');
   const [brandName, setBrandName] = useState('');
   const [salesChannel, setSalesChannel] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('01013373634');
+  const [websiteUrl, setWebsiteUrl] = useState('');
   const [suggestedNames, setSuggestedNames] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [referralCode] = useState(() => 'VIP_' + Math.floor(1000 + Math.random() * 9000));
 
-  // Generated Plan & Output
+  // Real Provisioned Output & Live Connection Windows
+  const [generatedBrand, setGeneratedBrand] = useState<any>(null);
   const [generatedAppUrl, setGeneratedAppUrl] = useState('');
   const [weekPlan, setWeekPlan] = useState<any[]>([]);
+
+  // Real Account Connection Windows inside Visitor Flow
+  const [waPairingData, setWaPairingData] = useState<{ pairingCode: string; qrDataUrl: string; connected: boolean } | null>(null);
+  const [isConnectingWa, setIsConnectingWa] = useState(false);
+  const [metaConnectData, setMetaConnectData] = useState<{ pageName: string; pageId: string; connected: boolean } | null>(null);
+  const [metaInputPageName, setMetaInputPageName] = useState('');
+  const [isConnectingMeta, setIsConnectingMeta] = useState(false);
 
   // Step 1: Initial Question (Zero-to-One vs Existing)
   const handleSelectBusinessStatus = (hasBusiness: boolean) => {
     setHasExistingBusiness(hasBusiness);
     if (!hasBusiness) {
-      setStep(2); // Scratch path
+      setStep(2);
       playShadowVoice("على بركة الله! سيب القيادة ليا وركز إنت في البيزنس. قولي يا غالي، إيه المجال أو النشاط اللي بتفكر فيه؟", 'male');
     } else {
-      setStep(4); // Existing path
-      playShadowVoice("نورتنا يا فندم! طب قولي بتبيع وتستقبل عملاءك إزاي حالياً؟ محل على الأرض ولا صفحة سوشيال ولا موقع ولا واتساب فقط؟", 'male');
+      setStep(4);
+      playShadowVoice("نورتنا يا فندم! اكتبلي اسم نشاطك ورقم الواتساب عشان نستنسخ تطبيقك ونفتحلك نافذة ربط الواتساب وميتا فوراً!", 'male');
     }
   };
 
@@ -68,100 +70,118 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
       setBrandName(pool[0]);
       setIsGenerating(false);
       playShadowVoice(`اقترحت عليك 3 أسماء ليهم هيبة في السوق لمجال ${chosenIndustry}. اختار الأنسب ليك عشان نولد الهوية والتطبيق فوراً!`, 'male');
-    }, 1000);
+    }, 600);
   };
 
-  // Scratch Path: Launch Brand Creation
-  const handleLaunchScratchBrand = async () => {
-    setIsGenerating(true);
-    const cleanSlug = brandName.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-    const localStoreUrl = `${window.location.origin}/store/${cleanSlug || 'elite-brand'}`;
-    setGeneratedAppUrl(localStoreUrl);
+  // Real Provisioning via /api/jarvis/execute-action (PROVISION_VISITOR_TRIAL)
+  const handleProvisionVisitorBrand = async (customChannel?: string) => {
+    if (customChannel) setSalesChannel(customChannel);
+    const targetName = brandName.trim() || 'براند النخبة الرقمي';
+    const targetIndustry = industry || customChannel || 'خدمات وتجارة';
 
+    setIsGenerating(true);
     try {
-      const res = await fetch('/api/cloner/clone-brand', {
+      const res = await fetch('/api/jarvis/execute-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: brandName,
-          industry: industry || 'خدمات عامة',
-          phone: phone || '01013373634',
-          ownerEmail: 'client@t2digital.com'
+          actionType: 'PROVISION_VISITOR_TRIAL',
+          data: {
+            businessName: targetName,
+            industry: targetIndustry,
+            phone: phone || '01013373634',
+            websiteUrl
+          }
         })
       });
       const data = await res.json();
       if (data.success && data.brand) {
-        if (data.brand.weekContentPlan && data.brand.weekContentPlan.length > 0) {
-          setWeekPlan(data.brand.weekContentPlan.map((p: any) => ({
-            day: p.day,
-            type: p.contentType,
-            hook: p.hook,
-            cta: p.caption
-          })));
+        setGeneratedBrand(data.brand);
+        const storeUrl = `${window.location.origin}/store/${data.brand.slug || data.brand.id}`;
+        setGeneratedAppUrl(storeUrl);
+        if (Array.isArray(data.brand.weekContentPlan)) {
+          setWeekPlan(data.brand.weekContentPlan);
         }
       }
-    } catch {
-      // Fallback 1-Week Launch Strategy
-      const plan = [
-        { day: 'السبت (اليوم 1)', type: 'بوست إطلاق رسمي (Feed 1:1)', hook: `فخامة تليق بمقامك - رسمياً انطلاق أحدث خدمات ${brandName} في مصر!`, cta: 'حجز فوري بخصم 10%' },
-        { day: 'الأحد (اليوم 2)', type: 'فيديو ريلز طرش (Reels 9:16)', hook: `ليه تدفع أكتر لما تقدر تستمتع بأعلى جودة مع ${brandName}؟`, cta: 'شاهد التجربة كاملة' },
-        { day: 'الثلاثاء (اليوم 3)', type: 'كاروسيل تعليمي (Carousel)', hook: `3 أخطاء شائعة تجنبها تماماً قبل ما تختار خدمتك!`, cta: 'استشارة مجانية بالواتساب' },
-        { day: 'الخميس (اليوم 4)', type: 'عرض نهاية الأسبوع (Story 9:16)', hook: `عرض حصري لـ 24 ساعة فقط - خصم فوري مع سداد 25% عربون جدية!`, cta: 'احجز مكانك الآن' }
-      ];
-      setWeekPlan(plan);
+    } catch (e) {
+      console.error('Provision error:', e);
+    } finally {
+      setIsGenerating(false);
+      setStep(3);
+      playShadowVoice(`ألف مبروك يا فندم! تم استنساخ تطبيق ${targetName} فعلياً، وتوليد خطة محتوى تيتو ستوديو لـ 7 أيام. دلوقتي تقدر تربط الواتساب وصفحة ميتا من النوافذ الحية قدامك وتدخل كابينة المدير التنفيذي لبراندك!`, 'male');
     }
-
-    setIsGenerating(false);
-    setStep(3);
-    playShadowVoice(`ألف مبروك يا فندم! تطبيقك بقى لايف على الرابط، وجهزتلك لوجو وهوية كاملة، مع خطة محتوى أسبوع كامل تشمل بوستات وفيديوهات ريلز طرش! كل الأنظمة شغالة ومستعدة.`, 'male');
   };
 
-  // Existing Business Path: Connect Channels & Activate Growth Package
-  const handleActivateExistingBusiness = async (channel: string) => {
-    setSalesChannel(channel);
-    setIsGenerating(true);
-
+  // Real WhatsApp Pairing Code & QR Action
+  const handleConnectWhatsAppLive = async () => {
+    setIsConnectingWa(true);
     try {
-      const cleanSlug = (brandName || 't2-partner').toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      const localStoreUrl = `${window.location.origin}/store/${cleanSlug}`;
-      setGeneratedAppUrl(localStoreUrl);
-
-      await fetch('/api/cloner/clone-brand', {
+      const res = await fetch('/api/jarvis/execute-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: brandName || 'براند شريك T2',
-          industry: 'نشاط قائم - مبيعات وسوشيال',
-          phone: phone || '01013373634',
-          ownerEmail: 'client@t2digital.com'
+          actionType: 'CONNECT_WHATSAPP_PAIRING',
+          brandId: generatedBrand?.id || 'clean_master',
+          data: { phone }
         })
       });
+      const d = await res.json();
+      if (d.success) {
+        setWaPairingData({
+          pairingCode: d.pairingCode,
+          qrDataUrl: d.qrDataUrl,
+          connected: true
+        });
+        playShadowVoice(`تم توليد كود الربط الفوري لواتساب رقم ${phone}! امسح الكود أو أدخل كود الربط ${d.pairingCode} في هاتفك لتشغيل الرد الذكي 24 ساعة.`, 'male');
+      }
     } catch {}
+    setIsConnectingWa(false);
+  };
 
-    setTimeout(() => {
-      setIsGenerating(false);
-      setStep(5);
-      playShadowVoice(`تم بنجاح تأكيد ربط نشاطك القائم! وكيل الواتساب والسوشيال الذكي بصوت بشري جاهز للرد في 3 ثواني، وتطبيقك المستنسخ تم تفعيله، وباقة النمو 5000 جنيه (نصها إعلانات ممولة للتطبيق ورسايل السوشيال) جاهزة لبدء التجربة المجانية 7 أيام كاملة!`, 'male');
-    }, 1200);
+  // Real Meta Page Connect Action
+  const handleConnectMetaLive = async () => {
+    setIsConnectingMeta(true);
+    const pageToLink = metaInputPageName.trim() || `${brandName || 'براند'} - الصفحة الرسمية`;
+    try {
+      const res = await fetch('/api/jarvis/execute-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionType: 'CONNECT_META_OAUTH',
+          brandId: generatedBrand?.id || 'clean_master',
+          data: { pageName: pageToLink }
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setMetaConnectData({
+          pageName: d.pageName,
+          pageId: d.pageId,
+          connected: true
+        });
+        playShadowVoice(`تم ربط صفحة فيسبوك وإنستجرام ${d.pageName} بمحركي تيتو ستوديو وتيتو أجنت بنجاح!`, 'male');
+      }
+    } catch {}
+    setIsConnectingMeta(false);
   };
 
   return (
-    <div className="w-full max-w-xl bg-[#04081c]/95 border-2 border-emerald-500/40 rounded-3xl p-4 md:p-6 shadow-[0_0_50px_rgba(16,185,129,0.25)] flex flex-col gap-4 text-right animate-in fade-in backdrop-blur-md font-['Cairo']">
+    <div className="w-full max-w-xl bg-[#04081c]/95 border-2 border-emerald-500/40 rounded-3xl p-4 md:p-5 shadow-[0_0_50px_rgba(16,185,129,0.25)] flex flex-col gap-3.5 text-right animate-in fade-in backdrop-blur-md font-['Cairo']">
       
       {/* Top Header Badge */}
-      <div className="flex items-center justify-between pb-3 border-b border-emerald-500/20">
+      <div className="flex items-center justify-between pb-2.5 border-b border-emerald-500/20">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-black font-black">
             <Bot className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-white flex items-center gap-1.5">
-              محراب جارفيس للاستجواب الفريندلي وتأسيس البيزنس
+            <h3 className="text-xs md:text-sm font-black text-white flex items-center gap-1.5">
+              محرك تأسيس واستنساخ البيزنس للزائر الجديد (0→1)
               <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">
-                AI Onboarding 0→1
+                REAL EXECUTION
               </span>
             </h3>
-            <p className="text-[11px] text-white/50">محادثة حية ذكية تؤسس وتطلق مشروعك أو تضاعف مبيعاتك القائمة</p>
+            <p className="text-[10px] text-white/50">استنساخ تطبيق PWA فعلي + ربط واتساب وميتا + تفعيل 7 أيام مجاناً</p>
           </div>
         </div>
 
@@ -169,65 +189,61 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           onClick={onSwitchToAdmin}
           className="text-[10px] text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/30 transition"
         >
-          👑 العودة لوضع الأدمن
+          👑 وضع الماستر تيتو
         </button>
       </div>
 
-      {/* ========================================================= */}
-      {/* STAGE 1: HAS BUSINESS OR ZERO-TO-ONE?                    */}
-      {/* ========================================================= */}
+      {/* STAGE 1: HAS BUSINESS OR ZERO-TO-ONE? */}
       {step === 1 && (
-        <div className="space-y-4 py-2 animate-in zoom-in-95">
-          <div className="p-3.5 rounded-2xl bg-black/50 border border-cyan-500/30 text-center space-y-1">
-            <span className="text-xs text-cyan-300 font-bold">🗣️ جارفيس يسألك بود واحترافية:</span>
-            <p className="text-sm font-bold text-white">
-              "يا مرحب بيك يا فندم في محراب T2 السيادي.. قولي يا غالي، هل عندك نشاط تجاري قائم بالفعل وشغال، ولا دي فكرة جديدة وبتبدأ معانا من الصفر؟"
+        <div className="space-y-3.5 py-1 animate-in zoom-in-95">
+          <div className="p-3 rounded-2xl bg-black/50 border border-cyan-500/30 text-center space-y-1">
+            <span className="text-xs text-cyan-300 font-bold">🗣️ جارفيس يرحب بك بالصوت البشري:</span>
+            <p className="text-xs md:text-sm font-bold text-white leading-relaxed">
+              "أهلاً بيك في منظومة النمو الشامل للأعمال! قولي يا غالي، عندك نشاط تجاري شغال حالياً وعاوز تضاعف مبيعاته، ولا بتأسس فكرة جديدة من الصفر؟"
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <button
               onClick={() => handleSelectBusinessStatus(false)}
-              className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-[#020d1a] border-2 border-emerald-500/40 hover:border-emerald-400 hover:scale-[1.02] transition-all flex flex-col items-center text-center gap-2 group shadow-lg"
+              className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-[#020d1a] border-2 border-emerald-500/40 hover:border-emerald-400 transition-all flex flex-col items-center text-center gap-1.5 group shadow-lg"
             >
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition">
-                <Rocket className="w-6 h-6" />
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition">
+                <Rocket className="w-5 h-5" />
               </div>
-              <div className="text-sm font-black text-white">🚀 فكرة جديدة وببدأ من الصفر (0→1)</div>
-              <p className="text-[10px] text-white/60">هنبتكر الاسم واللوجو، وننشئ صفحة السوشيال وتطبيق الويب، وخطة الأسبوع الأول كاملة!</p>
+              <div className="text-xs font-black text-white">🚀 فكرة جديدة من الصفر (0→1)</div>
+              <p className="text-[10px] text-white/60">ابتكار الاسم والهوية + استنساخ متجر + ربط واتساب وميتا + أسبوع مجاناً</p>
             </button>
 
             <button
               onClick={() => handleSelectBusinessStatus(true)}
-              className="p-4 rounded-2xl bg-gradient-to-br from-cyan-950/40 to-[#020d1a] border-2 border-cyan-500/40 hover:border-cyan-400 hover:scale-[1.02] transition-all flex flex-col items-center text-center gap-2 group shadow-lg"
+              className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-950/40 to-[#020d1a] border-2 border-cyan-500/40 hover:border-cyan-400 transition-all flex flex-col items-center text-center gap-1.5 group shadow-lg"
             >
-              <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center group-hover:scale-110 transition">
-                <Building2 className="w-6 h-6" />
+              <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center group-hover:scale-110 transition">
+                <Building2 className="w-5 h-5" />
               </div>
-              <div className="text-sm font-black text-white">🏢 عندي نشاط وبيزنس قائم وشغال</div>
-              <p className="text-[10px] text-white/60">هنربط صفحاتك وأرقامك، ونشغل الأجنت بصوت بشري، ونفعل باقة النمو المدمجة بالإعلانات!</p>
+              <div className="text-xs font-black text-white">🏢 عندي نشاط وبيزنس قائم</div>
+              <p className="text-[10px] text-white/60">استنساخ تطبيق لنشاطك + ربط رقم واتساب وصفحة فيسبوك + تجربة 7 أيام مجاناً</p>
             </button>
           </div>
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* STAGE 2A: FROM SCRATCH -> INDUSTRY & NAME GENERATION      */}
-      {/* ========================================================= */}
+      {/* STAGE 2: FROM SCRATCH -> INDUSTRY & NAME GENERATION */}
       {step === 2 && (
-        <div className="space-y-4 py-1 animate-in zoom-in-95">
-          <div className="p-3 rounded-2xl bg-black/40 border border-emerald-500/30 text-xs text-emerald-300 font-bold">
-            💡 "إيه المجال أو النشاط اللي حابب تطلقه في السوق؟ اضغط على مجالك أو اكتبه:"
+        <div className="space-y-3 py-1 animate-in zoom-in-95">
+          <div className="p-2.5 rounded-2xl bg-black/40 border border-emerald-500/30 text-xs text-emerald-300 font-bold">
+            💡 اختر مجال مشروعك عشان جارفيس يقترحلك أقوى الأسماء ويولد الكتالوج والتطبيق:
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {['تأجير سيارات', 'عيادات وطب أسنان', 'خدمات ونظافة', 'عقارات ومقاولات', 'متاجر وأزياء'].map(cat => (
               <button
                 key={cat}
                 onClick={() => handleGenerateNames(cat)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
                   industry === cat 
-                    ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/30' 
+                    ? 'bg-emerald-500 text-black shadow-md' 
                     : 'bg-white/5 border border-white/10 text-white/70 hover:text-white'
                 }`}
               >
@@ -237,23 +253,20 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           </div>
 
           {isGenerating ? (
-            <div className="p-6 text-center text-cyan-400 text-xs font-bold animate-pulse space-y-2">
-              <RefreshCw className="w-6 h-6 mx-auto animate-spin" />
-              <p>جارفيس يدرس السوق المصري ويولد أقوى الأسماء التجارية الرنانة...</p>
+            <div className="p-5 text-center text-cyan-400 text-xs font-bold animate-pulse space-y-2">
+              <RefreshCw className="w-5 h-5 mx-auto animate-spin" />
+              <p>جاري بناء الهوية واستنساخ التطبيق وتقويم المحتوى...</p>
             </div>
           ) : suggestedNames.length > 0 && (
-            <div className="space-y-3 pt-2">
-              <label className="block text-xs font-bold text-amber-300">
-                ✨ الأسماء المقترحة ذات الهيبة والمصداقية (اضغط لاختيار اسمك الرسمي):
-              </label>
+            <div className="space-y-2.5 pt-1">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {suggestedNames.map(name => (
                   <button
                     key={name}
                     onClick={() => setBrandName(name)}
-                    className={`p-2.5 rounded-xl text-xs font-black border transition ${
+                    className={`p-2 rounded-xl text-xs font-black border transition ${
                       brandName === name 
-                        ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]' 
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-300' 
                         : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
                     }`}
                   >
@@ -262,220 +275,207 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 ))}
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-white/80 mb-1">رقم الواتساب لاستقبال الحجوزات والطلبات:</label>
-                <input 
-                  type="tel" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="01013373634 أو +201..."
-                  className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-4 py-2 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
-                  dir="ltr"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-white/70 mb-1">اسم البراند المعتمد:</label>
+                  <input 
+                    type="text" 
+                    value={brandName}
+                    onChange={(e) => setBrandName(e.target.value)}
+                    className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-white/70 mb-1">رقم واتساب لاستقبال الحجوزات:</label>
+                  <input 
+                    type="tel" 
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono"
+                    dir="ltr"
+                  />
+                </div>
               </div>
 
               <button
-                onClick={handleLaunchScratchBrand}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-sm shadow-lg shadow-emerald-500/30 transition flex items-center justify-center gap-2"
+                onClick={() => handleProvisionVisitorBrand()}
+                className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-black font-black text-xs shadow-lg transition flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4 fill-current" />
-                تأسيس البراند واستنساخ التطبيق وخطة المحتوى فوراً
+                توليد التطبيق المستنسخ وفتح نوافذ ربط واتساب وميتا فوراً ⚡
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* STAGE 3A: FROM SCRATCH COMPLETED -> APP LINK & WEEK PLAN   */}
-      {/* ========================================================= */}
-      {step === 3 && (
-        <div className="space-y-4 py-1 animate-in zoom-in-95">
-          <div className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex items-center gap-3">
-            <CheckCircle className="w-8 h-8 text-emerald-400 shrink-0" />
-            <div>
-              <h4 className="text-sm font-black text-white">رسمياً تم تأسيس براند: {brandName}!</h4>
-              <p className="text-xs text-emerald-300">تم حجز الهوية، وبناء الكتالوج، وإطلاق رابط التطبيق المباشر.</p>
-            </div>
-          </div>
-
-          {/* Generated App Link Card */}
-          <div className="p-3 rounded-2xl bg-black/60 border border-cyan-500/40 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Globe className="w-5 h-5 text-cyan-400" />
-              <div>
-                <span className="text-[10px] text-cyan-300 font-bold block">رابط تطبيقك المستنسخ للعملاء (PWA):</span>
-                <span className="text-xs font-mono text-white truncate max-w-[220px] block">{generatedAppUrl}</span>
-              </div>
-            </div>
-            <a 
-              href={generatedAppUrl} 
-              target="_blank" 
-              rel="noreferrer" 
-              className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black flex items-center gap-1 shadow-md transition"
-            >
-              فتح التطبيق
-              <ArrowRight className="w-3.5 h-3.5" />
-            </a>
-          </div>
-
-          {/* 1-Week Launch Strategy Box */}
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-amber-400" />
-              خطة الأسبوع الأول لإطلاق ونشر المحتوى (تيتو ستوديو):
-            </span>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-              {weekPlan.map((p, i) => (
-                <div key={i} className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-[11px] flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-cyan-300">{p.day}</span>
-                    <span className="text-[9.5px] bg-purple-500/20 text-purple-300 px-2 py-0.2 rounded-full font-mono">{p.type}</span>
-                  </div>
-                  <p className="text-white font-medium">"{p.hook}"</p>
-                  <span className="text-[9.5px] text-emerald-400 font-bold">الزرار: {p.cta}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-            <span className="text-white/60">بدأت التجربة المجانية الكاملة (شاملة التطبيق)</span>
-            <button
-              onClick={() => setStep(5)}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-black rounded-xl shadow-md transition"
-            >
-              استعراض خيارات الاشتراك والأرباح
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* STAGE 2B: EXISTING BUSINESS -> SALES CHANNELS             */}
-      {/* ========================================================= */}
+      {/* STAGE 4: EXISTING BUSINESS INPUT */}
       {step === 4 && (
-        <div className="space-y-4 py-1 animate-in zoom-in-95">
-          <div className="p-3 rounded-2xl bg-black/40 border border-cyan-500/30 text-xs text-cyan-300 font-bold">
-            🏢 "اكتب اسم بيزنسك الحالي، واختر القناة الأساسية اللي بتبيع وتستقبل زباينك عليها:"
-          </div>
-
-          <div className="space-y-2">
+        <div className="space-y-3 py-1 animate-in zoom-in-95">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs font-bold text-white/80 mb-1">اسم البراند أو العيادة أو الشركة الحالية:</label>
+              <label className="block text-[10px] font-bold text-white/80 mb-1">اسم البراند أو الشركة الحالية:</label>
               <input 
                 type="text" 
                 value={brandName}
                 onChange={(e) => setBrandName(e.target.value)}
-                placeholder="مثال: عيادة دكتور حسام للأسنان، معرض البركة للسيارات"
-                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none"
+                placeholder="مثال: عيادة دكتور حسام، معرض البركة"
+                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
               />
             </div>
-
             <div>
-              <label className="block text-xs font-bold text-white/80 mb-1">رقم الواتساب الحالي للشغل:</label>
+              <label className="block text-[10px] font-bold text-white/80 mb-1">رقم الواتساب للربط الفوري:</label>
               <input 
                 type="tel" 
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="01013373634"
-                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-4 py-2 text-sm text-white font-mono focus:border-cyan-500 focus:outline-none"
+                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono"
                 dir="ltr"
               />
             </div>
           </div>
 
-          <div className="space-y-1.5 pt-1">
-            <label className="block text-xs font-bold text-amber-300">أين تتواجد مبيعاتك الحالية أكثر؟</label>
-            <div className="grid grid-cols-2 gap-2">
-              {['محل / مقر أرضي على الشارع', 'صفحات فيسبوك وإنستجرام', 'شات ومجموعات واتساب فقط', 'موقع إلكتروني أو تطبيق'].map(ch => (
-                <button
-                  key={ch}
-                  onClick={() => handleActivateExistingBusiness(ch)}
-                  className="p-3 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-400 hover:bg-cyan-950/30 text-xs font-bold text-white text-right transition"
-                >
-                  {ch}
-                </button>
-              ))}
-            </div>
+          <div>
+            <label className="block text-[10px] font-bold text-white/80 mb-1">رابط موقعك الحالي أو صفحة فيسبوك (اختياري لسحب الكتالوج):</label>
+            <input 
+              type="url" 
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://..."
+              className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono"
+              dir="ltr"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            {['مبيعات عبر واتساب وسوشيال', 'فرع أو عيادة وحجوزات', 'متجر إلكتروني وتوصيل', 'عقارات أو سيارات'].map(ch => (
+              <button
+                key={ch}
+                onClick={() => handleProvisionVisitorBrand(ch)}
+                disabled={isGenerating}
+                className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400 text-xs font-bold text-white text-right transition flex items-center justify-between"
+              >
+                <span>{ch}</span>
+                <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
+              </button>
+            ))}
           </div>
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* STAGE 5: BUNDLED GROWTH PACKAGES & VIRAL "اعمل فلوس" LOOP */}
-      {/* ========================================================= */}
-      {step === 5 && (
-        <div className="space-y-4 py-1 animate-in zoom-in-95">
-          <div className="text-center space-y-1">
-            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-0.5 rounded-full font-bold">
-              🔥 معادلة النمو المدمجة (50% إعلانات ممولة + 50% نظام وأجنت)
-            </span>
-            <h4 className="text-sm font-black text-white">اختر خطة انطلاقك بعد الأسبوع التجريبي المجاني</h4>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Package 2500: Entry Level (WhatsApp & Messages Only - No App) */}
-            <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2 flex flex-col justify-between">
+      {/* STAGE 3: REAL LIVE EXECUTION HUB (STOREFRONT + WHATSAPP QR/CODE + META CONNECT + 7-DAY TRIAL) */}
+      {step === 3 && (
+        <div className="space-y-3 py-1 animate-in zoom-in-95 max-h-[390px] overflow-y-auto pr-1">
+          {/* 1. Provisioned Storefront Live Banner */}
+          <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle className="w-6 h-6 text-emerald-400 shrink-0" />
               <div>
-                <div className="text-xs font-bold text-white/70">باقة الانطلاق الأساسية</div>
-                <div className="text-base font-black text-white">2,500 ج.م <span className="text-xs font-normal text-white/50">/ شهر</span></div>
-                <p className="text-[10px] text-white/60 pt-1">1,250 ج إعلانات ممولة لرسايل الواتساب + وكيل الرد الآلي 24 ساعة.</p>
-                <div className="mt-2 text-[9.5px] text-rose-400 font-bold bg-rose-500/10 p-1.5 rounded-lg border border-rose-500/20">
-                  ⚠️ لا تشمل تطبيق الويب المستنسخ بعد انتهاء التجربة.
-                </div>
+                <h4 className="text-xs font-black text-white">تم استنساخ وتفعيل تطبيق: {generatedBrand?.name || brandName}</h4>
+                <p className="text-[10px] text-emerald-300 font-mono">{generatedAppUrl}</p>
               </div>
-              <button 
-                onClick={() => alert("تم اختيار باقة الانطلاق (2500 ج) بنجاح!")}
-                className="w-full py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition"
-              >
-                اختيار باقة 2,500 ج
-              </button>
             </div>
-
-            {/* Package 5000: The Growth Package (Includes Cloned Web App + Conversion Ads) */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-950/30 to-[#020d1a] border-2 border-amber-500/60 shadow-[0_0_25px_rgba(245,158,11,0.2)] space-y-2 flex flex-col justify-between relative">
-              <span className="absolute -top-2.5 left-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-md">
-                ⭐ الأكثر طلباً (تشمل التطبيق)
-              </span>
-              <div>
-                <div className="text-xs font-black text-amber-300">باقة النمو المتكاملة</div>
-                <div className="text-base font-black text-white">5,000 ج.م <span className="text-xs font-normal text-white/50">/ شهر</span></div>
-                <p className="text-[10px] text-white/70 pt-1">2,500 ج إعلانات ممولة لرسايل الواتساب والتحويل لتطبيقك + وكيل الرد الذكي بصوت بشري + تطبيق ويب كامل باسمك.</p>
-                <div className="mt-2 text-[9.5px] text-emerald-400 font-bold bg-emerald-500/10 p-1.5 rounded-lg border border-emerald-500/20">
-                  ✅ استمرار تطبيق الويب المستنسخ مفتوحاً 100%.
-                </div>
-              </div>
-              <button 
-                onClick={() => alert("تم تفعيل باقة النمو (5000 ج) بنجاح!")}
-                className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 text-black font-black text-xs rounded-xl shadow-md transition"
-              >
-                تفعيل باقة النمو (5,000 ج)
-              </button>
-            </div>
-          </div>
-
-          {/* Viral Marketing Loop: "اعمل فلوس" Box */}
-          <div className="p-3.5 rounded-2xl bg-[#03091e] border border-cyan-500/40 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="text-xs font-black text-cyan-300 flex items-center gap-1">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                مش جاهز تشترك دلوقتي؟ دوس "اعمل فلوس"!
-              </span>
-              <p className="text-[10px] text-white/50">سوّق للمنظومة بكودك <span className="font-mono text-cyan-400 font-bold">{referralCode}</span> وجارفيس هيولدلك بوستات تسويقية تكسب منها عمولات حقيقية!</p>
-            </div>
-            <button 
-              onClick={() => {
-                const link = `https://Ez-zel.vercel.app/?ref=${referralCode}`;
-                navigator.clipboard.writeText(link);
-                alert(`تم نسخ رابط الإحالة التسويقي الخاص بك:\n${link}\nانشره الآن واكسب عمولات مع كل اشتراك!`);
-              }}
-              className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-black font-black text-xs flex items-center gap-1 shrink-0 shadow-md transition"
+            <a 
+              href={generatedAppUrl || `/store/${generatedBrand?.slug || 'clean_master'}`}
+              target="_blank" 
+              rel="noreferrer" 
+              className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black flex items-center gap-1 shrink-0 shadow-md"
             >
-              <Share2 className="w-3.5 h-3.5" />
-              اعمل فلوس
-            </button>
+              <ExternalLink className="w-3.5 h-3.5" />
+              فتح تطبيقك الحي
+            </a>
           </div>
+
+          {/* 2. Real Interactive Account Connection Windows (WhatsApp & Meta) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {/* Window A: WhatsApp QR & Pairing Code */}
+            <div className="p-3 rounded-2xl bg-black/60 border border-emerald-500/30 flex flex-col justify-between gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-emerald-400 flex items-center gap-1">
+                  <QrCode className="w-3.5 h-3.5" />
+                  نافذة ربط واتساب الذكي
+                </span>
+                <span className="text-[9px] font-mono bg-emerald-500/15 text-emerald-300 px-2 py-0.5 rounded-full">
+                  {waPairingData?.connected ? 'تم التوليد 🟢' : 'T2 Agent'}
+                </span>
+              </div>
+
+              {waPairingData ? (
+                <div className="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center gap-2.5">
+                  <img src={waPairingData.qrDataUrl} alt="WhatsApp QR" className="w-16 h-16 rounded-lg bg-white p-1 shrink-0" />
+                  <div className="space-y-1 text-right">
+                    <div className="text-[10px] text-white/70">كود الربط المباشر للهاتف:</div>
+                    <div className="text-xs font-mono font-black text-amber-300 bg-black/60 px-2 py-1 rounded border border-amber-500/30">
+                      {waPairingData.pairingCode}
+                    </div>
+                    <div className="text-[9px] text-emerald-300">امسح الـ QR أو أدخل الكود في واتساب</div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[10px] text-white/60">
+                  اربط رقم الواتساب ({phone}) بمحرك T2 Agent للرد الآلي بالصوت البشري وتأكيد الحجوزات 24/7.
+                </p>
+              )}
+
+              <button
+                onClick={handleConnectWhatsAppLive}
+                disabled={isConnectingWa}
+                className="w-full py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-black transition"
+              >
+                {isConnectingWa ? 'جاري فتح جلسة الربط...' : waPairingData ? '🔄 تحديث كود الربط و QR' : '📱 إظهار QR وكود ربط واتساب الآن'}
+              </button>
+            </div>
+
+            {/* Window B: Meta (Facebook & Instagram) Connect */}
+            <div className="p-3 rounded-2xl bg-black/60 border border-blue-500/30 flex flex-col justify-between gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-blue-400 flex items-center gap-1">
+                  <Link2 className="w-3.5 h-3.5" />
+                  نافذة ربط فيسبوك وإنستجرام
+                </span>
+                <span className="text-[9px] font-mono bg-blue-500/15 text-blue-300 px-2 py-0.5 rounded-full">
+                  {metaConnectData?.connected ? 'متصل 🟢' : 'Meta Graph'}
+                </span>
+              </div>
+
+              {metaConnectData ? (
+                <div className="p-2 rounded-xl bg-blue-950/30 border border-blue-500/30 space-y-1">
+                  <div className="text-xs font-black text-white flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    {metaConnectData.pageName}
+                  </div>
+                  <div className="text-[9px] font-mono text-cyan-300">Page ID: {metaConnectData.pageId}</div>
+                  <div className="text-[9px] text-emerald-400">النشر التلقائي والرد على التعليقات مفعل!</div>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={metaInputPageName}
+                  onChange={(e) => setMetaInputPageName(e.target.value)}
+                  placeholder={`اسم الصفحة (مثال: ${brandName || 'صفحتي الرسمية'})`}
+                  className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-2.5 py-1.5 text-[11px] text-white"
+                />
+              )}
+
+              <button
+                onClick={handleConnectMetaLive}
+                disabled={isConnectingMeta}
+                className="w-full py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 text-[11px] font-black transition"
+              >
+                {isConnectingMeta ? 'جاري ربط Meta Graph...' : metaConnectData ? '✅ تم ربط الصفحة بنجاح' : '🔗 ربط صفحة فيسبوك وإنستجرام الآن'}
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Activate 7-Day Free Trial as Executive Brand CEO */}
+          <button
+            onClick={() => onComplete?.(generatedBrand)}
+            className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-emerald-500 to-cyan-500 text-black font-black text-xs shadow-[0_0_25px_rgba(16,185,129,0.4)] transition flex items-center justify-center gap-2"
+          >
+            <Rocket className="w-4 h-4" />
+            تفعيل أسبوع التجربة المجانية والدخول لغرفة المدير التنفيذي لبراندك ➔
+          </button>
         </div>
       )}
 

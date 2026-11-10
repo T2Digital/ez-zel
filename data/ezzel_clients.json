@@ -1,0 +1,75 @@
+[
+  {
+    "id": "ezzel_usr_01",
+    "name": "أحمد عطية (الماستر تيتو)",
+    "role": "Super Admin & Founder",
+    "plan": "Sovereign Master Unlimited",
+    "voicePersona": "Gemini Puck 24kHz (البشري الأصيل)",
+    "status": "active",
+    "activeTasksCount": 14,
+    "memoryNodesCount": 128,
+    "monthlySubscriptionEgp": 0,
+    "affiliateEarningsEgp": 18500,
+    "joinedAt": "2026-01-01",
+    "devices": [
+      "Windows Workstation (D:\\ez-zel-)",
+      "Android Sovereign Phone"
+    ]
+  },
+  {
+    "id": "ezzel_usr_02",
+    "name": "د. نور الدين (عيادة كريستال)",
+    "role": "مشترك باقة المدير التنفيذي (Brand CEO)",
+    "plan": "VIP Executive Assistant + Growth OS",
+    "voicePersona": "Gemini Puck 24kHz",
+    "status": "active",
+    "activeTasksCount": 8,
+    "memoryNodesCount": 42,
+    "monthlySubscriptionEgp": 5000,
+    "affiliateEarningsEgp": 1000,
+    "joinedAt": "2026-10-15",
+    "linkedBrandId": "crystal_teeth"
+  },
+  {
+    "id": "ezzel_usr_03",
+    "name": "م. محمود خضر (شركة الخضر للسيارات)",
+    "role": "مشترك باقة المدير التنفيذي (Brand CEO)",
+    "plan": "Enterprise VIP",
+    "voicePersona": "Gemini Puck 24kHz",
+    "status": "active",
+    "activeTasksCount": 11,
+    "memoryNodesCount": 64,
+    "monthlySubscriptionEgp": 4900,
+    "affiliateEarningsEgp": 2450,
+    "joinedAt": "2026-10-20",
+    "linkedBrandId": "alkhedr_car_rental"
+  },
+  {
+    "id": "ezzel_usr_04",
+    "name": "أ. بيشوي (Sale Gates Egypt)",
+    "role": "مشترك باقة العقارات الذكية",
+    "plan": "Business Pro",
+    "voicePersona": "Gemini Puck 24kHz",
+    "status": "active",
+    "activeTasksCount": 9,
+    "memoryNodesCount": 53,
+    "monthlySubscriptionEgp": 3500,
+    "affiliateEarningsEgp": 700,
+    "joinedAt": "2026-10-25",
+    "linkedBrandId": "besho"
+  },
+  {
+    "id": "ezzel_usr_05",
+    "name": "أ. محمد بطاح (بطاح لقطع الغيار)",
+    "role": "فترة تجربة مجانية 7 أيام",
+    "plan": "7-Day Free Trial (Growth OS)",
+    "voicePersona": "Gemini Kore 24kHz",
+    "status": "trial",
+    "activeTasksCount": 4,
+    "memoryNodesCount": 19,
+    "monthlySubscriptionEgp": 2190,
+    "affiliateEarningsEgp": 0,
+    "joinedAt": "2026-11-08",
+    "linkedBrandId": "battah_system"
+  }
+]

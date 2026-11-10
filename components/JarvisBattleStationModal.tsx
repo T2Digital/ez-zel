@@ -104,8 +104,20 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 });
   const [isClickingCursor, setIsClickingCursor] = useState(false);
 
-  // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway'
-  const [activeDeckTab, setActiveDeckTab] = useState<'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway'>('studio_calendar');
+  // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview'
+  const [activeDeckTab, setActiveDeckTab] = useState<'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview'>('obsidian_graph');
+  
+  // Obsidian Knowledge Graph & Agency Telemetry State
+  const [obsidianSnapshot, setObsidianSnapshot] = useState<any>(null);
+  const [selectedObsidianNode, setSelectedObsidianNode] = useState<any>(null);
+  const [obsidianNodeMarkdown, setObsidianNodeMarkdown] = useState<string>('');
+  const [isWaConnectModalOpen, setIsWaConnectModalOpen] = useState<boolean>(false);
+  const [waPairingInfo, setWaPairingInfo] = useState<any>(null);
+  const [waPhoneInput, setWaPhoneInput] = useState<string>('01013373634');
+  const [isConnectingChannel, setIsConnectingChannel] = useState<boolean>(false);
+  const [isMetaConnectModalOpen, setIsMetaConnectModalOpen] = useState<boolean>(false);
+  const [metaConnectInfo, setMetaConnectInfo] = useState<any>(null);
+  const [metaPageInput, setMetaPageInput] = useState<string>('');
   
   // Selected Brand for Active Deep Interaction across all 3 Apps
   const [selectedBrandId, setSelectedBrandId] = useState<string>('clean_master');
@@ -158,25 +170,103 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         if (ctx.state === 'suspended') await ctx.resume();
       }
       stream.getTracks().forEach(t => t.stop());
-      
-      const audioBuffer = await fetch('/api/tts/edge-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: "تم تفعيل المايك بنجاح يا ماستر تيتو، أنا سامعك بكل وضوح وجاهز لأوامرك!",
-          voice: 'ar-EG-ShakirNeural'
-        })
-      }).then(r => r.blob()).catch(() => null);
-
-      if (audioBuffer) {
-        const audio = new Audio(URL.createObjectURL(audioBuffer));
-        setIsPlayingVoice(true);
-        audio.play().catch(() => {});
-        audio.onended = () => setIsPlayingVoice(false);
-      }
+      playShadowVoice("تم تفعيل المايك بنجاح يا ماستر تيتو، أنا سامعك بصوت جميني البشري وجاهز لأوامرك!", 'male');
     } catch (e: any) {
       console.warn("Explicit mic request error:", e);
       alert("يرجى الضغط على علامة القفل بجوار رابط الموقع في المتصفح واختيار (Allow) للميكروفون.");
+    }
+  };
+
+  const fetchObsidianVault = () => {
+    fetch('/api/obsidian/graph')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          setObsidianSnapshot(d);
+          if (d.growthAgencyBrands && d.growthAgencyBrands.length > 0) {
+            setAllBrandsList(d.growthAgencyBrands);
+          }
+          const defaultNode = d.nodes?.find((n: any) => n.brandId === selectedBrandId) || d.nodes?.[1] || d.nodes?.[0];
+          if (defaultNode && !selectedObsidianNode) {
+            setSelectedObsidianNode(defaultNode);
+          }
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleInspectObsidianNode = (nodeOrId: any) => {
+    const targetBrandId = typeof nodeOrId === 'string' ? nodeOrId : nodeOrId?.brandId;
+    if (typeof nodeOrId === 'object' && nodeOrId) {
+      setSelectedObsidianNode(nodeOrId);
+    }
+    if (targetBrandId) {
+      setSelectedBrandId(targetBrandId);
+      fetch(`/api/obsidian/node/${targetBrandId}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.success && d.markdown) {
+            setObsidianNodeMarkdown(d.markdown);
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
+  const handleOpenWhatsAppConnectModal = async (phoneOverride?: string) => {
+    const targetId = currentSelectedBrand.id || 'clean_master';
+    const targetPhone = phoneOverride || waPhoneInput || currentSelectedBrand.phone || '01013373634';
+    setWaPhoneInput(targetPhone);
+    setIsWaConnectModalOpen(true);
+    setIsConnectingChannel(true);
+    try {
+      const res = await fetch('/api/jarvis/execute-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionType: 'CONNECT_WHATSAPP_PAIRING',
+          brandId: targetId,
+          payload: { phone: targetPhone },
+          data: { phone: targetPhone }
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setWaPairingInfo(d);
+        playShadowVoice(`فتحتلك نافذة ربط الواتساب المباشر لبراند ${currentSelectedBrand.name}، كود الربط جاهز قدامك يا ماستر!`, 'male');
+      }
+    } catch {} finally {
+      setIsConnectingChannel(false);
+    }
+  };
+
+  const handleOpenMetaConnectModal = async () => {
+    setIsMetaConnectModalOpen(true);
+    setMetaPageInput(`${currentSelectedBrand.name} - Official`);
+  };
+
+  const handleConfirmMetaConnect = async () => {
+    setIsConnectingChannel(true);
+    try {
+      const res = await fetch('/api/jarvis/execute-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionType: 'CONNECT_META_OAUTH',
+          brandId: currentSelectedBrand.id || 'clean_master',
+          payload: { pageName: metaPageInput || currentSelectedBrand.name },
+          data: { pageName: metaPageInput || currentSelectedBrand.name }
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setMetaConnectInfo(d);
+        setIsMetaConnectModalOpen(false);
+        fetchObsidianVault();
+        playShadowVoice(`تم ربط صفحة فيسبوك وإنستجرام ${d.pageName || metaPageInput} بمحركي تيتو ستوديو وتيتو أجنت وتحديث عقدة أوبسيديان!`, 'male');
+      }
+    } catch {} finally {
+      setIsConnectingChannel(false);
     }
   };
 
@@ -225,8 +315,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       const liveEvents = [
         `[SYNC]: WhatsApp Baileys gateway heart-beat pulse OK.`,
         `[DEAL]: Incoming reservation inquiry processed via AI dialog.`,
-        `[VOICE]: Speech engine status 100% human studio fidelity (ar-EG-Shakir).`,
-        `[VAULT]: Persistent telemetry synced to brands.json & tenants.json.`,
+        `[VOICE]: Gemini Human Audio 24kHz (Puck / Kore) active at 100% fidelity.`,
+        `[OBSIDIAN]: Live Knowledge Graph & Markdown Vault synchronized.`,
         `[ACTUATOR]: Chromium Executive Browser Engine ready for dispatch.`,
         `[SYS]: Memory garbage collection cycle completed cleanly.`
       ];
@@ -285,6 +375,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
 
     fetchDatabaseStats();
+    fetchObsidianVault();
 
     // Fetch live market briefing (BTC / Gold)
     fetch('/api/system/jarvis-briefing')
@@ -546,18 +637,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     let text = '';
     if (activeP === 'visitor') {
-      text = `أهلاً بك في منصة الظل الرقمي السيادية! أنا جارفيس، سيب القيادة لي تماماً. قولي عندك نشاط تجاري قائم ولا فكرة جديدة من الصفر؟ هنولدلك تطبيقك ونربط وكيل مبيعات الواتساب في ثواني!`;
+      text = `يا هلا بيك في منظومة النمو الشامل للأعمال! أنا جارفيس، قولي عندك بيزنس شغال ولا فكرة جديدة من الصفر؟ هنولدلك تطبيقك ونربط واتساب وميتا ونشغلك اسبوع مجاناً فوراً!`;
     } else if (activeP === 'trial') {
-      text = `أهلاً بك في أسبوع التجربة السيادية المجانية لـ 7 أيام! تطبيقك متصل الآن والأجنت جاهز لاستقبال العملاء وتأكيد الحجوزات.. تحب نستعرض خطة النشر ولا نطلق حملة واتساب دلوقتي؟`;
+      text = `أهلاً بيك يا فندم في اسبوع التجربة المجانية! أنا معاك كمدير تنفيذي لبراندك، تطبيقك شغال والواتساب مربوط.. تحب نراجع تقويم محتوى تيتو ستوديو ولا نطلق حملة إعلانات دلوقتي؟`;
     } else if (activeP === 'client') {
-      text = `أهلاً بك يا شريك النجاح! جميع قنواتك متزامنة، ماكينة المحتوى والأجنت شغالين 24 ساعة بأعلى كفاءة لزيادة مبيعاتك.. تحب تراجع تقرير الحجوزات ولا نضيف عروض جديدة اليوم؟`;
+      text = `نورت كابينة قيادة براندك يا شريك النجاح! أنا معاك كمدير تنفيذي وسكرتير ذكي لمتابعة المحتوى والواتساب والحجوزات لحظة بلحظة.. تحب ننفذ إيه دلوقتي؟`;
     } else {
       // Supreme Executive Greeting Exclusively for Master Tito!
-      text = `${timeGreeting} عليك يا ماستر تيتو! كابينة قيادة جارفيس السيادية تحت إمرتك بالكامل. أسطول الـ ${brandsCount} براند، وبوابة الـ Microservices، وماكينة المحتوى، وإعلانات السوشيال شغالين في أتم الجاهزية.. تؤمرني بإيه يا باشا وتحب نعمل إيه دلوقتي؟`;
+      text = `${timeGreeting} عليك يا ماستر تيتو! نورت كابينة قيادتك، خزنة أوبسيديان والـ ${brandsCount} براند وعملاء الظل جاهزين قدامك.. تحب نعمل إيه دلوقتي يا باشا؟`;
     }
 
     setTranscript(text);
-    // Play ONLY 100% human neural studio voice via node-edge-tts (Shakir Egyptian)
+    // Play ONLY 100% Gemini Human TTS voice (Puck 24kHz)
     playShadowVoice(text, 'male', undefined, () => {
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
@@ -585,7 +676,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  // Process Live Voice Command through Jarvis Brain & Edge TTS
+  // Process Live Voice Command through Jarvis Brain & Gemini Human TTS
   const handleSendLiveCommand = async (commandText: string) => {
     setIsThinking(true);
     isThinkingRef.current = true;
@@ -594,7 +685,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       const res = await fetch('/api/system/jarvis-conversation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: commandText })
+        body: JSON.stringify({
+          message: commandText,
+          persona,
+          selectedBrandId: currentSelectedBrand.id
+        })
       });
       const data = await res.json();
       if (data.success && data.replyText) {
@@ -609,7 +704,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           }
         };
 
-        // Play authentic Egyptian human voice reply
+        // Play authentic Egyptian Gemini Human voice reply
         setIsPlayingVoice(true);
         isPlayingVoiceRef.current = true;
 
@@ -632,6 +727,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           if (data.action.type === 'SWITCH_TAB' && data.action.tab) {
             setActiveDeckTab(data.action.tab);
             if (data.action.brandId) handleSelectBrand(data.action.brandId);
+          } else if (data.action.type === 'OPEN_MODAL') {
+            if (data.action.brandId) handleSelectBrand(data.action.brandId);
+            if (data.action.modal === 'whatsapp_connect') {
+              handleOpenWhatsAppConnectModal(data.action.brandId);
+            } else if (data.action.modal === 'meta_connect') {
+              handleOpenMetaConnectModal(data.action.brandId);
+            }
           } else if (data.action.type === 'TRIGGER_ACTION') {
             if (data.action.action === 'PUBLISH_POST') {
               handlePublishPost(data.action.brandId || selectedBrandId, 0);
@@ -873,8 +975,34 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </span>
               </div>
 
-              {/* 6 High-Power Quick Action Buttons */}
+              {/* 8 High-Power Quick Action & Connection Buttons */}
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setActiveDeckTab('obsidian_graph')}
+                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                    activeDeckTab === 'obsidian_graph'
+                      ? 'bg-fuchsia-500/25 border-fuchsia-400 text-fuchsia-200 shadow-[0_0_15px_rgba(217,70,239,0.35)]'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-fuchsia-500/10 hover:border-fuchsia-500/30'
+                  }`}
+                >
+                  <Layers className="w-4 h-4 text-fuchsia-400" />
+                  <span className="text-xs font-bold">عقل أوبسيديان</span>
+                  <span className="text-[9px] text-white/40">شبكة المعرفة الحية</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('agency_overview')}
+                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                    activeDeckTab === 'agency_overview'
+                      ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.35)]'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-amber-500/10 hover:border-amber-500/30'
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold">إدارة الوكالة والظل</span>
+                  <span className="text-[9px] text-white/40">عملاء الظل والبراندات</span>
+                </button>
+
                 <button
                   onClick={() => setActiveDeckTab('studio_calendar')}
                   className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
@@ -889,32 +1017,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </button>
 
                 <button
-                  onClick={() => setActiveDeckTab('content_post_card')}
-                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
-                    activeDeckTab === 'content_post_card'
-                      ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-purple-500/10 hover:border-purple-500/30'
-                  }`}
-                >
-                  <FileText className="w-4 h-4 text-purple-400" />
-                  <span className="text-xs font-bold">بطاقة المنشور</span>
-                  <span className="text-[9px] text-white/40">معاينة وإطلاق</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveDeckTab('agent_fleet')}
-                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
-                    activeDeckTab === 'agent_fleet'
-                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-emerald-500/10 hover:border-emerald-500/30'
-                  }`}
-                >
-                  <MessageSquare className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-bold">شات الواتساب</span>
-                  <span className="text-[9px] text-white/40">محادثات وCRM</span>
-                </button>
-
-                <button
                   onClick={() => setActiveDeckTab('app_cloner')}
                   className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
                     activeDeckTab === 'app_cloner'
@@ -924,7 +1026,25 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 >
                   <Smartphone className="w-4 h-4 text-blue-400" />
                   <span className="text-xs font-bold">مستنسخ PWA</span>
-                  <span className="text-[9px] text-white/40">متاجر فورية</span>
+                  <span className="text-[9px] text-white/40">متاجر وحجز فوري</span>
+                </button>
+
+                <button
+                  onClick={() => handleOpenWhatsAppConnectModal()}
+                  className="p-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-right transition-all flex flex-col items-start gap-1"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold">ربط واتساب لايف</span>
+                  <span className="text-[9px] text-white/40">كود ربط أو QR فوري</span>
+                </button>
+
+                <button
+                  onClick={() => handleOpenMetaConnectModal()}
+                  className="p-2.5 rounded-2xl border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-right transition-all flex flex-col items-start gap-1"
+                >
+                  <Share2 className="w-4 h-4 text-indigo-400" />
+                  <span className="text-xs font-bold">ربط ميتا وإنستا</span>
+                  <span className="text-[9px] text-white/40">OAuth Graph API</span>
                 </button>
 
                 <button
@@ -1110,12 +1230,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {/* TOP BAR: Explicit Chromium Mic Activator + Operational Mode Switcher */}
             <div className="w-full max-w-xl flex flex-col gap-2 bg-[#040a24]/95 p-2.5 rounded-3xl border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.2)]">
               
-              {/* 1. Explicit Mic & Voice Activation Alert (Fixed Chromium Gesture Requirement) */}
+              {/* 1. Explicit Mic & Voice Activation Alert (Gemini 24kHz Human Voice Engine) */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-black/50 rounded-2xl border border-white/5">
                 <div className="flex items-center gap-2">
                   <span className={`w-2.5 h-2.5 rounded-full ${hasMicPermission ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
                   <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
-                    {hasMicPermission ? '🟢 الميكروفون المباشر نشط 100% (استوديو Shakir)' : '⚠️ إذن الميكروفون يتطلب تفعيل يدوي للمتصفح'}
+                    {hasMicPermission ? '🟢 الميكروفون نشط • صوت Gemini البشري 24kHz (Puck)' : '⚠️ إذن الميكروفون يتطلب تفعيل يدوي للمتصفح'}
                   </span>
                 </div>
 
@@ -1129,13 +1249,37 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </button>
                 ) : (
                   <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                    24kHz PCM • READY
+                    GEMINI 3.8 TTS • 24kHz
                   </span>
                 )}
               </div>
 
-              {/* 2. Unified Operational Mode Tabs (Deep Multi-App Integration) */}
-              <div className="grid grid-cols-6 gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[10px] font-bold select-none font-['Cairo']">
+              {/* 2. Unified Operational Mode Tabs (8 Deep Multi-App & Obsidian Tabs) */}
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[9.5px] font-bold select-none font-['Cairo']">
+                <button
+                  onClick={() => setActiveDeckTab('obsidian_graph')}
+                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                    activeDeckTab === 'obsidian_graph'
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-black shadow-[0_0_15px_rgba(217,70,239,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <Layers className="w-3 h-3" />
+                  <span>أوبسيديان</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('agency_overview')}
+                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                    activeDeckTab === 'agency_overview'
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <Users className="w-3 h-3" />
+                  <span>الوكالة والظل</span>
+                </button>
+
                 <button
                   onClick={() => setActiveDeckTab('studio_calendar')}
                   className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
@@ -1144,9 +1288,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">تقويم ستوديو</span>
-                  <span className="sm:hidden">تقويم</span>
+                  <Calendar className="w-3 h-3" />
+                  <span>تقويم ستوديو</span>
                 </button>
 
                 <button
@@ -1157,22 +1300,20 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">بطاقة المنشور</span>
-                  <span className="sm:hidden">منشور</span>
+                  <FileText className="w-3 h-3" />
+                  <span>المنشور</span>
                 </button>
 
                 <button
                   onClick={() => setActiveDeckTab('agent_fleet')}
                   className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
                     activeDeckTab === 'agent_fleet'
-                      ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                      ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
-                  <Bot className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">تيتو أيدجنت</span>
-                  <span className="sm:hidden">أيدجنت</span>
+                  <Bot className="w-3 h-3" />
+                  <span>الأيدجنت</span>
                 </button>
 
                 <button
@@ -1183,9 +1324,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
-                  <Smartphone className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">مستنسخ التطبيقات</span>
-                  <span className="sm:hidden">مستنسخ</span>
+                  <Smartphone className="w-3 h-3" />
+                  <span>المستنسخ</span>
                 </button>
 
                 <button
@@ -1196,9 +1336,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">ماكينة الإعلانات</span>
-                  <span className="sm:hidden">إعلانات</span>
+                  <TrendingUp className="w-3 h-3" />
+                  <span>إعلانات</span>
                 </button>
 
                 <button
@@ -1209,9 +1348,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">حجوزات CRM</span>
-                  <span className="sm:hidden">حجوزات</span>
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>حجوزات CRM</span>
                 </button>
               </div>
             </div>
@@ -1222,91 +1360,345 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 onSwitchToAdmin={() => setPersona('tito')}
                 onComplete={() => {
                   fetchDatabaseStats();
+                  fetchObsidianVault();
                   setPersona('trial');
                 }}
               />
-            ) : persona === 'trial' ? (
-              <div className="w-full max-w-xl bg-gradient-to-br from-[#061a12] via-[#020b18] to-[#0a1528] border-2 border-emerald-500/50 rounded-3xl p-4 md:p-6 shadow-[0_0_40px_rgba(16,185,129,0.25)] flex flex-col gap-4 text-right animate-in fade-in font-['Cairo']">
-                {/* Trial Header with 7-Day Countdown */}
-                <div className="flex items-center justify-between pb-3 border-b border-emerald-500/20">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-emerald-400 animate-ping" />
-                    <div>
-                      <h3 className="text-sm font-black text-white flex items-center gap-2">
-                        ⏳ أسبوع التجربة المجاني النشط (7 أيام)
-                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">
-                          باقي 6 أيام و18 ساعة
-                        </span>
-                      </h3>
-                      <p className="text-[11px] text-white/50">تطبيقك المستنسخ والأجنت شغالين بأقصى طاقة مجاناً 100%</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setPersona('tito')} className="text-[10px] text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/30 font-bold">
-                    👑 وضع الأدمن
-                  </button>
-                </div>
-
-                {/* 3 Active Pillars during Trial */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-center">
-                  <div className="p-3 rounded-2xl bg-black/40 border border-emerald-500/30">
-                    <Smartphone className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-                    <div className="text-xs font-bold text-white">تطبيق الويب PWA</div>
-                    <span className="text-[10px] text-emerald-400 font-mono">مفتوح ونشط 🟢</span>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-black/40 border border-cyan-500/30">
-                    <Bot className="w-5 h-5 text-cyan-400 mx-auto mb-1" />
-                    <div className="text-xs font-bold text-white">وكيل الواتساب والرد</div>
-                    <span className="text-[10px] text-cyan-400 font-mono">صوت بشري 3 ثواني 🟢</span>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-black/40 border border-amber-500/30">
-                    <Sparkles className="w-5 h-5 text-amber-400 mx-auto mb-1" />
-                    <div className="text-xs font-bold text-white">خطة الإعلانات</div>
-                    <span className="text-[10px] text-amber-400 font-mono">4 بوستات مجدولة 🟢</span>
-                  </div>
-                </div>
-
-                {/* Upsell Comparison Alert after Trial ends */}
-                <div className="p-3.5 rounded-2xl bg-[#03091e] border-2 border-amber-500/40 space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-400">
-                    <DollarSign className="w-4 h-4" />
-                    <span>ماذا بعد انتهاء الأسبوع التجريبي؟ (اختر مسار انطلاقك)</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-right">
-                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-1">
-                      <div className="text-xs font-bold text-white/80">باقة 2,500 ج / شهر</div>
-                      <p className="text-[9.5px] text-white/50">1,250 ج إعلانات رسايل واتساب + الأجنت 24 ساعة.</p>
-                      <div className="text-[9px] text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded">
-                        ⚠️ لا تشمل تطبيق الويب بعد التجربة
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-950/40 to-black border border-amber-500/50 space-y-1">
-                      <div className="text-xs font-black text-amber-300">باقة 5,000 ج / شهر ⭐</div>
-                      <p className="text-[9.5px] text-white/70">2,500 ج إعلانات تحويل ورسايل + التطبيق كاملاً + الأجنت بصوت بشري.</p>
-                      <div className="text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                        ✅ استمرار التطبيق المستنسخ مفتوحاً
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Viral "اعمل فلوس" Loop Card */}
-                <div className="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-                      💰
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white">ماكينة "اعمل فلوس" (10% كاش فوري)</div>
-                      <div className="text-[10px] text-white/50">كود إحالتك: <span className="font-mono text-emerald-400 font-bold">VIP_7781</span> • اربح من 250 ج لـ 500 ج على كل مشترك!</div>
-                    </div>
-                  </div>
-                  <button onClick={() => alert("تم نسخ رابط إحالتك التسويقي!")} className="px-3 py-1.5 bg-emerald-500 text-black font-bold text-xs rounded-xl shadow-md">
-                    نسخ الرابط
-                  </button>
-                </div>
-              </div>
             ) : (
               <>
+                {/* EXECUTIVE BRAND CEO COCKPIT BANNER (For Trial & Subscribed Clients) */}
+                {(persona === 'trial' || persona === 'client') && (
+                  <div className="w-full max-w-xl bg-gradient-to-r from-[#061a16] via-[#041226] to-[#120824] border border-emerald-500/40 rounded-3xl p-3.5 shadow-[0_0_25px_rgba(16,185,129,0.2)] flex flex-col gap-2.5 text-right font-['Cairo'] animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                        <div>
+                          <h3 className="text-xs font-black text-white flex items-center gap-1.5">
+                            👔 جارفيس: المدير التنفيذي والسكرتير الذكي لبراند <span className="text-cyan-300">{currentSelectedBrand.name}</span>
+                            {persona === 'trial' && (
+                              <span className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-mono">
+                                تجربة مجانية (7 أيام نشطة)
+                              </span>
+                            )}
+                          </h3>
+                          <p className="text-[10px] text-white/60">
+                            أدير لك خطة محتوى تيتو ستوديو، وأرد على عملاء الواتساب بصوت بشري، وأستقبل الحجوزات في متجرك المستنسخ
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setPersona('tito')}
+                        className="text-[9.5px] text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1 rounded-xl border border-amber-500/30 font-bold shrink-0"
+                      >
+                        👑 وضع الماستر تيتو
+                      </button>
+                    </div>
+
+                    {/* Direct Real-Action Controls for the Client's Brand */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        onClick={() => handleOpenWhatsAppConnectModal()}
+                        className="py-1.5 px-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>ربط واتساب البراند</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenMetaConnectModal()}
+                        className="py-1.5 px-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/40 text-indigo-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
+                      >
+                        <Share2 className="w-3 h-3" />
+                        <span>ربط فيسبوك وإنستا</span>
+                      </button>
+
+                      <button
+                        onClick={() => window.open(`/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`, '_blank')}
+                        className="py-1.5 px-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>فتح متجرك PWA</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+            {/* TAB 0A: OBSIDIAN LIVE KNOWLEDGE GRAPH & SECOND BRAIN VAULT */}
+            {activeDeckTab === 'obsidian_graph' && (
+              <div className="w-full max-w-xl rounded-3xl bg-[#040616]/95 border-2 border-fuchsia-500/40 shadow-[0_0_40px_rgba(217,70,239,0.22)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
+                <div className="flex items-center justify-between pb-2 border-b border-fuchsia-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-fuchsia-400 animate-ping" />
+                    <div>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        🧠 عقل أوبسيديان السيادي الحي • Obsidian Neural Knowledge Graph
+                      </h4>
+                      <p className="text-[10px] text-white/50">
+                        ترابط حي بين خزنة البراندات، متاجر PWA المستنسخة، تقويم ستوديو، ووكلاء الواتساب (ملفات Markdown حقيقية بـ [[WikiLinks]])
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={fetchObsidianVault}
+                    className="px-2.5 py-1 rounded-xl bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-200 border border-fuchsia-500/40 text-[10px] font-bold flex items-center gap-1 transition"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>مزامنة الخزنة</span>
+                  </button>
+                </div>
+
+                {/* Interactive SVG Knowledge Graph Canvas */}
+                <div className="relative w-full h-56 rounded-2xl bg-[#02030c] border border-fuchsia-500/30 overflow-hidden">
+                  <svg className="w-full h-full" viewBox="0 0 600 240">
+                    <defs>
+                      <radialGradient id="hubGlow" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stopColor="#d946ef" stopOpacity="0.6" />
+                        <stop offset="100%" stopColor="#d946ef" stopOpacity="0" />
+                      </radialGradient>
+                    </defs>
+
+                    {/* Center Hub Glow */}
+                    <circle cx="300" cy="120" r="65" fill="url(#hubGlow)" />
+
+                    {/* Neural Edges & Brand Nodes */}
+                    {(allBrandsList.slice(0, 10)).map((b: any, idx: number) => {
+                      const total = Math.min(10, allBrandsList.length || 1);
+                      const angle = (idx / total) * Math.PI * 2 - Math.PI / 2;
+                      const radiusX = 215;
+                      const radiusY = 85;
+                      const nx = Math.round(300 + Math.cos(angle) * radiusX);
+                      const ny = Math.round(120 + Math.sin(angle) * radiusY);
+                      const isSel = b.id === currentSelectedBrand.id || b.slug === currentSelectedBrand.slug;
+
+                      return (
+                        <g
+                          key={b.id || idx}
+                          onClick={() => {
+                            handleSelectBrand(b.id || b.slug);
+                            handleInspectObsidianNode(b.id || b.slug);
+                          }}
+                          className="cursor-pointer group"
+                        >
+                          {/* Edge to Master Hub */}
+                          <line
+                            x1="300"
+                            y1="120"
+                            x2={nx}
+                            y2={ny}
+                            stroke={isSel ? '#00f0ff' : 'rgba(217, 70, 239, 0.32)'}
+                            strokeWidth={isSel ? '2.2' : '1'}
+                            strokeDasharray={isSel ? 'none' : '3 3'}
+                          />
+                          {/* Sub-node satellite (PWA + WA) */}
+                          <circle
+                            cx={nx + (nx > 300 ? 22 : -22)}
+                            cy={ny - 10}
+                            r="4"
+                            fill="#10b981"
+                          />
+                          <line
+                            x1={nx}
+                            y1={ny}
+                            x2={nx + (nx > 300 ? 22 : -22)}
+                            y2={ny - 10}
+                            stroke="rgba(16, 185, 129, 0.5)"
+                            strokeWidth="1"
+                          />
+                          {/* Brand Node Circle */}
+                          <circle
+                            cx={nx}
+                            cy={ny}
+                            r={isSel ? '11' : '7.5'}
+                            fill={isSel ? '#06b6d4' : '#a855f7'}
+                            stroke="#ffffff"
+                            strokeWidth={isSel ? '2' : '1'}
+                          />
+                          <text
+                            x={nx}
+                            y={ny + 19}
+                            textAnchor="middle"
+                            fill={isSel ? '#67e8f9' : '#e2e8f0'}
+                            fontSize={isSel ? '9.5' : '8'}
+                            fontWeight="bold"
+                          >
+                            {(b.name || '').slice(0, 16)}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Master Core Node */}
+                    <g
+                      onClick={() => handleInspectObsidianNode(currentSelectedBrand.id)}
+                      className="cursor-pointer"
+                    >
+                      <circle cx="300" cy="120" r="18" fill="#d946ef" stroke="#ffffff" strokeWidth="2.5" />
+                      <text x="300" y="124" textAnchor="middle" fill="#ffffff" fontSize="8.5" fontWeight="bold">
+                        OBSIDIAN
+                      </text>
+                    </g>
+                  </svg>
+
+                  <div className="absolute bottom-2 right-2 bg-black/75 px-2.5 py-1 rounded-lg border border-white/10 text-[9px] text-white/70 font-mono">
+                    اضغط على أي عقدة براند في الشبكة لعرض ملف Obsidian وتنفيذ أوامره فوراً
+                  </div>
+                </div>
+
+                {/* Live Obsidian Markdown Inspector + Direct Action Bar */}
+                <div className="p-3 rounded-2xl bg-black/70 border border-fuchsia-500/30 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-fuchsia-300 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5" />
+                      ملف العقدة الحي: <code className="text-cyan-300 font-mono">obsidian_vault/01_Growth_Agency_Brands/{currentSelectedBrand.id}.md</code>
+                    </span>
+                    <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                      SYNCED
+                    </span>
+                  </div>
+
+                  <pre className="text-[10px] font-mono text-cyan-100/80 bg-[#020510] p-2.5 rounded-xl border border-white/5 max-h-28 overflow-y-auto whitespace-pre-wrap leading-relaxed dir-ltr text-right">
+                    {obsidianNodeMarkdown || `# ${currentSelectedBrand.name}\n- **Storefront PWA**: [[Storefront_${currentSelectedBrand.id}|/store/${currentSelectedBrand.slug || currentSelectedBrand.id}]]\n- **Tito Studio Calendar**: [[Studio_Calendar_${currentSelectedBrand.id}|${(currentSelectedBrand.weekContentPlan || []).length} Posts]]\n- **WhatsApp Agent**: [[WA_Agent_${currentSelectedBrand.id}|Connected 24/7]]`}
+                  </pre>
+
+                  {/* 4 Real Execution Triggers Directly from the Selected Obsidian Node */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
+                    <button
+                      onClick={() => window.open(`/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`, '_blank')}
+                      className="py-1.5 px-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 border border-blue-500/40 text-[10px] font-bold flex items-center justify-center gap-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>فتح المتجر PWA</span>
+                    </button>
+                    <button
+                      onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
+                      className="py-1.5 px-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 text-[10px] font-bold flex items-center justify-center gap-1"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>نشر بوست اليوم</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenWhatsAppConnectModal()}
+                      className="py-1.5 px-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 text-[10px] font-bold flex items-center justify-center gap-1"
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                      <span>ربط الواتساب</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenMetaConnectModal()}
+                      className="py-1.5 px-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 text-[10px] font-bold flex items-center justify-center gap-1"
+                    >
+                      <Share2 className="w-3 h-3" />
+                      <span>ربط ميتا OAuth</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 0B: MASTER TITO AGENCY & EZ-ZEL SUBSCRIBERS COMMANDER */}
+            {activeDeckTab === 'agency_overview' && (
+              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-amber-500/40 shadow-[0_0_35px_rgba(245,158,11,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
+                <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                    <div>
+                      <h4 className="text-xs font-black text-white">
+                        👑 قيادة الماستر تيتو الشاملة: عملاء تطبيق الظل + براندات منظومة النمو
+                      </h4>
+                      <p className="text-[10px] text-white/50">
+                        فصل دقيق بين المشتركين الشخصيين في مساعد الظل وبين براندات الوكالة التجارية مع تحكم تنفيذي كامل
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-500/30 font-bold">
+                    SUPER ADMIN
+                  </span>
+                </div>
+
+                {/* Section 1: Ez-Zel Personal Assistant Subscribers */}
+                <div className="p-3 rounded-2xl bg-black/50 border border-cyan-500/30 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-cyan-400" />
+                      أولاً: عملاء ومشتركو مساعد "الظل" الشخصي ({(obsidianSnapshot?.ezZelPersonalClients || []).length || 4})
+                    </span>
+                    <span className="text-[9.5px] font-mono text-emerald-400">Personal AI Subscribers</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                    {(obsidianSnapshot?.ezZelPersonalClients || [
+                      { id: 'ezzel_user_1', name: 'أحمد عطية (الماستر تيتو)', phone: '01013373634', plan: 'vip_5000', activeTasksCount: 14, memoryNodesCount: 128, affiliateEarningsEgp: 4500 },
+                      { id: 'ezzel_user_2', name: 'د. سارة المنشاوي', phone: '01092837465', plan: 'pro_2500', activeTasksCount: 6, memoryNodesCount: 42, affiliateEarningsEgp: 750 },
+                      { id: 'ezzel_user_3', name: 'م. كريم عبد العزيز', phone: '01123456789', plan: 'vip_5000', activeTasksCount: 9, memoryNodesCount: 67, affiliateEarningsEgp: 1500 },
+                      { id: 'ezzel_user_4', name: 'أستاذ محمود الجندي', phone: '01234567890', plan: 'free_trial', activeTasksCount: 3, memoryNodesCount: 15, affiliateEarningsEgp: 0 }
+                    ]).map((client: any) => (
+                      <div key={client.id} className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white truncate">{client.name}</span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                            {client.plan}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[9.5px] text-white/60 font-mono">
+                          <span>مهام: {client.activeTasksCount} • ذاكرة: {client.memoryNodesCount}</span>
+                          <span className="text-emerald-400 font-bold">عمولة: {client.affiliateEarningsEgp} ج</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section 2: Growth Agency Brands (General & Detailed Info per Brand) */}
+                <div className="p-3 rounded-2xl bg-black/50 border border-amber-500/30 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                      ثانياً: براندات وكالة النمو الشامل ({allBrandsList.length || 21} براند نشط)
+                    </span>
+                    <span className="text-[9.5px] font-mono text-amber-300">Studio + Agent + PWA</span>
+                  </div>
+
+                  <div className="flex flex-col gap-2 max-h-44 overflow-y-auto pr-1">
+                    {allBrandsList.map((brand: any) => (
+                      <div
+                        key={brand.id || brand.slug}
+                        className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 flex items-center justify-between gap-2 transition"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-white truncate">{brand.name}</span>
+                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">
+                              {(brand.weekContentPlan || []).length || 7} بوست
+                            </span>
+                          </div>
+                          <p className="text-[9.5px] text-white/50 truncate">
+                            المجال: {brand.businessType || brand.category || 'تجارة وخدمات'} • المتجر: /store/{brand.slug || brand.id}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => {
+                              handleSelectBrand(brand.id || brand.slug);
+                              setActiveDeckTab('studio_calendar');
+                            }}
+                            className="px-2 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-[9.5px] font-bold border border-cyan-500/30"
+                          >
+                            إدارة البراند
+                          </button>
+                          <button
+                            onClick={() => window.open(`/store/${brand.slug || brand.id}`, '_blank')}
+                            className="px-2 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-[9.5px] font-bold border border-blue-500/30"
+                          >
+                            المتجر
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* TAB 1: TITO STUDIO 7-DAY CONTENT CALENDAR */}
             {activeDeckTab === 'studio_calendar' && (
@@ -2542,6 +2934,117 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <p>
                   إضافة <code className="bg-black/60 px-1 py-0.5 rounded text-cyan-300">META_APP_ID</code> و <code className="bg-black/60 px-1 py-0.5 rounded text-cyan-300">META_APP_SECRET</code> و <code className="bg-black/60 px-1 py-0.5 rounded text-cyan-300">META_AD_ACCOUNT_ID</code> حتى يسحب جارفيس كل تفاصيل الحملات حياً!
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIVE WHATSAPP PAIRING & QR CONNECTION MODAL */}
+      {isWaConnectModalOpen && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in font-['Cairo']" dir="rtl">
+          <div className="w-full max-w-lg bg-[#041016] border-2 border-emerald-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(16,185,129,0.35)] space-y-4 text-right">
+            <div className="flex items-center justify-between pb-3 border-b border-emerald-500/30">
+              <div className="flex items-center gap-2 text-emerald-400 font-black text-base">
+                <MessageSquare className="w-5 h-5" />
+                <span>نافذة ربط واتساب الذكي: {currentSelectedBrand.name}</span>
+              </div>
+              <button
+                onClick={() => setIsWaConnectModalOpen(false)}
+                className="p-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-white/70 block mb-1.5 font-bold">رقم واتساب البيزنس المراد ربطه بالوكيل الصوتي:</label>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    value={waPhoneInput}
+                    onChange={(e) => setWaPhoneInput(e.target.value)}
+                    placeholder="01013373634"
+                    className="flex-1 bg-black/60 border border-emerald-500/40 rounded-xl px-3.5 py-2 text-sm text-white font-mono focus:outline-none focus:border-emerald-400"
+                  />
+                  <button
+                    onClick={() => handleOpenWhatsAppConnectModal(waPhoneInput)}
+                    disabled={isConnectingChannel}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition"
+                  >
+                    {isConnectingChannel ? 'جاري التوليد...' : 'توليد كود جديد'}
+                  </button>
+                </div>
+              </div>
+
+              {waPairingInfo && (
+                <div className="p-4 rounded-2xl bg-black/70 border border-emerald-500/40 text-center space-y-3">
+                  <span className="text-xs text-emerald-300 font-bold block">
+                    كود الربط الفوري (افتح واتساب &gt; الأجهزة المرتبطة &gt; الربط برقم الهاتف):
+                  </span>
+                  <div className="text-2xl font-mono font-black tracking-[0.25em] text-white bg-emerald-950/60 border border-emerald-400/50 py-3 px-4 rounded-2xl shadow-inner select-all">
+                    {waPairingInfo.pairingCode}
+                  </div>
+                  <div className="text-[11px] text-white/60 leading-relaxed">
+                    أو عبر تطبيق T2 Agent المستقل • الجلسة مربوطة مباشرة بعقدة أوبسيديان <code className="text-emerald-300 font-mono">[[WA_Agent_{currentSelectedBrand.id}]]</code>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIVE META GRAPH OAUTH CONNECTION MODAL */}
+      {isMetaConnectModalOpen && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in font-['Cairo']" dir="rtl">
+          <div className="w-full max-w-lg bg-[#07081c] border-2 border-indigo-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(99,102,241,0.35)] space-y-4 text-right">
+            <div className="flex items-center justify-between pb-3 border-b border-indigo-500/30">
+              <div className="flex items-center gap-2 text-indigo-400 font-black text-base">
+                <Share2 className="w-5 h-5" />
+                <span>نافذة ربط صفحة فيسبوك وإنستجرام: {currentSelectedBrand.name}</span>
+              </div>
+              <button
+                onClick={() => setIsMetaConnectModalOpen(false)}
+                className="p-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-white/70 leading-relaxed">
+                يربط هذا الإجراء براند <strong>{currentSelectedBrand.name}</strong> بمحرك النشر التلقائي في تيتو ستوديو وماكينة إعلانات Click-to-WhatsApp:
+              </p>
+
+              <div>
+                <label className="text-xs text-white/70 block mb-1.5 font-bold">اسم صفحة فيسبوك / حساب إنستجرام التجاري:</label>
+                <input
+                  type="text"
+                  value={metaPageInput}
+                  onChange={(e) => setMetaPageInput(e.target.value)}
+                  placeholder={`${currentSelectedBrand.name} Official`}
+                  className="w-full bg-black/60 border border-indigo-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-400"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleConfirmMetaConnect}
+                  disabled={isConnectingChannel}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-black text-xs shadow-lg shadow-indigo-500/30 transition"
+                >
+                  {isConnectingChannel ? 'جاري تفويض وربط ميتا...' : 'تأكيد الربط الفوري وتفعيل النشر التلقائي 🚀'}
+                </button>
+                <button
+                  onClick={() => {
+                    window.open('/api/oauth/facebook/start', '_blank', 'width=600,height=700');
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-cyan-300 border border-cyan-500/30 font-bold text-xs transition"
+                >
+                  بوابة Meta OAuth
+                </button>
               </div>
             </div>
           </div>

@@ -343,21 +343,21 @@ export const playShadowVoice = async (
     stopVoice();
 
     try {
-        // ALWAYS fetch fresh neural audio from Google Gemini TTS
-        // Completely bypass old cached robotic audio from previous sessions
-        let base64 = await getShadowVoice(text, voice);
+        // Fetch human audio from Google Gemini Human TTS (with memory cache for instant replay)
+        const cacheKey = `${voice}_${text.trim()}`;
+        let base64 = existing || audioCache.get(cacheKey) || await getShadowVoice(text, voice);
         if (base64) {
+            audioCache.set(cacheKey, base64);
             onVoiceLoaded?.(base64);
         }
 
         if (!base64) { 
-            console.log("[TTS] Server audio unavailable, speaking via Browser Natural Voice Engine...");
-            const spoken = speakBrowserNaturalVoice(text, voice, onEnded);
-            if (!spoken) onEnded?.();
+            console.warn("[TTS] Gemini Human TTS audio unavailable.");
+            onEnded?.();
             return; 
         }
 
-        // Direct HTML5 Audio playback via Blob URL - Pristine 24kHz Human Neural Quality
+        // Direct HTML5 Audio playback via Blob URL - Pristine 24kHz Gemini Human Quality
         const byteCharacters = atob(base64);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -399,15 +399,6 @@ export const playShadowVoice = async (
             onEnded?.();
         };
 
-        audio.onerror = () => {
-            clearInterval(interval);
-            URL.revokeObjectURL(blobUrl);
-            currentHtmlAudio = null;
-            if (!speakBrowserNaturalVoice(text, voice, onEnded)) {
-                onEnded?.();
-            }
-        };
-
         try {
             await audio.play();
         } catch (playErr: any) {
@@ -426,9 +417,7 @@ export const playShadowVoice = async (
         }
     } catch (e: any) { 
         console.error("[TTS] PlayShadowVoice Error:", e);
-        if (!speakBrowserNaturalVoice(text, voice, onEnded)) {
-            onEnded?.();
-        }
+        onEnded?.();
     }
 };
 
@@ -443,38 +432,31 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
 
     if (!cleanText) return null;
 
-    // Resolve authentic Egyptian voice persona
-    let edgeVoiceName = voice === 'female' ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
-    let edgeRate = '+0%';
-    let edgePitch = '+0Hz';
+    // Resolve authentic Gemini Human voice persona (Puck for Male, Kore for Female)
+    let geminiVoiceName = voice === 'female' ? 'Kore' : 'Puck';
 
     try {
         const { persona } = resolveVoicePersona(voice);
-        if (persona?.edgeVoice) edgeVoiceName = persona.edgeVoice;
-        if (persona?.edgeRate) edgeRate = persona.edgeRate;
-        if (persona?.edgePitch) edgePitch = persona.edgePitch;
+        if (persona?.geminiVoice) geminiVoiceName = persona.geminiVoice;
     } catch {}
 
-    // 1. PRIMARY & SOVEREIGN: 100% Studio Human Egyptian Neural Voice (Shakir / Salma)
+    // 1. PRIMARY & SOVEREIGN: Latest Gemini Human TTS Models (Puck / Kore 24kHz)
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), 9500);
 
-        const resp = await fetch('/api/tts/edge-proxy', {
+        const resp = await fetch('/api/tts/gemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                text: cleanText.substring(0, 1500),
-                voice: edgeVoiceName,
-                rate: edgeRate,
-                pitch: edgePitch,
-                format: 'audio-24khz-48kbitrate-mono-mp3'
+                text: cleanText.substring(0, 1000),
+                voice: geminiVoiceName
             }),
             signal: controller.signal
         });
         clearTimeout(timeoutId);
 
-        if (resp.ok) {
+        if (resp.ok && resp.status === 200) {
             const arrayBuffer = await resp.arrayBuffer();
             if (arrayBuffer.byteLength > 100) {
                 let binary = '';
@@ -492,44 +474,7 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
             }
         }
     } catch (e: any) {
-        console.warn("[TTS] Human Egyptian Neural endpoint failed:", e?.message);
-    }
-
-    // 2. SECONDARY RESILIENT FALLBACK: Sovereign TTS Route
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-        const resp = await fetch('/api/tts/google', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: cleanText.substring(0, 1500),
-                voice: edgeVoiceName
-            }),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (resp.ok) {
-            const arrayBuffer = await resp.arrayBuffer();
-            if (arrayBuffer.byteLength > 100) {
-                let binary = '';
-                const bytes = new Uint8Array(arrayBuffer);
-                const len = bytes.byteLength;
-                const chunkSize = 8192;
-                for (let i = 0; i < len; i += chunkSize) {
-                    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-                    binary += String.fromCharCode.apply(null, chunk as any);
-                }
-                const base64Audio = btoa(binary);
-                if (base64Audio && base64Audio.length > 100) {
-                    return base64Audio;
-                }
-            }
-        }
-    } catch (gErr: any) {
-        console.warn("[TTS] Sovereign fallback failed:", gErr?.message);
+        console.warn("[TTS] Gemini Human TTS endpoint warning:", e?.message);
     }
 
     return null;
@@ -594,140 +539,11 @@ export const playShadowVoiceStreaming = async (
 
 
 
-// Pre-load and cache browser voices at module initialization
-let cachedBrowserVoices: SpeechSynthesisVoice[] = [];
-if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    try {
-        cachedBrowserVoices = window.speechSynthesis.getVoices();
-        window.speechSynthesis.onvoiceschanged = () => {
-            cachedBrowserVoices = window.speechSynthesis.getVoices();
-        };
-    } catch {}
-}
-
 /**
- * Speaks text using the user's browser's native natural voice (Microsoft Shakir Online (Natural) or ar-EG)
- * Instant, client-side, 0 delay, 100% human studio quality directly through Windows/Chrome!
+ * Browser speech synthesis is permanently disabled to guarantee 100% Gemini Human TTS (Puck/Kore)
+ * and never fall back to robotic Shakir / OS voices.
  */
 export function speakBrowserNaturalVoice(text: string, voice: string = 'male', onEnd?: () => void): boolean {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
-    try {
-        window.speechSynthesis.cancel();
-        const cleanText = text
-            .replace(/[*_#\-`~>]/g, ' ')
-            .replace(/https?:\/\/\S+/g, '')
-            .replace(/\[.*?\]/g, '')
-            .replace(/\{.*?\}/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        if (!cleanText) return false;
-
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = 'ar-EG';
-
-        const pickVoice = (vList: SpeechSynthesisVoice[]) => {
-            // 1. Prefer authentic human studio Egyptian voice (Microsoft Shakir / Salma Online / Natural)
-            const naturalEg = vList.find(v => 
-                v.lang.toLowerCase().replace('_', '-').includes('ar-eg') && (v.name.includes('Natural') || v.name.includes('Shakir') || v.name.includes('Salma') || v.name.includes('Online'))
-            );
-            if (naturalEg) return naturalEg;
-
-            // 2. Prefer any online/natural Arabic voice
-            const naturalAr = vList.find(v => 
-                v.lang.toLowerCase().startsWith('ar') && (v.name.includes('Natural') || v.name.includes('Online'))
-            );
-            if (naturalAr) return naturalAr;
-
-            // 3. Fallback to Google Arabic (Google العربية - high quality neural on Chrome/Android)
-            const googleAr = vList.find(v => 
-                v.lang.toLowerCase().startsWith('ar') && v.name.toLowerCase().includes('google')
-            );
-            if (googleAr) return googleAr;
-
-            // 4. Fallback to any Egyptian Arabic voice
-            const egVoice = vList.find(v => v.lang.toLowerCase().replace('_', '-').includes('ar-eg'));
-            if (egVoice) return egVoice;
-
-            // 5. Fallback to any Arabic voice available in the browser
-            return vList.find(v => v.lang.toLowerCase().startsWith('ar'));
-        };
-
-        let interval: any;
-        utterance.onstart = () => {
-            interval = setInterval(() => {
-                const lvl = 0.3 + Math.random() * 0.5;
-                window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: lvl } }));
-            }, 80);
-        };
-
-        utterance.onend = () => {
-            clearInterval(interval);
-            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
-            window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
-            onEnd?.();
-        };
-
-        utterance.onerror = () => {
-            clearInterval(interval);
-            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
-            onEnd?.();
-        };
-
-        const speakNow = (selectedVoice?: SpeechSynthesisVoice) => {
-            // Strictly require a verified natural voice
-            if (!selectedVoice) {
-                console.info("[TTS] No natural studio voice in browser speech synthesis. Aborting browser speech.");
-                clearInterval(interval);
-                onEnd?.();
-                return;
-            }
-            utterance.voice = selectedVoice;
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            window.speechSynthesis.speak(utterance);
-        };
-
-        const speakWithNaturalArabicVoice = () => {
-            let vList = cachedBrowserVoices.length > 0 ? cachedBrowserVoices : window.speechSynthesis.getVoices();
-            let matched = pickVoice(vList);
-
-            if (matched) {
-                speakNow(matched);
-                return;
-            }
-
-            // If natural Arabic voice has not fully loaded in Chromium yet, wait up to 1.5s for voiceschanged
-            let attempts = 0;
-            const checkInterval = setInterval(() => {
-                attempts++;
-                const freshVoices = window.speechSynthesis.getVoices();
-                if (freshVoices.length > 0) cachedBrowserVoices = freshVoices;
-                const freshMatch = pickVoice(freshVoices);
-                if (freshMatch) {
-                    clearInterval(checkInterval);
-                    speakNow(freshMatch);
-                } else if (attempts >= 10) {
-                    clearInterval(checkInterval);
-                    clearInterval(interval);
-                    onEnd?.();
-                }
-            }, 100);
-
-            window.speechSynthesis.onvoiceschanged = () => {
-                const freshVoices = window.speechSynthesis.getVoices();
-                cachedBrowserVoices = freshVoices;
-                const freshMatch = pickVoice(freshVoices);
-                if (freshMatch) {
-                    clearInterval(checkInterval);
-                    speakNow(freshMatch);
-                }
-            };
-        };
-
-        speakWithNaturalArabicVoice();
-        return true;
-    } catch {
-        return false;
-    }
+    playShadowVoice(text, voice, undefined, onEnd);
+    return true;
 }
