@@ -14,6 +14,7 @@ import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
 import SpaceCanvas from './SpaceCanvas';
+import { ObsidianHolographicConstellation } from './ObsidianHolographicConstellation';
 import { BRAND_VAULT } from '../services/brandVault';
 import { shadowDB } from '../services/dbService';
 
@@ -1049,6 +1050,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         } catch {}
       }
 
+      setIsThinking(true);
       const res = await fetch('/api/system/jarvis-conversation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1061,6 +1063,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         })
       });
       const data = await res.json();
+      setIsThinking(false);
       if (data.success && data.replyText) {
         setTranscript(data.replyText);
         setConversationHistory(prev => [
@@ -1261,18 +1264,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       isFullscreen ? 'p-0 bg-[#01030a]' : 'p-2 md:p-4 bg-black/80'
     }`} dir="rtl">
       
-      {/* Deep Blue-Black Fiber-Optic Second Brain OS Container */}
-      <div className={`relative w-full bg-[#01030b]/96 backdrop-blur-xl border border-cyan-500/40 shadow-[0_0_120px_rgba(0,240,255,0.28)] flex flex-col overflow-hidden transition-all duration-300 ${
+      {/* Deep Blue-Black Fiber-Optic Second Brain OS Container with Dominant Space Canvas */}
+      <div className={`relative w-full bg-[#01030b]/80 backdrop-blur-2xl border border-cyan-500/40 shadow-[0_0_120px_rgba(0,240,255,0.28)] flex flex-col overflow-hidden transition-all duration-300 ${
         isFullscreen ? 'h-screen rounded-none border-0' : 'max-w-[1560px] h-[95vh] rounded-[36px]'
       }`}>
 
-        {/* 3D Cosmos Space Canvas Background (Subtle Deep Blue-Black Depth) */}
-        <div className="absolute inset-0 pointer-events-none z-0 opacity-35 overflow-hidden">
-          <SpaceCanvas interactive={false} showEarth={true} />
+        {/* 3D Cosmos Space Canvas Background (The Sovereign Hero Cosmos with Earth & Stars) */}
+        <div className="absolute inset-0 pointer-events-none z-0 opacity-85 overflow-hidden">
+          <SpaceCanvas interactive={true} showEarth={true} />
         </div>
 
-        {/* Fiber-Optic Bioluminescent Grid & Deep Blue-Black Vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,240,255,0.06)_0%,_rgba(1,3,11,0.92)_65%,_#01030a_100%)] pointer-events-none z-0" />
+        {/* Fiber-Optic Bioluminescent Grid & Deep Space Vignette */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,240,255,0.04)_0%,_rgba(1,3,11,0.65)_70%,_#01030a_100%)] pointer-events-none z-0" />
         <div 
           className="absolute inset-0 opacity-[0.04] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] z-0" 
         />
@@ -1722,10 +1725,36 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <FluidLuminescentOrb
                 isListening={isListening}
                 isPlayingVoice={isPlayingVoice}
+                isThinking={isThinking}
                 audioLevel={audioLevel}
                 size={230}
                 className="relative z-10"
               />
+
+              {/* Real-time Dynamic Reactor Status Badge */}
+              <div className="absolute -bottom-2 z-20 px-3 py-1 rounded-full text-[10px] font-bold font-['Cairo'] flex items-center gap-1.5 backdrop-blur-md shadow-lg transition-all duration-300 border select-none bg-black/70">
+                {isListening ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                    <span className="text-cyan-300 font-black">🔵 جارفيس يستمع إليك الآن...</span>
+                  </>
+                ) : isThinking ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-spin" />
+                    <span className="text-fuchsia-300 font-black">🟣 جارفيس يعالج الأمر وينفذه في المنظومة...</span>
+                  </>
+                ) : isPlayingVoice ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-emerald-300 font-black">🟢 جارفيس يتحدث إليك بصوت بشري 24kHz</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    <span className="text-cyan-200/80">جارفيس في وضع الجاهزية والحراسة • اضغط المايك أو تحدث</span>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* TOP BAR: Explicit Chromium Mic Activator + Operational Mode Switcher */}
@@ -2079,128 +2108,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                 </div>
 
-                {/* Interactive Blue-Black Fiber-Optic SVG Knowledge Graph Canvas */}
-                <div className="relative w-full h-64 rounded-2xl bg-[#010208] border border-cyan-500/35 shadow-inner overflow-hidden">
-                  <svg
-                    className="w-full h-full transition-transform duration-200"
-                    viewBox="0 0 640 270"
-                    style={{ transform: `scale(${graphZoom})`, transformOrigin: 'center center' }}
-                  >
-                    <defs>
-                      <radialGradient id="hubGlow" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stopColor="#00f0ff" stopOpacity="0.55" />
-                        <stop offset="55%" stopColor="#6366f1" stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="#01030a" stopOpacity="0" />
-                      </radialGradient>
-                    </defs>
-
-                    {/* Subtle Orbital Fiber Rings */}
-                    <circle cx="320" cy="135" r="78" fill="none" stroke="rgba(0,240,255,0.12)" strokeDasharray="3 5" />
-                    <circle cx="320" cy="135" r="122" fill="none" stroke="rgba(168,85,247,0.12)" strokeDasharray="4 6" />
-                    <circle cx="320" cy="135" r="72" fill="url(#hubGlow)" />
-
-                    {/* Dual-Ring Neural Constellation for All 25 Unified Brands */}
-                    {(() => {
-                      const filteredBrands = allBrandsList.filter((b: any) => {
-                        if (graphFilter === 'studio') return String(b.sourceApp || '').includes('Tito Studio') || String(b.id || '').startsWith('clinic_') || String(b.id || '').startsWith('studio_');
-                        if (graphFilter === 'agent') return !String(b.id || '').startsWith('clinic_') && !String(b.id || '').startsWith('studio_');
-                        return true;
-                      });
-                      const displayNodes = filteredBrands.slice(0, 22);
-                      return displayNodes.map((b: any, idx: number) => {
-                        const isInnerRing = idx < 8;
-                        const ringCount = isInnerRing ? Math.min(8, displayNodes.length) : Math.max(1, displayNodes.length - 8);
-                        const ringIndex = isInnerRing ? idx : idx - 8;
-                        const angle = (ringIndex / ringCount) * Math.PI * 2 - Math.PI / 2;
-                        const radiusX = isInnerRing ? 145 : 265;
-                        const radiusY = isInnerRing ? 68 : 108;
-                        const nx = Math.round(320 + Math.cos(angle) * radiusX);
-                        const ny = Math.round(135 + Math.sin(angle) * radiusY);
-                        const isSel = b.id === currentSelectedBrand.id || b.slug === currentSelectedBrand.slug;
-
-                        return (
-                          <g
-                            key={b.id || idx}
-                            onClick={() => {
-                              handleSelectBrand(b.id || b.slug);
-                              handleInspectObsidianNode(b.id || b.slug);
-                            }}
-                            onDoubleClick={() => {
-                              handleSelectBrand(b.id || b.slug);
-                              handleInspectObsidianNode(b.id || b.slug);
-                              setIsBrandSuperWindowOpen(true);
-                            }}
-                            className="cursor-pointer group"
-                          >
-                            {/* Glowing Fiber-Optic Filament to Core */}
-                            <line
-                              x1="320"
-                              y1="135"
-                              x2={nx}
-                              y2={ny}
-                              stroke={isSel ? '#00f0ff' : isInnerRing ? 'rgba(56, 189, 248, 0.38)' : 'rgba(168, 85, 247, 0.28)'}
-                              strokeWidth={isSel ? '2.4' : '1.1'}
-                              strokeDasharray={isSel ? 'none' : '4 3'}
-                            />
-                            {/* Satellite Micro-Nodes (PWA + Calendar) */}
-                            <circle
-                              cx={nx + (nx > 320 ? 16 : -16)}
-                              cy={ny - 8}
-                              r="3"
-                              fill={isSel ? '#00f0ff' : '#10b981'}
-                            />
-                            <line
-                              x1={nx}
-                              y1={ny}
-                              x2={nx + (nx > 320 ? 16 : -16)}
-                              y2={ny - 8}
-                              stroke="rgba(0, 240, 255, 0.45)"
-                              strokeWidth="0.9"
-                            />
-                            {/* Brand Node Sphere */}
-                            <circle
-                              cx={nx}
-                              cy={ny}
-                              r={isSel ? '10' : isInnerRing ? '6.5' : '5.5'}
-                              fill={isSel ? '#00f0ff' : isInnerRing ? '#0284c7' : '#9333ea'}
-                              stroke="#ffffff"
-                              strokeWidth={isSel ? '2.2' : '1'}
-                            />
-                            <text
-                              x={nx}
-                              y={ny + (isSel ? 18 : 14)}
-                              textAnchor="middle"
-                              fill={isSel ? '#00f0ff' : '#cbd5e1'}
-                              fontSize={isSel ? '9' : '7.5'}
-                              fontWeight="bold"
-                            >
-                              {(b.name || '').slice(0, 15)}
-                            </text>
-                          </g>
-                        );
-                      });
-                    })()}
-
-                    {/* Master Second Brain Core Node */}
-                    <g
-                      onClick={() => {
-                        handleInspectObsidianNode(currentSelectedBrand.id);
-                        setIsBrandSuperWindowOpen(true);
-                      }}
-                      className="cursor-pointer"
-                    >
-                      <circle cx="320" cy="135" r="20" fill="#0284c7" stroke="#00f0ff" strokeWidth="2.5" />
-                      <circle cx="320" cy="135" r="9" fill="#00f0ff" />
-                      <text x="320" y="166" textAnchor="middle" fill="#00f0ff" fontSize="8.5" fontWeight="bold" fontFamily="monospace">
-                        SECOND BRAIN
-                      </text>
-                    </g>
-                  </svg>
-
-                  <div className="absolute bottom-2 right-2 bg-[#01030a]/90 px-2.5 py-1 rounded-lg border border-cyan-500/30 text-[9px] text-cyan-200/80 font-mono">
-                    نقرة واحدة: فحص العقدة • نقرتان أو زر الشاشات: فتح نافذة البراند الشاملة (4 شاشات حية)
-                  </div>
-                </div>
+                {/* 2026 3D Holographic Constellation replacing 2000s SVG Graph */}
+                <ObsidianHolographicConstellation
+                  brands={allBrandsList.map((b: any) => ({
+                    id: b.id,
+                    slug: b.slug,
+                    name: b.name,
+                    businessType: b.businessType,
+                    sourceApp: b.sourceApp,
+                    phone: b.phone,
+                    postsCount: (b.weekContentPlan || []).length,
+                    conversationsCount: b.conversationsCount || 0
+                  }))}
+                  selectedBrandId={currentSelectedBrand.id}
+                  onSelectBrand={(id: string) => {
+                    handleSelectBrand(id);
+                    handleInspectObsidianNode(id);
+                  }}
+                  onOpenStore={(slug: string) => window.open('/store/' + slug, '_blank')}
+                  onOpenChat={() => handleOpenWhatsAppConnectModal()}
+                  onOpenStudio={() => window.open('https://t2-studio.vercel.app', '_blank')}
+                />
 
                 {/* Live Obsidian Markdown Inspector + Two-Way Live Editor + Direct Action Bar */}
                 <div className="p-3 rounded-2xl bg-black/70 border border-fuchsia-500/30 flex flex-col gap-2">

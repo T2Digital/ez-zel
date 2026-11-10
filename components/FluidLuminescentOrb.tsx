@@ -3,6 +3,7 @@ import React, { useRef, useEffect } from 'react';
 interface FluidLuminescentOrbProps {
   isListening: boolean;
   isPlayingVoice: boolean;
+  isThinking?: boolean;
   audioLevel?: number; // 0.0 to 1.0
   size?: number;
   className?: string;
@@ -11,6 +12,7 @@ interface FluidLuminescentOrbProps {
 export const FluidLuminescentOrb: React.FC<FluidLuminescentOrbProps> = ({
   isListening,
   isPlayingVoice,
+  isThinking = false,
   audioLevel = 0,
   size = 280,
   className = ''
@@ -64,7 +66,9 @@ export const FluidLuminescentOrb: React.FC<FluidLuminescentOrbProps> = ({
       const responsiveBoost = isPlayingVoice
         ? Math.max(audioLevel, 0.5 + Math.sin(t * 3.4) * 0.26)
         : isListening
-        ? 0.36 + Math.sin(t * 2.2) * 0.16
+        ? 0.45 + Math.sin(t * 2.8) * 0.2
+        : isThinking
+        ? 0.55 + Math.sin(t * 5.0) * 0.22
         : 0.14 + Math.sin(t * 0.9) * 0.05;
 
       // Base radius of the liquid water droplet
@@ -109,13 +113,17 @@ export const FluidLuminescentOrb: React.FC<FluidLuminescentOrbProps> = ({
 
         const strandGrad = ctx.createLinearGradient(x0, y0, x1, y1);
         if (isPlayingVoice) {
-          strandGrad.addColorStop(0, 'rgba(0, 240, 255, 0.85)');
-          strandGrad.addColorStop(0.55, 'rgba(129, 140, 248, 0.55)');
-          strandGrad.addColorStop(1, 'rgba(217, 70, 239, 0.05)');
+          strandGrad.addColorStop(0, 'rgba(52, 211, 153, 0.95)');
+          strandGrad.addColorStop(0.55, 'rgba(16, 185, 129, 0.65)');
+          strandGrad.addColorStop(1, 'rgba(251, 191, 36, 0.15)');
         } else if (isListening) {
-          strandGrad.addColorStop(0, 'rgba(0, 240, 255, 0.9)');
-          strandGrad.addColorStop(0.6, 'rgba(56, 189, 248, 0.45)');
-          strandGrad.addColorStop(1, 'rgba(14, 165, 233, 0.04)');
+          strandGrad.addColorStop(0, 'rgba(0, 240, 255, 0.95)');
+          strandGrad.addColorStop(0.6, 'rgba(56, 189, 248, 0.55)');
+          strandGrad.addColorStop(1, 'rgba(14, 165, 233, 0.05)');
+        } else if (isThinking) {
+          strandGrad.addColorStop(0, 'rgba(217, 70, 239, 0.95)');
+          strandGrad.addColorStop(0.55, 'rgba(245, 158, 11, 0.65)');
+          strandGrad.addColorStop(1, 'rgba(124, 58, 237, 0.15)');
         } else {
           strandGrad.addColorStop(0, 'rgba(0, 240, 255, 0.45)');
           strandGrad.addColorStop(0.65, 'rgba(30, 64, 175, 0.25)');
@@ -189,13 +197,19 @@ export const FluidLuminescentOrb: React.FC<FluidLuminescentOrbProps> = ({
       const haloGrad = ctx.createRadialGradient(cx, cy, baseRadius * 0.25, cx, cy, haloRadius);
 
       if (isPlayingVoice) {
-        haloGrad.addColorStop(0, 'rgba(0, 240, 255, 0.48)');
-        haloGrad.addColorStop(0.45, 'rgba(99, 102, 241, 0.26)');
-        haloGrad.addColorStop(0.75, 'rgba(217, 70, 239, 0.12)');
+        haloGrad.addColorStop(0, 'rgba(52, 211, 153, 0.55)');
+        haloGrad.addColorStop(0.45, 'rgba(16, 185, 129, 0.32)');
+        haloGrad.addColorStop(0.75, 'rgba(251, 191, 36, 0.16)');
         haloGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       } else if (isListening) {
-        haloGrad.addColorStop(0, 'rgba(0, 240, 255, 0.42)');
-        haloGrad.addColorStop(0.5, 'rgba(2, 132, 199, 0.22)');
+        haloGrad.addColorStop(0, 'rgba(0, 240, 255, 0.52)');
+        haloGrad.addColorStop(0.5, 'rgba(2, 132, 199, 0.28)');
+        haloGrad.addColorStop(0.75, 'rgba(14, 165, 233, 0.12)');
+        haloGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      } else if (isThinking) {
+        haloGrad.addColorStop(0, 'rgba(217, 70, 239, 0.55)');
+        haloGrad.addColorStop(0.45, 'rgba(245, 158, 11, 0.32)');
+        haloGrad.addColorStop(0.75, 'rgba(124, 58, 237, 0.14)');
         haloGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       } else {
         haloGrad.addColorStop(0, 'rgba(0, 240, 255, 0.26)');
@@ -254,16 +268,23 @@ export const FluidLuminescentOrb: React.FC<FluidLuminescentOrbProps> = ({
 
       if (isPlayingVoice) {
         sphereGrad.addColorStop(0, '#ffffff');
-        sphereGrad.addColorStop(0.22, '#00f0ff');
-        sphereGrad.addColorStop(0.52, '#2563eb');
-        sphereGrad.addColorStop(0.78, '#3b0764');
-        sphereGrad.addColorStop(0.94, '#020617');
+        sphereGrad.addColorStop(0.2, '#34d399');
+        sphereGrad.addColorStop(0.48, '#10b981');
+        sphereGrad.addColorStop(0.76, '#047857');
+        sphereGrad.addColorStop(0.92, '#022c22');
         sphereGrad.addColorStop(1, '#01030a');
       } else if (isListening) {
         sphereGrad.addColorStop(0, '#ecfeff');
-        sphereGrad.addColorStop(0.22, '#00f0ff');
-        sphereGrad.addColorStop(0.55, '#0284c7');
-        sphereGrad.addColorStop(0.84, '#082f49');
+        sphereGrad.addColorStop(0.2, '#00f0ff');
+        sphereGrad.addColorStop(0.5, '#0284c7');
+        sphereGrad.addColorStop(0.8, '#082f49');
+        sphereGrad.addColorStop(1, '#01030a');
+      } else if (isThinking) {
+        sphereGrad.addColorStop(0, '#fffbeb');
+        sphereGrad.addColorStop(0.22, '#f59e0b');
+        sphereGrad.addColorStop(0.52, '#d946ef');
+        sphereGrad.addColorStop(0.78, '#7c3aed');
+        sphereGrad.addColorStop(0.92, '#2e1065');
         sphereGrad.addColorStop(1, '#01030a');
       } else {
         sphereGrad.addColorStop(0, '#cffafe');
@@ -278,13 +299,21 @@ export const FluidLuminescentOrb: React.FC<FluidLuminescentOrbProps> = ({
 
       // Ultra-Crisp Fiber-Optic Rim Illumination
       ctx.strokeStyle = isPlayingVoice
-        ? 'rgba(0, 240, 255, 0.98)'
+        ? 'rgba(52, 211, 153, 0.98)'
         : isListening
-        ? 'rgba(56, 189, 248, 0.95)'
+        ? 'rgba(0, 240, 255, 0.98)'
+        : isThinking
+        ? 'rgba(217, 70, 239, 0.98)'
         : 'rgba(0, 240, 255, 0.72)';
-      ctx.lineWidth = 2.2;
-      ctx.shadowColor = '#00f0ff';
-      ctx.shadowBlur = 22;
+      ctx.lineWidth = 2.4;
+      ctx.shadowColor = isPlayingVoice
+        ? '#10b981'
+        : isListening
+        ? '#00f0ff'
+        : isThinking
+        ? '#d946ef'
+        : '#00f0ff';
+      ctx.shadowBlur = 24;
       ctx.stroke();
       ctx.restore();
 
