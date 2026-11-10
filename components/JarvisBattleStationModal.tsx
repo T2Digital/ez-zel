@@ -122,7 +122,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isClickingCursor, setIsClickingCursor] = useState(false);
 
   // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview'
-  const [activeDeckTab, setActiveDeckTab] = useState<'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview'>('obsidian_graph');
+  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview'>('autonomous_agency');
+  const [isExecutingAutonomousAgency, setIsExecutingAutonomousAgency] = useState<boolean>(false);
+  const [autonomousAgencyData, setAutonomousAgencyData] = useState<any>(null);
   
   // Obsidian Knowledge Graph & Agency Telemetry State
   const [obsidianSnapshot, setObsidianSnapshot] = useState<any>(null);
@@ -858,7 +860,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const isContinuousLiveRef = useRef<boolean>(true);
+  const isMobile = typeof window !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''));
+  const isContinuousLiveRef = useRef<boolean>(!isMobile);
   const isPlayingVoiceRef = useRef<boolean>(false);
   const isThinkingRef = useRef<boolean>(false);
 
@@ -893,10 +896,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
       recognition.onerror = (e: any) => {
         setIsListening(false);
-        if (isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+        if (!isMobile && isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
           if (e.error === 'no-speech' || e.error === 'network') {
             setTimeout(() => {
-              if (isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+              if (!isMobile && isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
                 startListeningLoop();
               }
             }, 800);
@@ -909,9 +912,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         const finalRecorded = transcriptRef.current;
         if (finalRecorded && finalRecorded !== 'استمع إليك يا ماستر.. اتفضل' && finalRecorded.trim().length > 0) {
           handleSendLiveCommand(finalRecorded);
-        } else if (isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+        } else if (!isMobile && isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
           setTimeout(() => {
-            if (isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+            if (!isMobile && isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
               startListeningLoop();
             }
           }, 500);
@@ -943,17 +946,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     } else if (activeP === 'client') {
       text = `نورت كابينة قيادة براندك يا شريك النجاح! أنا معاك كمدير تنفيذي وسكرتير ذكي لمتابعة المحتوى والواتساب والحجوزات لحظة بلحظة.. تحب ننفذ إيه دلوقتي؟`;
     } else {
-      try {
-        const res = await fetch(`/api/system/jarvis-dynamic-greeting?brandId=${encodeURIComponent(currentSelectedBrand.id || '')}`);
-        const d = await res.json();
-        if (d.ok && d.text) {
-          text = d.text;
-        }
-      } catch {}
-      if (!text) {
-        const brandsCount = allBrandsList.length || realStats.totalVaultBrandsCount || 0;
-        text = `${timeGreeting} يا ماستر تيتو! معانا دلوقتي ${brandsCount} براند متصلين بتيتو ستوديو وأوبسيديان، والتركيز الحالي على ${currentSelectedBrand.name}. تحب نعمل استراتيجية تسويقية ونولد محتوى أول أسبوع؟`;
-      }
+      // Tito Admin greeting strictly simplified per Master Tito's request
+      text = 'أهلاً يا تيتو، أؤمرني!';
     }
 
     setTranscript(text);
@@ -962,7 +956,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
       // Auto-resume continuous listening without pressing any buttons!
-      if (isContinuousLiveRef.current) {
+      if (!isMobile && isContinuousLiveRef.current) {
         setTimeout(startListeningLoop, 400);
       }
     });
@@ -970,6 +964,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   // Two-Way Live Speech Recognition Trigger (Toggle Continuous Duplex Live Mode)
   const handleToggleListening = () => {
+    if (isMobile) {
+      if (isListening) {
+        if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch {}
+        }
+        setIsListening(false);
+      } else {
+        startListeningLoop();
+      }
+      return;
+    }
     if (isListening || isContinuousLiveRef.current) {
       isContinuousLiveRef.current = false;
       if (recognitionRef.current) {
@@ -982,6 +987,59 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     } else {
       isContinuousLiveRef.current = true;
       startListeningLoop();
+    }
+  };
+
+  // Autonomous Marketing Agency Operator: 1-Month Plan (4 Weeks / 12 Posts) + Firestore Sync + First Post Spotlight
+  const handleExecuteAutonomousAgency = async (brandId?: string) => {
+    const targetBrandId = brandId || currentSelectedBrand.id || 'tito_media';
+    const targetBrand = allBrandsList.find(b => b.id === targetBrandId) || currentSelectedBrand;
+    
+    setIsExecutingAutonomousAgency(true);
+    setIsThinking(true);
+    isThinkingRef.current = true;
+    setActiveDeckTab('autonomous_agency');
+    appendLiveLog(`[AUTONOMOUS_AGENCY]: تشغيل وكالة التسويق الآلي لـ "${targetBrand.name}"...`);
+
+    try {
+      const res = await fetch('/api/studio/autonomous-agency-cycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: targetBrandId })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setAutonomousAgencyData(data);
+        if (data.brand?.weekContentPlan) {
+          targetBrand.weekContentPlan = data.brand.weekContentPlan;
+          setAllBrandsList(prev => prev.map(b => b.id === targetBrandId ? { ...b, weekContentPlan: data.brand.weekContentPlan } : b));
+        }
+        if (data.firstPost) {
+          setSelectedPost({
+            ...data.firstPost,
+            brandId: targetBrandId,
+            brandName: targetBrand.name,
+            platform: 'Instagram & Facebook (Meta Graph)',
+            status: 'DRAFT_APPROVAL_REQUIRED'
+          });
+        }
+        toast.success(`تم إنجاز خطة الشهر وجدولة ${data.scheduledCount || 11} منشور لـ ${targetBrand.name}!`);
+        appendLiveLog(`[AUTONOMOUS_AGENCY]: تم إنشاء خطة 4 أسابيع (12 بوست)، وجدولة ${data.scheduledCount || 11} بوست في فايربيس.`);
+
+        const voiceMsg = `يا ماستر تيتو، حللت هوية براند ${targetBrand.name}، وعملت خطة شهر كامل من 12 منشور على 4 محاور (أحد وثلاثاء وخميس). جدولنا 11 منشور في تيتو ستوديو فايربيس، والبوست الأول جاهز قدامك للمراجعة والاعتماد الفوري لميتا!`;
+        setTranscript(voiceMsg);
+        playShadowVoice(voiceMsg, 'male');
+      } else {
+        toast.error(data.error || 'تعذر استكمال دورة الوكالة الآلية');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error('خطأ في الاتصال بمشغل الوكالة الآلي');
+    } finally {
+      setIsExecutingAutonomousAgency(false);
+      setIsThinking(false);
+      isThinkingRef.current = false;
     }
   };
 
@@ -1000,6 +1058,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     const isNegated = /\b(لا|مش|بلاش|متعملش|ما تعملش|لا أريد|توقف)\b/i.test(commandText);
 
+    if (!isNegated && /وكالة التسويق|الوكالة الآلية|مشغل الوكالة|خطة شهر|خطة الشهر|خطة شهر كامل|وكالة التسويق الآلي/i.test(commandText)) {
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      await handleExecuteAutonomousAgency(matchedBrand.id);
+      return;
+    }
     if (!isNegated && /استراتيجي|إستراتيجي|خطة تسويق|خطه تسويق/i.test(commandText)) {
       setIsThinking(false);
       isThinkingRef.current = false;
@@ -1076,8 +1140,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         const onSpeechEnd = () => {
           setIsPlayingVoice(false);
           isPlayingVoiceRef.current = false;
-          // Hands-free continuous duplex: automatically listen again!
-          if (isContinuousLiveRef.current) {
+          // Hands-free continuous duplex: automatically listen again on desktop ONLY!
+          if (!isMobile && isContinuousLiveRef.current) {
             setTimeout(startListeningLoop, 400);
           }
         };
@@ -1784,111 +1848,57 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 )}
               </div>
 
-              {/* 2. Unified Operational Mode Tabs (Simple 4-Tab Focus View for Clients vs 8-Tab Sovereign View for Master Tito) */}
+              {/* 2. Dynamic Operations Stage Navigator (Streamlined & Clean for 2026 Stark HUD) */}
               {persona !== 'visitor' ? (
-                <div className={`grid ${persona === 'tito' ? 'grid-cols-4 sm:grid-cols-8' : 'grid-cols-4'} gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[9.5px] font-bold select-none font-['Cairo']`}>
-                  {persona === 'tito' && (
-                    <>
-                      <button
-                        onClick={() => setActiveDeckTab('obsidian_graph')}
-                        className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                          activeDeckTab === 'obsidian_graph'
-                            ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-black shadow-[0_0_15px_rgba(217,70,239,0.5)]'
-                            : 'text-white/60 hover:text-white'
-                        }`}
-                      >
-                        <Layers className="w-3 h-3" />
-                        <span>أوبسيديان</span>
-                      </button>
-
-                      <button
-                        onClick={() => setActiveDeckTab('agency_overview')}
-                        className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                          activeDeckTab === 'agency_overview'
-                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                            : 'text-white/60 hover:text-white'
-                        }`}
-                      >
-                        <Users className="w-3 h-3" />
-                        <span>الوكالة والظل</span>
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    onClick={() => setActiveDeckTab('studio_calendar')}
-                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                      activeDeckTab === 'studio_calendar'
-                        ? 'bg-cyan-500 text-black font-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
-                        : 'text-white/60 hover:text-white'
-                    }`}
-                  >
-                    <Calendar className="w-3 h-3" />
-                    <span>خطة المحتوى</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveDeckTab('content_post_card')}
-                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                      activeDeckTab === 'content_post_card'
-                        ? 'bg-purple-500 text-white font-black shadow-[0_0_15px_rgba(168,85,247,0.5)]'
-                        : 'text-white/60 hover:text-white'
-                    }`}
-                  >
-                    <FileText className="w-3 h-3" />
-                    <span>معاينة المنشور</span>
-                  </button>
-
+                <div className={`grid ${persona === 'tito' ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 p-1.5 bg-[#020617] rounded-2xl border border-white/5 text-[9.5px] md:text-[10px] font-bold select-none font-['Cairo']`}>
                   {persona === 'tito' && (
                     <button
-                      onClick={() => setActiveDeckTab('agent_fleet')}
-                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                        activeDeckTab === 'agent_fleet'
-                          ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                          : 'text-white/60 hover:text-white'
+                      onClick={() => setActiveDeckTab('autonomous_agency')}
+                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                        activeDeckTab === 'autonomous_agency'
+                          ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black font-black shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse'
+                          : 'text-amber-300/80 hover:text-amber-200 hover:bg-amber-500/10'
                       }`}
                     >
-                      <Bot className="w-3 h-3" />
-                      <span>الأيدجنت</span>
+                      <Zap className="w-3.5 h-3.5 text-amber-950" />
+                      <span>⚡ وكالة التسويق الآلي</span>
                     </button>
                   )}
+
+                  <button
+                    onClick={() => setActiveDeckTab('obsidian_graph')}
+                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                      activeDeckTab === 'obsidian_graph'
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-black shadow-[0_0_20px_rgba(6,182,212,0.6)]'
+                        : 'text-cyan-200/80 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>🌐 الشبكة 3D</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveDeckTab('agent_fleet')}
+                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                      activeDeckTab === 'agent_fleet'
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black shadow-[0_0_20px_rgba(16,185,129,0.6)]'
+                        : 'text-emerald-200/80 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>💬 واتساب تيتو أجنت</span>
+                  </button>
 
                   <button
                     onClick={() => setActiveDeckTab('app_cloner')}
-                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1.5 ${
                       activeDeckTab === 'app_cloner'
-                        ? 'bg-blue-500 text-white font-black shadow-[0_0_15px_rgba(59,130,246,0.5)]'
-                        : 'text-white/60 hover:text-white'
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-black shadow-[0_0_20px_rgba(59,130,246,0.6)]'
+                        : 'text-blue-200/80 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <Smartphone className="w-3 h-3" />
-                    <span>متجر البراند</span>
-                  </button>
-
-                  {persona === 'tito' && (
-                    <button
-                      onClick={() => setActiveDeckTab('ad_launcher')}
-                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                        activeDeckTab === 'ad_launcher'
-                          ? 'bg-amber-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                          : 'text-white/60 hover:text-white'
-                      }`}
-                    >
-                      <TrendingUp className="w-3 h-3" />
-                      <span>إعلانات</span>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => setActiveDeckTab('vault_crm')}
-                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                      activeDeckTab === 'vault_crm'
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                        : 'text-white/60 hover:text-white'
-                    }`}
-                  >
-                    <ShieldCheck className="w-3 h-3" />
-                    <span>حجوزات العملاء</span>
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>📱 متجر PWA</span>
                   </button>
                 </div>
               ) : (
@@ -2032,6 +2042,180 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </div>
                   </div>
                 )}
+
+            {/* TAB 00: AUTONOMOUS MARKETING AGENCY OPERATOR (1-MONTH CYCLE / 4 WEEKS / 12 POSTS) */}
+            {activeDeckTab === 'autonomous_agency' && (
+              <div className="w-full max-w-xl rounded-3xl bg-[#020516]/95 border-2 border-amber-500/50 shadow-[0_0_50px_rgba(245,158,11,0.25)] p-4 flex flex-col gap-3.5 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
+                
+                {/* Header: Title, Brand Target, Status */}
+                <div className="flex items-center justify-between pb-2.5 border-b border-amber-500/20 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping shadow-[0_0_12px_#f59e0b]" />
+                    <div>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        ⚡ مشغل وكالة التسويق الآلي الاحترافي • دورة الشهر الكامل (4 أسابيع)
+                      </h4>
+                      <p className="text-[10px] text-amber-200/70">
+                        البراند المستهدف: <span className="text-cyan-300 font-black">{currentSelectedBrand.name}</span> • 12 بوست (أحد / ثلاثاء / خميس)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      FIRESTORE + META LIVE
+                    </span>
+                    <button
+                      onClick={() => handleExecuteAutonomousAgency(currentSelectedBrand.id)}
+                      disabled={isExecutingAutonomousAgency}
+                      className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-black text-[10px] font-black flex items-center gap-1 shadow-[0_0_15px_rgba(245,158,11,0.4)] transition disabled:opacity-50"
+                    >
+                      <Zap className={`w-3 h-3 ${isExecutingAutonomousAgency ? 'animate-spin' : ''}`} />
+                      <span>{isExecutingAutonomousAgency ? 'جاري التشغيل...' : 'تشغيل الدورة الآن ⚡'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Progress / Diagnostics Stream if executing */}
+                {isExecutingAutonomousAgency && (
+                  <div className="p-3 rounded-2xl bg-black/60 border border-amber-500/30 flex flex-col gap-2 font-mono text-[10px] text-amber-300 animate-pulse">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                      <span>جارفيس يحلل عمق وهوية {currentSelectedBrand.name} ويبني استراتيجية الـ 4 أسابيع...</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 text-center text-[9px]">
+                      <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20">1. تحليل الهوية</div>
+                      <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20">2. صياغة 12 بوست</div>
+                      <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20">3. جدولة Firestore</div>
+                      <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20">4. استخراج الأول</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SPOTLIGHT FIRST POST CARD (Ready for Meta Instant Approval & 1-Click Publishing) */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#09152b] to-[#04091a] border-2 border-cyan-400/50 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                      <span className="text-[11px] font-black text-cyan-300">
+                        🎯 بوست الانطلاق الأول (الأسبوع 1) — جاهز للمراجعة والاعتماد لميتا
+                      </span>
+                    </div>
+                    <span className="text-[9.5px] font-mono text-cyan-200 bg-cyan-950/60 px-2 py-0.5 rounded-lg border border-cyan-500/30">
+                      📅 الأحد القادم • 10:00 AM
+                    </span>
+                  </div>
+
+                  {/* Post Content Snippet */}
+                  <div className="p-2.5 rounded-xl bg-black/50 border border-white/10 text-[10.5px] text-white/90 leading-relaxed font-sans">
+                    <p className="font-bold text-amber-300 mb-1">
+                      {autonomousAgencyData?.firstPost?.hook || currentSelectedBrand.weekContentPlan?.[0]?.hook || `انطلاقة جديدة وهوية استثنائية لـ ${currentSelectedBrand.name} في عالم النمو الرقمي!`}
+                    </p>
+                    <p className="text-white/80 line-clamp-3 text-[10px]">
+                      {autonomousAgencyData?.firstPost?.caption || currentSelectedBrand.weekContentPlan?.[0]?.caption || `نقدم لك في ${currentSelectedBrand.name} أرقى الحلول والخدمات المصممة خصيصاً لتفوق أعمالك وخدمة عملائك على مدار الساعة مع دعم ذكي متكامل.`}
+                    </p>
+                    <div className="flex items-center gap-1 text-[9px] text-cyan-400 font-mono mt-1.5 flex-wrap">
+                      <span>#${currentSelectedBrand.name.replace(/\s+/g, '_')}</span>
+                      <span>#T2_Growth</span>
+                      <span>#تيتو_ستوديو</span>
+                      <span>#نشر_آلي</span>
+                    </div>
+                  </div>
+
+                  {/* Immediate 1-Click Approval & Publishing Action Button */}
+                  <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+                    <div className="text-[9.5px] text-white/60 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>قناة النشر: <strong className="text-white">Facebook & Instagram (Meta Graph API)</strong></span>
+                    </div>
+
+                    <button
+                      onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
+                      disabled={isPublishingPost}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-black text-xs font-black shadow-[0_0_20px_rgba(16,185,129,0.5)] transition flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Send className="w-3.5 h-3.5 text-black" />
+                      <span>{isPublishingPost ? 'جاري النشر المباشر لميتا...' : '🚀 اعتماد ونشر البوست الأول لميتا فوراً'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4-WEEK STRATEGY MATRIX (12 Posts: Sun, Tue, Thu) */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-white/80 px-1">
+                    <span className="flex items-center gap-1">
+                      <CalendarDays className="w-3.5 h-3.5 text-amber-400" />
+                      توزيع خطة الشهر (12 منشوراً • جدول الأحد والثلاثاء والخميس):
+                    </span>
+                    <span className="text-[9px] font-mono text-emerald-400">
+                      ✅ 11 منشور مجدول في تيتو ستوديو
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-right font-['Cairo']">
+                    {/* Week 1 */}
+                    <div className="p-2 rounded-xl bg-[#03091e] border border-cyan-500/30 flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9.5px] font-black text-cyan-300">الأسبوع 1</span>
+                        <span className="text-[8px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.2 rounded font-mono">3 بوستات</span>
+                      </div>
+                      <span className="text-[9px] text-white/90 font-bold truncate">الوعي وبناء الهوية</span>
+                      <span className="text-[8px] text-emerald-300">● 1 للاعتماد + 2 مجدولة</span>
+                    </div>
+
+                    {/* Week 2 */}
+                    <div className="p-2 rounded-xl bg-[#03091e] border border-purple-500/30 flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9.5px] font-black text-purple-300">الأسبوع 2</span>
+                        <span className="text-[8px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded font-mono">3 بوستات</span>
+                      </div>
+                      <span className="text-[9px] text-white/90 font-bold truncate">المشكلة والحلول</span>
+                      <span className="text-[8px] text-purple-300 font-mono">✅ مجدولة بفايربيس</span>
+                    </div>
+
+                    {/* Week 3 */}
+                    <div className="p-2 rounded-xl bg-[#03091e] border border-emerald-500/30 flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9.5px] font-black text-emerald-300">الأسبوع 3</span>
+                        <span className="text-[8px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono">3 بوستات</span>
+                      </div>
+                      <span className="text-[9px] text-white/90 font-bold truncate">إثبات اجتماعي وقصص</span>
+                      <span className="text-[8px] text-emerald-300 font-mono">✅ مجدولة بفايربيس</span>
+                    </div>
+
+                    {/* Week 4 */}
+                    <div className="p-2 rounded-xl bg-[#03091e] border border-amber-500/30 flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9.5px] font-black text-amber-300">الأسبوع 4</span>
+                        <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono">3 بوستات</span>
+                      </div>
+                      <span className="text-[9px] text-white/90 font-bold truncate">إغلاق المبيعات والعروض</span>
+                      <span className="text-[8px] text-amber-300 font-mono">✅ مجدولة بفايربيس</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Quick Tools */}
+                <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[9.5px]">
+                  <button
+                    onClick={() => setActiveDeckTab('studio_calendar')}
+                    className="text-cyan-300 hover:text-cyan-200 flex items-center gap-1 font-bold"
+                  >
+                    <Calendar className="w-3 h-3" />
+                    <span>عرض تقويم تيتو ستوديو الكامل</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveDeckTab('obsidian_graph')}
+                    className="text-fuchsia-300 hover:text-fuchsia-200 flex items-center gap-1 font-bold"
+                  >
+                    <Layers className="w-3 h-3" />
+                    <span>عرض في شبكة أوبسيديان 3D</span>
+                  </button>
+                </div>
+
+              </div>
+            )}
 
             {/* TAB 0A: OBSIDIAN LIVE KNOWLEDGE GRAPH & SECOND BRAIN VAULT */}
             {activeDeckTab === 'obsidian_graph' && (

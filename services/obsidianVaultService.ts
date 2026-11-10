@@ -11,6 +11,7 @@ import {
     upsertBrandToTitoStudioFirestore,
     syncWeekPlanToTitoStudioFirestore,
     generateBrandMarketingStrategy,
+    generateFullMonthOmniPlan,
     approveBrandScheduleInTitoStudio
 } from './titoStudioFirestoreBridge';
 
@@ -1253,6 +1254,66 @@ export async function executeRealJarvisEcosystemAction(payload: {
                 message: publishNow
                     ? `🚀 تم فتح براند (${targetBrand.name}) وتوليد منشور عن (${topic}) ونشره فوراً عبر تيتو ستوديو وميتا جراف!`
                     : `📅 تم فتح براند (${targetBrand.name}) وتوليد منشور عن (${topic}) وجدولته في تيتو ستوديو لموعد (${scheduleTime}) بنجاح!`
+            };
+        }
+
+        case 'EXECUTE_AUTONOMOUS_AGENCY_CYCLE': {
+            const allBrands = getUnifiedGrowthBrands();
+            const targetBrand = allBrands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || allBrands[0];
+            if (!targetBrand) {
+                return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
+            }
+
+            // 1. Build Deep Marketing Strategy
+            const strategy = await generateBrandMarketingStrategy(targetBrand);
+            targetBrand.marketingStrategy = strategy;
+
+            // 2. Build Full 1-Month Plan (4 Weeks / 12 Posts)
+            const monthResult = generateFullMonthOmniPlan({
+                id: targetBrand.id,
+                slug: targetBrand.slug || targetBrand.id,
+                name: targetBrand.name,
+                businessType: targetBrand.businessType,
+                phone: targetBrand.phone,
+                primaryColor: targetBrand.primaryColor,
+                strategy
+            });
+
+            targetBrand.weekContentPlan = monthResult.monthPlan;
+            saveCustomBrandOverride(targetBrand);
+
+            // 3. Sync all 12 posts to Tito Studio Firestore (First is draft for review, 11 are scheduled)
+            const syncedCount = await syncWeekPlanToTitoStudioFirestore(targetBrand, monthResult.monthPlan);
+
+            // 4. Optionally publish first post immediately if requested
+            let firstPostPublished = false;
+            let publishResult: any = null;
+            if (data?.autoPublishFirst) {
+                publishResult = await publishBrandPost(targetBrand.id, 0);
+                firstPostPublished = publishResult?.success || false;
+            }
+
+            syncAndBuildObsidianVault();
+
+            broadcastGatewayEvent('AGENCY_CYCLE_COMPLETED', {
+                brandId: targetBrand.id,
+                brandName: targetBrand.name,
+                totalPosts: monthResult.monthPlan.length,
+                scheduledCount: monthResult.scheduledCount,
+                firstPost: monthResult.firstPost,
+                firstPostPublished
+            });
+
+            return {
+                success: true,
+                brand: targetBrand,
+                strategy,
+                monthPlan: monthResult.monthPlan,
+                firstPost: monthResult.firstPost,
+                scheduledCount: monthResult.scheduledCount,
+                firstPostPublished,
+                publishResult,
+                message: `🎯 تم إكمال دورة مشغل وكالة التسويق الآلي لـ (${targetBrand.name}) بنجاح! تم بناء استراتيجية متكاملة، وخطة شهر كامل (4 أسابيع / 12 منشوراً)، واعتماد جدولة (${monthResult.scheduledCount}) منشوراً في تيتو ستوديو، وتجهيز البوست الأول للمعاينة والاعتماد الفوري!`
             };
         }
 

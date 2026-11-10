@@ -523,6 +523,20 @@ async function startServer() {
       }
   });
 
+  app.post("/api/studio/autonomous-agency-cycle", async (req, res) => {
+      try {
+          const { brandId, autoPublishFirst } = req.body || {};
+          const result = await executeRealJarvisEcosystemAction({
+              actionType: 'EXECUTE_AUTONOMOUS_AGENCY_CYCLE',
+              brandId: brandId || 'tito_media',
+              data: { autoPublishFirst: !!autoPublishFirst }
+          });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ success: false, error: err?.message });
+      }
+  });
+
   // --- TURBO FLOW × GOOGLE FLOW CHROME EXTENSION BRIDGE API --- //
   app.get("/api/studio/turbo-flow/queue", (req, res) => {
       try {

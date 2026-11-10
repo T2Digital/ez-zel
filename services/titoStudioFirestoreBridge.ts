@@ -810,6 +810,124 @@ export function buildOmniChannelWeekPlan(brand: {
 }
 
 /**
+ * Generates an Enterprise 1-Month Omnichannel Marketing Plan (4 Weeks / 12 Posts: Sun, Tue, Thu)
+ */
+export function generateFullMonthOmniPlan(brand: {
+    id: string;
+    slug?: string;
+    name: string;
+    businessType?: string;
+    phone?: string;
+    primaryColor?: string;
+    strategy?: any;
+}): {
+    monthPlan: OmniWeekPostItem[];
+    firstPost: OmniWeekPostItem;
+    scheduledCount: number;
+    weeksCount: number;
+} {
+    const weekDays = ['الأحد', 'الثلاثاء', 'الخميس'];
+    const monthPlan: OmniWeekPostItem[] = [];
+    const baseSlug = brand.slug || brand.id;
+    const storePath = `/store/${baseSlug}`;
+    const fullStoreUrl = `https://t2-studio.vercel.app${storePath}`;
+    const waLink = `https://wa.me/2${(brand.phone || '01013373634').replace(/^0/, '')}`;
+
+    const themes = [
+        {
+            weekName: 'الأسبوع 1: إطلاق وجذب الاهتمام (Launch & Hook)',
+            hooks: [
+                `أقوى انطلاقة لـ ${brand.name} في عالم ${brand.businessType || 'الخدمات'}! احجز الآن بخصم 10% فوري.`,
+                `ليه تضيع وقتك؟ شاهد كفاءة وسرعة تنفيذ ${brand.name} في 30 ثانية!`,
+                `عرض الويك إند الاستثنائي من ${brand.name}: حجز مؤكد بعربون 25% فقط عبر إنستاباي.`
+            ]
+        },
+        {
+            weekName: 'الأسبوع 2: بناء الثقة وكسر الاعتراضات (Social Proof & Case Study)',
+            hooks: [
+                `قبل وبعد شغلنا مع ${brand.name} — الجودة اللي تستحقها بدون أي مغامرة!`,
+                `3 أخطاء شائعة بيتجاهلها المنافسون وتضمنها لك ${brand.name} 100%!`,
+                `ضمان شامل ومتابعة دورية مجانية مع كل حجز لـ ${brand.name} هذا الأسبوع.`
+            ]
+        },
+        {
+            weekName: 'الأسبوع 3: تسليط الضوء على باقات VIP والحلول المتكاملة',
+            hooks: [
+                `تعرف على باقة VIP الحصرية من ${brand.name} — حل متكامل لأصحاب الذوق الرفيع.`,
+                `سر نجاح عملائنا مع ${brand.name}: دقة متناهية وسرعة رد صوتي في 3 ثوانٍ!`,
+                `الحجز المسبق لباقات VIP من ${brand.name} متاح الآن بخصم 15% للدفع الإلكتروني.`
+            ]
+        },
+        {
+            weekName: 'الأسبوع 4: عروض الإغلاق والتوسيع ونهاية الشهر (Closing Deals)',
+            hooks: [
+                `الفرصة الأخيرة قبل انتهاء عروض هذا الشهر من ${brand.name}!`,
+                `ليه عملاؤنا بيختاروا ${brand.name} دايماً؟ تقييمات حقيقية وتجارب فخر!`,
+                `عرض نهاية الشهر الصاعق من ${brand.name} — الأولوية لأول 10 حجوزات مؤكدة اليوم!`
+            ]
+        }
+    ];
+
+    let postIndex = 0;
+    for (let w = 0; w < 4; w++) {
+        const theme = themes[w];
+        for (let d = 0; d < 3; d++) {
+            postIndex++;
+            const dayName = weekDays[d];
+            const isVideo = d === 1; // Tuesday is Video Reel
+            const isOffer = d === 2; // Thursday is Offer
+            const hook = theme.hooks[d];
+            const ctaType: OmniCtaType = isOffer ? 'APP_CONVERSION' : isVideo ? 'WHATSAPP_VOICE_AGENT' : 'COMMENT_TO_MESSENGER';
+
+            const postDate = new Date(Date.now() + (w * 7 + (d === 0 ? 0 : d === 1 ? 2 : 4)) * 86400000);
+
+            const item: OmniWeekPostItem = {
+                id: `${brand.id}_month_post_${postIndex}`,
+                firestoreDocId: `jarvis_${brand.id}_m_${postIndex}`,
+                day: `${theme.weekName} - ${dayName}`,
+                dateIso: postDate.toISOString(),
+                mediaFormat: isVideo ? 'video' : 'image',
+                pillar: isOffer ? 'conversion_offer' : isVideo ? 'events_seasons' : 'product_marketing',
+                pillarLabel: isOffer ? 'عرض نهاية الأسبوع المباشر' : isVideo ? 'ريلز سينمائي Turbo Flow' : 'تسويق المنتجات والخدمات (Feed 1:1)',
+                contentType: isVideo ? 'فيديو ريلز Google Flow (9:16)' : 'تصميم تيتو ستوديو (Feed 1:1)',
+                hook,
+                caption: `${hook}\n\n${isOffer ? `🛒 احجز الآن مباشرة من المتجر الرسمي بخصم 10%:\n${fullStoreUrl}\n🎁 سداد 25% عربون عبر إنستاباي أو فودافون كاش.` : isVideo ? `💬 تواصل واتساب فوري مع وكيلنا الذكي:\n${waLink}\n📞 خط الدعم: ${brand.phone || '01013373634'}` : `👇 اكتب "عرض" في التعليقات وسنرسل لك تفاصيل الباقات وكود الخصم فوراً!`}`,
+                ctaType,
+                ctaBadge: isOffer ? '🛒 احجز من التطبيق بخصم 10%' : isVideo ? '💬 تواصل واتساب فوري' : '🤖 اكتب عرض في تعليق',
+                ctaActionText: isOffer ? `افتح المتجر واحجز: ${storePath}` : `تواصل واتساب: ${brand.phone || '01013373634'}`,
+                ctaTargetUrl: isOffer ? storePath : waLink,
+                bestTime: '8:00 مساءً',
+                status: postIndex === 1 ? 'draft' : 'scheduled',
+                visualUrl: generateBrandedPostSvgDataUrl({
+                    brandName: brand.name,
+                    businessType: brand.businessType,
+                    primaryColor: brand.primaryColor,
+                    day: dayName,
+                    contentType: isVideo ? 'فيديو ريلز (9:16)' : 'تصميم Feed (1:1)',
+                    hook,
+                    ctaBadge: isOffer ? '🛒 احجز من التطبيق' : '💬 تواصل واتساب',
+                    phone: brand.phone || '01013373634',
+                    storeUrl: storePath,
+                    ctaType
+                }),
+                omniPrompt: isVideo
+                    ? `Vertical 9:16 cinematic commercial reel for ${brand.name} (${brand.businessType || 'premium brand'}), smooth camera glide, photorealistic 4K Veo style, no text.`
+                    : `Ultra-luxury commercial advertising photo for ${brand.name} (${brand.businessType || 'premium brand'}), dramatic studio lighting, 8k resolution, no text overlay.`
+            };
+
+            monthPlan.push(item);
+        }
+    }
+
+    return {
+        monthPlan,
+        firstPost: monthPlan[0],
+        scheduledCount: monthPlan.length - 1,
+        weeksCount: 4
+    };
+}
+
+/**
  * Reads cached Tito Studio Firestore data synchronously for fast graph rendering
  */
 export function readTitoStudioCacheSync(): TitoStudioCache {

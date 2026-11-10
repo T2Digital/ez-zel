@@ -1540,6 +1540,23 @@ export const processToolActions = async (
                               description: `${d.message || ''}\n\n📌 موضوع المنشور: "${args.topic || 'عرض خاص'}"\n⏰ موعد النشر: ${args.schedule_time || (args.publish_now ? 'فوري' : '8:00 مساءً')}\n📱 نوع المنشور: ${args.media_format === 'video' ? '🎬 فيديو ريلز وتيك توك (9:16)' : '🖼️ تصميم Feed (1:1)'}\n\n✅ تم المزامنة تلقائياً مع Firestore سحابة تيتو ستوديو وتقويم المحتوى!`
                           });
                           window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'custom_post', data: d } }));
+                      } else if (action === 'execute_autonomous_agency_cycle') {
+                          const res = await fetch('/api/studio/autonomous-agency-cycle', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                  brandId: brandName,
+                                  autoPublishFirst: !!args.publish_now
+                              })
+                          });
+                          const d = await res.json();
+                          const fp = d.firstPost || {};
+                          uiCards.push({
+                              cardType: 'task_success',
+                              title: `👑 مشغل وكالة التسويق الآلي: ${d.brand?.name || brandName} (خطة شهر كامل)`,
+                              description: `${d.message || ''}\n\n📊 استراتيجية التموضع: ${d.strategy?.positioning || 'ريادة السوق والجودة العالية'}\n📅 إجمالي الخطة: 4 أسابيع / ${d.monthPlan?.length || 12} منشوراً (تم جدولة ${d.scheduledCount || 11} منشوراً تلقائياً في تيتو ستوديو).\n\n🌟 المنشور الأول للمعاينة والاعتماد:\n• الهوك: "${fp.hook || ''}"\n• الموعد: الأحد (8:00 مساءً)\n• الرابط والـ CTA: ${fp.ctaActionText || ''}\n\n✅ انقر "نشر البوست الأول لميتا" فوراً أو قل للظل: "اعتمد وانشر المنشور الأول"!`
+                          });
+                          window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'agency_cycle', data: d } }));
                       }
                   } catch (err: any) {
                       uiCards.push({
