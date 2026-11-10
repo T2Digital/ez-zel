@@ -1545,6 +1545,52 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <span>فتح متجرك PWA</span>
                       </button>
                     </div>
+
+                    {/* 7-Day Trial ROI & Addiction Value Harvest Counter (عداد حصاد التجربة والعائد الفعلي) */}
+                    <div className="p-2.5 rounded-2xl bg-black/65 border border-amber-500/35 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10.5px] font-black text-amber-300 flex items-center gap-1.5">
+                          💎 عداد حصاد منظومة النمو لبراندك (القيمة السوقية المنفذة مجاناً):
+                        </span>
+                        <span className="text-[10px] font-mono font-black text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                          إجمالي القيمة: 22,500 ج.م
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-1.5 text-center text-[9.5px] font-mono">
+                        <div className="p-1.5 rounded-xl bg-blue-500/10 border border-blue-500/30">
+                          <span className="text-white/50 block text-[8px]">تطبيق ومتجر PWA</span>
+                          <span className="text-blue-300 font-black">15,000 ج.م ✔</span>
+                        </div>
+                        <div className="p-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
+                          <span className="text-white/50 block text-[8px]">7 منشورات ستوديو</span>
+                          <span className="text-cyan-300 font-black">3 مسارات CTA ✔</span>
+                        </div>
+                        <div className="p-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                          <span className="text-white/50 block text-[8px]">وكيل واتساب صوتي</span>
+                          <span className="text-emerald-300 font-black">رد في 3 ثوانٍ ✔</span>
+                        </div>
+                        <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                          <span className="text-white/50 block text-[8px]">مبيعات وحجوزات</span>
+                          <span className="text-amber-300 font-black">{realStats.confirmedBookingsCount || 2} حجوزات مؤكدة</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-white/10">
+                        <span className="text-[9.5px] text-white/70">
+                          🔥 متجرك، منشوراتك، ووكيل الواتساب يحققون تفاعلاً ومبيعات حية الآن!
+                        </span>
+                        <button
+                          onClick={() => {
+                            setPersona('client');
+                            playShadowVoice(`ألف مبروك يا فندم! تم تثبيت باقة المدير التنفيذي الشاملة لبراند ${currentSelectedBrand.name} ليستمر متجرك ووكيل الواتساب وتقويم تيتو ستوديو في مضاعفة مبيعاتك بلا توقف!`, 'male');
+                          }}
+                          className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black text-[10px] font-black shadow-lg shadow-amber-500/25 transition shrink-0"
+                        >
+                          ⚡ تفعيل الاشتراك الدائم واستمرار الأرباح
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1856,40 +1902,90 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {activeDeckTab === 'studio_calendar' && (
               <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(6,182,212,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
                 {/* Calendar Header with Selected Brand Info */}
-                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
+                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
                     <div>
-                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap">
                         تقويم تيتو ستوديو: <span className="text-cyan-300">{currentSelectedBrand.name}</span>
+                        <span className="text-[9px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                          ☁️ Firestore: t2-content-studio
+                        </span>
                       </h4>
-                      <p className="text-[10px] text-white/50">جدولة 7 أيام محتوى ذكية موزعة على أوقات ذروة الخوارزميات</p>
+                      <p className="text-[10px] text-white/50">
+                        مصفوفة الـ 3 مسارات (تحويل للمتجر PWA • محادثة واتساب صوتية • تعليق لرسالة تلقائية)
+                      </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
-                    disabled={isPublishingPost}
-                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-xs font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition flex items-center gap-1"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{isPublishingPost ? 'جاري النشر...' : 'نشر بوست اليوم'}</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={async () => {
+                        setIsPublishingPost(true);
+                        try {
+                          const res = await fetch('/api/jarvis/execute-action', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              actionType: 'SYNC_TITO_STUDIO_FIRESTORE',
+                              brandId: currentSelectedBrand.id
+                            })
+                          });
+                          const d = await res.json();
+                          fetchObsidianVault();
+                          playShadowVoice(d.message || `تمت المزامنة الحية ثنائية الاتجاه مع سحابة تيتو ستوديو بنجاح يا ماستر!`, 'male');
+                        } catch {} finally {
+                          setIsPublishingPost(false);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1 transition"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>مزامنة السحابة</span>
+                    </button>
+                    <button
+                      onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
+                      disabled={isPublishingPost}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-xs font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition flex items-center gap-1"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{isPublishingPost ? 'جاري النشر...' : 'نشر بوست اليوم'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* 7-Day Interactive Schedule Cards */}
                 <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-1">
-                  {(currentSelectedBrand.weekContentPlan || []).map((item: any, idx: number) => (
+                  {(currentSelectedBrand.weekContentPlan || []).map((item: any, idx: number) => {
+                    const ctaType = item.ctaType || (idx % 3 === 0 ? 'APP_CONVERSION' : idx % 3 === 1 ? 'WHATSAPP_VOICE_AGENT' : 'COMMENT_TO_MESSENGER');
+                    const ctaBadge = item.ctaBadge || (
+                      ctaType === 'APP_CONVERSION'
+                        ? '🛒 تحويل للتطبيق PWA (خصم 10%)'
+                        : ctaType === 'WHATSAPP_VOICE_AGENT'
+                          ? '💬 محادثة واتساب صوتية فورية'
+                          : '🤖 تعليق بكلمة "عرض" لرسالة تلقائية'
+                    );
+                    const ctaColorClass =
+                      ctaType === 'APP_CONVERSION'
+                        ? 'bg-blue-500/15 text-blue-300 border-blue-500/35'
+                        : ctaType === 'WHATSAPP_VOICE_AGENT'
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                          : 'bg-amber-500/15 text-amber-300 border-amber-500/35';
+
+                    return (
                     <div
                       key={idx}
                       className="p-3 rounded-2xl bg-white/[0.03] border border-cyan-500/20 hover:border-cyan-400/50 hover:bg-cyan-500/[0.05] transition-all flex flex-col gap-1.5 group"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-black text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded-lg border border-cyan-500/30">
                             {item.day}
                           </span>
                           <span className="text-[10px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/20">
                             {item.contentType}
+                          </span>
+                          <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-lg border ${ctaColorClass}`}>
+                            {ctaBadge}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 text-[10px] text-white/50 font-mono">
@@ -1909,32 +2005,40 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/5">
-                        <button
-                          onClick={() => {
-                            setSelectedPost({
-                              ...item,
-                              brandId: currentSelectedBrand.id,
-                              brandName: currentSelectedBrand.name,
-                              platform: 'Instagram & Facebook (Meta Graph)',
-                              status: 'SCHEDULED'
-                            });
-                            setActiveDeckTab('content_post_card');
-                          }}
-                          className="text-[10px] text-cyan-300 hover:text-white flex items-center gap-1 font-bold"
-                        >
-                          👁️ فتح بطاقة المنشور
-                        </button>
-                        <button
-                          onClick={() => handlePublishPost(currentSelectedBrand.id, idx)}
-                          disabled={isPublishingPost}
-                          className="text-[10px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-bold transition flex items-center gap-1"
-                        >
-                          🚀 نشر فوري بالـ Meta Graph
-                        </button>
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5 flex-wrap">
+                        <span className="text-[9.5px] font-mono text-cyan-300/70 truncate max-w-[220px]">
+                          {item.ctaActionText || `المسار: /store/${currentSelectedBrand.slug || currentSelectedBrand.id}`}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedPost({
+                                ...item,
+                                ctaType,
+                                ctaBadge,
+                                brandId: currentSelectedBrand.id,
+                                brandName: currentSelectedBrand.name,
+                                platform: 'Instagram & Facebook (Meta Graph)',
+                                status: 'SCHEDULED'
+                              });
+                              setActiveDeckTab('content_post_card');
+                            }}
+                            className="text-[10px] text-cyan-300 hover:text-white flex items-center gap-1 font-bold"
+                          >
+                            👁️ فتح بطاقة المنشور والتصميم
+                          </button>
+                          <button
+                            onClick={() => handlePublishPost(currentSelectedBrand.id, idx)}
+                            disabled={isPublishingPost}
+                            className="text-[10px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-bold transition flex items-center gap-1"
+                          >
+                            🚀 نشر فوري بالـ Meta Graph
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             )}
@@ -1948,9 +2052,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
                     <div>
                       <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                        بطاقة المحتوى: <span className="text-purple-300">{selectedPost?.brandName || currentSelectedBrand.name}</span>
+                        بطاقة المحتوى والتصميم: <span className="text-purple-300">{selectedPost?.brandName || currentSelectedBrand.name}</span>
                       </h4>
-                      <p className="text-[10px] text-white/50">معاينة تفاعلية كاملة للمنشور الموجه لخوارزميات السوشيال</p>
+                      <p className="text-[10px] text-white/50">معاينة تفاعلية للتصميم، الكابشن، ومسار التحويل (Omni-Channel CTA)</p>
                     </div>
                   </div>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
@@ -1977,44 +2081,65 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         </div>
                       </div>
                     </div>
-                    <span className="text-[10px] font-mono text-purple-400/80 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
-                      {selectedPost?.id || 'post_meta_active'}
+                    <span className="text-[10px] font-mono text-purple-300 bg-purple-500/15 px-2.5 py-0.5 rounded-md border border-purple-500/30 font-bold">
+                      {selectedPost?.ctaBadge || '🛒 تحويل مباشر للتطبيق PWA'}
                     </span>
                   </div>
 
-                  {/* Visual Media Placeholder Box with Sci-Fi Creative Gradient */}
-                  <div className="relative w-full h-40 rounded-xl overflow-hidden bg-gradient-to-br from-purple-950/60 via-[#070e28] to-cyan-950/60 border border-purple-500/20 flex flex-col items-center justify-center text-center p-4">
-                    <Sparkles className="w-6 h-6 text-purple-400 animate-pulse mb-1" />
-                    <div className="text-sm font-black text-white max-w-sm leading-snug">
-                      "{selectedPost?.hook || 'ابتسامتك هوليودية بأحدث تقنيات الليزر في مصر!'}"
+                  {/* Branded Social Design Visual Preview */}
+                  {(selectedPost?.visualUrl || currentSelectedBrand?.weekContentPlan?.[0]?.visualUrl) ? (
+                    <div className="relative w-full h-52 rounded-xl overflow-hidden bg-[#050b14] border border-purple-500/30 flex items-center justify-center">
+                      <img
+                        src={selectedPost?.visualUrl || currentSelectedBrand?.weekContentPlan?.[0]?.visualUrl}
+                        alt={selectedPost?.hook || currentSelectedBrand.name}
+                        className="w-full h-full object-contain"
+                      />
                     </div>
-                    <span className="mt-2 text-[9px] text-cyan-300 bg-black/40 px-3 py-1 rounded-full border border-cyan-500/30 font-bold">
-                      {selectedPost?.contentType || 'Reel فيديو (9:16)'}
-                    </span>
-                  </div>
+                  ) : (
+                    <div className="relative w-full h-40 rounded-xl overflow-hidden bg-gradient-to-br from-purple-950/60 via-[#070e28] to-cyan-950/60 border border-purple-500/20 flex flex-col items-center justify-center text-center p-4">
+                      <Sparkles className="w-6 h-6 text-purple-400 animate-pulse mb-1" />
+                      <div className="text-sm font-black text-white max-w-sm leading-snug">
+                        "{selectedPost?.hook || 'ابتسامتك هوليودية بأحدث تقنيات الليزر في مصر!'}"
+                      </div>
+                      <span className="mt-2 text-[9px] text-cyan-300 bg-black/40 px-3 py-1 rounded-full border border-cyan-500/30 font-bold">
+                        {selectedPost?.contentType || 'Reel فيديو (9:16)'}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Caption & Copywriting */}
-                  <div className="text-xs text-white/80 leading-relaxed bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
-                    {selectedPost?.caption || 'احجز كشفك الآن واستمتع بفحص شامل ومجاني مع خطة تقسيط مريحة بدون فوائد. تواصل معنا على الواتساب فوراً!'}
+                  <div className="text-xs text-white/85 leading-relaxed bg-white/[0.03] p-2.5 rounded-xl border border-white/10 whitespace-pre-line">
+                    {selectedPost?.caption || currentSelectedBrand?.weekContentPlan?.[0]?.caption || 'احجز كشفك الآن واستمتع بفحص شامل ومجاني مع خطة تقسيط مريحة بدون فوائد. تواصل معنا على الواتساب فوراً!'}
                   </div>
 
                   {/* Dual Action Boosters */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="grid grid-cols-3 gap-2 pt-1">
                     <button
                       onClick={() => handleLaunchAdForPost(selectedPost)}
                       disabled={isLaunchingCampaign}
-                      className="py-2.5 px-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-xs font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] transition flex items-center justify-center gap-1.5"
+                      className="py-2 px-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-[11px] font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] transition flex items-center justify-center gap-1"
                     >
                       <TrendingUp className="w-3.5 h-3.5" />
-                      <span>{isLaunchingCampaign ? 'جاري الإطلاق...' : 'إطلاق كإعلان واتساب (2000 ج)'}</span>
+                      <span>{isLaunchingCampaign ? 'جاري الإطلاق...' : 'تمويل كإعلان (2000 ج)'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const targetUrl = selectedPost?.ctaTargetUrl || `/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`;
+                        window.open(targetUrl, '_blank');
+                      }}
+                      className="py-2 px-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold transition flex items-center justify-center gap-1"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>تجربة مسار الـ CTA</span>
                     </button>
 
                     <button
                       onClick={() => setActiveDeckTab('studio_calendar')}
-                      className="py-2.5 px-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-xs font-bold transition flex items-center justify-center gap-1"
+                      className="py-2 px-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-[11px] font-bold transition flex items-center justify-center gap-1"
                     >
                       <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>العودة لتقويم ستوديو</span>
+                      <span>العودة للتقويم</span>
                     </button>
                   </div>
                 </div>

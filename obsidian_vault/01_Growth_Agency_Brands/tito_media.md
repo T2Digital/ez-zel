@@ -6,7 +6,7 @@ phone: "01030956097"
 status: "متوقف"
 storefront: "/store/tito_media"
 meta_connected: true
-updated_at: "2026-11-10T09:34:19.334Z"
+updated_at: "2026-11-10T10:01:09.314Z"
 ---
 
 # 🏢 [[تيتو ميديا]]

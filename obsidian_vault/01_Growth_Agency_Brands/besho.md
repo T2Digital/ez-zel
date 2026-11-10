@@ -6,7 +6,7 @@ phone: "011111462944"
 status: "شغال"
 storefront: "/store/besho"
 meta_connected: false
-updated_at: "2026-11-10T09:34:19.340Z"
+updated_at: "2026-11-10T10:01:09.318Z"
 ---
 
 # 🏢 [[Sale Gates Egypt]]

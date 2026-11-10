@@ -6,7 +6,7 @@ phone: "01147418358"
 status: "متوقف"
 storefront: "/store/baraka_motors"
 meta_connected: true
-updated_at: "2026-11-10T09:34:19.336Z"
+updated_at: "2026-11-10T10:01:09.315Z"
 ---
 
 # 🏢 [[البركة موتورز]]

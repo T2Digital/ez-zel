@@ -1,5 +1,18 @@
 [
   {
+    "id": "brand_mwaisgha",
+    "name": "أكاديمية النخبة للتدريب",
+    "slug": "brand-mwaisgha",
+    "industry": "التدريب والاستشارات",
+    "domain": "https://brand-mwaisgha.t2-client.vercel.app",
+    "phone": "01013373634",
+    "tier": "vip_autonomous",
+    "mrrEgp": 5000,
+    "status": "ACTIVE",
+    "agentConnected": true,
+    "createdAt": "2026-11-10T10:01:07.904Z"
+  },
+  {
     "id": "brand_mw8e6cft",
     "name": "عيادة د. نور لطب وزراعة الأسنان",
     "slug": "brand-mw8e6cft",

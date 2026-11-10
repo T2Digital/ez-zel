@@ -6,7 +6,7 @@ phone: "01141244184"
 status: "متوقف"
 storefront: "/store/fazaa_express"
 meta_connected: true
-updated_at: "2026-11-10T09:34:19.336Z"
+updated_at: "2026-11-10T10:01:09.316Z"
 ---
 
 # 🏢 [[فزعه إكسبريس]]

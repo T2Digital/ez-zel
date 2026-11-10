@@ -6,7 +6,7 @@ phone: "01114664644"
 status: "متوقف"
 storefront: "/store/dental_district"
 meta_connected: true
-updated_at: "2026-11-10T09:34:19.332Z"
+updated_at: "2026-11-10T10:01:09.313Z"
 ---
 
 # 🏢 [[عيادة حي الأسنان]]

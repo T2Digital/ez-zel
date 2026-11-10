@@ -6,7 +6,7 @@ phone: "01114474774"
 status: "متوقف"
 storefront: "/store/socotra_dental"
 meta_connected: true
-updated_at: "2026-11-10T09:34:19.331Z"
+updated_at: "2026-11-10T10:01:09.313Z"
 ---
 
 # 🏢 [[عيادة سقطرى لطب الأسنان]]

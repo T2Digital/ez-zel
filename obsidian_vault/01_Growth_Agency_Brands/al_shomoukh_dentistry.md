@@ -6,7 +6,7 @@ phone: "01114844884"
 status: "متوقف"
 storefront: "/store/al_shomoukh_dentistry"
 meta_connected: true
-updated_at: "2026-11-10T09:34:19.338Z"
+updated_at: "2026-11-10T10:01:09.316Z"
 ---
 
 # 🏢 [[الشموخ لطب الأسنان]]

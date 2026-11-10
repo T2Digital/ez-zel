@@ -6,7 +6,7 @@ phone: "01013373634"
 status: "متوقف"
 storefront: "/store/battah_system"
 meta_connected: false
-updated_at: "2026-11-10T09:34:19.340Z"
+updated_at: "2026-11-10T10:01:09.318Z"
 ---
 
 # 🏢 [[متجر بطاح لقطع غيار السيارات والكماليات]]

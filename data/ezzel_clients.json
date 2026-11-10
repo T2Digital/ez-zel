@@ -1,5 +1,20 @@
 [
   {
+    "id": "ezzel_trial_1794304869291",
+    "name": "المدير التنفيذي - أكاديمية النخبة للتدريب",
+    "role": "مشترك تجربة مجانية 7 أيام (Brand CEO)",
+    "plan": "7-Day Free Trial (Full Ecosystem)",
+    "voicePersona": "Gemini Puck 24kHz",
+    "status": "trial",
+    "activeTasksCount": 7,
+    "memoryNodesCount": 15,
+    "monthlySubscriptionEgp": 2190,
+    "affiliateEarningsEgp": 0,
+    "joinedAt": "2026-11-10",
+    "linkedBrandId": "brand_mwaisgha",
+    "trialEndsAt": "2026-11-17"
+  },
+  {
     "id": "ezzel_usr_01",
     "name": "أحمد عطية (الماستر تيتو)",
     "role": "Super Admin & Founder",

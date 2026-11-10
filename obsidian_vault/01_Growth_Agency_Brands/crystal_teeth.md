@@ -6,7 +6,7 @@ phone: "01152751755"
 status: "متوقف"
 storefront: "/store/crystal_teeth"
 meta_connected: true
-updated_at: "2026-11-10T09:34:19.331Z"
+updated_at: "2026-11-10T10:01:09.312Z"
 ---
 
 # 🏢 [[عيادة كريستال لطب الأسنان]]

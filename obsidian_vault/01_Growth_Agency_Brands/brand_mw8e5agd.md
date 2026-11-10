@@ -6,7 +6,7 @@ phone: "01099887766"
 status: "متوقف"
 storefront: "/store/brand-mw8e5agd"
 meta_connected: false
-updated_at: "2026-11-10T09:34:19.341Z"
+updated_at: "2026-11-10T10:01:09.319Z"
 ---
 
 # 🏢 [[عيادة د. نور لطب وزراعة الأسنان]]

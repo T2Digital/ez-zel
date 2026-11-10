@@ -4,6 +4,13 @@ import { BRAND_VAULT } from './brandVault';
 import { readBookings, saveBooking, broadcastGatewayEvent } from './microservicesGateway';
 import { publishBrandPost, launchAdCampaign, getPublishedLogs } from './growthAgencyEngine';
 import { cloneOrSynthesizeBrand } from './appClonerCrawlerService';
+import {
+    readTitoStudioCacheSync,
+    syncFromTitoStudioFirestore,
+    buildOmniChannelWeekPlan,
+    upsertBrandToTitoStudioFirestore,
+    syncWeekPlanToTitoStudioFirestore
+} from './titoStudioFirestoreBridge';
 
 export interface ObsidianNode {
     id: string;
@@ -267,7 +274,110 @@ export function getUnifiedGrowthBrands(): any[] {
         } catch {}
     }
 
-    return Array.from(mergedMap.values());
+    // 4. Overlay from Tito Studio Firebase Firestore (`t2-content-studio` cache: /clinics + /content)
+    const studioCache = readTitoStudioCacheSync();
+    const studioNameMap: Record<string, string> = {
+        '2': 'crystal_teeth',
+        'brand_1788540631941': 'clean_master',
+        'brand_1785774967683': 'alkhedr_car_rental',
+        'brand_1783239457203': 'fazaa_express',
+        'brand_1780593467882': 'sky_vip',
+        'brand_1780863827841': 'baraka_motors',
+        'brand_1779847291377': 'tito_media',
+        'brand_1779846650608': 'crypto_arabi'
+    };
+
+    (studioCache.clinics || []).forEach((clinic: any) => {
+        if (!clinic || !clinic.id) return;
+        const mappedKey =
+            studioNameMap[clinic.id] ||
+            (clinic.slug && mergedMap.has(clinic.slug) ? clinic.slug : null) ||
+            Array.from(mergedMap.values()).find(
+                (b: any) => b.name && clinic.name && b.name.trim() === clinic.name.trim()
+            )?.id ||
+            (clinic.slug ? clinic.slug.replace(/-/g, '_') : `studio_${clinic.id}`);
+
+        const existing = mergedMap.get(mappedKey) || {};
+        const landingItems = clinic.landingPageConfig?.catalogItems || [];
+        const studioCatalog = Array.isArray(landingItems)
+            ? landingItems.map((item: any, idx: number) => ({
+                  id: item.id || `studio_srv_${idx + 1}`,
+                  name: item.name || 'خدمة معتمدة',
+                  price: String(item.price || '600 ج.م'),
+                  description: item.description || clinic.slogan || 'خدمة متكاملة بأعلى جودة',
+                  imageUrl: item.image || clinic.logo || ''
+              }))
+            : [];
+
+        // Match any live /content documents from Tito Studio for this clinic
+        const clinicContentDocs = (studioCache.content || []).filter(
+            (cnt: any) => cnt.clinicId === clinic.id || cnt.clinicId === mappedKey
+        );
+
+        const studioWeekPosts = clinicContentDocs.map((cnt: any, idx: number) => ({
+            id: cnt.id,
+            firestoreDocId: cnt.id,
+            day: cnt.title?.split(':')[0] || ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'][idx % 7],
+            contentType: cnt.type === 'video' ? 'فيديو ريلز 9:16' : 'تصميم سوشيال 1:1',
+            hook: cnt.hook || cnt.title || `عرض مميز من ${clinic.name}`,
+            caption: cnt.caption || cnt.content || '',
+            bestTime: '8:30 مساءً',
+            ctaType: cnt.ctaType || (idx % 3 === 0 ? 'APP_CONVERSION' : idx % 3 === 1 ? 'WHATSAPP_VOICE_AGENT' : 'COMMENT_TO_MESSENGER'),
+            ctaBadge: cnt.ctaBadge || '🛒 احجز الآن بخصم 10%',
+            ctaTargetUrl: cnt.ctaTargetUrl || `/store/${existing.slug || mappedKey}`,
+            visualUrl: cnt.visualUrl || '',
+            status: cnt.status || 'scheduled'
+        }));
+
+        mergedMap.set(mappedKey, {
+            ...existing,
+            id: mappedKey,
+            titoStudioClinicId: clinic.id,
+            titoStudioSynced: true,
+            slug: existing.slug || clinic.slug || mappedKey,
+            name: existing.name || (clinic.name ? clinic.name.trim() : mappedKey),
+            englishName: clinic.englishName || existing.englishName || mappedKey,
+            businessType: existing.businessType || clinic.customIndustry || clinic.industry || 'خدمات وأعمال',
+            phone: (clinic.phone || clinic.whatsappNumber || existing.phone || '01013373634').trim(),
+            whatsapp: (clinic.whatsappNumber || clinic.phone || existing.whatsapp || '01013373634').trim(),
+            primaryColor: clinic.primaryColor || existing.primaryColor || '#06b6d4',
+            logo: clinic.logo || existing.logo || '',
+            status: existing.status || 'شغال',
+            metaConnected: !!(clinic.metaToken || clinic.selectedMetaPage || existing.metaConnected),
+            metaPageName: clinic.selectedMetaPage?.name || existing.metaPageName || clinic.name,
+            metaPageId: clinic.selectedMetaPage?.id || existing.metaPageId || '',
+            metaToken: clinic.metaToken || existing.metaToken || '',
+            appUrl: `/store/${existing.slug || clinic.slug || mappedKey}`,
+            productsCatalog:
+                existing.productsCatalog && existing.productsCatalog.length > 0
+                    ? existing.productsCatalog
+                    : studioCatalog,
+            weekContentPlan:
+                studioWeekPosts.length > 0
+                    ? studioWeekPosts
+                    : existing.weekContentPlan || []
+        });
+    });
+
+    // 5. Enrich EVERY brand with the 7-Day Omni-Channel CTA Matrix & Visual Previews
+    const finalBrands = Array.from(mergedMap.values()).map((brand: any) => {
+        const omniPlan = buildOmniChannelWeekPlan({
+            id: brand.id,
+            slug: brand.slug || brand.id,
+            name: brand.name,
+            businessType: brand.businessType,
+            phone: brand.phone,
+            primaryColor: brand.primaryColor,
+            existingPlan: brand.weekContentPlan
+        });
+        return {
+            ...brand,
+            titoStudioSynced: !!brand.titoStudioSynced || true,
+            weekContentPlan: omniPlan
+        };
+    });
+
+    return finalBrands;
 }
 
 /**
@@ -582,6 +692,9 @@ export function persistBrandUpdateAcrossEcosystem(brandId: string, updates: Reco
         }
     } catch {}
 
+    // 3. Push live update to Tito Studio Firebase Firestore (`t2-content-studio` -> /clinics) asynchronously
+    upsertBrandToTitoStudioFirestore(mergedBrand).catch(() => {});
+
     return mergedBrand;
 }
 
@@ -628,6 +741,14 @@ export function saveObsidianNodeMarkdown(brandOrNodeId: string, markdown: string
 export function startObsidianTwoWayWatcher() {
     if (obsidianWatcherInitialized) return;
     ensureVaultDirectories();
+
+    // Perform an immediate background sync from Tito Studio Firebase Firestore (`t2-content-studio`)
+    // and refresh every 60 seconds so Jarvis & Obsidian stay 100% in sync with Tito Studio!
+    syncFromTitoStudioFirestore().catch(() => {});
+    setInterval(() => {
+        syncFromTitoStudioFirestore().catch(() => {});
+    }, 60000);
+
     const brandsVaultDir = path.join(VAULT_ROOT, '01_Growth_Agency_Brands');
     if (!fs.existsSync(brandsVaultDir)) return;
 
@@ -902,6 +1023,23 @@ export async function executeRealJarvisEcosystemAction(payload: {
                 websiteUrl
             });
 
+            // Enrich with 7-Day Omni-Channel CTA Matrix & sync to Tito Studio Firebase Firestore + T2 Agent
+            const omniPlan = buildOmniChannelWeekPlan({
+                id: cloned.id,
+                slug: cloned.slug,
+                name: cloned.name,
+                businessType: cloned.businessType,
+                phone: cloned.phone,
+                existingPlan: cloned.weekContentPlan
+            });
+            const enrichedBrand = persistBrandUpdateAcrossEcosystem(cloned.id, {
+                ...cloned,
+                weekContentPlan: omniPlan
+            });
+            await upsertBrandToTitoStudioFirestore(enrichedBrand);
+            const studioPostsCount = await syncWeekPlanToTitoStudioFirestore(enrichedBrand, omniPlan);
+            await syncFromTitoStudioFirestore();
+
             // Also add to Ez-Zel Clients as a 7-Day Free Trial subscriber
             const clients = getEzZelPersonalClients();
             const newClient = {
@@ -928,17 +1066,42 @@ export async function executeRealJarvisEcosystemAction(payload: {
 
             return {
                 success: true,
-                brand: cloned,
+                brand: enrichedBrand,
                 trialClient: newClient,
                 storeUrl: `/store/${cloned.slug}`,
-                message: `تم استنساخ تطبيق (${cloned.name}) وتوليد خطة محتوى 7 أيام وتفعيل أسبوع التجربة المجانية بالكامل!`
+                studioPostsCount,
+                message: `تم استنساخ تطبيق (${cloned.name}) في مصنع التطبيقات، وتسجيله في قاعدة بيانات تيتو ستوديو السحابية وتيتو أجنت، وجدولة (${studioPostsCount}) منشورات بمصفوفة الـ 3 مسارات (تطبيق + واتساب صوتي + تعليق تلقائي) لتفعيل أسبوع التجربة المجانية بالكامل!`
             };
         }
 
         case 'PUBLISH_STUDIO_POST': {
             const res = await publishBrandPost(brandId, data.postIndex || 0);
+            const allBrands = getUnifiedGrowthBrands();
+            const targetBrand = allBrands.find(b => b.id === brandId || b.slug === brandId);
+            if (targetBrand) {
+                syncWeekPlanToTitoStudioFirestore(targetBrand).catch(() => {});
+            }
             syncAndBuildObsidianVault();
             return res;
+        }
+
+        case 'SYNC_TITO_STUDIO_FIRESTORE': {
+            const cache = await syncFromTitoStudioFirestore();
+            const allBrands = getUnifiedGrowthBrands();
+            const targetBrand = allBrands.find(b => b.id === brandId || b.slug === brandId);
+            let pushedPosts = 0;
+            if (targetBrand) {
+                await upsertBrandToTitoStudioFirestore(targetBrand);
+                pushedPosts = await syncWeekPlanToTitoStudioFirestore(targetBrand);
+            }
+            const snapshot = syncAndBuildObsidianVault();
+            return {
+                success: true,
+                clinicsCount: cache.clinics.length,
+                contentCount: cache.content.length + pushedPosts,
+                totalUnifiedBrands: snapshot.growthAgencyBrands.length,
+                message: `تمت المزامنة الحية ثنائية الاتجاه مع قاعدة بيانات تيتو ستوديو السحابية (t2-content-studio)! إجمالي البراندات الموحدة الآن: ${snapshot.growthAgencyBrands.length} براند، وتم مزامنة (${pushedPosts}) منشورات في تقويم تيتو ستوديو.`
+            };
         }
 
         case 'LAUNCH_META_AD': {

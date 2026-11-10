@@ -6,7 +6,7 @@ phone: "01038690400"
 status: "متوقف"
 storefront: "/store/kyan_store"
 meta_connected: true
-updated_at: "2026-11-10T09:34:19.336Z"
+updated_at: "2026-11-10T10:01:09.315Z"
 ---
 
 # 🏢 [[كيان]]
