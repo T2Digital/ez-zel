@@ -19,7 +19,7 @@ export interface PaymobCheckoutResponse {
     intentionId?: string;
     planName: string;
     amountEgp: number;
-    mode: 'live_paymob' | 'instant_gateway';
+    mode: 'live_paymob' | 'pending_gateway_verification';
 }
 
 const SUBSCRIPTIONS_LOG_PATH = path.join(process.cwd(), 'data', 'paymob_subscriptions.json');
@@ -84,6 +84,8 @@ export function savePaymobSubscriptionRecord(record: any): void {
 
 /**
  * Creates a Paymob payment session (supports both Paymob v1 Intention API and Classic Auth->Order->PaymentKey API).
+ * Never auto-activates for free: if Paymob keys are not yet configured in .env, opens a Pending Verification Checkout Gateway
+ * that requires either a signed Paymob Webhook or Sovereign Admin confirmation.
  */
 export async function createPaymobCheckoutSession(req: PaymobCheckoutRequest): Promise<PaymobCheckoutResponse> {
     const plan = PAYMOB_PLANS[req.planId] || PAYMOB_PLANS.growth_pro;
@@ -103,7 +105,7 @@ export async function createPaymobCheckoutSession(req: PaymobCheckoutRequest): P
     const email = req.customerEmail || `${req.brandId}@t2-studio.app`;
     const merchantOrderId = `T2_${req.brandId}_${Date.now()}`;
 
-    // 1. Try Paymob Intention API (Unified Checkout) if Secret & Public keys exist
+    // 1. Paymob Intention API (Unified Checkout)
     if (secretKey && publicKey && integrationId) {
         try {
             const intentionRes = await fetch('https://accept.paymob.com/v1/intention/', {
@@ -173,11 +175,11 @@ export async function createPaymobCheckoutSession(req: PaymobCheckoutRequest): P
                 }
             }
         } catch (e: any) {
-            console.warn('[Paymob] Unified checkout fallback:', e?.message);
+            console.warn('[Paymob] Unified checkout error:', e?.message);
         }
     }
 
-    // 2. Try Classic Paymob API (Auth -> Order -> Payment Key -> Iframe)
+    // 2. Classic Paymob API (Auth -> Order -> Payment Key -> Iframe)
     if (apiKey && integrationId && iframeId) {
         try {
             const authRes = await fetch('https://accept.paymob.com/api/auth/tokens', {
@@ -258,12 +260,12 @@ export async function createPaymobCheckoutSession(req: PaymobCheckoutRequest): P
                 }
             }
         } catch (e: any) {
-            console.warn('[Paymob] Classic API fallback:', e?.message);
+            console.warn('[Paymob] Classic API error:', e?.message);
         }
     }
 
-    // 3. Built-in Instant Paymob Gateway Callback URL so testing/staging works seamlessly
-    const fallbackUrl = `/api/payments/paymob/instant-confirm?orderId=${encodeURIComponent(merchantOrderId)}&brandId=${encodeURIComponent(req.brandId)}&planId=${encodeURIComponent(req.planId)}&amountEgp=${amountEgp}`;
+    // 3. Pending Checkout Gateway (Never auto-activates without Paymob HMAC Webhook or Admin Secret)
+    const gatewayUrl = `/api/payments/paymob/checkout-gateway?orderId=${encodeURIComponent(merchantOrderId)}&brandId=${encodeURIComponent(req.brandId)}&planId=${encodeURIComponent(req.planId)}&amountEgp=${amountEgp}`;
     savePaymobSubscriptionRecord({
         orderId: merchantOrderId,
         brandId: req.brandId,
@@ -271,27 +273,30 @@ export async function createPaymobCheckoutSession(req: PaymobCheckoutRequest): P
         planId: req.planId,
         planName: plan.name,
         amountEgp,
-        status: 'pending',
-        paymentUrl: fallbackUrl,
+        status: 'pending_verification',
+        paymentUrl: gatewayUrl,
         createdAt: new Date().toISOString()
     });
 
     return {
         ok: true,
-        paymentUrl: fallbackUrl,
+        paymentUrl: gatewayUrl,
         orderId: merchantOrderId,
         planName: plan.name,
         amountEgp,
-        mode: 'instant_gateway'
+        mode: 'pending_gateway_verification'
     };
 }
 
 /**
- * Verifies Paymob Webhook HMAC signature if PAYMOB_HMAC_SECRET is configured
+ * Strictly verifies Paymob Webhook HMAC-SHA512 signature.
+ * Returns false if PAYMOB_HMAC_SECRET is missing or if signature does not match.
  */
 export function verifyPaymobWebhookHmac(obj: any, receivedHmac?: string): boolean {
     const hmacSecret = process.env.PAYMOB_HMAC_SECRET || '';
-    if (!hmacSecret || !receivedHmac) return true; // Pass if HMAC secret not enforced in dev
+    if (!hmacSecret || !receivedHmac) {
+        return false;
+    }
     try {
         const concatenated = [
             obj.amount_cents,
@@ -319,8 +324,11 @@ export function verifyPaymobWebhookHmac(obj: any, receivedHmac?: string): boolea
             .join('');
 
         const calculated = crypto.createHmac('sha512', hmacSecret).update(concatenated).digest('hex');
-        return calculated === receivedHmac;
+        const calcBuf = Buffer.from(calculated, 'utf8');
+        const recBuf = Buffer.from(String(receivedHmac), 'utf8');
+        if (calcBuf.length !== recBuf.length) return false;
+        return crypto.timingSafeEqual(calcBuf, recBuf);
     } catch {
-        return true;
+        return false;
     }
 }

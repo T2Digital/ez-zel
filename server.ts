@@ -19,7 +19,7 @@ import { publishBrandPost, launchAdCampaign, runSelfOptimizingLoop, setupAutonom
 import { syncAndBuildObsidianVault, getObsidianNodeMarkdown, saveObsidianNodeMarkdown, startObsidianTwoWayWatcher, executeRealJarvisEcosystemAction, getUnifiedGrowthBrands, getEzZelPersonalClients } from "./services/obsidianVaultService";
 import { readTurboFlowQueue, enqueueTurboFlowVideoJob, completeTurboFlowVideoJob, readTitoStudioCacheSync } from "./services/titoStudioFirestoreBridge";
 import { PAYMOB_PLANS, createPaymobCheckoutSession, verifyPaymobWebhookHmac, readPaymobSubscriptions, savePaymobSubscriptionRecord } from "./services/paymobService";
-import { readBookings } from "./services/microservicesGateway";
+import { readBookings, broadcastGatewayEvent } from "./services/microservicesGateway";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -636,33 +636,210 @@ async function startServer() {
       }
   });
 
-  app.get("/api/payments/paymob/instant-confirm", async (req, res) => {
+  // Helper to verify Sovereign Admin Firebase ID Token or Admin Secret Header
+  async function verifyAdminRequest(req: express.Request): Promise<{ ok: boolean; email?: string; error?: string }> {
+      const adminSecret = process.env.ADMIN_API_SECRET;
+      const providedSecret = req.headers['x-admin-secret'] || req.body?.adminSecret;
+      if (adminSecret && providedSecret && String(providedSecret) === String(adminSecret)) {
+          return { ok: true, email: 'ahm.atya@gmail.com' };
+      }
+
+      const authHeader = String(req.headers.authorization || '');
+      const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : String(req.body?.idToken || '');
+      const fbKey = process.env.VITE_FIREBASE_API_KEY || process.env.TITO_STUDIO_FIREBASE_API_KEY || '';
+      if (idToken && fbKey) {
+          try {
+              const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${fbKey}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ idToken }),
+                  signal: AbortSignal.timeout(5000)
+              });
+              if (resp.ok) {
+                  const data: any = await resp.json();
+                  const email = String(data?.users?.[0]?.email || '').toLowerCase();
+                  if (email === 'ahm.atya@gmail.com' || email === 'ahmed.atya.daif@gmail.com') {
+                      return { ok: true, email };
+                  }
+                  return { ok: false, error: `Unauthorized email: ${email}` };
+              }
+          } catch (e: any) {
+              return { ok: false, error: e?.message };
+          }
+      }
+      return { ok: false, error: 'Missing valid Admin Firebase ID Token or ADMIN_API_SECRET' };
+  }
+
+  app.get("/api/payments/paymob/checkout-gateway", (req, res) => {
+      const orderId = String(req.query.orderId || `PM_${Date.now()}`);
+      const brandId = String(req.query.brandId || 'el_baraka');
+      const planId = String(req.query.planId || 'growth_pro');
+      const amountEgp = Number(req.query.amountEgp || 2950);
+      const plan = PAYMOB_PLANS[planId] || PAYMOB_PLANS.growth_pro;
+
+      res.send(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/><title>بوابة الدفع والاشتراك — Paymob</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800&display=swap" rel="stylesheet"/></head><body style="background:#020617;color:#fff;font-family:'Cairo',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:16px;"><div style="background:#0f172a;border:1px solid #06b6d4;border-radius:24px;padding:32px;max-width:520px;text-align:center;box-shadow:0 20px 60px rgba(6,182,212,0.2);"><div style="font-size:44px;margin-bottom:10px;">💳</div><h2 style="margin:0 0 10px;color:#38bdf8;">طلب اشتراك قيد التحقق من الدفع</h2><p style="color:#cbd5e1;font-size:14px;line-height:1.8;">الباقة: <b>${plan.name}</b><br/>البراند: <code>${brandId}</code> • القيمة: <b>${amountEgp} ج.م</b><br/>رقم الطلب: <code>${orderId}</code></p><div style="background:#020617;border:1px solid #334155;border-radius:14px;padding:14px;margin:16px 0;font-size:12.5px;color:#94a3b8;text-align:right;">🔒 <b>حماية التفعيل الآلي:</b> لا يتم تفعيل الاشتراك مجاناً عبر الرابط؛ يتم التفعيل تلقائياً فور وصول إشعار الدفع الموقّع (HMAC-SHA512) من بوابة <b>Paymob</b> إلى <code>/api/payments/paymob/webhook</code>، أو باعتماد الأدمن الموثق.</div><button onclick="window.close()" style="margin-top:10px;background:#06b6d4;color:#020617;border:none;padding:11px 28px;border-radius:12px;font-family:'Cairo',sans-serif;font-weight:800;cursor:pointer;">العودة إلى المنظومة</button></div></body></html>`);
+  });
+
+  app.post("/api/payments/paymob/admin-confirm", async (req, res) => {
       try {
-          const orderId = String(req.query.orderId || `PM_${Date.now()}`);
-          const brandId = String(req.query.brandId || 'el_baraka');
-          const planId = String(req.query.planId || 'growth_pro');
-          const amountEgp = Number(req.query.amountEgp || 2950);
-          const plan = PAYMOB_PLANS[planId] || PAYMOB_PLANS.growth_pro;
+          const authCheck = await verifyAdminRequest(req);
+          if (!authCheck.ok) {
+              return res.status(403).json({ ok: false, error: authCheck.error || 'غير مصرح بتفعيل الاشتراك بدون توثيق الأدمن أو Paymob Webhook' });
+          }
+          const { orderId, brandId, planId, amountEgp } = req.body || {};
+          const plan = PAYMOB_PLANS[planId || 'growth_pro'] || PAYMOB_PLANS.growth_pro;
+          const finalOrderId = String(orderId || `PM_ADMIN_${Date.now()}`);
+          const finalBrandId = String(brandId || 'el_baraka');
 
           savePaymobSubscriptionRecord({
-              orderId,
-              brandId,
-              planId,
+              orderId: finalOrderId,
+              brandId: finalBrandId,
+              planId: plan.id,
               planName: plan.name,
-              amountEgp,
+              amountEgp: Number(amountEgp || plan.amountEgp),
               status: 'paid',
+              approvedByAdmin: authCheck.email,
               paidAt: new Date().toISOString()
           });
 
-          await executeRealJarvisEcosystemAction({
+          const result = await executeRealJarvisEcosystemAction({
               actionType: 'ACTIVATE_PAYMOB_SUBSCRIPTION',
-              brandId,
-              payload: { planId, planName: plan.name, orderId }
+              brandId: finalBrandId,
+              payload: { planId: plan.id, planName: plan.name, orderId: finalOrderId }
           });
 
-          res.send(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/><title>تأكيد الدفع عبر Paymob</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800&display=swap" rel="stylesheet"/></head><body style="background:#020617;color:#fff;font-family:'Cairo',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><div style="background:#0f172a;border:1px solid #10b981;border-radius:24px;padding:36px;max-width:480px;text-align:center;box-shadow:0 20px 60px rgba(16,185,129,0.2);"><div style="font-size:48px;margin-bottom:12px;">✅</div><h2 style="margin:0 0 10px;color:#34d399;">تم الدفع وتفعيل الاشتراك آلياً عبر Paymob</h2><p style="color:#94a3b8;font-size:14px;line-height:1.7;">تم تفعيل <b>${plan.name}</b> للبراند رقم <code>${brandId}</code> بقيمة <b>${amountEgp} ج.م</b> ورقم عملية <code>${orderId}</code>.</p><button onclick="window.close()" style="margin-top:20px;background:#10b981;color:#020617;border:none;padding:12px 28px;border-radius:12px;font-family:'Cairo',sans-serif;font-weight:800;cursor:pointer;">العودة إلى جارفيس</button></div></body></html>`);
+          res.json({ ok: true, activated: true, approvedBy: authCheck.email, result });
       } catch (err: any) {
-          res.status(500).send(err?.message);
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  // --- REAL OMNICHANNEL COMMUNICATIONS DISPATCHER (/api/communications/send) --- //
+  const DISPATCHED_BRIEFINGS_LOG = path.join(process.cwd(), 'data', 'dispatched_briefings.json');
+
+  async function dispatchOmnichannelMessage(params: { channel?: string; to?: string; message: string }) {
+      const rawPhone = String(params.to || process.env.ADMIN_WHATSAPP_PHONE || '01013373634').replace(/[^0-9]/g, '');
+      const intlPhone = rawPhone.startsWith('0') ? `2${rawPhone}` : rawPhone;
+      const message = String(params.message || '').trim();
+      const kapsoApiKey = process.env.KAPSO_API_KEY || '';
+      const waCloudToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
+      const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+      const tgBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
+      const tgChatId = process.env.TELEGRAM_CHAT_ID || '';
+
+      let liveDelivered = false;
+      let providerUsed = 'none';
+      let providerResponse: any = null;
+
+      // 1. Try Meta Cloud WhatsApp API
+      if (waCloudToken && waPhoneId) {
+          try {
+              const r = await fetch(`https://graph.facebook.com/v19.0/${waPhoneId}/messages`, {
+                  method: 'POST',
+                  headers: {
+                      'Authorization': `Bearer ${waCloudToken}`,
+                      'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                      messaging_product: 'whatsapp',
+                      to: intlPhone,
+                      type: 'text',
+                      text: { body: message }
+                  }),
+                  signal: AbortSignal.timeout(7000)
+              });
+              const d: any = await r.json();
+              if (r.ok && d.messages?.[0]?.id) {
+                  liveDelivered = true;
+                  providerUsed = 'meta_whatsapp_cloud';
+                  providerResponse = d;
+              }
+          } catch {}
+      }
+
+      // 2. Try Kapso WhatsApp Bridge
+      if (!liveDelivered && kapsoApiKey) {
+          try {
+              const r = await fetch('https://api.kapso.ai/meta/whatsapp/v19.0/me/messages', {
+                  method: 'POST',
+                  headers: {
+                      'Authorization': `Bearer ${kapsoApiKey}`,
+                      'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                      messaging_product: 'whatsapp',
+                      recipient_type: 'individual',
+                      to: intlPhone,
+                      type: 'text',
+                      text: { preview_url: false, body: message }
+                  }),
+                  signal: AbortSignal.timeout(7000)
+              });
+              if (r.ok) {
+                  liveDelivered = true;
+                  providerUsed = 'kapso_whatsapp';
+                  providerResponse = await r.text();
+              }
+          } catch {}
+      }
+
+      // 3. Try Telegram Bot API
+      if (tgBotToken && tgChatId) {
+          try {
+              const r = await fetch(`https://api.telegram.org/bot${tgBotToken}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      chat_id: tgChatId,
+                      text: message
+                  }),
+                  signal: AbortSignal.timeout(7000)
+              });
+              if (r.ok) {
+                  liveDelivered = true;
+                  providerUsed = providerUsed === 'none' ? 'telegram_bot' : `${providerUsed}+telegram_bot`;
+              }
+          } catch {}
+      }
+
+      const logEntry = {
+          id: `msg_${Date.now()}`,
+          to: intlPhone,
+          channel: params.channel || 'whatsapp',
+          liveDelivered,
+          providerUsed,
+          messagePreview: message.slice(0, 180),
+          timestamp: new Date().toISOString()
+      };
+
+      try {
+          const dir = path.dirname(DISPATCHED_BRIEFINGS_LOG);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          const existing = fs.existsSync(DISPATCHED_BRIEFINGS_LOG)
+              ? JSON.parse(fs.readFileSync(DISPATCHED_BRIEFINGS_LOG, 'utf8'))
+              : [];
+          existing.unshift(logEntry);
+          fs.writeFileSync(DISPATCHED_BRIEFINGS_LOG, JSON.stringify(existing.slice(0, 100), null, 2), 'utf8');
+      } catch {}
+
+      broadcastGatewayEvent('BRIEFING_DISPATCHED', logEntry);
+
+      return {
+          ok: true,
+          liveDelivered,
+          providerUsed,
+          to: intlPhone,
+          whatsappWebDeepLink: `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`,
+          providerResponse
+      };
+  }
+
+  app.post("/api/communications/send", async (req, res) => {
+      try {
+          const result = await dispatchOmnichannelMessage(req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
       }
   });
 
@@ -791,26 +968,23 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           const briefing = buildDynamicEcosystemBriefing(period, req.body?.brandId);
           const prefs = loadBriefingPreferences();
 
-          // Dispatch via internal WhatsApp & Telegram notifier if configured
-          try {
-              await fetch(`http://localhost:${PORT}/api/communications/send`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                      channel: 'whatsapp',
-                      to: prefs.whatsappPhone || '01013373634',
-                      message: `${briefing.title}\n\n${briefing.text}`
-                  }),
-                  signal: AbortSignal.timeout(5000)
-              });
-          } catch {}
+          const dispatchResult = await dispatchOmnichannelMessage({
+              channel: 'whatsapp',
+              to: prefs.whatsappPhone || '01013373634',
+              message: `${briefing.title}\n\n${briefing.text}`
+          });
 
           res.json({
               ok: true,
               period,
               briefing,
+              liveDelivered: dispatchResult.liveDelivered,
+              providerUsed: dispatchResult.providerUsed,
+              whatsappWebDeepLink: dispatchResult.whatsappWebDeepLink,
               dispatchedTo: prefs.whatsappPhone || '01013373634',
-              message: `تم إرسال ${briefing.title} إلى واتساب (${prefs.whatsappPhone || '01013373634'}) بنجاح!`
+              message: dispatchResult.liveDelivered
+                  ? `تم إرسال ${briefing.title} فعلياً عبر (${dispatchResult.providerUsed}) إلى الرقم (${prefs.whatsappPhone || '01013373634'})!`
+                  : `تم تجهيز وتسجيل ${briefing.title}، ولإرساله تلقائياً عبر السحابة يرجى ضبط مفتاح (WHATSAPP_ACCESS_TOKEN أو KAPSO_API_KEY أو TELEGRAM_BOT_TOKEN) في ملف البيئة.`
           });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });
@@ -831,28 +1005,20 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               prefs.lastMorningSentDate = dateStr;
               saveBriefingPreferences(prefs);
               const briefing = buildDynamicEcosystemBriefing('morning');
-              await fetch(`http://localhost:${PORT}/api/communications/send`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                      channel: 'whatsapp',
-                      to: prefs.whatsappPhone || '01013373634',
-                      message: `${briefing.title}\n\n${briefing.text}`
-                  })
-              }).catch(() => {});
+              await dispatchOmnichannelMessage({
+                  channel: 'whatsapp',
+                  to: prefs.whatsappPhone || '01013373634',
+                  message: `${briefing.title}\n\n${briefing.text}`
+              });
           } else if (hhmm === (prefs.eveningTime || '21:00') && prefs.lastEveningSentDate !== dateStr) {
               prefs.lastEveningSentDate = dateStr;
               saveBriefingPreferences(prefs);
               const briefing = buildDynamicEcosystemBriefing('evening');
-              await fetch(`http://localhost:${PORT}/api/communications/send`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                      channel: 'whatsapp',
-                      to: prefs.whatsappPhone || '01013373634',
-                      message: `${briefing.title}\n\n${briefing.text}`
-                  })
-              }).catch(() => {});
+              await dispatchOmnichannelMessage({
+                  channel: 'whatsapp',
+                  to: prefs.whatsappPhone || '01013373634',
+                  message: `${briefing.title}\n\n${briefing.text}`
+              });
           }
       } catch {}
   }, 45000);
@@ -1540,25 +1706,25 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                    const cleanedLyrics = cleanLyricsForTTS(lyrics);
                    const isEnglish = /[a-zA-Z]{4,}/.test(lyrics);
                    
-                   let voice = 'ar-EG-ShakirNeural'; let rate = '+10%'; let pitch = '+0Hz'; const ds = (typeof detectedSinger !== 'undefined') ? detectedSinger : 'default'; if (ds === 'amr_diab') { voice = 'ar-EG-ShakirNeural'; rate = '+4%'; pitch = '+3Hz'; } else if (ds === 'wegz') { voice = 'ar-EG-ShakirNeural'; rate = '+13%'; pitch = '-2Hz'; } else if (ds === 'tamer_hosny') { voice = 'ar-EG-ShakirNeural'; rate = '-1%'; pitch = '-1Hz'; } else if (ds === 'sherine') { voice = 'ar-EG-SalmaNeural'; rate = '-3%'; pitch = '+0Hz'; } else if (ds === 'essam_sasa') { voice = 'ar-EG-ShakirNeural'; rate = '+15%'; pitch = '+8Hz'; } else if (ds === 'umm_kulthum') { voice = 'ar-EG-SalmaNeural'; rate = '-12%'; pitch = '+4Hz'; } else if (false) { } else
+                   let voice = 'Puck'; let rate = '+10%'; let pitch = '+0Hz'; const ds = (typeof detectedSinger !== 'undefined') ? detectedSinger : 'default'; if (ds === 'amr_diab') { voice = 'Puck'; rate = '+4%'; pitch = '+3Hz'; } else if (ds === 'wegz') { voice = 'Puck'; rate = '+13%'; pitch = '-2Hz'; } else if (ds === 'tamer_hosny') { voice = 'Puck'; rate = '-1%'; pitch = '-1Hz'; } else if (ds === 'sherine') { voice = 'Kore'; rate = '-3%'; pitch = '+0Hz'; } else if (ds === 'essam_sasa') { voice = 'Puck'; rate = '+15%'; pitch = '+8Hz'; } else if (ds === 'umm_kulthum') { voice = 'Kore'; rate = '-12%'; pitch = '+4Hz'; } else if (false) { } else
                     // rate let overrides removed
                     // pitch let overrides removed
 
                    if (detectedSinger === 'default') {
                        if (genre === 'pop') {
-                           voice = 'ar-EG-SalmaNeural'; // sweet melodic female Egyptian voice
+                           voice = 'Kore'; // sweet melodic female Egyptian voice
                            rate = '+2%';
                            pitch = '+2Hz';
                        } else if (genre === 'shaabi') {
-                           voice = 'ar-EG-ShakirNeural';
+                           voice = 'Puck';
                            rate = '+14%'; // faster flow for street Mahraganat
                            pitch = '+6Hz'; // high energy
                        } else if (genre === 'hiphop') {
-                           voice = 'ar-EG-ShakirNeural';
+                           voice = 'Puck';
                            rate = '+18%'; // fast rap tempo flow
                            pitch = '+3Hz';
                        } else if (genre === 'rock') {
-                           voice = 'ar-EG-ShakirNeural';
+                           voice = 'Puck';
                            rate = '+8%';
                            pitch = '+0Hz';
                        }

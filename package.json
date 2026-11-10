@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "postinstall": "pip install edge-tts || python3 -m pip install edge-tts --break-system-packages || true",
-    "build": "node --max-old-space-size=2048 ./node_modules/vite/bin/vite.js build && esbuild server.ts worker.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outdir=dist --out-extension:.js=.cjs",
+    "build": "node --max-old-space-size=4096 ./node_modules/vite/bin/vite.js build && esbuild server.ts worker.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outdir=dist --out-extension:.js=.cjs",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "start": "node dist/server.cjs"

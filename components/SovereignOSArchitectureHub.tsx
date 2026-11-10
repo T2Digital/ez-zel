@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
     Cpu, Zap, Brain, Shield, Bot, Terminal, Volume2, Wifi, WifiOff, 
     Lock, Key, Activity, Play, Square, RefreshCw, CheckCircle, 
@@ -86,7 +86,7 @@ export const SovereignOSArchitectureHub: React.FC<SovereignOSArchitectureHubProp
     // --- Audio Pipeline Action ---
     const handleRunAudioStreaming = async () => {
         setMeasuredLatency(null);
-        await audioPipeline.playStreamingAudio(audioTestText, 'ar-EG-ShakirNeural', (lat) => {
+        await audioPipeline.playStreamingAudio(audioTestText, 'Puck', (lat) => {
             setMeasuredLatency(lat);
         });
     };

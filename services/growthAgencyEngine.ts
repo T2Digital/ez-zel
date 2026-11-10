@@ -83,26 +83,13 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
     };
 
     const postId = `meta_post_${Date.now()}`;
-    const publishedEntry: ScheduledPost = {
-        id: postId,
-        brandId,
-        brandName: brand.name,
-        day: targetPost.day,
-        contentType: targetPost.contentType,
-        hook: targetPost.hook,
-        caption: targetPost.caption,
-        bestTime: targetPost.bestTime,
-        status: 'PUBLISHED',
-        publishedAt: new Date().toISOString(),
-        metaPostId: `meta_fb_${Math.floor(100000000 + Math.random() * 900000000)}`
-    };
-
-    // Attempt direct dispatch to Tito Studio / Meta Graph API if configured
-    const metaToken = process.env.META_ACCESS_TOKEN;
-    const pageId = process.env.META_PAGE_ID;
-    const t2StudioUrl = process.env.T2_STUDIO_URL || 'http://localhost:5174';
+    const metaToken = brand.metaToken || brand.selectedMetaPage?.access_token || process.env.META_ACCESS_TOKEN;
+    const pageId = brand.metaPageId || brand.selectedMetaPage?.id || process.env.META_PAGE_ID;
 
     let liveMetaDispatched = false;
+    let realMetaPostId: string | undefined = undefined;
+    let metaErrorDetail = '';
+
     if (metaToken && pageId) {
         try {
             const resp = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
@@ -113,30 +100,52 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
                     access_token: metaToken
                 })
             });
-            const d = await resp.json();
+            const d: any = await resp.json();
             if (d.id) {
-                publishedEntry.metaPostId = d.id;
+                realMetaPostId = String(d.id);
                 liveMetaDispatched = true;
+            } else if (d.error?.message) {
+                metaErrorDetail = d.error.message;
             }
         } catch (err: any) {
-            console.warn('[Growth Engine] Meta Graph API direct post failed:', err?.message);
+            metaErrorDetail = err?.message || 'تعذر الاتصال بـ Meta Graph API';
+            console.warn('[Growth Engine] Meta Graph API direct post failed:', metaErrorDetail);
         }
     }
+
+    const publishedEntry: ScheduledPost = {
+        id: postId,
+        brandId,
+        brandName: brand.name,
+        day: targetPost.day,
+        contentType: targetPost.contentType,
+        hook: targetPost.hook,
+        caption: targetPost.caption,
+        bestTime: targetPost.bestTime,
+        status: liveMetaDispatched ? 'PUBLISHED' : 'SCHEDULED',
+        publishedAt: liveMetaDispatched ? new Date().toISOString() : undefined,
+        metaPostId: realMetaPostId
+    };
 
     logPublishedPost(publishedEntry);
 
     // Broadcast live event to open Jarvis & dashboards
     broadcastGatewayEvent('CONTENT_PUBLISHED', {
         ...publishedEntry,
-        liveMetaDispatched
+        liveMetaDispatched,
+        requiresMetaAuth: !liveMetaDispatched
     });
 
     return {
         success: true,
-        post: publishedEntry,
+        post: {
+            ...publishedEntry,
+            liveMetaDispatched,
+            requiresMetaAuth: !liveMetaDispatched
+        },
         message: liveMetaDispatched
-            ? `تم نشر المحتوى بنجاح على صفحة فيسبوك الرسمية (ID: ${publishedEntry.metaPostId})!`
-            : `تم جدولة ونشر المحتوى بنجاح في المنظومة وإدراجه في سجلات خوارزميات النشر الذاتية!`
+            ? `تم نشر المحتوى فعلياً على صفحة فيسبوك الرسمية لبراند ${brand.name} (معرف منشور ميتا: ${realMetaPostId})!`
+            : `تم حفظ وجدولة المنشور في تقويم تيتو ستوديو لبراند (${brand.name}). للنشر المباشر التلقائي على فيسبوك وإنستجرام، يرجى ربط توكن صفحة ميتا الخاصة بالبراند${metaErrorDetail ? ` (${metaErrorDetail})` : ''}.`
     };
 }
 
@@ -235,15 +244,12 @@ export async function runSelfOptimizingLoop(brandId: string): Promise<any> {
 export function setupAutonomousAgencyCron() {
     console.log('⏰ [Growth Engine] Autonomous Agency Background Scheduler initialized.');
 
-    // Run every hour: checks algorithmic posting windows (14:00 and 20:00)
+    // Run every hour: checks algorithmic posting windows (14:00 and 20:00) for brands with active Meta tokens
     setInterval(() => {
         const hour = new Date().getHours();
         if (hour === 14 || hour === 20) {
-            console.log(`📡 [Growth Engine] Peak algorithmic hour (${hour}:00) reached. Triggering autonomous content engine...`);
-            const brands = Object.values(getBrandsMap());
-            if (brands.length > 0) {
-                // Post for top active brand in queue
-                const targetBrand = brands[Math.floor(Math.random() * brands.length)];
+            const brands = Object.values(getBrandsMap()).filter((b: any) => b?.metaToken && b?.metaPageId);
+            for (const targetBrand of brands) {
                 if (targetBrand?.id) {
                     publishBrandPost(targetBrand.id, hour === 14 ? 0 : 1).catch(() => {});
                 }

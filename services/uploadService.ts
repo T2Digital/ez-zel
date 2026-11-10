@@ -1,6 +1,9 @@
 export const uploadImageToImgBB = async (imageInput: string): Promise<string | null> => {
     try {
-        const apiKey = (import.meta as any).env?.VITE_IMGBB_API_KEY || '5196307137b00f7236d93026a7f0e698';
+        const apiKey = (import.meta as any).env?.VITE_IMGBB_API_KEY || '';
+        if (!apiKey) {
+            return imageInput.startsWith('data:image') || imageInput.startsWith('http') ? imageInput : null;
+        }
         const formData = new FormData();
         
         let uploadData = imageInput;

@@ -1,4 +1,4 @@
-import { getAI, playShadowVoice } from "./geminiService";
+﻿import { getAI, playShadowVoice } from "./geminiService";
 import { shadowDB } from "./dbService";
 
 export interface PhoneCallSession {
@@ -195,7 +195,7 @@ class OmnichannelService {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text,
-                    voice: 'ar-EG-ShakirNeural',
+                    voice: 'Puck',
                     rate: '+15%',
                     pitch: '+0Hz',
                     format: 'audio-24khz-48kbitrate-mono-mp3'

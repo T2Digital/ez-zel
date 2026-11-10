@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Sub-100ms Streaming Audio Pipeline for "الظل"
  * Industrial-grade audio streaming: Sentence-level chunking, parallel edge synthesis,
  * and gapless AudioBufferQueue for instant playback (<300ms time-to-first-sound).
@@ -128,7 +128,7 @@ class AudioPipelineService {
     /**
      * Synthesize a single chunk via the server's Edge-TTS proxy with high concurrency
      */
-    public async synthesizeChunk(text: string, voice = 'ar-EG-ShakirNeural'): Promise<ArrayBuffer | null> {
+    public async synthesizeChunk(text: string, voice = 'Puck'): Promise<ArrayBuffer | null> {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -171,7 +171,7 @@ class AudioPipelineService {
      */
     public async playStreamingAudio(
         text: string,
-        voice = 'ar-EG-ShakirNeural',
+        voice = 'Puck',
         onFirstAudioReady?: (latencyMs: number) => void
     ): Promise<void> {
         this.stop();

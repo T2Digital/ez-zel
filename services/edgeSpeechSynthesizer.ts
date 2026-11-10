@@ -1,4 +1,4 @@
-import fs from 'fs';
+﻿import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
@@ -124,7 +124,7 @@ export function normalizeTextForGeminiHumanTTS(text: string): string {
  * Synthesizes 100% Human Egyptian Speech using ONLY the latest Google Gemini Human TTS models
  * (gemini-3.8-flash-lite-tts, gemini-3.8-flash-tts, gemini-3.1-flash-tts-preview)
  * with Puck (Male) and Kore (Female) prebuilt human voices + persistent SHA-256 disk caching.
- * Zero robotic ShakirNeural / SalmaNeural voices!
+ * Zero robotic Puck / Kore voices!
  */
 export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<Buffer> {
     const cleanText = normalizeTextForGeminiHumanTTS(options.text || '');

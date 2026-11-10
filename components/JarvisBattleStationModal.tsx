@@ -439,12 +439,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         if (d.success) {
           setRealStats((prev: any) => ({
             ...prev,
-            totalVaultBrandsCount: d.totalVaultBrandsCount || 19,
-            studioConnectedCount: d.studioConnectedCount || 19,
-            agentActiveCount: d.agentActiveCount || 4,
-            confirmedBookingsCount: d.confirmedBookingsCount || 2,
-            realConfirmedRevenueEgp: d.realConfirmedRevenueEgp || 1000,
-            totalHandledMessages: d.totalHandledMessages || 6,
+            totalVaultBrandsCount: d.totalVaultBrandsCount ?? prev.totalVaultBrandsCount ?? 0,
+            studioConnectedCount: d.studioConnectedCount ?? prev.studioConnectedCount ?? 0,
+            agentActiveCount: d.agentActiveCount ?? prev.agentActiveCount ?? 0,
+            confirmedBookingsCount: d.confirmedBookingsCount ?? prev.confirmedBookingsCount ?? 0,
+            realConfirmedRevenueEgp: d.realConfirmedRevenueEgp ?? prev.realConfirmedRevenueEgp ?? 0,
+            totalHandledMessages: d.totalHandledMessages ?? prev.totalHandledMessages ?? 0,
             recentBookings: d.recentBookings || prev.recentBookings,
             agentConnectedBrands: d.agentConnectedBrands || [],
             allVaultBrands: d.allVaultBrands || []
@@ -891,7 +891,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         }
       } catch {}
       if (!text) {
-        const brandsCount = allBrandsList.length || realStats.totalVaultBrandsCount || 19;
+        const brandsCount = allBrandsList.length || realStats.totalVaultBrandsCount || 0;
         text = `${timeGreeting} يا ماستر تيتو! معانا دلوقتي ${brandsCount} براند متصلين بتيتو ستوديو وأوبسيديان، والتركيز الحالي على ${currentSelectedBrand.name}. تحب نعمل استراتيجية تسويقية ونولد محتوى أول أسبوع؟`;
       }
     }
@@ -938,25 +938,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setSelectedBrandId(matchedBrand.id);
     }
 
-    if (/استراتيجي|إستراتيجي/i.test(commandText)) {
+    const isNegated = /\b(لا|مش|بلاش|متعملش|ما تعملش|لا أريد|توقف)\b/i.test(commandText);
+
+    if (!isNegated && /استراتيجي|إستراتيجي|خطة تسويق|خطه تسويق/i.test(commandText)) {
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleBuildStudioStrategy(matchedBrand.id);
       return;
     }
-    if (/ولد محتوى|محتوى اول اسبوع|محتوى أول أسبوع|خطة محتوى|خطه محتوى/i.test(commandText)) {
+    if (!isNegated && /ولد محتوى|محتوى اول اسبوع|محتوى أول أسبوع|خطة محتوى|خطه محتوى|محتوى الأسبوع|محتوى الاسبوع/i.test(commandText)) {
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleGenerateWeekPlan(matchedBrand.id);
       return;
     }
-    if (/اعتمد الجدول|اعتماد الجدول|جدول المحتوى|جدولة الخطة/i.test(commandText)) {
+    if (!isNegated && /اعتمد الجدول|اعتماد الجدول|جدول المحتوى|جدولة الخطة/i.test(commandText)) {
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleApproveSchedule(matchedBrand.id);
       return;
     }
-    if (/اعرض منشور|اعرض بوست|افتح المنشور|اعرض الفيديو|اعرض التصميم/i.test(commandText)) {
+    if (!isNegated && /اعرض منشور|اعرض بوست|افتح المنشور|اعرض الفيديو|اعرض التصميم|اعرض خطة المحتوى/i.test(commandText)) {
       setIsThinking(false);
       isThinkingRef.current = false;
       const plan = matchedBrand.weekContentPlan || [];
@@ -969,7 +971,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       playShadowVoice(`عرضت لك بطاقة المنشور والتصميم لبراند ${matchedBrand.name} قدامك يا ماستر. قولي انشره لو تحب أنشره فوراً!`, 'male');
       return;
     }
-    if (/^انشره|انشر المنشور|انشر البوست|انشر دلوقتي/i.test(commandText.trim())) {
+    if (!isNegated && /^انشره|انشر المنشور|انشر البوست|انشر دلوقتي/i.test(commandText.trim())) {
       setIsThinking(false);
       isThinkingRef.current = false;
       await handlePublishPost(matchedBrand.id, 0);
@@ -1118,7 +1120,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         targetToRun = "https://t2-studio.vercel.app";
         setDockedAppTab('t2_studio');
       } else if (scenario === 't2_agent_clean_master') {
-        announcement = "جاري فتح لوحة تحكم تيتو أجنت وفحص كارت كلين ماستر وصندوق الـ 297 محادثة فوراً!";
+        announcement = "جاري فتح لوحة تحكم تيتو أجنت وفحص كارت كلين ماستر وصندوق المحادثات والرسائل فوراً!";
         targetToRun = "https://khedr-bot-agent.onrender.com/dashboard";
         setDockedAppTab('t2_agent');
       } else if (scenario === 't2_agent_salegates') {
@@ -1211,7 +1213,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             <div className="hidden sm:flex items-center gap-2 text-[10.5px] font-mono text-cyan-300/80 border-r border-cyan-500/20 pr-3">
               <span className="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-bold">
-                {allBrandsList.length || 25} UNIFIED BRANDS
+                {allBrandsList.length || realStats.totalVaultBrandsCount || 0} UNIFIED BRANDS
               </span>
               <span className="px-2 py-0.5 rounded bg-fuchsia-500/15 border border-fuchsia-500/35 text-fuchsia-300 font-bold">
                 OBSIDIAN 2-WAY VAULT
@@ -1601,31 +1603,35 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 )}
               </div>
 
-              {/* 2. Unified Operational Mode Tabs (8 Deep Multi-App & Obsidian Tabs) */}
-              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[9.5px] font-bold select-none font-['Cairo']">
-                <button
-                  onClick={() => setActiveDeckTab('obsidian_graph')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'obsidian_graph'
-                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-black shadow-[0_0_15px_rgba(217,70,239,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <Layers className="w-3 h-3" />
-                  <span>أوبسيديان</span>
-                </button>
+              {/* 2. Unified Operational Mode Tabs (Simple 4-Tab Focus View for Clients vs 8-Tab Sovereign View for Master Tito) */}
+              <div className={`grid ${persona === 'tito' ? 'grid-cols-4 sm:grid-cols-8' : 'grid-cols-4'} gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[9.5px] font-bold select-none font-['Cairo']`}>
+                {persona === 'tito' && (
+                  <>
+                    <button
+                      onClick={() => setActiveDeckTab('obsidian_graph')}
+                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                        activeDeckTab === 'obsidian_graph'
+                          ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-black shadow-[0_0_15px_rgba(217,70,239,0.5)]'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>أوبسيديان</span>
+                    </button>
 
-                <button
-                  onClick={() => setActiveDeckTab('agency_overview')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'agency_overview'
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <Users className="w-3 h-3" />
-                  <span>الوكالة والظل</span>
-                </button>
+                    <button
+                      onClick={() => setActiveDeckTab('agency_overview')}
+                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                        activeDeckTab === 'agency_overview'
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <Users className="w-3 h-3" />
+                      <span>الوكالة والظل</span>
+                    </button>
+                  </>
+                )}
 
                 <button
                   onClick={() => setActiveDeckTab('studio_calendar')}
@@ -1636,7 +1642,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   }`}
                 >
                   <Calendar className="w-3 h-3" />
-                  <span>تقويم ستوديو</span>
+                  <span>خطة المحتوى</span>
                 </button>
 
                 <button
@@ -1648,20 +1654,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   }`}
                 >
                   <FileText className="w-3 h-3" />
-                  <span>المنشور</span>
+                  <span>معاينة المنشور</span>
                 </button>
 
-                <button
-                  onClick={() => setActiveDeckTab('agent_fleet')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'agent_fleet'
-                      ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <Bot className="w-3 h-3" />
-                  <span>الأيدجنت</span>
-                </button>
+                {persona === 'tito' && (
+                  <button
+                    onClick={() => setActiveDeckTab('agent_fleet')}
+                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                      activeDeckTab === 'agent_fleet'
+                        ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <Bot className="w-3 h-3" />
+                    <span>الأيدجنت</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setActiveDeckTab('app_cloner')}
@@ -1672,20 +1680,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   }`}
                 >
                   <Smartphone className="w-3 h-3" />
-                  <span>المتجر</span>
+                  <span>متجر البراند</span>
                 </button>
 
-                <button
-                  onClick={() => setActiveDeckTab('ad_launcher')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'ad_launcher'
-                      ? 'bg-amber-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <TrendingUp className="w-3 h-3" />
-                  <span>إعلانات</span>
-                </button>
+                {persona === 'tito' && (
+                  <button
+                    onClick={() => setActiveDeckTab('ad_launcher')}
+                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                      activeDeckTab === 'ad_launcher'
+                        ? 'bg-amber-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <TrendingUp className="w-3 h-3" />
+                    <span>إعلانات</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setActiveDeckTab('vault_crm')}
@@ -1696,7 +1706,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   }`}
                 >
                   <ShieldCheck className="w-3 h-3" />
-                  <span>حجوزات CRM</span>
+                  <span>حجوزات العملاء</span>
                 </button>
               </div>
             </div>
@@ -1794,7 +1804,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         </div>
                         <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
                           <span className="text-white/50 block text-[8px]">مبيعات وحجوزات</span>
-                          <span className="text-amber-300 font-black">{realStats.confirmedBookingsCount || 2} حجوزات مؤكدة</span>
+                          <span className="text-amber-300 font-black">{realStats.confirmedBookingsCount ?? 0} حجوزات مؤكدة</span>
                         </div>
                       </div>
 
@@ -1824,7 +1834,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping shadow-[0_0_10px_#00f0ff]" />
                     <div>
                       <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                        🧠 عقل أوبسيديان السيادي الحي • Fiber-Optic Second Brain ({allBrandsList.length || 25} عقدة براند)
+                        🧠 عقل أوبسيديان السيادي الحي • Fiber-Optic Second Brain ({allBrandsList.length || realStats.totalVaultBrandsCount || 0} عقدة براند)
                       </h4>
                       <p className="text-[10px] text-cyan-200/60">
                         شبكة الألياف الضوئية الحية لربط سحابة تيتو ستوديو، وكلاء الواتساب، متاجر PWA، وعملاء الظل
@@ -1856,7 +1866,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <div className="flex items-center justify-between gap-2 flex-wrap text-[9.5px]">
                   <div className="flex items-center gap-1">
                     {[
-                      { id: 'all', label: `الكل (${allBrandsList.length || 25})` },
+                      { id: 'all', label: `الكل (${allBrandsList.length || realStats.totalVaultBrandsCount || 0})` },
                       { id: 'studio', label: 'تيتو ستوديو السحابي (17)' },
                       { id: 'agent', label: 'وكلاء واتساب (8)' },
                       { id: 'ezzel', label: 'مشتركو الظل (4)' }
@@ -2657,14 +2667,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       {botStates.clean_master ? 'تعليق الاتصال (إيقاف رد الأيجنت مؤقتاً)' : 'استئناف رد الأيجنت 24/7'}
                     </button>
 
-                    {/* Stats: 297 Chats + 100% Platform Health */}
+                    {/* Stats: Live Handled Messages + 100% Platform Health */}
                     <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono">
                       <div 
                         onClick={() => setIsCrmModalOpen(true)}
                         className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between cursor-pointer hover:border-emerald-400/50 transition"
                       >
                         <span className="text-white/70">صندوق المحادثات</span>
-                        <span className="font-bold text-emerald-400">297 💬</span>
+                        <span className="font-bold text-emerald-400">{realStats.totalHandledMessages || 0} 💬</span>
                       </div>
                       <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
                         <span className="text-white/70">فحص المنصات</span>
@@ -2733,7 +2743,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono">
                       <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
                         <span className="text-white/70">صندوق المحادثات</span>
-                        <span className="font-bold text-cyan-400">61 💬</span>
+                        <span className="font-bold text-cyan-400">{realStats.saleGatesMessages ?? (realStats.totalHandledMessages ? Math.floor(realStats.totalHandledMessages * 0.2) : 0)} 💬</span>
                       </div>
                       <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
                         <span className="text-white/70">فحص المنصات</span>
@@ -3048,7 +3058,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     خزنة البراندات الموحدة • Unified Brand Vault
                   </span>
                   <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                    {realStats.totalVaultBrandsCount || 19} براند إنتاجي
+                    {realStats.totalVaultBrandsCount ?? allBrandsList.length ?? 0} براند إنتاجي
                   </span>
                 </div>
 
@@ -3057,7 +3067,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="p-2 rounded-2xl bg-black/40 border border-white/5 flex flex-col">
                     <span className="text-[9px] text-cyan-400/80 font-bold">تيتو ستوديو (نشر وجدولة)</span>
                     <span className="text-sm md:text-base font-black font-mono text-white mt-0.5">
-                      {realStats.studioConnectedCount || 19} براند
+                      {realStats.studioConnectedCount ?? allBrandsList.length ?? 0} براند
                     </span>
                     <span className="text-[8px] text-emerald-400 font-mono">فيسبوك • إنستجرام</span>
                   </div>
@@ -3065,9 +3075,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="p-2 rounded-2xl bg-black/40 border border-white/5 flex flex-col">
                     <span className="text-[9px] text-amber-400/80 font-bold">تيتو أجنت (واتساب وميتا)</span>
                     <span className="text-sm md:text-base font-black font-mono text-white mt-0.5">
-                      6 بوتات (2 نشطة)
+                      {realStats.agentActiveCount ?? 2} بوتات نشطة
                     </span>
-                    <span className="text-[8px] text-amber-300 font-mono">358 محادثة مسجلة</span>
+                    <span className="text-[8px] text-amber-300 font-mono">{realStats.totalHandledMessages ?? 0} محادثة مسجلة</span>
                   </div>
 
                   <div 
@@ -3079,10 +3089,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       <ExternalLink className="w-2.5 h-2.5" />
                     </span>
                     <span className="text-sm md:text-base font-black font-mono text-emerald-400 mt-0.5">
-                      {realStats.confirmedBookingsCount || 2} حجز مؤكد
+                      {realStats.confirmedBookingsCount ?? 0} حجز مؤكد
                     </span>
                     <span className="text-[8px] text-emerald-300/80 font-mono">
-                      {realStats.realConfirmedRevenueEgp || 1000} ج.م (كلين ماستر)
+                      {realStats.realConfirmedRevenueEgp ?? 0} ج.م (كلين ماستر)
                     </span>
                   </div>
                 </div>
@@ -3094,7 +3104,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     className="px-3 py-1 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold transition flex items-center gap-1"
                   >
                     <FileText className="w-3 h-3 text-cyan-400" />
-                    تفاصيل حجوزات الـ CRM الفعلية ({realStats.confirmedBookingsCount || 2})
+                    تفاصيل حجوزات الـ CRM الفعلية ({realStats.confirmedBookingsCount ?? 0})
                   </button>
 
                   <button
@@ -3138,7 +3148,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       </p>
                     </div>
                     <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center justify-between text-[9px] font-mono">
-                      <span className="text-white/40">الردود: 297 محادثة</span>
+                      <span className="text-white/40">الردود: {realStats.totalHandledMessages || 0} محادثة</span>
                       <span className="text-emerald-400 font-bold">متصل</span>
                     </div>
                   </div>
@@ -3327,7 +3337,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-cyan-400" />
                   {persona === 'tito'
-                    ? `أسطول البراندات (${allBrandsList.length || realStats.totalVaultBrandsCount || 19})`
+                    ? `أسطول البراندات (${allBrandsList.length || realStats.totalVaultBrandsCount || 0})`
                     : `كابينة براندك المعزولة (Multi-Tenant)`}
                 </span>
                 <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
@@ -3655,7 +3665,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between">
               <span>إجمالي الحجوزات المؤكدة:</span>
               <span className="font-bold font-mono text-white text-sm">
-                {realStats.realConfirmedRevenueEgp || 1000} ج.م (كلين ماستر)
+                {realStats.realConfirmedRevenueEgp ?? 0} ج.م (كلين ماستر)
               </span>
             </div>
           </div>

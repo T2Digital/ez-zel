@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Mic2, Headphones, Activity, Radio, Play, Pause, Download, Volume2, Sparkles, RefreshCw, Copy, CheckCircle2 } from 'lucide-react';
 import { getAI } from '../../services/geminiService';
 
@@ -15,22 +15,22 @@ export const PodcastStudioCard = ({ card }: { card: any }) => {
     const [script, setScript] = useState<PodcastLine[]>([
         {
             speaker: 'الظل',
-            voice: 'ar-EG-ShakirNeural',
+            voice: 'Puck',
             text: 'يا هلا بيك في حلقة جديدة ومميزة جداً من بودكاست الظل الرقمي. النهاردة معانا موضوع بيشغل بال كل رائد أعمال ومبرمج.'
         },
         {
             speaker: 'سارة',
-            voice: 'ar-EG-SalmaNeural',
+            voice: 'Kore',
             text: 'أهلاً يا ظل، وسعيدة جداً بوجودي معاك. السر الحقيقي اللي هنكشفه النهاردة هو إزاي توظف الذكاء الاصطناعي كفريق عمل متكامل مش مجرد أداة شات.'
         },
         {
             speaker: 'الظل',
-            voice: 'ar-EG-ShakirNeural',
+            voice: 'Puck',
             text: 'كلام مظبوط 100%. لما تعمل نظام أتمتة بيشتغل بالنيابة عنك 24 ساعة، أنت بتكسب أغلى حاجة في حياتك: وهي وقتك وحريتك.'
         },
         {
             speaker: 'سارة',
-            voice: 'ar-EG-SalmaNeural',
+            voice: 'Kore',
             text: 'بالظبط، وده اللي بيفرق بين شخص بيشتغل 16 ساعة في اليوم، وشخص بيبني إمبراطورية بأنظمة ذكية مستدامة.'
         }
     ]);
@@ -55,11 +55,11 @@ export const PodcastStudioCard = ({ card }: { card: any }) => {
 أرجع الناتج بصيغة JSON فقط بهذا الشكل:
 {
   "dialogue": [
-    { "speaker": "الظل", "voice": "ar-EG-ShakirNeural", "text": "نص كلام الظل..." },
-    { "speaker": "سارة", "voice": "ar-EG-SalmaNeural", "text": "رد سارة الخبيرة..." },
-    { "speaker": "الظل", "voice": "ar-EG-ShakirNeural", "text": "تعليق الظل..." },
-    { "speaker": "سارة", "voice": "ar-EG-SalmaNeural", "text": "إضافة سارة..." },
-    { "speaker": "الظل", "voice": "ar-EG-ShakirNeural", "text": "خاتمة الحلقة والـ CTA القوي..." }
+    { "speaker": "الظل", "voice": "Puck", "text": "نص كلام الظل..." },
+    { "speaker": "سارة", "voice": "Kore", "text": "رد سارة الخبيرة..." },
+    { "speaker": "الظل", "voice": "Puck", "text": "تعليق الظل..." },
+    { "speaker": "سارة", "voice": "Kore", "text": "إضافة سارة..." },
+    { "speaker": "الظل", "voice": "Puck", "text": "خاتمة الحلقة والـ CTA القوي..." }
   ]
 }`;
 
@@ -99,7 +99,7 @@ export const PodcastStudioCard = ({ card }: { card: any }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text: line.text,
-                    voice: line.voice || (line.speaker === 'الظل' ? 'ar-EG-ShakirNeural' : 'ar-EG-SalmaNeural'),
+                    voice: line.voice || (line.speaker === 'الظل' ? 'Puck' : 'Kore'),
                     rate: '+5%',
                     pitch: '+0Hz'
                 })

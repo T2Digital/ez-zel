@@ -2,25 +2,63 @@ import fs from 'fs';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 
-const PROJECT_ID = 't2-content-studio';
-const TITO_STUDIO_FIREBASE_API_KEY = process.env.TITO_STUDIO_FIREBASE_API_KEY || 'AIzaSyBMuPVJpC8A7_3g2SIjdCWtXjsvi2EnCI0';
+const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || 't2-content-studio';
+const TITO_STUDIO_FIREBASE_API_KEY = process.env.TITO_STUDIO_FIREBASE_API_KEY || process.env.VITE_TITO_STUDIO_FIREBASE_API_KEY || '';
 const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 const CACHE_PATH = path.join(process.cwd(), 'data', 'tito_studio_cache.json');
+const STUDIO_AUTH_CACHE_PATH = path.join(process.cwd(), 'data', 'tito_studio_auth.json');
 const TURBO_FLOW_QUEUE_PATH = path.join(process.cwd(), 'data', 'turbo_flow_queue.json');
 const TURBO_FLOW_CSV_PATH = path.join(process.cwd(), 'data', 'turbo_flow_prompts.csv');
-const IMGBB_API_KEY = process.env.IMGBB_API_KEY || 'd4f1c9a5e6b8c7d2e3f4a5b6c7d8e9f0';
 
 let cachedStudioIdToken: string | null = null;
 let cachedStudioTokenExpiry = 0;
 
 /**
- * Authenticates with `t2-content-studio` Firebase via Anonymous Auth (just like D:\t2-studio\server.ts)
- * so all cloud Firestore reads & writes to `/clinics`, `/content`, `/ideas`, and `/appointments` succeed.
+ * Authenticates with `t2-content-studio` Firebase and reuses a persistent refreshToken
+ * so the server maintains a single stable UID instead of creating a new anonymous account every 50 minutes.
  */
 export async function getTitoStudioAuthToken(): Promise<string | null> {
     if (cachedStudioIdToken && Date.now() < cachedStudioTokenExpiry) {
         return cachedStudioIdToken;
     }
+    if (!TITO_STUDIO_FIREBASE_API_KEY) {
+        return null;
+    }
+
+    // 1. Try refreshing existing persistent refreshToken first
+    try {
+        if (fs.existsSync(STUDIO_AUTH_CACHE_PATH)) {
+            const saved = JSON.parse(fs.readFileSync(STUDIO_AUTH_CACHE_PATH, 'utf8'));
+            if (saved?.refreshToken) {
+                const refreshRes = await fetch(
+                    `https://securetoken.googleapis.com/v1/token?key=${TITO_STUDIO_FIREBASE_API_KEY}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(saved.refreshToken)}`,
+                        signal: AbortSignal.timeout(6000)
+                    }
+                );
+                if (refreshRes.ok) {
+                    const refreshData: any = await refreshRes.json();
+                    if (refreshData.id_token) {
+                        cachedStudioIdToken = refreshData.id_token;
+                        cachedStudioTokenExpiry = Date.now() + 50 * 60 * 1000;
+                        if (refreshData.refresh_token && refreshData.refresh_token !== saved.refreshToken) {
+                            fs.writeFileSync(
+                                STUDIO_AUTH_CACHE_PATH,
+                                JSON.stringify({ refreshToken: refreshData.refresh_token, uid: refreshData.user_id, updatedAt: new Date().toISOString() }, null, 2),
+                                'utf8'
+                            );
+                        }
+                        return cachedStudioIdToken;
+                    }
+                }
+            }
+        }
+    } catch {}
+
+    // 2. Otherwise sign up once and persist refreshToken for future reuse
     try {
         const res = await fetch(
             `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${TITO_STUDIO_FIREBASE_API_KEY}`,
@@ -35,12 +73,21 @@ export async function getTitoStudioAuthToken(): Promise<string | null> {
             const data: any = await res.json();
             if (data.idToken) {
                 cachedStudioIdToken = data.idToken;
-                cachedStudioTokenExpiry = Date.now() + 50 * 60 * 1000; // 50 minutes
+                cachedStudioTokenExpiry = Date.now() + 50 * 60 * 1000;
+                if (data.refreshToken) {
+                    const dir = path.dirname(STUDIO_AUTH_CACHE_PATH);
+                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                    fs.writeFileSync(
+                        STUDIO_AUTH_CACHE_PATH,
+                        JSON.stringify({ refreshToken: data.refreshToken, uid: data.localId, updatedAt: new Date().toISOString() }, null, 2),
+                        'utf8'
+                    );
+                }
                 return cachedStudioIdToken;
             }
         }
     } catch (e: any) {
-        console.warn('[TitoStudioBridge] Anonymous auth warning:', e?.message);
+        console.warn('[TitoStudioBridge] Auth token warning:', e?.message);
     }
     return null;
 }

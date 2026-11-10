@@ -1,4 +1,4 @@
-﻿import { Type, Modality, FunctionDeclaration, GenerateContentResponse, getAI } from "./aiClient";
+import { Type, Modality, FunctionDeclaration, GenerateContentResponse, getAI } from "./aiClient";
 import { Capacitor } from '@capacitor/core';
 import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
@@ -29,6 +29,8 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
     // Dynamic Tool Loading: Filter tools based on active persona if specified
     if (activePersona) {
         const personaToolsMap: Record<string, string[]> = {
+            'client': ['brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator'],
+            'growth': ['brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator', 'content_machine_orchestrator', 'marketer_shadow', 'trend_hunter_ai', 'lead_generator_hunter'],
             'trader': ['crypto_trader', 'live_trader_chart', 'data_analyst', 'run_autonomous_agent'],
             'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin', 'run_autonomous_agent', 'zip_project_manager', 'live_app_integrator', 'external_webhook', 'read_system_source_code'],
             'manager': ['project_manager', 'activate_user_account', 'workspace_manager', 'run_autonomous_agent'],
@@ -48,14 +50,33 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
         }
     }
     
-    // Check permissions
-    const isAdmin = userProfile?.email === 'admin@shadow.com' || userProfile?.email === 'ahmed.atya.daif@gmail.com' || userProfile?.tier === 'sovereign';
+    // Check permissions & Role-Based Access Control
+    const isSovereignMaster = userProfile?.email === 'admin@shadow.com' || 
+                              userProfile?.email === 'ahmed.atya.daif@gmail.com' || 
+                              userProfile?.email === 'ahm.atya@gmail.com' || 
+                              userProfile?.tier === 'sovereign';
 
     const powers = userProfile?.agentPowers || {};
 
-    if (!isAdmin && !powers.developer) tools = tools.filter(t => t.name !== 'auto_deployer' && t.name !== 'system_terminal');
-    if (!isAdmin && !powers.trader) tools = tools.filter(t => t.name !== 'crypto_trader');
-    if (!isAdmin && !powers.social) tools = tools.filter(t => t.name !== 'social_poster');
+    if (!isSovereignMaster) {
+        // Filter out sensitive internal developer/speculative tools for clients
+        const internalOnlyTools = [
+            'crypto_trader',
+            'economic_swarm_mode',
+            'iot_ghost_protocol',
+            'bluetooth_scanner',
+            'cyber_defense_map',
+            'system_terminal',
+            'auto_deployer',
+            'read_system_source_code',
+            'zip_project_manager'
+        ];
+        tools = tools.filter(t => !internalOnlyTools.includes(t.name));
+    }
+
+    if (!isSovereignMaster && !powers.developer) tools = tools.filter(t => t.name !== 'auto_deployer' && t.name !== 'system_terminal');
+    if (!isSovereignMaster && !powers.trader) tools = tools.filter(t => t.name !== 'crypto_trader');
+    if (!isSovereignMaster && !powers.social) tools = tools.filter(t => t.name !== 'social_poster');
 
     if (userProfile && userProfile.email) {
         try {

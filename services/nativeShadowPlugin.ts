@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core';
+﻿import { registerPlugin } from '@capacitor/core';
 
 export interface NativeShadowPlugin {
   /**
@@ -87,7 +87,7 @@ export const NativeShadow = registerPlugin<NativeShadowPlugin>('NativeShadow', {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text: opts.text,
-            voice: 'ar-EG-ShakirNeural',
+            voice: 'Puck',
             rate: '+0%',
             pitch: '+0Hz',
             format: 'audio-24khz-48kbitrate-mono-mp3'

@@ -31,3 +31,8 @@ dist-ssr
 *.pcm
 *.wav
 *.mp3
+
+# Sovereign Live Data & Tenant Stores (Do NOT commit tenant databases)
+data/
+obsidian_vault/
+temp_uploads/

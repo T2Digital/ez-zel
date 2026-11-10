@@ -56,19 +56,28 @@ export default defineConfig(() => {
       },
       build: {
         target: 'esnext',
-        minify: false,
+        minify: 'esbuild',
         sourcemap: false,
+        reportCompressedSize: false,
         chunkSizeWarningLimit: 3000,
         rollupOptions: {
           maxParallelFileOps: 2,
           output: {
             manualChunks(id) {
               if (id.includes('node_modules')) {
+                if (id.includes('react/') || id.includes('react-dom') || id.includes('react-router')) return 'vendor-react';
                 if (id.includes('firebase')) return 'vendor-firebase';
                 if (id.includes('@xenova') || id.includes('onnxruntime-web')) return 'vendor-ai';
+                if (id.includes('@mlc-ai') || id.includes('web-llm')) return 'vendor-web-llm';
+                if (id.includes('@ffmpeg')) return 'vendor-ffmpeg';
                 if (id.includes('three') || id.includes('@react-three')) return 'vendor-three';
+                if (id.includes('@google/genai')) return 'vendor-gemini';
+                if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
                 if (id.includes('ethers')) return 'vendor-ethers';
+                if (id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-pdf';
                 if (id.includes('lucide-react')) return 'vendor-lucide';
+                if (id.includes('motion')) return 'vendor-motion';
+                if (id.includes('crypto-js')) return 'vendor-crypto';
               }
             }
           }

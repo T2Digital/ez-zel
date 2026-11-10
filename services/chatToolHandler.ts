@@ -1,4 +1,4 @@
-﻿
+
 import { shadowDB, DBTask, UserProfile } from './dbService';
 import { submitAutonomousTask } from './autonomousAgentService';
 import { memorizeFact, playShadowVoice, generateMp3FromShadowVoice, generateImageNative, getShadowResponse } from './geminiService';
@@ -1263,11 +1263,10 @@ export const processToolActions = async (
                   }
               }
               else if (t.name === 'iot_ghost_protocol') {
-                  const args = t.args;
                   uiCards.push({
                       cardType: 'task_success',
-                      title: 'بروتوكول الشبح مفعل 👻 (IoT)',
-                      description: `العملية: ${args.action}\nالهدف: ${args.target_device || 'استكشاف شامل للشبكة'}\nحالة الحقن: تمت بنجاح`
+                      title: 'بروتوكول الأمان السيادي 🛡️',
+                      description: 'تم تقييد بروتوكولات الشبكة التجريبية، والتركيز بالكامل على أدوات الإنتاج والتسويق والأتمتة الحقيقية.'
                   });
               }
               else if (t.name === 'google_calendar_list_events') {

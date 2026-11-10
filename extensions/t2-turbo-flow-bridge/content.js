@@ -2,6 +2,7 @@
   console.log('[T2 × Turbo Flow Bridge] Active on Google Flow');
 
   let activeJob = null;
+  const seenVideos = new Set();
 
   // Create floating status pill inside Google Flow
   const badge = document.createElement('div');
@@ -11,14 +12,33 @@
   badge.innerHTML = `<span style="width:9px;height:9px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>جسر تيتو ستوديو × Turbo Flow متصل</span>`;
   document.body.appendChild(badge);
 
+  function triggerGenerateButton() {
+    const buttons = Array.from(document.querySelectorAll('button'));
+    const genBtn = buttons.find(b => {
+      const txt = (b.innerText || b.getAttribute('aria-label') || '').toLowerCase();
+      return (
+        txt.includes('generate') ||
+        txt.includes('create') ||
+        txt.includes('run queue') ||
+        txt.includes('start') ||
+        txt.includes('توليد')
+      );
+    });
+    if (genBtn && !genBtn.disabled) {
+      genBtn.click();
+      return true;
+    }
+    return false;
+  }
+
   function injectPromptIntoFlowOrTurboFlow(job) {
     activeJob = job;
     badge.innerHTML = `<span style="width:9px;height:9px;border-radius:50%;background:#38bdf8;display:inline-block;"></span><span>جاري توليد فيديو: ${job.brandName} (${job.day})</span>`;
 
-    // 1. Check if Turbo Flow extension batch textarea is open
     const turboTextarea =
       document.querySelector('textarea[placeholder*="prompt" i]') ||
       document.querySelector('textarea[placeholder*="batch" i]') ||
+      document.querySelector('textarea[aria-label*="prompt" i]') ||
       document.querySelector('textarea');
 
     if (turboTextarea) {
@@ -34,26 +54,56 @@
       }
       turboTextarea.dispatchEvent(new Event('input', { bubbles: true }));
       turboTextarea.dispatchEvent(new Event('change', { bubbles: true }));
+
+      setTimeout(() => {
+        triggerGenerateButton();
+      }, 900);
     }
   }
 
-  // Watch for newly generated <video> elements in Google Flow DOM and sync back to Tito Studio calendar
-  const seenVideos = new Set();
+  async function resolveVideoSourceToPersistableUrl(src) {
+    if (!src) return null;
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      return src;
+    }
+    if (src.startsWith('blob:')) {
+      try {
+        const resp = await fetch(src);
+        const blob = await resp.blob();
+        if (blob.size > 0 && blob.size <= 25 * 1024 * 1024) {
+          return await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch {}
+    }
+    return null;
+  }
+
+  // Watch for newly generated <video> elements (both https:// and blob:) in Google Flow DOM
   const observer = new MutationObserver(() => {
-    const videos = document.querySelectorAll('video[src]');
-    videos.forEach(v => {
-      const src = v.getAttribute('src');
-      if (src && src.startsWith('http') && !seenVideos.has(src) && activeJob) {
+    if (!activeJob) return;
+    const videos = document.querySelectorAll('video');
+    videos.forEach(async v => {
+      const src = v.currentSrc || v.getAttribute('src') || v.querySelector('source')?.getAttribute('src');
+      if (src && !seenVideos.has(src) && activeJob) {
         seenVideos.add(src);
-        chrome.runtime.sendMessage({
-          type: 'T2_TURBO_FLOW_VIDEO_READY',
-          jobId: activeJob.jobId,
-          postId: activeJob.postId,
-          brandId: activeJob.brandId,
-          videoUrl: src
-        });
-        badge.innerHTML = `<span style="width:9px;height:9px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>✅ تم حفظ فيديو (${activeJob.day}) في تقويم تيتو ستوديو!</span>`;
-        activeJob = null;
+        const jobSnapshot = activeJob;
+        const persistableUrl = await resolveVideoSourceToPersistableUrl(src);
+        if (persistableUrl) {
+          chrome.runtime.sendMessage({
+            type: 'T2_TURBO_FLOW_VIDEO_READY',
+            jobId: jobSnapshot.jobId,
+            postId: jobSnapshot.postId,
+            brandId: jobSnapshot.brandId,
+            videoUrl: persistableUrl
+          });
+          badge.innerHTML = `<span style="width:9px;height:9px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>✅ تم حفظ فيديو (${jobSnapshot.day}) في تقويم تيتو ستوديو!</span>`;
+          activeJob = null;
+        }
       }
     });
   });
