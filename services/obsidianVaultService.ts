@@ -1040,14 +1040,15 @@ export async function executeRealJarvisEcosystemAction(payload: {
                 websiteUrl
             });
 
-            // Enrich with 7-Day Omni-Channel CTA Matrix & sync to Tito Studio Firebase Firestore + T2 Agent
+            // Enrich with 3-Day Day-on-Day Trial Matrix (Sat, Mon, Wed) & sync to Tito Studio Firebase Firestore + T2 Agent
             const omniPlan = buildOmniChannelWeekPlan({
                 id: cloned.id,
                 slug: cloned.slug,
                 name: cloned.name,
                 businessType: cloned.businessType,
                 phone: cloned.phone,
-                existingPlan: cloned.weekContentPlan
+                existingPlan: cloned.weekContentPlan,
+                isTrial: true
             });
             const enrichedBrand = persistBrandUpdateAcrossEcosystem(cloned.id, {
                 ...cloned,

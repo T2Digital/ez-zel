@@ -591,6 +591,7 @@ export function buildOmniChannelWeekPlan(brand: {
     primaryColor?: string;
     existingPlan?: any[];
     strategy?: BrandMarketingStrategy;
+    isTrial?: boolean;
 }): OmniWeekPostItem[] {
     const slug = brand.slug || brand.id;
     const rawPhone = String(brand.phone || '01013373634').replace(/[^0-9]/g, '');
@@ -717,7 +718,11 @@ export function buildOmniChannelWeekPlan(brand: {
         }
     ];
 
-    return baseDays.map((slot, idx) => {
+    const activeSlots = brand.isTrial
+        ? baseDays.filter(s => ['السبت', 'الإثنين', 'الأربعاء'].includes(s.day))
+        : baseDays;
+
+    return activeSlots.map((slot, idx) => {
         const existingItem = Array.isArray(brand.existingPlan) ? brand.existingPlan[idx] : null;
         const hook = existingItem?.hook || slot.defaultHook;
         const ctaType: OmniCtaType = existingItem?.ctaType || slot.ctaType;

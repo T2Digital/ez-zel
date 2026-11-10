@@ -101,20 +101,48 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   const [showWhitePaper, setShowWhitePaper] = useState(false);
   const [showBattleStation, setShowBattleStation] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-  const [selectedTier, setSelectedTier] = useState<'growth' | 'launch'>('growth');
+  const [selectedTier, setSelectedTier] = useState<'tier_2500' | 'tier_5000' | 'tier_10000' | 'tier_25000' | 'tier_50000'>('tier_5000');
 
   const tierPrices = {
-    growth: {
-      monthly: { egp: '5,000', usd: '100', label: 'شهرياً • 2,500 ج إعلانات + تطبيق ويب كامل مستمر والأجنت', discount: '' },
-      yearly: { egp: '50,000', usd: '1,000', label: 'سنوياً • 25,000 ج إعلانات + تطبيق ويب كامل', discount: 'وفر 10,000 ج.م' },
+    tier_2500: {
+      name: 'الانطلاق (2,500 ج)',
+      monthly: { egp: '2,500', usd: '50', label: 'شهرياً • 1,250 ج إعلانات ممولة لنشاطك (نصف الباقة) + تطبيق PWA + وكيل واتساب الذكي', discount: '' },
+      yearly: { egp: '25,000', usd: '500', label: 'سنوياً • 12,500 ج إعلانات ممولة + تطبيق PWA', discount: 'وفر 5,000 ج.م' },
+      adBadge: '1,250 ج.م إعلانات ممولة مباشرة',
+      commissionMonthly: '250',
+      commissionYearly: '2,500'
+    },
+    tier_5000: {
+      name: 'النمو الذهبي (5,000 ج)',
+      monthly: { egp: '5,000', usd: '100', label: 'شهرياً • 2,500 ج إعلانات ممولة (نصف الباقة) + تطبيق PWA مخصص + فيديوهات ريلز Turbo Flow', discount: '' },
+      yearly: { egp: '50,000', usd: '1,000', label: 'سنوياً • 25,000 ج إعلانات ممولة + أتمتة كاملة', discount: 'وفر 10,000 ج.م' },
+      adBadge: '2,500 ج.م إعلانات ممولة مباشرة',
       commissionMonthly: '500',
       commissionYearly: '5,000'
     },
-    launch: {
-      monthly: { egp: '2,500', usd: '50', label: 'شهرياً • 1,250 ج إعلانات رسايل واتساب + الأجنت (بدون تطبيق)', discount: '' },
-      yearly: { egp: '25,000', usd: '500', label: 'سنوياً • 12,500 ج إعلانات رسايل', discount: 'وفر 5,000 ج.م' },
-      commissionMonthly: '250',
-      commissionYearly: '2,500'
+    tier_10000: {
+      name: 'الريادة (10,000 ج)',
+      monthly: { egp: '10,000', usd: '200', label: 'شهرياً • 5,000 ج إعلانات ممولة (نصف الباقة) + حملات متقدمة Meta & TikTok + دعم استراتيجي', discount: '' },
+      yearly: { egp: '100,000', usd: '2,000', label: 'سنوياً • 50,000 ج إعلانات ممولة + تقارير أداء حية', discount: 'وفر 20,000 ج.م' },
+      adBadge: '5,000 ج.م إعلانات ممولة مباشرة',
+      commissionMonthly: '1,000',
+      commissionYearly: '10,000'
+    },
+    tier_25000: {
+      name: 'المؤسسات (25,000 ج)',
+      monthly: { egp: '25,000', usd: '500', label: 'شهرياً • 12,500 ج إعلانات ممولة (نصف الباقة) + استراتيجية تسويق كاملة + إنتاج مرئي موسع', discount: '' },
+      yearly: { egp: '250,000', usd: '5,000', label: 'سنوياً • 125,000 ج إعلانات ممولة + استشارات نمو', discount: 'وفر 50,000 ج.م' },
+      adBadge: '12,500 ج.م إعلانات ممولة مباشرة',
+      commissionMonthly: '2,500',
+      commissionYearly: '25,000'
+    },
+    tier_50000: {
+      name: 'السيادة (50,000 ج)',
+      monthly: { egp: '50,000', usd: '1,000', label: 'شهرياً • 25,000 ج إعلانات ممولة (نصف الباقة) + هيمنة على السوق + وكلاء ذكاء اصطناعي متعددين', discount: '' },
+      yearly: { egp: '500,000', usd: '10,000', label: 'سنوياً • 250,000 ج إعلانات ممولة + إدارة VIP متكاملة 24/7', discount: 'وفر 100,000 ج.م' },
+      adBadge: '25,000 ج.م إعلانات ممولة مباشرة',
+      commissionMonthly: '5,000',
+      commissionYearly: '50,000'
     }
   };
 
@@ -246,30 +274,34 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
 
         {/* 3. FOOTER ACTIONS (Bottom) */}
         <div className="shrink-0 w-full space-y-2 pb-6">
-             {/* Tier Selector: Growth (5K) vs Launch (2.5K) */}
-             <div className="flex justify-center mb-1">
-               <div className="bg-black/80 p-1 rounded-2xl border border-white/10 flex gap-1 text-[11px] font-black select-none">
-                 <button
-                   onClick={() => setSelectedTier('growth')}
-                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
-                     selectedTier === 'growth'
-                       ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg shadow-amber-500/20'
-                       : 'text-white/60 hover:text-white'
-                   }`}
-                 >
-                   <span>⭐ باقة النمو (5,000 ج)</span>
-                 </button>
-                 <button
-                   onClick={() => setSelectedTier('launch')}
-                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 ${
-                     selectedTier === 'launch'
-                       ? 'bg-white/20 text-white font-bold'
-                       : 'text-white/40 hover:text-white'
-                   }`}
-                 >
-                   <span>باقة الانطلاق (2,500 ج)</span>
-                 </button>
+             {/* Tier Selector: 5 Official Tiers (2.5K - 5K - 10K - 25K - 50K) */}
+             <div className="flex justify-center mb-1 overflow-x-auto scrollbar-none py-1">
+               <div className="bg-black/80 p-1 rounded-2xl border border-white/10 flex gap-1 text-[10.5px] font-black select-none max-w-full">
+                 {(['tier_2500', 'tier_5000', 'tier_10000', 'tier_25000', 'tier_50000'] as const).map((tierKey) => {
+                   const isSelected = selectedTier === tierKey;
+                   return (
+                     <button
+                       key={tierKey}
+                       onClick={() => setSelectedTier(tierKey)}
+                       className={`px-2.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1 ${
+                         isSelected
+                           ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg shadow-amber-500/25 font-black scale-105'
+                           : 'text-white/60 hover:text-white bg-white/5 border border-white/5'
+                       }`}
+                     >
+                       <span>{tierPrices[tierKey].name}</span>
+                     </button>
+                   );
+                 })}
                </div>
+             </div>
+
+             {/* 50% Ad Allocation Guaranteed Badge */}
+             <div className="flex justify-center">
+               <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-0.5 rounded-full flex items-center gap-1">
+                 <Sparkles className="w-3 h-3 text-amber-400" />
+                 {tierPrices[selectedTier].adBadge} (50% من قيمة الباقة)
+               </span>
              </div>
 
              <div className="text-center space-y-1 mb-2">
