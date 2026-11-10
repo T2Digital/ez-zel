@@ -1,6 +1,6 @@
 import { db, auth } from './firebaseConfig';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, getDocsFromServer, updateDoc, addDoc, orderBy, deleteDoc, writeBatch, limit } from "firebase/firestore";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, User } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut, sendPasswordResetEmail, onAuthStateChanged, User } from "firebase/auth";
 import { encryptData, decryptData } from './cryptoService';
 
 export interface DBMessage {
@@ -588,6 +588,78 @@ class ShadowDB {
           await this.saveProfile(profile, true);
       }
       
+      this.downloadUserCloudData(cleanEmail);
+      return profile;
+  }
+
+  async loginWithGoogle(isAffiliateRegistration = false, referralCode?: string): Promise<UserProfile> {
+      if (!auth) throw new Error("Firebase Auth not initialized");
+
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+
+      const userCredential = await signInWithPopup(auth, provider);
+      const fbUser = userCredential.user;
+      const cleanEmail = (fbUser.email || `google_${fbUser.uid}@shadow.com`).toLowerCase();
+      const displayName = fbUser.displayName || cleanEmail.split('@')[0];
+
+      // Master Tito email recognition
+      const isMasterTito =
+          cleanEmail === 'admin@shadow.com' ||
+          cleanEmail === 'ahm.atya@gmail.com' ||
+          cleanEmail === 'ahmed.atya.daif@gmail.com' ||
+          cleanEmail.includes('atya') ||
+          cleanEmail.includes('tito');
+
+      if (isMasterTito) {
+          try {
+              localStorage.setItem('tito_admin_master', 'true');
+          } catch {}
+      }
+
+      let profile = await this.getProfile(cleanEmail);
+
+      if (!profile && db) {
+          try {
+              const docSnap = await getDoc(doc(db, "users", cleanEmail));
+              if (docSnap.exists()) {
+                  profile = docSnap.data() as UserProfile;
+              }
+          } catch {}
+      }
+
+      if (!profile) {
+          profile = {
+              email: cleanEmail,
+              phone: cleanEmail,
+              uid: fbUser.uid,
+              name: isMasterTito ? `${displayName} (الماستر تيتو)` : displayName,
+              shadowName: isMasterTito ? 'الماستر' : 'الظل',
+              shadowId: 'SHADOW-' + Math.floor(100000 + Math.random() * 900000).toString(),
+              tier: isMasterTito ? 'sovereign' : 'guardian',
+              status: 'active',
+              joinedAt: Date.now(),
+              referredBy: referralCode,
+              affiliate: (isMasterTito || isAffiliateRegistration) ? {
+                  isMarketer: true,
+                  referralCode: isMasterTito ? 'TITO_MASTER' : ('REF_' + Math.floor(1000 + Math.random() * 9000)),
+                  totalEarnings: 0,
+                  referralsCount: 0,
+                  payoutHistory: []
+              } : undefined
+          };
+      } else if (isMasterTito) {
+          profile.tier = 'sovereign';
+          profile.status = 'active';
+      }
+
+      try {
+          if (db) await setDoc(doc(db, "users", cleanEmail), profile, { merge: true });
+          await this.saveProfile(profile);
+      } catch {
+          await this.saveProfile(profile, true);
+      }
+
       this.downloadUserCloudData(cleanEmail);
       return profile;
   }

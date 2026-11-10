@@ -1912,13 +1912,14 @@ async function startServer() {
   // --- TWO-WAY LIVE VOICE CONVERSATION WITH JARVIS (SUPPORTS VISITOR, CLIENT CEO, AND MASTER TITO) ---
   app.post("/api/system/jarvis-conversation", async (req, res) => {
       try {
-          const { message, history, persona = 'tito', selectedBrandId = 'clean_master' } = req.body;
+          const { message, history, persona = 'tito', selectedBrandId = 'clean_master', recentChatSummary = '' } = req.body;
           if (!message) return res.status(400).json({ error: "Message is required" });
 
           const stats = getRealEcosystemStats();
           const unifiedBrands = getUnifiedGrowthBrands();
           const ezzelClients = getEzZelPersonalClients();
           const activeBrand = unifiedBrands.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) || unifiedBrands[0];
+          const allBrandsBrief = unifiedBrands.slice(0, 25).map(b => `${b.name} (${b.id} - ${b.businessType || 'نشاط تجاري'})`).join(' | ');
           const ai = getServerAI();
 
           let personaRoleInstruction = '';
@@ -2014,6 +2015,8 @@ async function startServer() {
                   data: { budgetEgp }
               });
               executedAction = { type: 'TRIGGER_ACTION', action: 'LAUNCH_CAMPAIGN', brandId: detectedBrand, result: backendExecutionResult };
+          } else if (/نافذة|شاشة البراند|تفاصيل براند|اعرض براند|افتح براند|الاربع شاشات|4 شاشات/i.test(msg)) {
+              executedAction = { type: 'OPEN_BRAND_SUPER_WINDOW', brandId: detectedBrand };
           } else if (/أوبسيديان|اوبسيدن|اوبسيديان|obsidian|شبكة|جراف|خريطة المعرفة/i.test(msg)) {
               executedAction = { type: 'SWITCH_TAB', tab: 'obsidian_graph', brandId: detectedBrand };
           } else if (/اربط واتساب|ربط واتس|كود ربط|qr|امسح الكود/i.test(msg)) {
@@ -2038,8 +2041,11 @@ async function startServer() {
               executedAction = { type: 'TOGGLE_BOT', brandId: detectedBrand, status: 'paused' };
           }
 
-          const systemPrompt = `أنت "جارفيس" (Jarvis)، العقل التنفيذي لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + App Cloner + Obsidian Knowledge Vault).
+          const systemPrompt = `أنت "جارفيس" (Jarvis)، العقل التنفيذي الموحد لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + App Cloner + Obsidian Knowledge Vault).
 ${personaRoleInstruction}
+[قائمة الـ ${unifiedBrands.length} براند الموحدة في خزنة أوبسيديان وتيتو ستوديو]:
+${allBrandsBrief}
+${recentChatSummary ? `\n[سياق آخر محادثة في شات الظل الرئيسي (عقل موحد)]: ${recentChatSummary}` : ''}
 ${backendExecutionResult ? `\n[نتيجة التنفيذ الفعلي الذي قمت به الآن في الخلفية]: ${backendExecutionResult.message || JSON.stringify(backendExecutionResult)}` : ''}
 قواعد صارمة:
 - تحدث بالعامية المصرية الطبيعية السلسة جداً (بدون تشكيل نحوي معقد وبدون فصحى روبوتية) عشان صوت Gemini البشري يطلع طبيعي وتلقائي 100%.

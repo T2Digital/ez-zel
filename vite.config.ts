@@ -9,11 +9,14 @@ export default defineConfig(() => {
         port: 3000,
         host: '0.0.0.0',
         hmr: false,
+        watch: {
+          ignored: ['**/data/**', '**/obsidian_vault/**', '**/dist/**', '**/temp_uploads/**']
+        }
       },
       plugins: [
         react(),
         VitePWA({
-          registerType: 'autoUpdate',
+          registerType: 'prompt',
           includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
           workbox: {
             maximumFileSizeToCacheInBytes: 15000000

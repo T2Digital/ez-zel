@@ -25,18 +25,19 @@ const App: React.FC = () => {
       setIsAuthReady(true);
       const lastEmail = localStorage.getItem("shadow_last_user");
 
+      // Preserve active local/admin/Google sessions without ever triggering window.location.reload()
       if (!firebaseUser && lastEmail && lastEmail !== "GUEST") {
-        console.warn("[Auth Sync] Cloud identity missing. Auto-nuking stale local cache...");
-        shadowDB.nukeLocalDatabase().then(() => {
-          window.location.reload();
-        });
+        console.info("[Auth Sync] Operating with persistent local sovereign session for:", lastEmail);
+        return;
       }
 
       if (firebaseUser && firebaseUser.email && (!lastEmail || lastEmail !== firebaseUser.email)) {
-        console.log("[Auth Sync] Cloud identity found but local is missing. Restoring from cloud...");
+        console.log("[Auth Sync] Cloud identity verified. Restoring session without interrupting active view...");
         localStorage.setItem("shadow_last_user", firebaseUser.email);
         shadowDB.downloadUserCloudData(firebaseUser.email).then(() => {
-          checkSession();
+          if (!useAppStore.getState().user) {
+            checkSession();
+          }
         });
       }
     });

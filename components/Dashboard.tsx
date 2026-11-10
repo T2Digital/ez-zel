@@ -487,8 +487,19 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
                 });
             })}
 
-            {/* Top-Right Glowing Virtual World & Human Voice Tone Launcher Buttons */}
+            {/* Top-Right Glowing Jarvis Second Brain, Virtual World & Human Voice Tone Launcher Buttons */}
             <div className="absolute top-6 right-6 pointer-events-auto z-[80] flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                <button 
+                    onClick={() => {
+                        sessionStorage.setItem('jarvis_battlestation_open', 'true');
+                        sessionStorage.setItem('jarvis_battlestation_persona', 'tito');
+                        onOpenChat();
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-gradient-to-r from-[#020617] via-cyan-950 to-blue-950 hover:from-cyan-900 hover:to-blue-900 border-2 border-cyan-400 text-cyan-200 text-xs md:text-sm font-black shadow-[0_0_30px_rgba(0,240,255,0.65)] transition-all cursor-pointer hover:scale-105 active:scale-95"
+                >
+                    <Cpu className="w-5 h-5 text-cyan-300 animate-pulse" />
+                    <span>⚡ كابينة جارفيس (العقل التاني الشامل)</span>
+                </button>
                 <button 
                     onClick={() => setShowVirtualWorld(true)}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-gradient-to-r from-cyan-600/40 via-blue-600/40 to-purple-600/40 hover:from-cyan-500/60 hover:to-purple-500/60 border-2 border-cyan-400 text-cyan-200 text-xs md:text-sm font-black shadow-[0_0_25px_rgba(6,182,212,0.5)] transition-all cursor-pointer hover:scale-105 active:scale-95"

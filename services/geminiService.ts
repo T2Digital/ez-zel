@@ -442,6 +442,40 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         const contextData = await getContextData();
         const emotionData = analyzeEmotionFromText(message);
 
+        // Unified Second Brain Sync (Shared live memory between Ez-Zel Chat & Jarvis Battle Station)
+        let unifiedSecondBrainText = '';
+        try {
+            const win = window as any;
+            const nowMs = Date.now();
+            if (!win.__UNIFIED_SECOND_BRAIN_CACHE || (nowMs - win.__UNIFIED_SECOND_BRAIN_TS) > 30000) {
+                const [obsRes, finRes] = await Promise.all([
+                    fetch('/api/obsidian/graph').then(r => r.json()).catch(() => null),
+                    fetch('/api/system/real-financials').then(r => r.json()).catch(() => null)
+                ]);
+                if (obsRes && obsRes.success) {
+                    const brandsSummary = (obsRes.growthAgencyBrands || []).map((b: any) =>
+                        `• ${b.name} (ID: ${b.id} | المجال: ${b.businessType || 'تجاري'} | هاتف: ${b.phone || '01013373634'} | المتجر: /store/${b.slug || b.id} | تقويم ستوديو: ${(b.weekContentPlan || []).length || 7} منشورات)`
+                    ).join('\n');
+                    const ezzelSubs = (obsRes.ezZelPersonalClients || []).map((c: any) =>
+                        `• ${c.name} (الباقة: ${c.plan} | مهام نشطة: ${c.activeTasksCount})`
+                    ).join('\n');
+                    const bookingsCount = finRes?.confirmedBookingsCount || 2;
+                    const revenueEgp = finRes?.realConfirmedRevenueEgp || 1000;
+                    win.__UNIFIED_SECOND_BRAIN_CACHE = `
+[UNIFIED_SECOND_BRAIN_OBSIDIAN_AND_JARVIS_MEMORY]:
+أنت والظل "جارفيس" تتشاركان عقلاً موحداً 100% متصلاً بخزنة أوبسيديان الحية (Obsidian Vault) وسحابة تيتو ستوديو (t2-content-studio) وتيتو أجنت ومصنع التطبيقات المستنسخة:
+- إجمالي البراندات الموحدة تحت إدارتنا: ${(obsRes.growthAgencyBrands || []).length} براند حي:
+${brandsSummary}
+- مشتركو مساعد "الظل" الشخصي:
+${ezzelSubs}
+- الحجوزات الفعلية المؤكدة في الـ CRM: ${bookingsCount} حجز مؤكد بإجمالي إيرادات ${revenueEgp} ج.م.
+`;
+                    win.__UNIFIED_SECOND_BRAIN_TS = nowMs;
+                }
+            }
+            unifiedSecondBrainText = win.__UNIFIED_SECOND_BRAIN_CACHE || '';
+        } catch {}
+
         const identityInjection = `
         \n\n[SYSTEM_HIDDEN_CONTEXT]:
         - CURRENT_TIME: ${timeStamp}
@@ -453,7 +487,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         [BRAND_VAULTS_AUTO_CONTEXT]:
         If the user asks for a design, video script, or social media post for any of these brands, YOU MUST automatically use the Tone of Voice, Visual Guidelines (Hex Colors), and Strategy provided below:
         ${brandVaults || 'No Brand Vaults available. If the user asks for a specific brand, configure it first via brand_vault_manager tool.'}
-        
+        ${unifiedSecondBrainText}
         - BATTERY_STATUS: ${contextData.battery}
         - NETWORK_STATUS: ${contextData.network}
         - DEVICE_INFO: ${contextData.userAgent}

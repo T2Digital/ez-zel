@@ -223,9 +223,31 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const [personalKeys, setPersonalKeys] = useState(currentUser.personalKeys || {});
   const [toastBanner, setToastBanner] = useState<string | null>(null);
 
-  // Jarvis Battle Station & Client Onboarding States
-  const [showBattleStation, setShowBattleStation] = useState(false);
-  const [battleStationPersona, setBattleStationPersona] = useState<'visitor' | 'client' | 'tito'>('visitor');
+  // Jarvis Battle Station & Client Onboarding States (Persisted in sessionStorage so it never closes on re-render/refresh)
+  const [showBattleStation, setShowBattleStationState] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('jarvis_battlestation_open') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const setShowBattleStation = useCallback((val: boolean) => {
+    setShowBattleStationState(val);
+    try {
+      if (val) {
+        sessionStorage.setItem('jarvis_battlestation_open', 'true');
+      } else {
+        sessionStorage.removeItem('jarvis_battlestation_open');
+      }
+    } catch {}
+  }, []);
+  const [battleStationPersona, setBattleStationPersona] = useState<'visitor' | 'client' | 'tito'>(() => {
+    try {
+      const saved = sessionStorage.getItem('jarvis_battlestation_persona') as any;
+      if (saved === 'tito' || saved === 'client' || saved === 'visitor') return saved;
+    } catch {}
+    return 'tito';
+  });
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [onboardingInitialData, setOnboardingInitialData] = useState<{ businessName?: string; category?: string }>({});
 

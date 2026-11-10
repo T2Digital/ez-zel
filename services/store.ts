@@ -74,6 +74,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       const lastUserEmail = localStorage.getItem('shadow_last_user');
       const guestSession = localStorage.getItem('shadow_guest_active');
 
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+      const preserveChatView = currentPath === '/chat' || currentPath.startsWith('/chat/') || sessionStorage.getItem('jarvis_battlestation_open') === 'true';
+
       if (lastUserEmail && lastUserEmail !== 'GUEST') {
           const profile = await shadowDB.getProfile(lastUserEmail);
           if (profile) {
@@ -85,10 +88,12 @@ export const useAppStore = create<AppState>((set, get) => ({
               } catch(e) {}
 
               if (profile.status === 'active') {
-                 if (profile.email === 'admin@shadow.com') {
+                 if (preserveChatView) {
+                     set({ view: 'chat', isAppLocked: false });
+                 } else if (profile.email === 'admin@shadow.com' && currentPath === '/admin') {
                      set({ view: 'admin', isAppLocked: false });
                  } else {
-                     set({ view: 'dashboard', isAppLocked: true });
+                     set({ view: 'dashboard', isAppLocked: false });
                  }
                  return;
               } else if (profile.status === 'pending') {
@@ -104,7 +109,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       if (guestSession === 'true') {
         const guestUser: UserProfile = { email: 'GUEST', phone: 'GUEST', name: 'ضيف', tier: 'lite', status: 'active', joinedAt: Date.now() };
-        set({ user: guestUser, view: 'dashboard', isAppLocked: true });
+        set({ user: guestUser, view: preserveChatView ? 'chat' : 'dashboard', isAppLocked: false });
         return;
       }
       
