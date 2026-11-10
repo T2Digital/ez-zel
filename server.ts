@@ -18,7 +18,7 @@ import { cloneOrSynthesizeBrand, getClonedBrandByIdOrSlug } from "./services/app
 import { publishBrandPost, launchAdCampaign, runSelfOptimizingLoop, setupAutonomousAgencyCron, getPublishedLogs } from "./services/growthAgencyEngine";
 import { syncAndBuildObsidianVault, getObsidianNodeMarkdown, saveObsidianNodeMarkdown, startObsidianTwoWayWatcher, executeRealJarvisEcosystemAction, getUnifiedGrowthBrands, getEzZelPersonalClients } from "./services/obsidianVaultService";
 import { readTurboFlowQueue, enqueueTurboFlowVideoJob, completeTurboFlowVideoJob, readTitoStudioCacheSync } from "./services/titoStudioFirestoreBridge";
-import { PAYMOB_PLANS, createPaymobCheckoutSession, verifyPaymobWebhookHmac, readPaymobSubscriptions, savePaymobSubscriptionRecord } from "./services/paymobService";
+import { PAYMOB_PLANS, PAYMOB_TIERS, createPaymobCheckoutSession, verifyPaymobWebhookHmac, readPaymobSubscriptions, savePaymobSubscriptionRecord } from "./services/paymobService";
 import { readBookings, broadcastGatewayEvent } from "./services/microservicesGateway";
 import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./services/brandingForgeService";
 
@@ -582,7 +582,7 @@ async function startServer() {
   app.get("/api/payments/paymob/plans", (_req, res) => {
       res.json({
           ok: true,
-          plans: Object.values(PAYMOB_PLANS),
+          plans: PAYMOB_TIERS,
           subscriptions: readPaymobSubscriptions()
       });
   });

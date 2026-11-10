@@ -24,38 +24,86 @@ export interface PaymobCheckoutResponse {
 
 const SUBSCRIPTIONS_LOG_PATH = path.join(process.cwd(), 'data', 'paymob_subscriptions.json');
 
-export const PAYMOB_PLANS: Record<string, { id: string; name: string; amountEgp: number; features: string[] }> = {
-    starter_monthly: {
-        id: 'starter_monthly',
-        name: 'باقة الانطلاق الذكي (متجر + وكيل واتساب + خطة محتوى)',
-        amountEgp: 1500,
+export const PAYMOB_PLANS: Record<string, { id: string; name: string; amountEgp: number; adBudgetEgp: number; features: string[] }> = {
+    tier_2500: {
+        id: 'tier_2500',
+        name: 'باقة الانطلاق الفضي (2,500 ج.م)',
+        amountEgp: 2500,
+        adBudgetEgp: 1250,
         features: [
-            'متجر وتطبيق براند رسمي (PWA) مع نظام حجوزات فوري',
-            'وكيل واتساب وميتا بصوت بشري (Gemini 24kHz) على مدار الساعة',
-            'استراتيجية تسويقية وتوليد محتوى أسبوعي في تيتو ستوديو'
+            '1,250 ج.م ميزانية إعلانات ممولة مباشرة لنشاطك (نصف قيمة الباقة)',
+            'نسخة تطبيق ويب وموبايل PWA مخصصة لنشاطك مع كتالوج الحجوزات',
+            'وكيل واتساب وميتا الذكي للرد الفوري 24/7 بصوت بشري نقي',
+            'إدارة وجدولة محتوى تيتو ستوديو الشهري'
         ]
     },
-    growth_pro: {
-        id: 'growth_pro',
-        name: 'باقة النمو الشامل (تيتو ستوديو + Turbo Flow + أتمتة كاملة)',
-        amountEgp: 2950,
+    tier_5000: {
+        id: 'tier_5000',
+        name: 'باقة النمو الذهبي (5,000 ج.م)',
+        amountEgp: 5000,
+        adBudgetEgp: 2500,
         features: [
-            'كل مميزات باقة الانطلاق + تصميمات تيتو ستوديو غير محدودة',
-            'توليد فيديوهات ريلز سينمائية عبر جسر Google Flow × Turbo Flow',
-            'تقارير صباحية ومسائية صوتية تلقائية على واتساب وتليجرام'
+            '2,500 ج.م ميزانية إعلانات ممولة مباشرة (Meta & TikTok)',
+            'نسخة تطبيق وموقع PWA مخصص حسب مجال نشاطك',
+            'إنتاج فيديوهات ريلز وسيناريوهات فلو عبر Turbo Flow',
+            'وكيل مبيعات واتساب تفاوضي وإغلاق الحجوزات آلياً',
+            'تقارير يومية صباحية ومسائية عن الأداء والمبيعات'
         ]
     },
-    agency_unlimited: {
-        id: 'agency_unlimited',
-        name: 'باقة المؤسسات والوكالات (إدارة متعددة البراندات)',
-        amountEgp: 5900,
+    tier_10000: {
+        id: 'tier_10000',
+        name: 'باقة التوسع البلاتيني (10,000 ج.م)',
+        amountEgp: 10000,
+        adBudgetEgp: 5000,
         features: [
-            'إدارة حتى 10 براندات متكاملة داخل العقل الموحد (أوبسيديان + جارفيس)',
-            'أولوية الرندر والنشر الآلي والربط المباشر بـ Paymob و Meta Graph API',
-            'مدير تنفيذي ذكي مخصص لكل براند'
+            '5,000 ج.م ميزانية إعلانات ممولة مستهدفة لحصد المبيعات',
+            'تطبيق PWA متقدم مع لوحة تحكم وإدارة مخزون وحجوزات',
+            'أتمتة تسويقية كاملة عبر تيتو ستوديو + نشر ميتا وجوجل فلو',
+            'وكيل مبيعات صوتي متعدد القنوات (واتساب + تليجرام + إنستا)',
+            'بوابة دفع إلكتروني Paymob لتأكيد الحجوزات بالعربون فوراً'
+        ]
+    },
+    tier_25000: {
+        id: 'tier_25000',
+        name: 'باقة الهيمنة السوقية VIP (25,000 ج.م)',
+        amountEgp: 25000,
+        adBudgetEgp: 12500,
+        features: [
+            '12,500 ج.م ميزانية إعلانات ممولة قوية للسيطرة على السوق',
+            'تطبيق ومنظومة متكاملة متعددة الفروع ونقاط البيع',
+            'إنتاج مكثف للفيديوهات والتصاميم وإدارة الحملات اليومية',
+            'تخصيص كامل لعقل الذكاء الاصطناعي ونبرة الصوت والردود',
+            'دعم تنفيذي مباشر 24/7 مع مدير حساب ذكي'
+        ]
+    },
+    tier_50000: {
+        id: 'tier_50000',
+        name: 'باقة الشركات الكبرى والمؤسسات (50,000 ج.م)',
+        amountEgp: 50000,
+        adBudgetEgp: 25000,
+        features: [
+            '25,000 ج.م ميزانية حملات إعلانية ضخمة عبر كافة المنصات',
+            'بناء وتخصيص أنظمة وتطبيقات متكاملة (Enterprise PWA Suite)',
+            'أتمتة تسويقية وسيادية غير محدودة في تيتو ستوديو وتيتو أجنت',
+            'تحليل تنبؤي ومراقبة سلوك الزوار وتحسين معدلات التحويل',
+            'سيرفرات مخصصة وأولوية قصوى لكافة عمليات الأتمتة'
         ]
     }
 };
+
+// Clean array of official 5 tiers
+export const PAYMOB_TIERS = [
+    PAYMOB_PLANS.tier_2500,
+    PAYMOB_PLANS.tier_5000,
+    PAYMOB_PLANS.tier_10000,
+    PAYMOB_PLANS.tier_25000,
+    PAYMOB_PLANS.tier_50000
+];
+
+// Aliases for legacy plan ids
+(PAYMOB_PLANS as any).starter_monthly = PAYMOB_PLANS.tier_2500;
+(PAYMOB_PLANS as any).growth_pro = PAYMOB_PLANS.tier_5000;
+(PAYMOB_PLANS as any).agency_unlimited = PAYMOB_PLANS.tier_10000;
 
 export function readPaymobSubscriptions(): any[] {
     try {
