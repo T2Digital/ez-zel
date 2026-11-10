@@ -107,6 +107,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [transcript, setTranscript] = useState('');
   const transcriptRef = useRef<string>('');
   const [isThinking, setIsThinking] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'model'; text: string }>>([]);
   const recognitionRef = useRef<any>(null);
 
   // Autonomous Executive Browser Actuator State
@@ -1038,19 +1039,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     try {
       let recentChatSummary = '';
-      try {
-        const recentMsgs = await shadowDB.getMessages();
-        recentChatSummary = (recentMsgs || [])
-          .slice(-6)
-          .map((m: any) => `${m.sender === 'user' ? 'الماستر' : 'الظل'}: ${(m.text || '').slice(0, 180)}`)
-          .join(' | ');
-      } catch {}
+      if (persona === 'tito') {
+        try {
+          const recentMsgs = await shadowDB.getMessages();
+          recentChatSummary = (recentMsgs || [])
+            .slice(-6)
+            .map((m: any) => `${m.sender === 'user' ? 'الماستر' : 'الظل'}: ${(m.text || '').slice(0, 180)}`)
+            .join(' | ');
+        } catch {}
+      }
 
       const res = await fetch('/api/system/jarvis-conversation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: commandText,
+          history: conversationHistory,
           persona,
           selectedBrandId: currentSelectedBrand.id,
           recentChatSummary
@@ -1059,6 +1063,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       const data = await res.json();
       if (data.success && data.replyText) {
         setTranscript(data.replyText);
+        setConversationHistory(prev => [
+          ...prev.slice(-8),
+          { role: 'user', text: commandText },
+          { role: 'model', text: data.replyText }
+        ]);
         appendLiveLog(`[JARVIS_REPLY]: ${data.replyText.slice(0, 95)}...`);
 
         const onSpeechEnd = () => {
@@ -1089,7 +1098,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         }
 
         // Check if voice command asks to open the Multi-Window Brand Super-Window
-        if (/نافذ|شاشه|شاشة|تفاصيل براند|اعرض براند|افتح براند/i.test(commandText)) {
+        if (/نافذ|شاشه|شاشة|تفاصيل براند|اعرض براند|افتح براند/i.test(commandText) && persona !== 'visitor') {
           setIsBrandSuperWindowOpen(true);
         }
 
@@ -1097,12 +1106,25 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         if (data.action) {
           appendLiveLog(`[EXEC_ACTION]: ${data.action.type} -> ${data.action.tab || data.action.modal || data.action.action || data.action.brandId || 'OK'}`);
           if (data.action.type === 'SWITCH_TAB' && data.action.tab) {
-            setActiveDeckTab(data.action.tab);
-            if (data.action.brandId) {
-              handleSelectBrand(data.action.brandId);
-              handleInspectObsidianNode(data.action.brandId);
+            // STRICT SHIELD: Never hijack view away from visitor onboarding
+            if (persona !== 'visitor') {
+              setActiveDeckTab(data.action.tab);
+              if (data.action.brandId) {
+                handleSelectBrand(data.action.brandId);
+                handleInspectObsidianNode(data.action.brandId);
+              }
             }
-          } else if (data.action.type === 'OPEN_BRAND_SUPER_WINDOW') {
+          } else if (data.action.type === 'VISITOR_DIAGNOSTIC_UPDATE' && data.action.visitorUpdate) {
+            const upd = data.action.visitorUpdate;
+            setBrandingForm(prev => ({
+              ...prev,
+              ...(upd.hasExistingBusiness !== undefined ? { isNewBusiness: !upd.hasExistingBusiness } : {}),
+              ...(upd.industry ? { category: upd.industry } : {}),
+              ...(upd.hasWebsite !== undefined ? { hasWebsite: upd.hasWebsite } : {}),
+              ...(upd.hasSocialPages !== undefined ? { hasSocialPages: upd.hasSocialPages } : {}),
+              ...(upd.phone ? { phone: upd.phone } : {})
+            }));
+          } else if (data.action.type === 'OPEN_BRAND_SUPER_WINDOW' && persona !== 'visitor') {
             if (data.action.brandId) {
               handleSelectBrand(data.action.brandId);
               handleInspectObsidianNode(data.action.brandId);
@@ -1114,7 +1136,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               handleOpenWhatsAppConnectModal(data.action.brandId);
             } else if (data.action.modal === 'meta_connect') {
               handleOpenMetaConnectModal(data.action.brandId);
-            } else if (data.action.modal === 'brand_super_window') {
+            } else if (data.action.modal === 'brand_super_window' && persona !== 'visitor') {
               setIsBrandSuperWindowOpen(true);
             }
           } else if (data.action.type === 'TRIGGER_ACTION') {
@@ -1370,120 +1392,180 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className="lg:col-span-3 flex flex-col gap-4">
             
-            {/* ACTION ACTUATOR: Quick Executive Command Hub */}
-            <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
-              <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
-                <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  متحكم الإجراءات والربط
-                </span>
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  REAL-TIME
-                </span>
+            {/* ACTION ACTUATOR: Visitor Pricing & Trial Info vs Executive Command Hub */}
+            {persona === 'visitor' ? (
+              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
+                <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                  <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    باقات النمو المعتمدة (50% إعلانات)
+                  </span>
+                  <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    5 TIERS
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <div className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-white text-[11px]">الانطلاق الفضي</div>
+                      <div className="text-[9.5px] text-emerald-400">1,250 ج.م إعلانات ممولة</div>
+                    </div>
+                    <span className="font-black text-amber-300 text-xs">2,500 ج.م</span>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-cyan-200 text-[11px]">النمو الذهبي (الأكثر طلباً)</div>
+                      <div className="text-[9.5px] text-emerald-400">2,500 ج.م إعلانات ممولة</div>
+                    </div>
+                    <span className="font-black text-amber-300 text-xs">5,000 ج.م</span>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-purple-200 text-[11px]">الريادة البلاتينية</div>
+                      <div className="text-[9.5px] text-emerald-400">5,000 ج.م إعلانات ممولة</div>
+                    </div>
+                    <span className="font-black text-amber-300 text-xs">10,000 ج.م</span>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-white text-[11px]">المؤسسات VIP</div>
+                      <div className="text-[9.5px] text-emerald-400">12,500 ج.م إعلانات ممولة</div>
+                    </div>
+                    <span className="font-black text-amber-300 text-xs">25,000 ج.م</span>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-amber-950/30 border border-amber-500/30 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-amber-200 text-[11px]">السيادة التوسعية</div>
+                      <div className="text-[9.5px] text-emerald-400">25,000 ج.م إعلانات ممولة</div>
+                    </div>
+                    <span className="font-black text-amber-300 text-xs">50,000 ج.م</span>
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 leading-relaxed">
+                  🛡️ <strong>أسبوع التجربة المجانية:</strong> 3 منشورات مركزة (يوم ويوم: تصميم، فيديو ريلز، بوست عرض خاص وحجز فوري) + وكيل واتساب 24/7.
+                </div>
               </div>
+            ) : (
+              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
+                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
+                  <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    متحكم الإجراءات والربط
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    REAL-TIME
+                  </span>
+                </div>
 
-              {/* 8 High-Power Quick Action & Connection Buttons */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setActiveDeckTab('obsidian_graph')}
-                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
-                    activeDeckTab === 'obsidian_graph'
-                      ? 'bg-fuchsia-500/25 border-fuchsia-400 text-fuchsia-200 shadow-[0_0_15px_rgba(217,70,239,0.35)]'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-fuchsia-500/10 hover:border-fuchsia-500/30'
-                  }`}
-                >
-                  <Layers className="w-4 h-4 text-fuchsia-400" />
-                  <span className="text-xs font-bold">عقل أوبسيديان</span>
-                  <span className="text-[9px] text-white/40">شبكة المعرفة الحية</span>
-                </button>
+                {/* 8 High-Power Quick Action & Connection Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setActiveDeckTab('obsidian_graph')}
+                    className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                      activeDeckTab === 'obsidian_graph'
+                        ? 'bg-fuchsia-500/25 border-fuchsia-400 text-fuchsia-200 shadow-[0_0_15px_rgba(217,70,239,0.35)]'
+                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-fuchsia-500/10 hover:border-fuchsia-500/30'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-fuchsia-400" />
+                    <span className="text-xs font-bold">عقل أوبسيديان</span>
+                    <span className="text-[9px] text-white/40">شبكة المعرفة الحية</span>
+                  </button>
 
-                <button
-                  onClick={() => setActiveDeckTab('agency_overview')}
-                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
-                    activeDeckTab === 'agency_overview'
-                      ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.35)]'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-amber-500/10 hover:border-amber-500/30'
-                  }`}
-                >
-                  <Users className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-bold">إدارة الوكالة والظل</span>
-                  <span className="text-[9px] text-white/40">عملاء الظل والبراندات</span>
-                </button>
+                  <button
+                    onClick={() => setActiveDeckTab('agency_overview')}
+                    className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                      activeDeckTab === 'agency_overview'
+                        ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.35)]'
+                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-amber-500/10 hover:border-amber-500/30'
+                    }`}
+                  >
+                    <Users className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold">إدارة الوكالة والظل</span>
+                    <span className="text-[9px] text-white/40">عملاء الظل والبراندات</span>
+                  </button>
 
-                <button
-                  onClick={() => setActiveDeckTab('studio_calendar')}
-                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
-                    activeDeckTab === 'studio_calendar'
-                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-cyan-500/10 hover:border-cyan-500/30'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4 text-cyan-400" />
-                  <span className="text-xs font-bold">تقويم ستوديو</span>
-                  <span className="text-[9px] text-white/40">7 أيام خوارزميات</span>
-                </button>
+                  <button
+                    onClick={() => setActiveDeckTab('studio_calendar')}
+                    className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                      activeDeckTab === 'studio_calendar'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-cyan-500/10 hover:border-cyan-500/30'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4 text-cyan-400" />
+                    <span className="text-xs font-bold">تقويم ستوديو</span>
+                    <span className="text-[9px] text-white/40">7 أيام خوارزميات</span>
+                  </button>
 
-                <button
-                  onClick={() => setActiveDeckTab('app_cloner')}
-                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
-                    activeDeckTab === 'app_cloner'
-                      ? 'bg-blue-500/20 border-blue-400 text-blue-200 shadow-[0_0_15px_rgba(59,130,246,0.3)]'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-blue-500/10 hover:border-blue-500/30'
-                  }`}
-                >
-                  <Smartphone className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs font-bold">متجر البراند</span>
-                  <span className="text-[9px] text-white/40">متاجر وحجز فوري</span>
-                </button>
+                  <button
+                    onClick={() => setActiveDeckTab('app_cloner')}
+                    className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                      activeDeckTab === 'app_cloner'
+                        ? 'bg-blue-500/20 border-blue-400 text-blue-200 shadow-[0_0_15px_rgba(59,130,246,0.3)]'
+                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-blue-500/10 hover:border-blue-500/30'
+                    }`}
+                  >
+                    <Smartphone className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs font-bold">متجر البراند</span>
+                    <span className="text-[9px] text-white/40">متاجر وحجز فوري</span>
+                  </button>
 
-                <button
-                  onClick={() => handleOpenWhatsAppConnectModal()}
-                  className="p-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-right transition-all flex flex-col items-start gap-1"
-                >
-                  <MessageSquare className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-bold">ربط واتساب لايف</span>
-                  <span className="text-[9px] text-white/40">كود ربط أو QR فوري</span>
-                </button>
+                  <button
+                    onClick={() => handleOpenWhatsAppConnectModal()}
+                    className="p-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-right transition-all flex flex-col items-start gap-1"
+                  >
+                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold">ربط واتساب لايف</span>
+                    <span className="text-[9px] text-white/40">كود ربط أو QR فوري</span>
+                  </button>
 
-                <button
-                  onClick={() => handleOpenMetaConnectModal()}
-                  className="p-2.5 rounded-2xl border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-right transition-all flex flex-col items-start gap-1"
-                >
-                  <Share2 className="w-4 h-4 text-indigo-400" />
-                  <span className="text-xs font-bold">ربط ميتا وإنستا</span>
-                  <span className="text-[9px] text-white/40">OAuth Graph API</span>
-                </button>
+                  <button
+                    onClick={() => handleOpenMetaConnectModal()}
+                    className="p-2.5 rounded-2xl border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-right transition-all flex flex-col items-start gap-1"
+                  >
+                    <Share2 className="w-4 h-4 text-indigo-400" />
+                    <span className="text-xs font-bold">ربط ميتا وإنستا</span>
+                    <span className="text-[9px] text-white/40">OAuth Graph API</span>
+                  </button>
 
-                <button
-                  onClick={() => setActiveDeckTab('ad_launcher')}
-                  className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
-                    activeDeckTab === 'ad_launcher'
-                      ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
-                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-amber-500/10 hover:border-amber-500/30'
-                  }`}
-                >
-                  <TrendingUp className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-bold">إعلانات واتساب</span>
-                  <span className="text-[9px] text-white/40">حملات ممولة</span>
-                </button>
+                  <button
+                    onClick={() => setActiveDeckTab('ad_launcher')}
+                    className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-start gap-1 ${
+                      activeDeckTab === 'ad_launcher'
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-amber-500/10 hover:border-amber-500/30'
+                    }`}
+                  >
+                    <TrendingUp className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold">إعلانات واتساب</span>
+                    <span className="text-[9px] text-white/40">حملات ممولة</span>
+                  </button>
 
-                <button
-                  onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
-                  disabled={isPublishingPost}
-                  className="p-2.5 rounded-2xl border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-right transition-all flex flex-col items-start gap-1"
-                >
-                  <Send className="w-4 h-4 text-rose-400" />
-                  <span className="text-xs font-bold">{isPublishingPost ? 'جاري النشر...' : 'نشر فوري الآن'}</span>
-                  <span className="text-[9px] text-white/40">Meta Graph مباشر</span>
-                </button>
+                  <button
+                    onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
+                    disabled={isPublishingPost}
+                    className="p-2.5 rounded-2xl border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-right transition-all flex flex-col items-start gap-1"
+                  >
+                    <Send className="w-4 h-4 text-rose-400" />
+                    <span className="text-xs font-bold">{isPublishingPost ? 'جاري النشر...' : 'نشر فوري الآن'}</span>
+                    <span className="text-[9px] text-white/40">Meta Graph مباشر</span>
+                  </button>
+                </div>
+
+                {/* Active Brand Snippet */}
+                <div className="pt-2 border-t border-cyan-500/20 flex items-center justify-between text-[11px]">
+                  <span className="text-white/50">البراند النشط حالياً:</span>
+                  <span className="text-cyan-300 font-bold truncate max-w-[130px]">{currentSelectedBrand.name}</span>
+                </div>
               </div>
-
-              {/* Active Brand Snippet */}
-              <div className="pt-2 border-t border-cyan-500/20 flex items-center justify-between text-[11px]">
-                <span className="text-white/50">البراند النشط حالياً:</span>
-                <span className="text-cyan-300 font-bold truncate max-w-[130px]">{currentSelectedBrand.name}</span>
-              </div>
-            </div>
+            )}
 
             {/* Live Streaming Cyber Terminal */}
             <div className="flex-1 min-h-[260px] p-4 rounded-3xl bg-[#020514]/95 border border-cyan-500/30 flex flex-col font-mono text-xs overflow-hidden shadow-inner">
@@ -1510,52 +1592,64 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className="lg:col-span-6 flex flex-col items-center justify-between gap-4 py-1">
             
-            {/* Triage Persona Switcher (Top of Center) */}
-            <div className="bg-[#03091e]/90 border border-cyan-500/40 p-1.5 rounded-2xl flex items-center gap-1.5 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex-wrap justify-center">
-              <button
-                onClick={() => { setPersona('tito'); handlePlayPersonaGreeting('tito'); }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                  persona === 'tito'
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                👑 الماستر تيتو
-              </button>
+            {/* Triage Persona Switcher (Top of Center) - Protected for Master Admin */}
+            {isMasterAdmin ? (
+              <div className="bg-[#03091e]/90 border border-cyan-500/40 p-1.5 rounded-2xl flex items-center gap-1.5 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex-wrap justify-center">
+                <span className="text-[9.5px] text-amber-400 font-bold px-2 py-0.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                  لوحة الماستر للمعاينة:
+                </span>
+                <button
+                  onClick={() => { setPersona('tito'); handlePlayPersonaGreeting('tito'); }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                    persona === 'tito'
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  👑 الماستر تيتو
+                </button>
 
-              <button
-                onClick={() => { setPersona('client'); handlePlayPersonaGreeting('client'); }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                  persona === 'client'
-                    ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                🏢 عميل حالي
-              </button>
+                <button
+                  onClick={() => { setPersona('client'); handlePlayPersonaGreeting('client'); }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                    persona === 'client'
+                      ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  🏢 عميل حالي
+                </button>
 
-              <button
-                onClick={() => { setPersona('trial'); handlePlayPersonaGreeting('trial'); }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                  persona === 'trial'
-                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                ⏳ فترة التجربة (7 أيام)
-              </button>
+                <button
+                  onClick={() => { setPersona('trial'); handlePlayPersonaGreeting('trial'); }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                    persona === 'trial'
+                      ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  ⏳ فترة التجربة (7 أيام)
+                </button>
 
-              <button
-                onClick={() => { setPersona('visitor'); handlePlayPersonaGreeting('visitor'); }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                  persona === 'visitor'
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                🌐 زائر جديد (0→1)
-              </button>
-            </div>
+                <button
+                  onClick={() => { setPersona('visitor'); handlePlayPersonaGreeting('visitor'); }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                    persona === 'visitor'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  🌐 وضع الزائر (0→1)
+                </button>
+              </div>
+            ) : (
+              <div className="bg-[#03091e]/90 border border-emerald-500/40 px-4 py-1.5 rounded-2xl flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-black text-emerald-300">
+                  🌐 مستشار النمو الرقمي والذكاء السيادي للأعمال (جارفيس)
+                </span>
+              </div>
+            )}
 
             {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB */}
             <div className="relative w-72 h-72 md:w-84 md:h-84 flex items-center justify-center my-1 select-none">
@@ -1662,117 +1756,130 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
 
               {/* 2. Unified Operational Mode Tabs (Simple 4-Tab Focus View for Clients vs 8-Tab Sovereign View for Master Tito) */}
-              <div className={`grid ${persona === 'tito' ? 'grid-cols-4 sm:grid-cols-8' : 'grid-cols-4'} gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[9.5px] font-bold select-none font-['Cairo']`}>
-                {persona === 'tito' && (
-                  <>
-                    <button
-                      onClick={() => setActiveDeckTab('obsidian_graph')}
-                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                        activeDeckTab === 'obsidian_graph'
-                          ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-black shadow-[0_0_15px_rgba(217,70,239,0.5)]'
-                          : 'text-white/60 hover:text-white'
-                      }`}
-                    >
-                      <Layers className="w-3 h-3" />
-                      <span>أوبسيديان</span>
-                    </button>
+              {persona !== 'visitor' ? (
+                <div className={`grid ${persona === 'tito' ? 'grid-cols-4 sm:grid-cols-8' : 'grid-cols-4'} gap-1 p-1 bg-[#020617] rounded-2xl border border-white/5 text-[9px] md:text-[9.5px] font-bold select-none font-['Cairo']`}>
+                  {persona === 'tito' && (
+                    <>
+                      <button
+                        onClick={() => setActiveDeckTab('obsidian_graph')}
+                        className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                          activeDeckTab === 'obsidian_graph'
+                            ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-black shadow-[0_0_15px_rgba(217,70,239,0.5)]'
+                            : 'text-white/60 hover:text-white'
+                        }`}
+                      >
+                        <Layers className="w-3 h-3" />
+                        <span>أوبسيديان</span>
+                      </button>
 
-                    <button
-                      onClick={() => setActiveDeckTab('agency_overview')}
-                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                        activeDeckTab === 'agency_overview'
-                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                          : 'text-white/60 hover:text-white'
-                      }`}
-                    >
-                      <Users className="w-3 h-3" />
-                      <span>الوكالة والظل</span>
-                    </button>
-                  </>
-                )}
+                      <button
+                        onClick={() => setActiveDeckTab('agency_overview')}
+                        className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                          activeDeckTab === 'agency_overview'
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                            : 'text-white/60 hover:text-white'
+                        }`}
+                      >
+                        <Users className="w-3 h-3" />
+                        <span>الوكالة والظل</span>
+                      </button>
+                    </>
+                  )}
 
-                <button
-                  onClick={() => setActiveDeckTab('studio_calendar')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'studio_calendar'
-                      ? 'bg-cyan-500 text-black font-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <Calendar className="w-3 h-3" />
-                  <span>خطة المحتوى</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveDeckTab('content_post_card')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'content_post_card'
-                      ? 'bg-purple-500 text-white font-black shadow-[0_0_15px_rgba(168,85,247,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <FileText className="w-3 h-3" />
-                  <span>معاينة المنشور</span>
-                </button>
-
-                {persona === 'tito' && (
                   <button
-                    onClick={() => setActiveDeckTab('agent_fleet')}
+                    onClick={() => setActiveDeckTab('studio_calendar')}
                     className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                      activeDeckTab === 'agent_fleet'
-                        ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                      activeDeckTab === 'studio_calendar'
+                        ? 'bg-cyan-500 text-black font-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
                         : 'text-white/60 hover:text-white'
                     }`}
                   >
-                    <Bot className="w-3 h-3" />
-                    <span>الأيدجنت</span>
+                    <Calendar className="w-3 h-3" />
+                    <span>خطة المحتوى</span>
                   </button>
-                )}
 
-                <button
-                  onClick={() => setActiveDeckTab('app_cloner')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'app_cloner'
-                      ? 'bg-blue-500 text-white font-black shadow-[0_0_15px_rgba(59,130,246,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <Smartphone className="w-3 h-3" />
-                  <span>متجر البراند</span>
-                </button>
-
-                {persona === 'tito' && (
                   <button
-                    onClick={() => setActiveDeckTab('ad_launcher')}
+                    onClick={() => setActiveDeckTab('content_post_card')}
                     className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                      activeDeckTab === 'ad_launcher'
-                        ? 'bg-amber-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                      activeDeckTab === 'content_post_card'
+                        ? 'bg-purple-500 text-white font-black shadow-[0_0_15px_rgba(168,85,247,0.5)]'
                         : 'text-white/60 hover:text-white'
                     }`}
                   >
-                    <TrendingUp className="w-3 h-3" />
-                    <span>إعلانات</span>
+                    <FileText className="w-3 h-3" />
+                    <span>معاينة المنشور</span>
                   </button>
-                )}
 
-                <button
-                  onClick={() => setActiveDeckTab('vault_crm')}
-                  className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
-                    activeDeckTab === 'vault_crm'
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  <ShieldCheck className="w-3 h-3" />
-                  <span>حجوزات العملاء</span>
-                </button>
-              </div>
+                  {persona === 'tito' && (
+                    <button
+                      onClick={() => setActiveDeckTab('agent_fleet')}
+                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                        activeDeckTab === 'agent_fleet'
+                          ? 'bg-emerald-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <Bot className="w-3 h-3" />
+                      <span>الأيدجنت</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => setActiveDeckTab('app_cloner')}
+                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                      activeDeckTab === 'app_cloner'
+                        ? 'bg-blue-500 text-white font-black shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <Smartphone className="w-3 h-3" />
+                    <span>متجر البراند</span>
+                  </button>
+
+                  {persona === 'tito' && (
+                    <button
+                      onClick={() => setActiveDeckTab('ad_launcher')}
+                      className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                        activeDeckTab === 'ad_launcher'
+                          ? 'bg-amber-500 text-black font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <TrendingUp className="w-3 h-3" />
+                      <span>إعلانات</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => setActiveDeckTab('vault_crm')}
+                    className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1 ${
+                      activeDeckTab === 'vault_crm'
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>حجوزات العملاء</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="w-full py-2 px-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between text-xs font-bold font-['Cairo']">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-emerald-300">محادثة حية تفاعلية مع جارفيس (تشخيص وبناء البيزنس وتفعيل التجربة)</span>
+                  </div>
+                  <span className="text-[10px] text-cyan-300 font-mono bg-cyan-950/40 px-2.5 py-0.5 rounded-full border border-cyan-500/20">
+                    AI GROWTH CONSULTANT
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* VISITOR INTELLIGENCE ONBOARDING (When Persona === 'visitor') */}
             {persona === 'visitor' ? (
               <VisitorIntelligenceOnboarding 
-                onSwitchToAdmin={() => setPersona('tito')}
+                isMasterAdmin={isMasterAdmin}
+                onSwitchToAdmin={isMasterAdmin ? () => setPersona('tito') : undefined}
                 onComplete={() => {
                   fetchDatabaseStats();
                   fetchObsidianVault();
@@ -1801,12 +1908,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                           </p>
                         </div>
                       </div>
-                      <button
-                        onClick={() => setPersona('tito')}
-                        className="text-[9.5px] text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1 rounded-xl border border-amber-500/30 font-bold shrink-0"
-                      >
-                        👑 وضع الماستر تيتو
-                      </button>
+                      {isMasterAdmin && (
+                        <button
+                          onClick={() => setPersona('tito')}
+                          className="text-[9.5px] text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1 rounded-xl border border-amber-500/30 font-bold shrink-0"
+                        >
+                          👑 وضع الماستر تيتو
+                        </button>
+                      )}
                     </div>
 
                     {/* Direct Real-Action Controls for the Client's Brand */}
@@ -3400,72 +3509,128 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className="lg:col-span-3 flex flex-col gap-4">
             
-            {/* RIGHT COLUMN: ACTIVE BRAND FLEET RADAR & SELECTOR (Multi-Tenant Isolated for Clients) */}
-            <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
-              <div className="w-full flex items-center justify-between pb-2 border-b border-cyan-500/20">
-                <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-cyan-400" />
-                  {persona === 'tito'
-                    ? `أسطول البراندات (${allBrandsList.length || realStats.totalVaultBrandsCount || 0})`
-                    : `كابينة براندك المعزولة (Multi-Tenant)`}
-                </span>
-                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  {persona === 'tito' ? 'إدارة شاملة' : 'حماية معزولة 🔒'}
-                </span>
-              </div>
-
-              {/* Quick Brand Search Filter (Only in Master Admin Mode) */}
-              {persona === 'tito' && (
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="ابحث عن براند لتشغيله..."
-                    value={brandSearch}
-                    onChange={(e) => setBrandSearch(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl bg-black/40 border border-cyan-500/30 text-xs text-white placeholder-white/40 focus:outline-none focus:border-cyan-400 text-right"
-                  />
+            {/* RIGHT COLUMN: Tailored Visitor App Preview vs Multi-Tenant Brand Selector */}
+            {persona === 'visitor' ? (
+              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
+                <div className="w-full flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                  <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                    معاينة تطبيقك المخصص (PWA)
+                  </span>
+                  <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    LIVE PREVIEW
+                  </span>
                 </div>
-              )}
 
-              {/* Interactive Brands List - Strictly isolated to current brand if persona is client/trial */}
-              <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto pr-1">
-                {(allBrandsList.length > 0 ? allBrandsList : (realStats.allVaultBrands || []))
-                  .filter((b: any) => {
-                    if (persona === 'client' || persona === 'trial') {
-                      return b.id === currentSelectedBrand.id || b.slug === currentSelectedBrand.slug;
-                    }
-                    return !brandSearch || (b.name || '').toLowerCase().includes(brandSearch.toLowerCase());
-                  })
-                  .slice(0, 12)
-                  .map((brand: any) => {
-                  const isSelected = brand.id === currentSelectedBrand.id || brand.slug === currentSelectedBrand.slug;
-                  return (
-                    <button
-                      key={brand.id || brand.slug}
-                      onClick={() => handleSelectBrand(brand.id || brand.slug)}
-                      className={`p-2.5 rounded-xl border text-right transition-all flex items-center justify-between gap-2 ${
-                        isSelected
-                          ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                          : 'bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400'}`} />
-                        <span className="text-xs font-bold truncate">{brand.name}</span>
-                      </div>
-                      <span className="text-[9px] font-mono text-cyan-300/60 shrink-0">
-                        {brand.weekContentPlan?.length ? `${brand.weekContentPlan.length} بوستات` : 'نشط'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                <div className="p-3 rounded-2xl bg-black/60 border border-emerald-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-white">{brandingForm.brandName || 'براندك الرسمي المخصص'}</span>
+                    <span className="text-[10px] text-cyan-300 font-mono bg-cyan-950/40 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                      {brandingForm.category || 'نشاط تجاري'}
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-white/60 leading-relaxed">
+                    نسخة تطبيق ويب وموبايل مخصصة فوراً لنشاطك، مجهزة بكتالوج الخدمات، الحجز الفوري، ووكيل مبيعات واتساب بالصوت البشري.
+                  </p>
+                  <div className="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-[9.5px] text-emerald-300 flex items-center justify-between font-mono">
+                    <span>حالة التطبيق:</span>
+                    <span className="text-emerald-400 font-bold">جاهز للإطلاق 🚀</span>
+                  </div>
+                </div>
 
-              <div className="w-full flex items-center justify-between text-[10px] font-mono text-cyan-400/70 pt-1 border-t border-cyan-500/10">
-                <span>البراند المختار:</span>
-                <span className="text-emerald-400 font-bold truncate max-w-[140px]">{currentSelectedBrand.name}</span>
+                {/* 3-Post Trial Schedule */}
+                <div className="p-3 rounded-2xl bg-black/60 border border-purple-500/30 space-y-2">
+                  <span className="text-xs font-black text-purple-300 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                    خطة الـ 7 أيام المجانية (يوم ويوم):
+                  </span>
+                  <div className="space-y-1.5 text-[10px]">
+                    <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between">
+                      <span className="font-bold text-white">السبت:</span>
+                      <span className="text-white/70">تصميم بصري احترافي (تيتو ستوديو)</span>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-cyan-950/30 border border-cyan-500/20 flex items-center justify-between">
+                      <span className="font-bold text-cyan-300">الإثنين:</span>
+                      <span className="text-cyan-200">فيديو ريلز/تيك توك (Google Flow × Turbo)</span>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20 flex items-center justify-between">
+                      <span className="font-bold text-emerald-300">الأربعاء:</span>
+                      <span className="text-emerald-200">بوست عرض خاص وحجز فوري (CTA)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-[10px] text-emerald-300 text-center font-bold">
+                  ⚡ جاوب على جارفيس الآن بصوتك أو كتابة لتفعيل الخطة وتجهيز تطبيقك فوراً!
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
+                <div className="w-full flex items-center justify-between pb-2 border-b border-cyan-500/20">
+                  <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                    {persona === 'tito'
+                      ? `أسطول البراندات (${allBrandsList.length || realStats.totalVaultBrandsCount || 0})`
+                      : `كابينة براندك المعزولة (Multi-Tenant)`}
+                  </span>
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    {persona === 'tito' ? 'إدارة شاملة' : 'حماية معزولة 🔒'}
+                  </span>
+                </div>
+
+                {/* Quick Brand Search Filter (Only in Master Admin Mode) */}
+                {persona === 'tito' && (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="ابحث عن براند لتشغيله..."
+                      value={brandSearch}
+                      onChange={(e) => setBrandSearch(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl bg-black/40 border border-cyan-500/30 text-xs text-white placeholder-white/40 focus:outline-none focus:border-cyan-400 text-right"
+                    />
+                  </div>
+                )}
+
+                {/* Interactive Brands List - Strictly isolated to current brand if persona is client/trial */}
+                <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto pr-1">
+                  {(allBrandsList.length > 0 ? allBrandsList : (realStats.allVaultBrands || []))
+                    .filter((b: any) => {
+                      if (persona === 'client' || persona === 'trial') {
+                        return b.id === currentSelectedBrand.id || b.slug === currentSelectedBrand.slug;
+                      }
+                      return !brandSearch || (b.name || '').toLowerCase().includes(brandSearch.toLowerCase());
+                    })
+                    .slice(0, 12)
+                    .map((brand: any) => {
+                    const isSelected = brand.id === currentSelectedBrand.id || brand.slug === currentSelectedBrand.slug;
+                    return (
+                      <button
+                        key={brand.id || brand.slug}
+                        onClick={() => handleSelectBrand(brand.id || brand.slug)}
+                        className={`p-2.5 rounded-xl border text-right transition-all flex items-center justify-between gap-2 ${
+                          isSelected
+                            ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                            : 'bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400'}`} />
+                          <span className="text-xs font-bold truncate">{brand.name}</span>
+                        </div>
+                        <span className="text-[9px] font-mono text-cyan-300/60 shrink-0">
+                          {brand.weekContentPlan?.length ? `${brand.weekContentPlan.length} بوستات` : 'نشط'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="w-full flex items-center justify-between text-[10px] font-mono text-cyan-400/70 pt-1 border-t border-cyan-500/10">
+                  <span>البراند المختار:</span>
+                  <span className="text-emerald-400 font-bold truncate max-w-[140px]">{currentSelectedBrand.name}</span>
+                </div>
+              </div>
+            )}
 
             {/* Live Financial & Crypto Indicators */}
             <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 flex flex-col gap-3 font-mono">

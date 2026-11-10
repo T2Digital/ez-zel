@@ -8,11 +8,13 @@ import { playShadowVoice } from '../../services/speechService';
 interface VisitorIntelligenceOnboardingProps {
   onComplete?: (brandData: any) => void;
   onSwitchToAdmin?: () => void;
+  isMasterAdmin?: boolean;
 }
 
 export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardingProps> = ({
   onComplete,
-  onSwitchToAdmin
+  onSwitchToAdmin,
+  isMasterAdmin = false
 }) => {
   const [step, setStep] = useState<number>(1);
   const [hasExistingBusiness, setHasExistingBusiness] = useState<boolean | null>(null);
@@ -185,12 +187,14 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           </div>
         </div>
 
-        <button 
-          onClick={onSwitchToAdmin}
-          className="text-[10px] text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/30 transition"
-        >
-          👑 وضع الماستر تيتو
-        </button>
+        {isMasterAdmin && onSwitchToAdmin && (
+          <button 
+            onClick={onSwitchToAdmin}
+            className="text-[10px] text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/30 transition"
+          >
+            👑 وضع الماستر تيتو
+          </button>
+        )}
       </div>
 
       {/* STAGE 1: HAS BUSINESS OR ZERO-TO-ONE? */}

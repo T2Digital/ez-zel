@@ -2544,16 +2544,22 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
           let personaRoleInstruction = '';
           if (persona === 'visitor') {
-              personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط" (Visitor) يستكشف منظومة النمو الشامل للأعمال (T2 Unified Growth OS).
+              personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط تجاري" يستكشف منظومة النمو الشامل للأعمال (T2 Unified Growth OS).
 دورك معه: أنت "جارفيس"، كبير مستشاري الأعمال والنمو الرقمي بالمنظومة. تتحدث باللهجة المصرية الطبيعية الذكية والودودة.
-قاعدة صارمة ومطلقة: ممنوع نهائياً استخدام كلمة "استنساخ" أو "مستنسخ"، واستبدلها دائماً بكلمات: "تأسيس، إطلاق، بناء، تجهيز، تفعيل".
+قاعدة صارمة ومطلقة: ممنوع نهائياً استخدام كلمة "استنساخ" أو "مستنسخ"، واستبدلها دائماً بكلمات: "تأسيس، إطلاق، بناء، تجهيز، تخصيص، تفعيل".
 
-خطتك التفاعلية مع الزائر تسير في حوار استشاري تشخيصي معمق ومحترف (Consultative Business Diagnostic):
-1. اسأله وحلل موقفه التجاري أولاً بذكاء: هل عنده بيزنس قائم بالفعل وشغال وفيه عملاء ومبيعات؟ ولا دي فكرة جديدة بيبدأها من الصفر؟
-2. إذا كان بيزنس قائم: اسأله هل عنده موقع إلكتروني أو تطبيق؟ وهل عنده صفحات سوشيال ميديا (فيسبوك، إنستجرام، وتيك توك) ولا الاعتماد الأساسي على الواتساب؟
-3. إذا كان يبدأ من الصفر أو بيزنس محتاج تطوير: وضّح له أن المنظومة توفر له "محرك البراندينج وتجهيز صفحات السوشيال ميديا" لتأسيس الاسم، الشعار، الألوان، برومبت اللوجو، وبايو احترافي لكل من (فيسبوك، إنستجرام، وتيك توك) متوافق مع محركات البحث.
-4. اعرض عليه أسبوع التجربة المجانية الفعلي: خطة مركزة من 3 منشورات حقيقية (يوم ويوم: السبت بوست تصميم عالي الجودة، الإثنين فيديو ريلز/تيك توك إعلاني سينمائي، والأربعاء بوست عرض خاص وحجز فوري) مع تشغيل وكيل مبيعات واتساب 24/7.
-تفاعل معه بذكاء خطوة بخطوة، وشجعه يكتب اسم نشاطه لتجهيز الخطة فوراً قدامه على الشاشة.`;
+قواعد المحادثة الحتمية مع الزائر لمنع التكرار نهائياً:
+1. ممنوع نهائياً أن تبدأ ردك بـ "أهلاً بك" أو "مرحباً" أو تكرر التحية بعد أول رسالة! ادخل في إجابة العميل ومتابعة خطوته الحالية مباشرة دون إضاعة وقته.
+2. انظر إلى سجل المحادثة السابق (إن وجد) ولا تعد طرح أي سؤال أجاب عنه الزائر مسبقاً.
+3. خطة الحوار الاستشاري التشخيصي المتسلسلة خطوة بخطوة:
+   - الخطوة الأولى (التشخيص): إذا لم يوضح هل عنده نشاط قائم أم يبدأ من الصفر: اسأله ببساطة: "عندك بيزنس قائم وشغال، ولا فكرة جديدة بتبدأها من الصفر؟"
+   - الخطوة الثانية (المنصات والأصول): إذا قال عنده بيزنس قائم: اعرف اسم نشاطه ومجاله، واسأله مباشرة: "عندك موقع أو تطبيق حالياً؟ وهل عندك صفحات شغالة على فيسبوك وإنستجرام وتيك توك، ولا الاعتماد على الواتساب فقط؟"
+   - الخطوة الثالثة (الحل والتطمين العملي):
+     * لو عنده صفحات قائمة: طمنه فوراً بلهجة واثقة: "ممتاز جداً! مش هتبدأ من الصفر، المنظومة هتربط صفحاتك بنقرة واحدة وتتولى النشر والرد الآلي، وفوقها هنعملك نسخة تطبيق PWA مخصصة لنشاطك فوراً."
+     * لو فكرة جديدة من الصفر أو بيزنس بدون صفحات: طمنه: "محرك البراندينج هيؤسس لك الاسم والشعار والألوان وبايو الصفحات (فيسبوك، إنستجرام، وتيك توك) من الصفر، وهنجهزلك تطبيقك فوراً."
+   - الخطوة الرابعة (عرض وتفعيل أسبوع التجربة المجانية): اعرض عليه خطة الـ 7 أيام المجانية المعتمدة (3 منشورات حقيقية يوم ويوم: السبت تصميم ستوديو، الإثنين فيديو ريلز وسيناريو فلو، الأربعاء بوست عرض خاص وحجز فوري) مع تشغيل وكيل مبيعات واتساب 24/7.
+4. إذا ذكر الزائر اسم نشاطه أو مجاله أو رقمه، أثبت له أنك سجلته واذكره باسمه في الرد.
+5. اجعل ردك مختصراً جداً ومركزاً (جملة أو جملتين بالعامية المصرية الصريحة والذكية) بدون مط أو فلسفة.`;
           } else if (persona === 'trial' || persona === 'client') {
               personaRoleInstruction = `المتحدث معك الآن هو "المشترك / صاحب البراند" (${activeBrand?.name || 'براند العميل'}) في وضع المدير التنفيذي (Executive Brand CEO & Smart Secretary).
 دورك معه: أنت المدير التنفيذي المخضرم والسكرتير الذكي المسؤول عن إدارة برانده (${activeBrand?.name}) بالكامل:
@@ -2638,30 +2644,76 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   data: { budgetEgp }
               });
               executedAction = { type: 'TRIGGER_ACTION', action: 'LAUNCH_CAMPAIGN', brandId: detectedBrand, result: backendExecutionResult };
-          } else if (/نافذة|شاشة البراند|تفاصيل براند|اعرض براند|افتح براند|الاربع شاشات|4 شاشات/i.test(msg)) {
-              executedAction = { type: 'OPEN_BRAND_SUPER_WINDOW', brandId: detectedBrand };
-          } else if (/أوبسيديان|اوبسيدن|اوبسيديان|obsidian|شبكة|جراف|خريطة المعرفة/i.test(msg)) {
-              executedAction = { type: 'SWITCH_TAB', tab: 'obsidian_graph', brandId: detectedBrand };
-          } else if (/اربط واتساب|ربط واتس|كود ربط|qr|امسح الكود/i.test(msg)) {
-              executedAction = { type: 'OPEN_MODAL', modal: 'whatsapp_connect', brandId: detectedBrand };
-          } else if (/اربط ميتا|ربط فيسبوك|ربط انستجرام|صفحة فيس/i.test(msg)) {
-              executedAction = { type: 'OPEN_MODAL', modal: 'meta_connect', brandId: detectedBrand };
-          } else if (/عملاء الظل|مشتركين الظل|وكالة|الأدمن|تقرير العملاء/i.test(msg)) {
-              executedAction = { type: 'SWITCH_TAB', tab: 'agency_overview', brandId: detectedBrand };
-          } else if (/تقويم|جدول المحتوى|خطة المحتوى|أسبوع|calendar|ستوديو/i.test(msg)) {
-              executedAction = { type: 'SWITCH_TAB', tab: 'studio_calendar', brandId: detectedBrand };
-          } else if (/بطاقة|منشور|كارت البوست|محتوى منشور|بوست فيسبوك/i.test(msg)) {
-              executedAction = { type: 'SWITCH_TAB', tab: 'content_post_card', brandId: detectedBrand };
-          } else if (/مطور|استنسخ|متجر|pwa|تطبيق عميل|تطبيق جديد|مصنع/i.test(msg)) {
-              executedAction = { type: 'SWITCH_TAB', tab: 'app_cloner', brandId: detectedBrand };
-          } else if (/إعلانات|كامبينات|حملات/i.test(msg)) {
-              executedAction = { type: 'SWITCH_TAB', tab: 'ad_launcher', brandId: detectedBrand };
-          } else if (/واتساب|crm|محادثات|شات العميل|الأجنت|بوتات/i.test(msg)) {
-              executedAction = { type: 'SWITCH_TAB', tab: 'agent_fleet', brandId: detectedBrand };
-          } else if (/حجز|حجوزات|أحمد محمود|مبيعات|أرباح|فلوس/i.test(msg)) {
-              executedAction = { type: 'SWITCH_TAB', tab: 'vault_crm', brandId: detectedBrand };
-          } else if (/وقف بوت|علق رد|عطل بوت/i.test(msg)) {
-              executedAction = { type: 'TOGGLE_BOT', brandId: detectedBrand, status: 'paused' };
+          }
+
+          // 1. Check for Real Actions & Tab Switches (Only for Admin / Tito / Subscribed Clients, NOT Visitors)
+          if (persona !== 'visitor') {
+              if (/نافذة|شاشة البراند|تفاصيل براند|اعرض براند|افتح براند|الاربع شاشات|4 شاشات/i.test(msg)) {
+                  executedAction = { type: 'OPEN_BRAND_SUPER_WINDOW', brandId: detectedBrand };
+              } else if (/أوبسيديان|اوبسيدن|اوبسيديان|obsidian|شبكة|جراف|خريطة المعرفة/i.test(msg)) {
+                  executedAction = { type: 'SWITCH_TAB', tab: 'obsidian_graph', brandId: detectedBrand };
+              } else if (/اربط واتساب|ربط واتس|كود ربط|qr|امسح الكود/i.test(msg)) {
+                  executedAction = { type: 'OPEN_MODAL', modal: 'whatsapp_connect', brandId: detectedBrand };
+              } else if (/اربط ميتا|ربط فيسبوك|ربط انستجرام|صفحة فيس/i.test(msg)) {
+                  executedAction = { type: 'OPEN_MODAL', modal: 'meta_connect', brandId: detectedBrand };
+              } else if (/عملاء الظل|مشتركين الظل|وكالة|الأدمن|تقرير العملاء/i.test(msg)) {
+                  executedAction = { type: 'SWITCH_TAB', tab: 'agency_overview', brandId: detectedBrand };
+              } else if (/تقويم|جدول المحتوى|خطة المحتوى|أسبوع|calendar|ستوديو/i.test(msg)) {
+                  executedAction = { type: 'SWITCH_TAB', tab: 'studio_calendar', brandId: detectedBrand };
+              } else if (/بطاقة|منشور|كارت البوست|محتوى منشور|بوست فيسبوك/i.test(msg)) {
+                  executedAction = { type: 'SWITCH_TAB', tab: 'content_post_card', brandId: detectedBrand };
+              } else if (/مطور|استنسخ|متجر|pwa|تطبيق عميل|تطبيق جديد|مصنع/i.test(msg)) {
+                  executedAction = { type: 'SWITCH_TAB', tab: 'app_cloner', brandId: detectedBrand };
+              } else if (/إعلانات|كامبينات|حملات/i.test(msg)) {
+                  executedAction = { type: 'SWITCH_TAB', tab: 'ad_launcher', brandId: detectedBrand };
+              } else if (/واتساب|crm|محادثات|شات العميل|الأجنت|بوتات/i.test(msg)) {
+                  executedAction = { type: 'SWITCH_TAB', tab: 'agent_fleet', brandId: detectedBrand };
+              } else if (/حجز|حجوزات|أحمد محمود|مبيعات|أرباح|فلوس/i.test(msg)) {
+                  executedAction = { type: 'SWITCH_TAB', tab: 'vault_crm', brandId: detectedBrand };
+              } else if (/وقف بوت|علق رد|عطل بوت/i.test(msg)) {
+                  executedAction = { type: 'TOGGLE_BOT', brandId: detectedBrand, status: 'paused' };
+              }
+          } else {
+              // Intelligent Visitor Diagnostic State Extractor
+              const visitorUpdate: any = {};
+              if (/عندي|شغال|قائم|فاتح|موجود|محل|معرض|شركة|عيادة|مركز|مكتب|نشاط/i.test(msg) && !/معنديش|لسه|فكرة|جديد|صفر|مافيش/i.test(msg)) {
+                  visitorUpdate.hasExistingBusiness = true;
+              } else if (/معنديش|لسه|فكرة|جديد|من الصفر|صفر|هبدأ|مشروع جديد|مش عندي/i.test(msg)) {
+                  visitorUpdate.hasExistingBusiness = false;
+              }
+
+              if (/موقع|ويب|website|سايت|متجر|أبلكيشن|تطبيق/i.test(msg)) {
+                  if (/معنديش|مافيش|مش عندي|لا يوجد/i.test(msg)) {
+                      visitorUpdate.hasWebsite = false;
+                  } else {
+                      visitorUpdate.hasWebsite = true;
+                  }
+              }
+
+              if (/فيسبوك|فيس|انستجرام|انستا|تيك توك|سوشيال|صفحة|صفحات/i.test(msg)) {
+                  if (/معنديش|مافيش|مش عندي|لا يوجد/i.test(msg)) {
+                      visitorUpdate.hasSocialPages = false;
+                  } else {
+                      visitorUpdate.hasSocialPages = true;
+                  }
+              }
+
+              if (/سيارات|تأجير|ليموزين/i.test(msg)) visitorUpdate.industry = 'تأجير سيارات';
+              else if (/أسنان|عيادة|دكتور|طبي|مركز طبي/i.test(msg)) visitorUpdate.industry = 'عيادات وطب أسنان';
+              else if (/نظافة|تنظيف|مكافحة/i.test(msg)) visitorUpdate.industry = 'خدمات ونظافة';
+              else if (/عقارات|مقاولات|شقق|تطوير/i.test(msg)) visitorUpdate.industry = 'عقارات ومقاولات';
+              else if (/ملابس|أزياء|فاشون|متجر|شوز/i.test(msg)) visitorUpdate.industry = 'متاجر وأزياء';
+
+              // Extract phone if provided
+              const phoneMatch = message.match(/(?:01[0125]\d{8})/);
+              if (phoneMatch) visitorUpdate.phone = phoneMatch[0];
+
+              if (Object.keys(visitorUpdate).length > 0) {
+                  executedAction = {
+                      type: 'VISITOR_DIAGNOSTIC_UPDATE',
+                      visitorUpdate
+                  };
+              }
           }
 
           const systemPrompt = `أنت "جارفيس" (Jarvis)، العقل التنفيذي الموحد لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + App Cloner + Obsidian Knowledge Vault).
@@ -2672,12 +2724,20 @@ ${recentChatSummary ? `\n[سياق آخر محادثة في شات الظل ال
 ${backendExecutionResult ? `\n[نتيجة التنفيذ الفعلي الذي قمت به الآن في الخلفية]: ${backendExecutionResult.message || JSON.stringify(backendExecutionResult)}` : ''}
 قواعد صارمة:
 - تحدث بالعامية المصرية الطبيعية السلسة جداً (بدون تشكيل نحوي معقد وبدون فصحى روبوتية) عشان صوت Gemini البشري يطلع طبيعي وتلقائي 100%.
-- اجعل ردك مختصراً ومباشراً في جملة أو جملتين مركزتين وعمليتين تؤكد ما نفذته فعلياً.
+- اجعل ردك مختصراً ومباشراً في جملة أو جملتين مركزتين وعمليتين تؤكد ما نفذته فعلياً أو توجه العميل لخطوته القادمة.
 - لا تكرر تقارير قديمة أو أسماء حجوزات إلا لو سألك المستخدم عنها مباشرة.`;
+
+          const formattedHistory = Array.isArray(history) && history.length > 0
+              ? history.slice(-6).map((h: any) => `${h.role === 'user' ? 'المتحدث' : 'جارفيس'}: "${h.text}"`).join('\n')
+              : '';
 
           const chat = await ai.models.generateContent({
               model: "gemini-3.1-flash-lite",
-              contents: `${systemPrompt}\n\nكلام المتحدث: "${message}"\nرد جارفيس باللهجة المصرية الطبيعية المختصرة:`
+              contents: `${systemPrompt}
+
+${formattedHistory ? `[سجل الحوار السابق بينك وبين المتحدث - اقرأه جيداً وممنوع تكرار ما تم سؤاله أو إجابته وممنوع تكرار التحية]:\n${formattedHistory}\n` : ''}
+رسالة المتحدث الحالية: "${message}"
+رد جارفيس باللهجة المصرية الطبيعية المركزة (ممنوع تكرار التحية "أهلاً بك"، وممنوع تكرار أي سؤال تم سؤاله سابقاً):`
           });
 
           const replyText = chat.text?.trim() || (backendExecutionResult?.message || "أمرك يا ماستر تيتو، تم التنفيذ الفعلي في المنظومة.");
