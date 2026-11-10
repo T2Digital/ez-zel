@@ -984,10 +984,34 @@ export async function executeRealJarvisEcosystemAction(payload: {
                 currentCatalog.splice(0, currentCatalog.length, ...data.productsCatalog);
             }
 
+            // 1. Synthesize product knowledge for Tito Agent (WhatsApp Bot Instructions)
+            const catalogSummary = currentCatalog
+                .slice(0, 10)
+                .map((item: any) => `- ${item.name} (${item.price}): ${item.description || ''}`)
+                .join('\n');
+            const botInstruction = `أنت الوكيل الذكي لـ ${targetBrand?.name || brandId}. ترد على استفسارات العملاء على الواتساب بلباقة وسرعة، وتعرف قائمة الخدمات والأسعار الرسمية التالية وترشد العملاء لحجزها عبر الرابط أو الهاتف ${targetBrand?.phone || '01013373634'}:\n${catalogSummary}`;
+
+            // 2. Synthesize product spotlight post in Tito Studio Content Calendar
+            const existingPlan = Array.isArray(targetBrand?.weekContentPlan) ? [...targetBrand.weekContentPlan] : [];
+            if (data.addService && data.addService.name) {
+                const spotlightPost = {
+                    day: 'الأحد',
+                    contentType: `تسليط ضوء على خدمة (${data.addService.name})`,
+                    hook: `جديدنا في ${targetBrand?.name || brandId}: تم إطلاق خدمة ${data.addService.name} بسعر ${data.addService.price || 'حصري'}!`,
+                    caption: `${data.addService.description || ''} احجز الآن وتواصل معنا مباشرة عبر الواتساب على ${targetBrand?.phone || ''}.`,
+                    bestTime: '10:00 صباحاً',
+                    status: 'DRAFT_APPROVAL_REQUIRED'
+                };
+                existingPlan.unshift(spotlightPost);
+            }
+
             const updatedBrand = persistBrandUpdateAcrossEcosystem(brandId, {
-                productsCatalog: currentCatalog
+                productsCatalog: currentCatalog,
+                systemInstruction: botInstruction,
+                weekContentPlan: existingPlan
             });
             syncAndBuildObsidianVault();
+            syncWeekPlanToTitoStudioFirestore(updatedBrand, existingPlan).catch(() => {});
 
             broadcastGatewayEvent('STORE_CATALOG_UPDATED', {
                 brandId,

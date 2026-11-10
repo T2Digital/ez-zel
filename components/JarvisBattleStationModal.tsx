@@ -15,6 +15,9 @@ import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboard
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
 import SpaceCanvas from './SpaceCanvas';
 import { ObsidianHolographicConstellation } from './ObsidianHolographicConstellation';
+import { JarvisAutonomousAgencyDeck } from './jarvis/JarvisAutonomousAgencyDeck';
+import { JarvisGrowthRadarDeck } from './jarvis/JarvisGrowthRadarDeck';
+import { JarvisUnifiedCatalogModal } from './jarvis/JarvisUnifiedCatalogModal';
 import { BRAND_VAULT } from '../services/brandVault';
 import { shadowDB } from '../services/dbService';
 
@@ -59,6 +62,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   
   // Real-time mission clock
   const [currentTime, setCurrentTime] = useState('');
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const [mobileActiveView, setMobileActiveView] = useState<'stage' | 'brands' | 'radar'>('stage');
+  const [telemetryMode, setTelemetryMode] = useState<'human' | 'system'>('human');
   
   // Real Database Financials & Telemetry
   const [realStats, setRealStats] = useState<any>({
@@ -1420,13 +1426,52 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           </div>
         </div>
 
-        {/* MAIN HUD INTERACTION VIEWPORT (3 Sci-Fi Columns Like Video Display) */}
+        {/* MAIN HUD INTERACTION VIEWPORT (3 Sci-Fi Columns With Mobile-First Spatial Hierarchy) */}
         <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 md:p-6 overflow-y-auto">
 
+          {/* Mobile-First Floating Control Pill Bar (Visible on mobile screens < lg) */}
+          <div className="lg:hidden col-span-1 flex items-center justify-between p-1.5 bg-[#020617]/95 border border-cyan-500/30 rounded-2xl text-xs font-bold font-['Cairo'] shadow-[0_0_20px_rgba(6,182,212,0.2)]">
+            <button
+              onClick={() => setMobileActiveView('stage')}
+              className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1 ${
+                mobileActiveView === 'stage'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-lg shadow-amber-500/30'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>مسرح العمليات</span>
+            </button>
+
+            <button
+              onClick={() => setMobileActiveView('brands')}
+              className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1 ${
+                mobileActiveView === 'brands'
+                  ? 'bg-cyan-500 text-black font-black shadow-lg shadow-cyan-500/30'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>البراندات (${allBrandsList.length || 21})</span>
+            </button>
+
+            <button
+              onClick={() => setMobileActiveView('radar')}
+              className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1 ${
+                mobileActiveView === 'radar'
+                  ? 'bg-emerald-500 text-black font-black shadow-lg shadow-emerald-500/30'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>الرادار والربط</span>
+            </button>
+          </div>
+
           {/* ========================================================= */}
-          {/* LEFT COLUMN: DIAGNOSTICS & SYSTEM TELEMETRY (3 Cols)     */}
+          {/* RIGHT COLUMN (RTL): CONTROLS & TELEMETRY (3 Cols)         */}
           {/* ========================================================= */}
-          <div className="lg:col-span-3 flex flex-col gap-4">
+          <div className={`lg:col-span-3 flex flex-col gap-4 order-2 lg:order-1 ${mobileActiveView === 'radar' ? 'flex' : 'hidden lg:flex'}`}>
             
             {/* ACTION ACTUATOR: Visitor Pricing & Trial Info vs Executive Command Hub */}
             {persona === 'visitor' ? (
@@ -1593,6 +1638,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <span className="text-xs font-bold">{isPublishingPost ? 'جاري النشر...' : 'نشر فوري الآن'}</span>
                     <span className="text-[9px] text-white/40">Meta Graph مباشر</span>
                   </button>
+
+                  <button
+                    onClick={() => setIsCatalogModalOpen(true)}
+                    className="p-2.5 rounded-2xl border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-right transition-all flex flex-col items-start gap-1 col-span-2 shadow-[0_0_15px_rgba(6,182,212,0.15)]"
+                  >
+                    <div className="flex items-center gap-1.5 w-full justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <ShoppingBag className="w-4 h-4 text-cyan-400" />
+                        <span className="text-xs font-bold text-white">كتالوج المنتجات والخدمات السيادي</span>
+                      </div>
+                      <span className="text-[9px] font-mono text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded-lg border border-cyan-500/30">
+                        4-WAY SYNC
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-white/50">تغذية متجر PWA، تيتو أجنت، وتيتو ستوديو سحابياً</span>
+                  </button>
                 </div>
 
                 {/* Active Brand Snippet */}
@@ -1603,22 +1664,65 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* Live Streaming Cyber Terminal */}
+            {/* Live Streaming Cyber Terminal & Customer Activity Pulse */}
             <div className="flex-1 min-h-[260px] p-4 rounded-3xl bg-[#020514]/95 border border-cyan-500/30 flex flex-col font-mono text-xs overflow-hidden shadow-inner">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-cyan-500/20 text-cyan-400 text-[10px] font-bold">
-                <span>TELEMETRY STREAM // REAL-TIME LOG</span>
-                <span className="animate-pulse text-emerald-400 font-bold">● LIVE</span>
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-cyan-500/20 text-cyan-400 text-[10px] font-bold font-['Cairo']">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setTelemetryMode('human')}
+                    className={`px-2 py-0.5 rounded-lg transition text-[9.5px] ${
+                      telemetryMode === 'human'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black'
+                        : 'text-white/40 hover:text-white'
+                    }`}
+                  >
+                    💬 نبض العملاء الحي
+                  </button>
+                  <button
+                    onClick={() => setTelemetryMode('system')}
+                    className={`px-2 py-0.5 rounded-lg transition font-mono text-[9px] ${
+                      telemetryMode === 'system'
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                        : 'text-white/40 hover:text-white'
+                    }`}
+                  >
+                    ⚙️ سجل الأوامر
+                  </button>
+                </div>
+                <span className="animate-pulse text-emerald-400 font-bold font-mono">● LIVE</span>
               </div>
-              <div className="flex-1 overflow-y-auto space-y-1.5 scrollbar-none text-[11px] text-cyan-300/80 leading-relaxed font-mono">
-                {cyberLogs.map((log, idx) => (
-                  <div key={idx} className="flex items-start gap-1">
-                    <span className="text-cyan-500/50 select-none">&gt;</span>
-                    <span className={idx === 0 ? 'text-white font-bold animate-pulse' : 'text-cyan-300/70'}>
-                      {log}
-                    </span>
+
+              {telemetryMode === 'human' ? (
+                <div className="flex-1 overflow-y-auto space-y-2 scrollbar-none text-[11px] font-['Cairo'] leading-relaxed">
+                  <div className="p-2 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-emerald-300 flex items-center justify-between">
+                    <span>💬 عميل جديد يطلب استشارة عبر واتساب {currentSelectedBrand.name}</span>
+                    <span className="text-[9px] text-white/40 font-mono">الآن</span>
                   </div>
-                ))}
-              </div>
+                  <div className="p-2 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-cyan-300 flex items-center justify-between">
+                    <span>🚀 خطة الأسبوع جاهزة ومجدولة في سحابة تيتو ستوديو</span>
+                    <span className="text-[9px] text-white/40 font-mono">منذ 2 د</span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-purple-950/20 border border-purple-500/20 text-purple-300 flex items-center justify-between">
+                    <span>📦 تم مزامنة كتالوج الخدمات مع متجر PWA وأوبسيديان</span>
+                    <span className="text-[9px] text-white/40 font-mono">منذ 5 د</span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-amber-950/20 border border-amber-500/20 text-amber-300 flex items-center justify-between">
+                    <span>💎 حجز مؤكد ومسجل في CRM براند عيادة صقلاوي (750 ج.م)</span>
+                    <span className="text-[9px] text-white/40 font-mono">اليوم</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-1.5 scrollbar-none text-[11px] text-cyan-300/80 leading-relaxed font-mono">
+                  {cyberLogs.map((log, idx) => (
+                    <div key={idx} className="flex items-start gap-1">
+                      <span className="text-cyan-500/50 select-none">&gt;</span>
+                      <span className={idx === 0 ? 'text-white font-bold animate-pulse' : 'text-cyan-300/70'}>
+                        {log}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
           </div>
@@ -1626,7 +1730,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           {/* CENTER HERO: THE HOLOGRAPHIC ARC REACTOR CORE (6 Cols)    */}
           {/* ========================================================= */}
-          <div className="lg:col-span-6 flex flex-col items-center justify-between gap-4 py-1">
+          <div className={`lg:col-span-6 flex flex-col items-center justify-between gap-4 py-1 order-1 lg:order-2 ${mobileActiveView === 'stage' ? 'flex' : 'hidden lg:flex'}`}>
             
             {/* Triage Persona Switcher (Top of Center) - Protected for Master Admin */}
             {isMasterAdmin ? (
@@ -2012,178 +2116,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                 )}
 
-            {/* TAB 00: AUTONOMOUS MARKETING AGENCY OPERATOR (1-MONTH CYCLE / 4 WEEKS / 12 POSTS) */}
+            {/* TAB 00: AUTONOMOUS MARKETING AGENCY OPERATOR (Modular Component) */}
             {activeDeckTab === 'autonomous_agency' && (
-              <div className="w-full max-w-xl rounded-3xl bg-[#020516]/95 border-2 border-amber-500/50 shadow-[0_0_50px_rgba(245,158,11,0.25)] p-4 flex flex-col gap-3.5 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
-                
-                {/* Header: Title, Brand Target, Status */}
-                <div className="flex items-center justify-between pb-2.5 border-b border-amber-500/20 flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping shadow-[0_0_12px_#f59e0b]" />
-                    <div>
-                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                        ⚡ مشغل وكالة التسويق الآلي الاحترافي • دورة الشهر الكامل (4 أسابيع)
-                      </h4>
-                      <p className="text-[10px] text-amber-200/70">
-                        البراند المستهدف: <span className="text-cyan-300 font-black">{currentSelectedBrand.name}</span> • 12 بوست (أحد / ثلاثاء / خميس)
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                      FIRESTORE + META LIVE
-                    </span>
-                    <button
-                      onClick={() => handleExecuteAutonomousAgency(currentSelectedBrand.id)}
-                      disabled={isExecutingAutonomousAgency}
-                      className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-black text-[10px] font-black flex items-center gap-1 shadow-[0_0_15px_rgba(245,158,11,0.4)] transition disabled:opacity-50"
-                    >
-                      <Zap className={`w-3 h-3 ${isExecutingAutonomousAgency ? 'animate-spin' : ''}`} />
-                      <span>{isExecutingAutonomousAgency ? 'جاري التشغيل...' : 'تشغيل الدورة الآن ⚡'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Progress / Diagnostics Stream if executing */}
-                {isExecutingAutonomousAgency && (
-                  <div className="p-3 rounded-2xl bg-black/60 border border-amber-500/30 flex flex-col gap-2 font-mono text-[10px] text-amber-300 animate-pulse">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                      <span>جارفيس يحلل عمق وهوية {currentSelectedBrand.name} ويبني استراتيجية الـ 4 أسابيع...</span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-1 text-center text-[9px]">
-                      <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20">1. تحليل الهوية</div>
-                      <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20">2. صياغة 12 بوست</div>
-                      <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20">3. جدولة Firestore</div>
-                      <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20">4. استخراج الأول</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* SPOTLIGHT FIRST POST CARD (Ready for Meta Instant Approval & 1-Click Publishing) */}
-                <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#09152b] to-[#04091a] border-2 border-cyan-400/50 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-                      <span className="text-[11px] font-black text-cyan-300">
-                        🎯 بوست الانطلاق الأول (الأسبوع 1) — جاهز للمراجعة والاعتماد لميتا
-                      </span>
-                    </div>
-                    <span className="text-[9.5px] font-mono text-cyan-200 bg-cyan-950/60 px-2 py-0.5 rounded-lg border border-cyan-500/30">
-                      📅 الأحد القادم • 10:00 AM
-                    </span>
-                  </div>
-
-                  {/* Post Content Snippet */}
-                  <div className="p-2.5 rounded-xl bg-black/50 border border-white/10 text-[10.5px] text-white/90 leading-relaxed font-sans">
-                    <p className="font-bold text-amber-300 mb-1">
-                      {autonomousAgencyData?.firstPost?.hook || currentSelectedBrand.weekContentPlan?.[0]?.hook || `انطلاقة جديدة وهوية استثنائية لـ ${currentSelectedBrand.name} في عالم النمو الرقمي!`}
-                    </p>
-                    <p className="text-white/80 line-clamp-3 text-[10px]">
-                      {autonomousAgencyData?.firstPost?.caption || currentSelectedBrand.weekContentPlan?.[0]?.caption || `نقدم لك في ${currentSelectedBrand.name} أرقى الحلول والخدمات المصممة خصيصاً لتفوق أعمالك وخدمة عملائك على مدار الساعة مع دعم ذكي متكامل.`}
-                    </p>
-                    <div className="flex items-center gap-1 text-[9px] text-cyan-400 font-mono mt-1.5 flex-wrap">
-                      <span>#${currentSelectedBrand.name.replace(/\s+/g, '_')}</span>
-                      <span>#T2_Growth</span>
-                      <span>#تيتو_ستوديو</span>
-                      <span>#نشر_آلي</span>
-                    </div>
-                  </div>
-
-                  {/* Immediate 1-Click Approval & Publishing Action Button */}
-                  <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
-                    <div className="text-[9.5px] text-white/60 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>قناة النشر: <strong className="text-white">Facebook & Instagram (Meta Graph API)</strong></span>
-                    </div>
-
-                    <button
-                      onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
-                      disabled={isPublishingPost}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-black text-xs font-black shadow-[0_0_20px_rgba(16,185,129,0.5)] transition flex items-center gap-1.5 disabled:opacity-50"
-                    >
-                      <Send className="w-3.5 h-3.5 text-black" />
-                      <span>{isPublishingPost ? 'جاري النشر المباشر لميتا...' : '🚀 اعتماد ونشر البوست الأول لميتا فوراً'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4-WEEK STRATEGY MATRIX (12 Posts: Sun, Tue, Thu) */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-white/80 px-1">
-                    <span className="flex items-center gap-1">
-                      <CalendarDays className="w-3.5 h-3.5 text-amber-400" />
-                      توزيع خطة الشهر (12 منشوراً • جدول الأحد والثلاثاء والخميس):
-                    </span>
-                    <span className="text-[9px] font-mono text-emerald-400">
-                      ✅ 11 منشور مجدول في تيتو ستوديو
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-right font-['Cairo']">
-                    {/* Week 1 */}
-                    <div className="p-2 rounded-xl bg-[#03091e] border border-cyan-500/30 flex flex-col gap-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9.5px] font-black text-cyan-300">الأسبوع 1</span>
-                        <span className="text-[8px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.2 rounded font-mono">3 بوستات</span>
-                      </div>
-                      <span className="text-[9px] text-white/90 font-bold truncate">الوعي وبناء الهوية</span>
-                      <span className="text-[8px] text-emerald-300">● 1 للاعتماد + 2 مجدولة</span>
-                    </div>
-
-                    {/* Week 2 */}
-                    <div className="p-2 rounded-xl bg-[#03091e] border border-purple-500/30 flex flex-col gap-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9.5px] font-black text-purple-300">الأسبوع 2</span>
-                        <span className="text-[8px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded font-mono">3 بوستات</span>
-                      </div>
-                      <span className="text-[9px] text-white/90 font-bold truncate">المشكلة والحلول</span>
-                      <span className="text-[8px] text-purple-300 font-mono">✅ مجدولة بفايربيس</span>
-                    </div>
-
-                    {/* Week 3 */}
-                    <div className="p-2 rounded-xl bg-[#03091e] border border-emerald-500/30 flex flex-col gap-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9.5px] font-black text-emerald-300">الأسبوع 3</span>
-                        <span className="text-[8px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono">3 بوستات</span>
-                      </div>
-                      <span className="text-[9px] text-white/90 font-bold truncate">إثبات اجتماعي وقصص</span>
-                      <span className="text-[8px] text-emerald-300 font-mono">✅ مجدولة بفايربيس</span>
-                    </div>
-
-                    {/* Week 4 */}
-                    <div className="p-2 rounded-xl bg-[#03091e] border border-amber-500/30 flex flex-col gap-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9.5px] font-black text-amber-300">الأسبوع 4</span>
-                        <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono">3 بوستات</span>
-                      </div>
-                      <span className="text-[9px] text-white/90 font-bold truncate">إغلاق المبيعات والعروض</span>
-                      <span className="text-[8px] text-amber-300 font-mono">✅ مجدولة بفايربيس</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom Quick Tools */}
-                <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[9.5px]">
-                  <button
-                    onClick={() => setActiveDeckTab('studio_calendar')}
-                    className="text-cyan-300 hover:text-cyan-200 flex items-center gap-1 font-bold"
-                  >
-                    <Calendar className="w-3 h-3" />
-                    <span>عرض تقويم تيتو ستوديو الكامل</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveDeckTab('obsidian_graph')}
-                    className="text-fuchsia-300 hover:text-fuchsia-200 flex items-center gap-1 font-bold"
-                  >
-                    <Layers className="w-3 h-3" />
-                    <span>عرض في شبكة أوبسيديان 3D</span>
-                  </button>
-                </div>
-
-              </div>
+              <JarvisAutonomousAgencyDeck
+                currentSelectedBrand={currentSelectedBrand}
+                autonomousAgencyData={autonomousAgencyData}
+                isExecutingAutonomousAgency={isExecutingAutonomousAgency}
+                isPublishingPost={isPublishingPost}
+                onExecuteCycle={handleExecuteAutonomousAgency}
+                onPublishPost={handlePublishPost}
+                onOpenCalendar={() => setActiveDeckTab('studio_calendar')}
+                onOpenGraph={() => setActiveDeckTab('obsidian_graph')}
+                onOpenCatalog={() => setIsCatalogModalOpen(true)}
+              />
             )}
 
             {/* TAB 0A: OBSIDIAN LIVE KNOWLEDGE GRAPH & SECOND BRAIN VAULT */}
@@ -3586,9 +3531,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           </div>
 
           {/* ========================================================= */}
-          {/* RIGHT COLUMN: TACTICAL RADAR PPI & FINANCIALS (3 Cols)    */}
+          {/* LEFT COLUMN (RTL): BRAND FLEET & GROWTH RADAR (3 Cols)    */}
           {/* ========================================================= */}
-          <div className="lg:col-span-3 flex flex-col gap-4">
+          <div className={`lg:col-span-3 flex flex-col gap-4 order-3 lg:order-3 ${mobileActiveView === 'brands' ? 'flex' : 'hidden lg:flex'}`}>
             
             {/* RIGHT COLUMN: Tailored Visitor App Preview vs Multi-Tenant Brand Selector */}
             {persona === 'visitor' ? (
@@ -3713,44 +3658,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* Live Financial & Crypto Indicators */}
-            <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 flex flex-col gap-3 font-mono">
-              <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20 text-xs font-bold text-cyan-300">
-                <span className="flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-                  Live Market Telemetry
-                </span>
-                <span className="text-[10px] text-cyan-400/70">FEED // 1s</span>
-              </div>
-
-              {/* Bitcoin Live */}
-              <div className="flex items-center justify-between p-2.5 rounded-2xl bg-black/50 border border-white/5">
-                <div className="flex items-center gap-2">
-                  <span className="text-amber-400 font-bold text-xs">BTC/USDT</span>
-                  <span className="text-[10px] text-white/50">Binance</span>
-                </div>
-                <span className="text-sm font-black text-white">
-                  ${Math.round(realStats.btcPrice || 76420).toLocaleString('en-US')}
-                </span>
-              </div>
-
-              {/* Gold 21K Egypt */}
-              <div className="flex items-center justify-between p-2.5 rounded-2xl bg-black/50 border border-white/5">
-                <div className="flex items-center gap-2">
-                  <span className="text-yellow-400 font-bold text-xs">ذهب عيار 21</span>
-                  <span className="text-[10px] text-white/50">مصر</span>
-                </div>
-                <span className="text-sm font-black text-white">
-                  {realStats.gold21kEgp?.toLocaleString('en-US') || '5,716'} ج.م
-                </span>
-              </div>
-
-              {/* Unified Vault Status */}
-              <div className="p-2.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-[10px] text-emerald-300 flex items-center justify-between">
-                <span>خزنة البراندات الموحدة:</span>
-                <span className="font-bold text-emerald-400">{realStats.tenantsCount} شركات متزامنة</span>
-              </div>
-            </div>
+            {/* Real Agency Growth Telemetry & KPI Radar */}
+            <JarvisGrowthRadarDeck allBrandsList={allBrandsList} realStats={realStats} />
 
           </div>
 
@@ -3928,6 +3837,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
         </div>
       )}
+
+      {/* Unified Sovereign Product & Services Ingestion Modal */}
+      <JarvisUnifiedCatalogModal
+        isOpen={isCatalogModalOpen}
+        onClose={() => setIsCatalogModalOpen(false)}
+        brand={currentSelectedBrand}
+        onProductSynced={(newCatalog) => {
+          setAllBrandsList(prev => prev.map(b => b.id === currentSelectedBrand.id ? { ...b, productsCatalog: newCatalog } : b));
+        }}
+      />
 
       {/* Client Onboarding Modal for New Brand Registration */}
       <ClientOnboardingModal
