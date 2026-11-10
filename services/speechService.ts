@@ -352,7 +352,29 @@ export const playShadowVoice = async (
         }
 
         if (!base64) { 
-            console.warn("[TTS] Gemini Human TTS audio unavailable.");
+            console.warn("[TTS] Gemini Human TTS audio unavailable, activating browser speech synthesis fallback.");
+            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                try {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'ar-EG';
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+                    const voices = window.speechSynthesis.getVoices();
+                    const arVoice = voices.find(v => v.lang.startsWith('ar')) || voices[0];
+                    if (arVoice) utterance.voice = arVoice;
+                    utterance.onend = () => {
+                        window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
+                        window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
+                        onEnded?.();
+                    };
+                    utterance.onerror = () => onEnded?.();
+                    window.speechSynthesis.speak(utterance);
+                    return;
+                } catch (e) {
+                    console.error("[TTS Fallback Error]:", e);
+                }
+            }
             onEnded?.();
             return; 
         }

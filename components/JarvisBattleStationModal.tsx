@@ -951,6 +951,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   // Two-Way Live Speech Recognition Trigger (On-Demand Push/Tap-to-Talk)
   const handleToggleListening = () => {
+    // 1. Immediately unlock browser audio context on user gesture
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') ctx.resume();
+      }
+    } catch {}
+
     if (isListening) {
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
@@ -1047,18 +1056,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleBuildStudioStrategy(matchedBrand.id);
+      const voiceReply = `أمرك يا ماستر تيتو، جهزت الاستراتيجية التسويقية لبراند ${matchedBrand.name} وحفظتها في تيتو ستوديو وأوبسيديان!`;
+      setTranscript(voiceReply);
+      playShadowVoice(voiceReply, 'male');
       return;
     }
     if (!isNegated && /ولد محتوى|محتوى اول اسبوع|محتوى أول أسبوع|خطة محتوى|خطه محتوى|محتوى الأسبوع|محتوى الاسبوع/i.test(commandText)) {
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleGenerateWeekPlan(matchedBrand.id);
+      const voiceReply = `أمرك يا ماستر، تم توليد خطة محتوى أول أسبوع لـ ${matchedBrand.name} بنجاح!`;
+      setTranscript(voiceReply);
+      playShadowVoice(voiceReply, 'male');
       return;
     }
     if (!isNegated && /اعتمد الجدول|اعتماد الجدول|جدول المحتوى|جدولة الخطة/i.test(commandText)) {
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleApproveSchedule(matchedBrand.id);
+      const voiceReply = `تم اعتماد جدولة خطة المحتوى في تيتو ستوديو للنشر التلقائي يا ماستر!`;
+      setTranscript(voiceReply);
+      playShadowVoice(voiceReply, 'male');
       return;
     }
     if (!isNegated && /اعرض منشور|اعرض بوست|افتح المنشور|اعرض الفيديو|اعرض التصميم|اعرض خطة المحتوى/i.test(commandText)) {
@@ -1071,13 +1089,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setSelectedPost({ ...postToShow, brandId: matchedBrand.id, brandName: matchedBrand.name });
       }
       setActiveDeckTab('content_post_card');
-      playShadowVoice(`عرضت لك بطاقة المنشور والتصميم لبراند ${matchedBrand.name} قدامك يا ماستر. قولي انشره لو تحب أنشره فوراً!`, 'male');
+      const voiceReply = `عرضت لك بطاقة المنشور والتصميم لبراند ${matchedBrand.name} قدامك يا ماستر. قولي انشره لو تحب أنشره فوراً!`;
+      setTranscript(voiceReply);
+      playShadowVoice(voiceReply, 'male');
       return;
     }
     if (!isNegated && /^انشره|انشر المنشور|انشر البوست|انشر دلوقتي/i.test(commandText.trim())) {
       setIsThinking(false);
       isThinkingRef.current = false;
       await handlePublishPost(matchedBrand.id, 0);
+      const voiceReply = `تم اعتماد ونشر البوست فوراً لصفحات ميتا وتيتو ستوديو يا ماستر!`;
+      setTranscript(voiceReply);
+      playShadowVoice(voiceReply, 'male');
       return;
     }
 
@@ -1868,30 +1891,41 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 className="relative z-10"
               />
 
-              {/* Real-time Dynamic Reactor Status Badge */}
-              <div className="absolute -bottom-2 z-20 px-3 py-1 rounded-full text-[10px] font-bold font-['Cairo'] flex items-center gap-1.5 backdrop-blur-md shadow-lg transition-all duration-300 border select-none bg-black/70">
+              {/* Interactive Core Mic Trigger Button (Tap to Talk to Jarvis) */}
+              <button
+                onClick={handleToggleListening}
+                className={`absolute -bottom-3 z-20 px-4 py-1.5 rounded-full text-[11px] font-bold font-['Cairo'] flex items-center gap-2 backdrop-blur-md shadow-2xl transition-all duration-300 border select-none cursor-pointer ${
+                  isListening
+                    ? 'bg-rose-500 text-white border-rose-400 shadow-[0_0_25px_rgba(244,63,94,0.7)] animate-pulse'
+                    : isThinking
+                    ? 'bg-fuchsia-600/90 text-white border-fuchsia-400 shadow-[0_0_25px_rgba(217,70,239,0.7)]'
+                    : isPlayingVoice
+                    ? 'bg-emerald-500 text-black border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.7)] animate-bounce'
+                    : 'bg-black/80 hover:bg-black/95 text-cyan-200 border-cyan-400/50 hover:border-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.4)]'
+                }`}
+              >
                 {isListening ? (
                   <>
-                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                    <span className="text-cyan-300 font-black">🔵 جارفيس يستمع إليك الآن...</span>
+                    <MicOff className="w-3.5 h-3.5 text-white" />
+                    <span className="font-black">أنا سامعك يا ماستر.. اتفضل (اضغط للإنهاء)</span>
                   </>
                 ) : isThinking ? (
                   <>
-                    <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-spin" />
-                    <span className="text-fuchsia-300 font-black">🟣 جارفيس يعالج الأمر وينفذه في المنظومة...</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-fuchsia-400 animate-spin" />
+                    <span className="font-black">جارفيس يعالج وينفذ الأمر...</span>
                   </>
                 ) : isPlayingVoice ? (
                   <>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-emerald-300 font-black">🟢 جارفيس يتحدث إليك بصوت بشري 24kHz</span>
+                    <Volume2 className="w-3.5 h-3.5 text-black animate-pulse" />
+                    <span className="font-black text-black">جارفيس يتحدث إليك (24kHz)</span>
                   </>
                 ) : (
                   <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                    <span className="text-cyan-200/80">جارفيس في وضع الجاهزية والحراسة • اضغط المايك أو تحدث</span>
+                    <Mic className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                    <span>🎙️ اضغط للتحدث مع جارفيس (أنا سامعك)</span>
                   </>
                 )}
-              </div>
+              </button>
             </div>
 
             {/* TOP BAR: Explicit Chromium Mic Activator + Operational Mode Switcher */}
@@ -1915,9 +1949,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     اضغط هنا لتفعيل المايك فوراً
                   </button>
                 ) : (
-                  <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                    GEMINI 3.8 TTS • 24kHz
-                  </span>
+                  <button
+                    onClick={handleToggleListening}
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition shadow-lg ${
+                      isListening
+                        ? 'bg-rose-500 text-white animate-pulse'
+                        : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-black font-black'
+                    }`}
+                  >
+                    {isListening ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                    <span>{isListening ? 'أنا سامعك..' : '🎙️ تحدث صوتياً الآن'}</span>
+                  </button>
                 )}
               </div>
 
