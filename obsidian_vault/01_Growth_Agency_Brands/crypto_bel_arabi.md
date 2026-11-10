@@ -6,7 +6,7 @@ phone: "201000000000"
 status: "متوقف"
 storefront: "/store/crypto_bel_arabi"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.315Z"
+updated_at: "2026-11-10T09:34:19.333Z"
 ---
 
 # 🏢 [[كريبتو بالعربي]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.315Z"
 - [[03_Tito_Studio_Calendars/crypto_bel_arabi_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/crypto_bel_arabi_agent|وكيل مبيعات واتساب (201000000000)]]
 - [[05_CRM_Confirmed_Bookings/crypto_bel_arabi_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ كريبتو بالعربي. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ كريبتو بالعربي**: `حسب المعاينة والاستشارة` — 

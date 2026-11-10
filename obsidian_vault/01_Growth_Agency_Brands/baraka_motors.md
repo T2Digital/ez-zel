@@ -6,7 +6,7 @@ phone: "01147418358"
 status: "متوقف"
 storefront: "/store/baraka_motors"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.317Z"
+updated_at: "2026-11-10T09:34:19.336Z"
 ---
 
 # 🏢 [[البركة موتورز]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.317Z"
 - [[03_Tito_Studio_Calendars/baraka_motors_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/baraka_motors_agent|وكيل مبيعات واتساب (01147418358)]]
 - [[05_CRM_Confirmed_Bookings/baraka_motors_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ البركة موتورز. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ البركة موتورز**: `حسب المعاينة والاستشارة` — 

@@ -6,7 +6,7 @@ phone: "+966 50 123 4567"
 status: "متوقف"
 storefront: "/store/t2_studio"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.318Z"
+updated_at: "2026-11-10T09:34:19.339Z"
 ---
 
 # 🏢 [[T2 Studio]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.318Z"
 - [[03_Tito_Studio_Calendars/t2_studio_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/t2_studio_agent|وكيل مبيعات واتساب (+966 50 123 4567)]]
 - [[05_CRM_Confirmed_Bookings/t2_studio_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ T2 Studio. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ T2 Studio**: `حسب المعاينة والاستشارة` — 

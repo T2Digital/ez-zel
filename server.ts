@@ -16,7 +16,7 @@ import { BRAND_VAULT } from "./services/brandVault";
 import { setupMicroservicesGateway } from "./services/microservicesGateway";
 import { cloneOrSynthesizeBrand, getClonedBrandByIdOrSlug } from "./services/appClonerCrawlerService";
 import { publishBrandPost, launchAdCampaign, runSelfOptimizingLoop, setupAutonomousAgencyCron, getPublishedLogs } from "./services/growthAgencyEngine";
-import { syncAndBuildObsidianVault, getObsidianNodeMarkdown, executeRealJarvisEcosystemAction, getUnifiedGrowthBrands, getEzZelPersonalClients } from "./services/obsidianVaultService";
+import { syncAndBuildObsidianVault, getObsidianNodeMarkdown, saveObsidianNodeMarkdown, startObsidianTwoWayWatcher, executeRealJarvisEcosystemAction, getUnifiedGrowthBrands, getEzZelPersonalClients } from "./services/obsidianVaultService";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -358,6 +358,7 @@ async function startServer() {
   // Mount Sovereign Microservices API Gateway (Webhooks, Realtime SSE & Service Fleet Orchestrator)
   setupMicroservicesGateway(app);
   setupAutonomousAgencyCron();
+  startObsidianTwoWayWatcher();
 
   // --- API ROUTES --- //
 
@@ -417,6 +418,19 @@ async function startServer() {
           res.json({ success: true, ...data });
       } catch (err: any) {
           res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.post("/api/obsidian/node/:id", (req, res) => {
+      try {
+          const { markdown } = req.body || {};
+          if (!markdown || typeof markdown !== "string") {
+              return res.status(400).json({ success: false, error: "markdown content is required" });
+          }
+          const result = saveObsidianNodeMarkdown(req.params.id, markdown);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ success: false, error: err?.message });
       }
   });
 
@@ -1933,31 +1947,9 @@ async function startServer() {
 3. البراند المحدد حالياً على الشاشة هو: "${activeBrand?.name}" (${activeBrand?.businessType} - واتساب: ${activeBrand?.phone}).`;
           }
 
-          const systemPrompt = `أنت "جارفيس" (Jarvis)، العقل التنفيذي لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + App Cloner + Obsidian Knowledge Vault).
-${personaRoleInstruction}
-قواعد صارمة:
-- تحدث بالعامية المصرية الطبيعية السلسة جداً (بدون تشكيل نحوي معقد وبدون فصحى روبوتية) عشان صوت Gemini البشري يطلع طبيعي وتلقائي 100%.
-- اجعل ردك مختصراً ومباشراً في جملة أو جملتين مركزتين وعمليتين.
-- لا تكرر تقارير قديمة أو أسماء حجوزات إلا لو سألك المستخدم عنها مباشرة.`;
-
-          const chat = await ai.models.generateContent({
-              model: "gemini-3.1-flash-lite",
-              contents: `${systemPrompt}\n\nكلام المتحدث: "${message}"\nرد جارفيس باللهجة المصرية الطبيعية المختصرة:`
-          });
-
-          const replyText = chat.text?.trim() || "أمرك يا ماستر تيتو، أنا معاك وجميع الأنظمة جاهزة للتنفيذ الفوري.";
-
-          // Synthesize response in 100% Gemini Human Voice (Puck 24kHz)
-          let audioBase64 = null;
-          try {
-              const audioBuffer = await synthesizeSovereignSpeech(replyText, "Puck");
-              audioBase64 = audioBuffer.toString("base64");
-          } catch (ttsErr: any) {
-              console.warn("[Jarvis Live Voice TTS Warning]:", ttsErr?.message);
-          }
-
-          // Smart Voice-to-Action Interpreter for Live UI Execution across all 3 Personas
+          // Smart Voice-to-Action Interpreter & Real Function Calling across all 3 Personas
           let executedAction: any = null;
+          let backendExecutionResult: any = null;
           const msg = message.toLowerCase();
 
           // Detect brand if mentioned
@@ -1970,7 +1962,59 @@ ${personaRoleInstruction}
           else if (/سقطرى/i.test(msg)) detectedBrand = 'socotra_dental';
           else if (/كلين ماستر|نظافة/i.test(msg)) detectedBrand = 'clean_master';
 
-          if (/أوبسيديان|اوبسيدن|اوبسيديان|obsidian|شبكة|جراف|خريطة المعرفة/i.test(msg)) {
+          // 1. Check for Real Data-Mutating Voice Commands (Function Calling)
+          const priceMatch = message.match(/(?:بسعر|بـ|سعرها|سعره|ب)\s*(\d[\d,.]*)\s*(?:جنيه|ج\.م|ج)?/i);
+          if (/(?:ضيف|أضف|زود|عدل سعر|غير سعر)\s+(?:خدمة|منتج|عرض|باقة)?\s*([^،,]+?)(?:\s+(?:بسعر|بـ|سعرها|سعره|ب)\s*\d|$)/i.test(message)) {
+              const nameMatch = message.match(/(?:ضيف|أضف|زود|عدل سعر|غير سعر)\s+(?:خدمة|منتج|عرض|باقة)?\s*([^،,]+?)(?:\s+(?:بسعر|بـ|سعرها|سعره|ب)\s*\d|$)/i);
+              const serviceName = (nameMatch?.[1] || 'خدمة VIP جديدة').trim();
+              const servicePrice = priceMatch?.[1] ? `${priceMatch[1]} ج.م` : '650 ج.م';
+              backendExecutionResult = await executeRealJarvisEcosystemAction({
+                  actionType: 'UPDATE_STORE_CATALOG',
+                  brandId: detectedBrand,
+                  data: {
+                      addService: {
+                          name: serviceName,
+                          price: servicePrice,
+                          description: 'تمت الإضافة والتسعير بأمر صوتي مباشر من كابينة جارفيس'
+                      }
+                  }
+              });
+              executedAction = {
+                  type: 'CATALOG_MUTATED',
+                  tab: 'app_cloner',
+                  brandId: detectedBrand,
+                  result: backendExecutionResult
+              };
+          } else if (/(?:عدل|غير|حدث)\s+(?:تعليمات|توجيهات|برومبت|رد)\s+(?:البوت|الأيجنت|الوكيل)/i.test(message)) {
+              const newInstruction = message.replace(/^.*?(?:البوت|الأيجنت|الوكيل)\s*(?:خليه|إلى|بأن|:)?\s*/i, '').trim() || message;
+              backendExecutionResult = await executeRealJarvisEcosystemAction({
+                  actionType: 'UPDATE_BOT_INSTRUCTIONS',
+                  brandId: detectedBrand,
+                  data: { systemInstruction: newInstruction }
+              });
+              executedAction = {
+                  type: 'BOT_PROMPT_MUTATED',
+                  tab: 'obsidian_graph',
+                  brandId: detectedBrand,
+                  result: backendExecutionResult
+              };
+          } else if (/انشر|نزل بوست|publish|انشر البوست/i.test(msg)) {
+              backendExecutionResult = await executeRealJarvisEcosystemAction({
+                  actionType: 'PUBLISH_STUDIO_POST',
+                  brandId: detectedBrand,
+                  data: { postIndex: 0 }
+              });
+              executedAction = { type: 'TRIGGER_ACTION', action: 'PUBLISH_POST', brandId: detectedBrand, result: backendExecutionResult };
+          } else if (/أطلق إعلان|اطلق اعلان|شغل إعلان|حملة ممولة|كامبين|واتساب إعلان/i.test(msg)) {
+              const budgetMatch = message.match(/(\d{3,6})/);
+              const budgetEgp = budgetMatch ? Number(budgetMatch[1]) : 2000;
+              backendExecutionResult = await executeRealJarvisEcosystemAction({
+                  actionType: 'LAUNCH_META_AD',
+                  brandId: detectedBrand,
+                  data: { budgetEgp }
+              });
+              executedAction = { type: 'TRIGGER_ACTION', action: 'LAUNCH_CAMPAIGN', brandId: detectedBrand, result: backendExecutionResult };
+          } else if (/أوبسيديان|اوبسيدن|اوبسيديان|obsidian|شبكة|جراف|خريطة المعرفة/i.test(msg)) {
               executedAction = { type: 'SWITCH_TAB', tab: 'obsidian_graph', brandId: detectedBrand };
           } else if (/اربط واتساب|ربط واتس|كود ربط|qr|امسح الكود/i.test(msg)) {
               executedAction = { type: 'OPEN_MODAL', modal: 'whatsapp_connect', brandId: detectedBrand };
@@ -1978,10 +2022,6 @@ ${personaRoleInstruction}
               executedAction = { type: 'OPEN_MODAL', modal: 'meta_connect', brandId: detectedBrand };
           } else if (/عملاء الظل|مشتركين الظل|وكالة|الأدمن|تقرير العملاء/i.test(msg)) {
               executedAction = { type: 'SWITCH_TAB', tab: 'agency_overview', brandId: detectedBrand };
-          } else if (/انشر|نزل بوست|publish|انشر البوست/i.test(msg)) {
-              executedAction = { type: 'TRIGGER_ACTION', action: 'PUBLISH_POST', brandId: detectedBrand };
-          } else if (/أطلق إعلان|اطلق اعلان|شغل إعلان|حملة ممولة|كامبين|واتساب إعلان/i.test(msg)) {
-              executedAction = { type: 'TRIGGER_ACTION', action: 'LAUNCH_CAMPAIGN', brandId: detectedBrand };
           } else if (/تقويم|جدول المحتوى|خطة المحتوى|أسبوع|calendar|ستوديو/i.test(msg)) {
               executedAction = { type: 'SWITCH_TAB', tab: 'studio_calendar', brandId: detectedBrand };
           } else if (/بطاقة|منشور|كارت البوست|محتوى منشور|بوست فيسبوك/i.test(msg)) {
@@ -1998,6 +2038,30 @@ ${personaRoleInstruction}
               executedAction = { type: 'TOGGLE_BOT', brandId: detectedBrand, status: 'paused' };
           }
 
+          const systemPrompt = `أنت "جارفيس" (Jarvis)، العقل التنفيذي لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + App Cloner + Obsidian Knowledge Vault).
+${personaRoleInstruction}
+${backendExecutionResult ? `\n[نتيجة التنفيذ الفعلي الذي قمت به الآن في الخلفية]: ${backendExecutionResult.message || JSON.stringify(backendExecutionResult)}` : ''}
+قواعد صارمة:
+- تحدث بالعامية المصرية الطبيعية السلسة جداً (بدون تشكيل نحوي معقد وبدون فصحى روبوتية) عشان صوت Gemini البشري يطلع طبيعي وتلقائي 100%.
+- اجعل ردك مختصراً ومباشراً في جملة أو جملتين مركزتين وعمليتين تؤكد ما نفذته فعلياً.
+- لا تكرر تقارير قديمة أو أسماء حجوزات إلا لو سألك المستخدم عنها مباشرة.`;
+
+          const chat = await ai.models.generateContent({
+              model: "gemini-3.1-flash-lite",
+              contents: `${systemPrompt}\n\nكلام المتحدث: "${message}"\nرد جارفيس باللهجة المصرية الطبيعية المختصرة:`
+          });
+
+          const replyText = chat.text?.trim() || (backendExecutionResult?.message || "أمرك يا ماستر تيتو، تم التنفيذ الفعلي في المنظومة.");
+
+          // Synthesize response in 100% Gemini Human Voice (Puck 24kHz)
+          let audioBase64 = null;
+          try {
+              const audioBuffer = await synthesizeSovereignSpeech(replyText, "Puck");
+              audioBase64 = audioBuffer.toString("base64");
+          } catch (ttsErr: any) {
+              console.warn("[Jarvis Live Voice TTS Warning]:", ttsErr?.message);
+          }
+
           // Check if message implies executive browser action
           const shouldTriggerBrowser = /احجز|افحص|ادخل|شغل البراوزر|دوس على|افتح الموقع|سيلينيوم/i.test(message);
 
@@ -2008,6 +2072,7 @@ ${personaRoleInstruction}
               audioBase64,
               audioFormat: isWav ? "audio/wav" : "audio/mp3",
               action: executedAction,
+              executionResult: backendExecutionResult,
               shouldTriggerBrowser,
               suggestedScenario: /عربية|سيارة|الخضر/i.test(message) ? 'alkhedr_booking' : 
                                  /نظافة|كلين/i.test(message) ? 'clean_master_booking' : 'admin_audit'

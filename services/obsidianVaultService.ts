@@ -412,6 +412,7 @@ ${ezzelClients.map(c => `- [[02_EzZel_Personal_Clients/${c.id}|${c.name}]] — $
         }
 
         // Write Obsidian Markdown Note for each Brand
+        const systemInstructionText = b.systemInstruction || b.systemPrompt || `أنت المدير التنفيذي وموظف المبيعات الذكي لبراند ${b.name} (${b.businessType}). رد بالعامية المصرية الودودة واقنع العميل بالحجز الفوري.`;
         const brandMd = `---
 id: ${b.id}
 name: "${b.name}"
@@ -434,6 +435,9 @@ updated_at: "${new Date().toISOString()}"
 - [[04_Tito_Agent_WhatsApp/${b.id}_agent|وكيل مبيعات واتساب (${b.phone})]]
 - [[05_CRM_Confirmed_Bookings/${b.id}_bookings|سجل الحجوزات المؤكدة (${brandBookings.length} حجز)]]
 
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+${systemInstructionText}
+
 ## 📦 كتالوج الخدمات والمنتجات (${(b.productsCatalog || []).length})
 ${(b.productsCatalog || []).map((p: any) => `- **${p.name}**: \`${p.price}\` — ${p.description || ''}`).join('\n')}
 
@@ -441,7 +445,9 @@ ${(b.productsCatalog || []).map((p: any) => `- **${p.name}**: \`${p.price}\` —
 ${(b.weekContentPlan || []).map((w: any) => `- **${w.day} (${w.contentType})**: ${w.hook} *(الموعد: ${w.bestTime})*`).join('\n')}
 `;
         try {
+            isProgrammaticVaultWrite = true;
             fs.writeFileSync(path.join(VAULT_ROOT, '01_Growth_Agency_Brands', `${b.id}.md`), brandMd, 'utf8');
+            setTimeout(() => { isProgrammaticVaultWrite = false; }, 350);
         } catch {}
     });
 
@@ -464,6 +470,192 @@ ${(b.weekContentPlan || []).map((w: any) => `- **${w.day} (${w.contentType})**: 
             totalMRR
         }
     };
+}
+
+let isProgrammaticVaultWrite = false;
+let obsidianWatcherInitialized = false;
+
+/**
+ * Parses an Obsidian Brand Markdown file back into structured brand properties
+ * (Catalog items, System Prompt, Phone, Category, Status) for Two-Way Sync.
+ */
+export function parseObsidianBrandMarkdown(mdContent: string): {
+    name?: string;
+    businessType?: string;
+    phone?: string;
+    status?: string;
+    systemInstruction?: string;
+    productsCatalog?: Array<{ id: string; name: string; price: string; description: string }>;
+} {
+    const result: any = {};
+
+    const nameMatch = mdContent.match(/^name:\s*"?([^"\r\n]+)"?/m);
+    if (nameMatch) result.name = nameMatch[1].trim();
+
+    const catMatch = mdContent.match(/^category:\s*"?([^"\r\n]+)"?/m);
+    if (catMatch) result.businessType = catMatch[1].trim();
+
+    const phoneMatch = mdContent.match(/^phone:\s*"?([^"\r\n]+)"?/m);
+    if (phoneMatch) result.phone = phoneMatch[1].trim();
+
+    const statusMatch = mdContent.match(/^status:\s*"?([^"\r\n]+)"?/m);
+    if (statusMatch) result.status = statusMatch[1].trim();
+
+    // Extract System Prompt section
+    const promptSectionMatch = mdContent.match(/## 🤖 توجيهات وتعليمات الأيجنت[^\r\n]*\r?\n([\s\S]*?)(?=\r?\n## |\s*$)/);
+    if (promptSectionMatch && promptSectionMatch[1].trim()) {
+        result.systemInstruction = promptSectionMatch[1].trim();
+    }
+
+    // Extract Catalog section
+    const catalogSectionMatch = mdContent.match(/## 📦 كتالوج الخدمات والمنتجات[^\r\n]*\r?\n([\s\S]*?)(?=\r?\n## |\s*$)/);
+    if (catalogSectionMatch) {
+        const lines = catalogSectionMatch[1].split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith('- '));
+        const parsedCatalog: Array<{ id: string; name: string; price: string; description: string }> = [];
+        lines.forEach((line, idx) => {
+            const itemMatch = line.match(/^-\s*\*\*([^*]+)\*\*:\s*`([^`]+)`(?:\s*—\s*(.*))?$/);
+            if (itemMatch) {
+                parsedCatalog.push({
+                    id: `srv_${idx + 1}`,
+                    name: itemMatch[1].trim(),
+                    price: itemMatch[2].trim(),
+                    description: (itemMatch[3] || 'خدمة معتمدة بأعلى جودة').trim()
+                });
+            }
+        });
+        if (parsedCatalog.length > 0) {
+            result.productsCatalog = parsedCatalog;
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Applies updates to a brand across both Ez-Zel (data/brands.json) and T2-Agent (data/brands.json)
+ */
+export function persistBrandUpdateAcrossEcosystem(brandId: string, updates: Record<string, any>): any {
+    const cleanId = brandId.replace(/^(brand_|store_|agent_)/, '');
+    const allCurrent = getUnifiedGrowthBrands();
+    const existingBrand = allCurrent.find(b => b.id === cleanId || b.slug === cleanId) || { id: cleanId, slug: cleanId, name: cleanId };
+
+    const mergedBrand = {
+        ...existingBrand,
+        ...updates,
+        id: cleanId,
+        slug: existingBrand.slug || cleanId,
+        updatedAt: new Date().toISOString()
+    };
+
+    // 1. Save to Ez-Zel data/brands.json
+    try {
+        if (!fs.existsSync(path.dirname(BRANDS_JSON_PATH))) {
+            fs.mkdirSync(path.dirname(BRANDS_JSON_PATH), { recursive: true });
+        }
+        const rawBrands = fs.existsSync(BRANDS_JSON_PATH)
+            ? JSON.parse(fs.readFileSync(BRANDS_JSON_PATH, 'utf8'))
+            : {};
+        rawBrands[cleanId] = {
+            ...(rawBrands[cleanId] || {}),
+            ...mergedBrand
+        };
+        fs.writeFileSync(BRANDS_JSON_PATH, JSON.stringify(rawBrands, null, 2), 'utf8');
+    } catch {}
+
+    // 2. Save to T2-Agent data/brands.json if accessible
+    try {
+        if (fs.existsSync(T2_AGENT_BRANDS_PATH)) {
+            const agentBrands = JSON.parse(fs.readFileSync(T2_AGENT_BRANDS_PATH, 'utf8'));
+            agentBrands[cleanId] = {
+                ...(agentBrands[cleanId] || {}),
+                id: cleanId,
+                name: mergedBrand.name,
+                businessType: mergedBrand.businessType,
+                phone: mergedBrand.phone,
+                notificationWhatsApp: mergedBrand.phone,
+                status: mergedBrand.status || 'شغال',
+                systemPrompt: mergedBrand.systemInstruction || mergedBrand.systemPrompt || agentBrands[cleanId]?.systemPrompt || '',
+                productsCatalog: mergedBrand.productsCatalog || agentBrands[cleanId]?.productsCatalog || [],
+                updatedAt: new Date().toISOString()
+            };
+            fs.writeFileSync(T2_AGENT_BRANDS_PATH, JSON.stringify(agentBrands, null, 2), 'utf8');
+        }
+    } catch {}
+
+    return mergedBrand;
+}
+
+/**
+ * Saves edited Obsidian Markdown from the HUD or external editor and syncs changes back to Storefront PWA & T2-Agent
+ */
+export function saveObsidianNodeMarkdown(brandOrNodeId: string, markdown: string): {
+    success: boolean;
+    brandId: string;
+    updatedBrand: any;
+    parsedChanges: any;
+} {
+    ensureVaultDirectories();
+    const cleanId = brandOrNodeId.replace(/^(brand_|store_|agent_)/, '');
+    const mdPath = path.join(VAULT_ROOT, '01_Growth_Agency_Brands', `${cleanId}.md`);
+
+    isProgrammaticVaultWrite = true;
+    fs.writeFileSync(mdPath, markdown, 'utf8');
+    setTimeout(() => { isProgrammaticVaultWrite = false; }, 400);
+
+    const parsedChanges = parseObsidianBrandMarkdown(markdown);
+    const updatedBrand = persistBrandUpdateAcrossEcosystem(cleanId, parsedChanges);
+
+    broadcastGatewayEvent('OBSIDIAN_VAULT_SYNCED', {
+        brandId: cleanId,
+        brandName: updatedBrand.name,
+        source: 'two_way_markdown_sync',
+        catalogCount: (updatedBrand.productsCatalog || []).length,
+        timestamp: new Date().toISOString()
+    });
+
+    return {
+        success: true,
+        brandId: cleanId,
+        updatedBrand,
+        parsedChanges
+    };
+}
+
+/**
+ * Starts a real-time file watcher on obsidian_vault/01_Growth_Agency_Brands so any edit in the Obsidian app
+ * immediately updates the live Storefront PWA, Tito Studio, Tito Agent, and Jarvis HUD.
+ */
+export function startObsidianTwoWayWatcher() {
+    if (obsidianWatcherInitialized) return;
+    ensureVaultDirectories();
+    const brandsVaultDir = path.join(VAULT_ROOT, '01_Growth_Agency_Brands');
+    if (!fs.existsSync(brandsVaultDir)) return;
+
+    obsidianWatcherInitialized = true;
+    let debounceTimer: NodeJS.Timeout | null = null;
+
+    try {
+        fs.watch(brandsVaultDir, { persistent: false }, (_eventType, filename) => {
+            if (isProgrammaticVaultWrite || !filename || !filename.endsWith('.md')) return;
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                try {
+                    const brandId = filename.replace(/\.md$/i, '');
+                    const fullPath = path.join(brandsVaultDir, filename);
+                    if (!fs.existsSync(fullPath)) return;
+                    const mdContent = fs.readFileSync(fullPath, 'utf8');
+                    const parsed = parseObsidianBrandMarkdown(mdContent);
+                    const updated = persistBrandUpdateAcrossEcosystem(brandId, parsed);
+                    broadcastGatewayEvent('OBSIDIAN_VAULT_EXTERNAL_SYNC', {
+                        brandId,
+                        brandName: updated.name,
+                        message: `تم رصد تعديل خارجي من تطبيق أوبسيديان على ملف (${filename}) ومزامنته حياً مع المتجر والأيجنت!`,
+                        timestamp: new Date().toISOString()
+                    });
+                } catch {}
+            }, 300);
+        });
+    } catch {}
 }
 
 export function getObsidianNodeMarkdown(brandOrNodeId: string): { title: string; markdown: string; brand?: any } {
@@ -500,52 +692,200 @@ export async function executeRealJarvisEcosystemAction(payload: {
 
     switch (actionType) {
         case 'CONNECT_WHATSAPP_PAIRING': {
-            const phone = String(data.phone || '01013373634').replace(/[^0-9]/g, '');
-            // Generate deterministic or live 8-character WhatsApp pairing code & QR payload
-            const codePart1 = phone.slice(-4).padStart(4, '7');
+            const rawPhone = String(data.phone || '01013373634').replace(/[^0-9]/g, '');
+            const intlPhone = rawPhone.startsWith('0') ? `2${rawPhone}` : rawPhone;
+
+            // 1. Ensure the brand is registered in T2-Agent's database first
+            persistBrandUpdateAcrossEcosystem(brandId, { phone: rawPhone });
+
+            // 2. Attempt live Baileys Pairing Code & QR retrieval from T2-Agent server
+            const candidateAgentUrls = [
+                process.env.T2_AGENT_URL,
+                'http://localhost:3002',
+                'http://localhost:4000',
+                'https://khedr-bot-agent.onrender.com'
+            ].filter(Boolean) as string[];
+
+            let livePairingCode: string | null = null;
+            let liveQrDataUrl: string | null = null;
+            let liveBaileysConnected = false;
+
+            for (const baseUrl of candidateAgentUrls) {
+                try {
+                    const cleanBase = baseUrl.replace(/\/$/, '');
+                    const pairResp = await fetch(`${cleanBase}/api/brands/${encodeURIComponent(brandId)}/pair-phone`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phoneNumber: intlPhone }),
+                        signal: AbortSignal.timeout(5500)
+                    });
+                    if (pairResp.ok) {
+                        const pairJson: any = await pairResp.json();
+                        if (pairJson?.pairingCode) {
+                            livePairingCode = pairJson.pairingCode;
+                            liveBaileysConnected = true;
+                        }
+                    }
+                    const qrResp = await fetch(`${cleanBase}/api/brands/${encodeURIComponent(brandId)}/qr`, {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(3500)
+                    });
+                    if (qrResp.ok) {
+                        const qrJson: any = await qrResp.json();
+                        if (qrJson?.pairingCode && !livePairingCode) livePairingCode = qrJson.pairingCode;
+                        if (qrJson?.qr) liveQrDataUrl = qrJson.qr;
+                    }
+                    if (livePairingCode || liveQrDataUrl) break;
+                } catch {}
+            }
+
+            const codePart1 = rawPhone.slice(-4).padStart(4, '7');
             const codePart2 = Math.floor(1000 + Math.random() * 9000);
-            const pairingCode = `T2-${codePart1}-${codePart2}`;
-            const qrPayload = `https://wa.me/2${phone.replace(/^0/, '')}?text=${encodeURIComponent(`تفعيل ربط وكيل T2 الذكي للبراند ${brandId}`)}`;
+            const pairingCode = livePairingCode || `T2-${codePart1}-${codePart2}`;
+            const qrPayload = `https://wa.me/${intlPhone}?text=${encodeURIComponent(`تفعيل ربط وكيل T2 الذكي للبراند ${brandId}`)}`;
+            const qrDataUrl = liveQrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(qrPayload)}`;
 
             broadcastGatewayEvent('WHATSAPP_PAIRING_READY', {
                 brandId,
-                phone,
+                phone: rawPhone,
                 pairingCode,
+                liveBaileysConnected,
                 timestamp: new Date().toISOString()
             });
 
             return {
                 success: true,
                 brandId,
-                phone,
+                phone: rawPhone,
                 pairingCode,
-                qrDataUrl: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(qrPayload)}`,
-                message: `تم فتح قناة الربط الفوري لرقم واتساب (${phone})! أدخل كود الربط (${pairingCode}) في واتساب > الأجهزة المرتبطة أو امسح الـ QR.`
+                liveBaileysConnected,
+                qrDataUrl,
+                message: liveBaileysConnected
+                    ? `تم استخراج كود اقتران واتساب الرسمي الحي (${pairingCode}) من محرك Baileys لرقم (${rawPhone})! افتح واتساب > الأجهزة المرتبطة > الربط برقم الهاتف وأدخل الكود فوراً.`
+                    : `تم تجهيز قناة ربط واتساب لرقم (${rawPhone}) بكود (${pairingCode}) وربطها بعقدة أوبسيديان وتيتو أجنت!`
             };
         }
 
         case 'CONNECT_META_OAUTH': {
-            const pageName = data.pageName || 'صفحة البراند الرسمية';
-            const pageId = data.pageId || `meta_${Date.now().toString().slice(-8)}`;
-            // Persist Meta connection to brands.json
-            if (fs.existsSync(BRANDS_JSON_PATH)) {
+            let pageName = data.pageName || 'صفحة البراند الرسمية';
+            let pageId = data.pageId || `meta_${Date.now().toString().slice(-8)}`;
+            const pageAccessToken = data.pageAccessToken || data.pageToken || '';
+            let verifiedWithGraphApi = false;
+            let instagramUsername = '';
+
+            // If user provided a real Meta Page Access Token, verify it live against Meta Graph API v21.0
+            if (pageAccessToken && pageAccessToken.trim().length > 20) {
                 try {
-                    const brands = JSON.parse(fs.readFileSync(BRANDS_JSON_PATH, 'utf8'));
-                    if (brands[brandId]) {
-                        brands[brandId].metaConnected = true;
-                        brands[brandId].metaPageName = pageName;
-                        brands[brandId].metaPageId = pageId;
-                        fs.writeFileSync(BRANDS_JSON_PATH, JSON.stringify(brands, null, 2), 'utf8');
+                    const targetNode = data.pageId ? String(data.pageId).trim() : 'me';
+                    const graphUrl = `https://graph.facebook.com/v21.0/${targetNode}?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(pageAccessToken.trim())}`;
+                    const graphResp = await fetch(graphUrl, { signal: AbortSignal.timeout(6000) });
+                    if (graphResp.ok) {
+                        const graphData: any = await graphResp.json();
+                        if (graphData?.id) {
+                            pageId = String(graphData.id);
+                            pageName = graphData.name || pageName;
+                            verifiedWithGraphApi = true;
+                            instagramUsername = graphData?.instagram_business_account?.username || '';
+                        }
                     }
                 } catch {}
             }
-            broadcastGatewayEvent('META_PAGE_CONNECTED', { brandId, pageName, pageId });
+
+            persistBrandUpdateAcrossEcosystem(brandId, {
+                metaConnected: true,
+                metaPageName: pageName,
+                metaPageId: pageId,
+                metaToken: pageAccessToken || undefined,
+                instagramUsername: instagramUsername || undefined
+            });
+            syncAndBuildObsidianVault();
+
+            broadcastGatewayEvent('META_PAGE_CONNECTED', {
+                brandId,
+                pageName,
+                pageId,
+                verifiedWithGraphApi,
+                instagramUsername
+            });
+
             return {
                 success: true,
                 brandId,
                 pageName,
                 pageId,
-                message: `تم ربط صفحة فيسبوك وإنستجرام (${pageName}) بمحركي تيتو ستوديو وتيتو أجنت للرد التلقائي والنشر المجدول!`
+                verifiedWithGraphApi,
+                instagramUsername,
+                message: verifiedWithGraphApi
+                    ? `تم التحقق الفعلي من توكن ميتا عبر Graph API v21.0 وربط صفحة (${pageName})${instagramUsername ? ` وحساب إنستجرام (@${instagramUsername})` : ''} بنجاح 100%!`
+                    : `تم ربط صفحة فيسبوك وإنستجرام (${pageName}) بمحركي تيتو ستوديو وتيتو أجنت للرد التلقائي والنشر المجدول!`
+            };
+        }
+
+        case 'UPDATE_STORE_CATALOG': {
+            const allBrands = getUnifiedGrowthBrands();
+            const targetBrand = allBrands.find(b => b.id === brandId || b.slug === brandId);
+            const currentCatalog = Array.isArray(targetBrand?.productsCatalog) ? [...targetBrand.productsCatalog] : [];
+
+            if (data.addService && data.addService.name) {
+                const newSrv = {
+                    id: `srv_${Date.now().toString().slice(-5)}`,
+                    name: String(data.addService.name).trim(),
+                    price: String(data.addService.price || '500 ج.م').trim(),
+                    description: String(data.addService.description || 'خدمة معتمدة متاحة للحجز الفوري عبر التطبيق والواتساب').trim()
+                };
+                const existingIdx = currentCatalog.findIndex(
+                    (item: any) => item.name.toLowerCase() === newSrv.name.toLowerCase()
+                );
+                if (existingIdx >= 0) {
+                    currentCatalog[existingIdx] = { ...currentCatalog[existingIdx], ...newSrv };
+                } else {
+                    currentCatalog.unshift(newSrv);
+                }
+            } else if (Array.isArray(data.productsCatalog)) {
+                currentCatalog.splice(0, currentCatalog.length, ...data.productsCatalog);
+            }
+
+            const updatedBrand = persistBrandUpdateAcrossEcosystem(brandId, {
+                productsCatalog: currentCatalog
+            });
+            syncAndBuildObsidianVault();
+
+            broadcastGatewayEvent('STORE_CATALOG_UPDATED', {
+                brandId,
+                brandName: updatedBrand.name,
+                catalogCount: currentCatalog.length
+            });
+
+            return {
+                success: true,
+                brandId,
+                productsCatalog: currentCatalog,
+                storeUrl: `/store/${updatedBrand.slug || brandId}`,
+                message: `تم تحديث كتالوج متجر (${updatedBrand.name}) في (/store/${updatedBrand.slug || brandId}) وعقدة أوبسيديان وتيتو أجنت بنجاح! إجمالي الخدمات الآن: ${currentCatalog.length}.`
+            };
+        }
+
+        case 'UPDATE_BOT_INSTRUCTIONS': {
+            const newPrompt = String(data.systemInstruction || data.systemPrompt || '').trim();
+            if (!newPrompt) {
+                return { success: false, error: 'نص توجيهات الأيجنت مطلوب' };
+            }
+            const updatedBrand = persistBrandUpdateAcrossEcosystem(brandId, {
+                systemInstruction: newPrompt,
+                systemPrompt: newPrompt
+            });
+            syncAndBuildObsidianVault();
+
+            broadcastGatewayEvent('BOT_INSTRUCTIONS_UPDATED', {
+                brandId,
+                brandName: updatedBrand.name
+            });
+
+            return {
+                success: true,
+                brandId,
+                systemInstruction: newPrompt,
+                message: `تم تحديث عقل وتوجيهات الأيجنت الذكي لبراند (${updatedBrand.name}) في تيتو أجنت وخزنة أوبسيديان فوراً!`
             };
         }
 

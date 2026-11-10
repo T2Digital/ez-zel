@@ -118,6 +118,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isMetaConnectModalOpen, setIsMetaConnectModalOpen] = useState<boolean>(false);
   const [metaConnectInfo, setMetaConnectInfo] = useState<any>(null);
   const [metaPageInput, setMetaPageInput] = useState<string>('');
+  const [metaPageIdInput, setMetaPageIdInput] = useState<string>('');
+  const [metaPageTokenInput, setMetaPageTokenInput] = useState<string>('');
+
+  // Two-Way Obsidian Markdown Editor & Live Catalog Editor State
+  const [isEditingObsidianMd, setIsEditingObsidianMd] = useState<boolean>(false);
+  const [isSavingObsidianMd, setIsSavingObsidianMd] = useState<boolean>(false);
+  const [newServiceTitle, setNewServiceTitle] = useState<string>('');
+  const [newServicePrice, setNewServicePrice] = useState<string>('');
+  const [botPromptInput, setBotPromptInput] = useState<string>('');
+  const [isSavingCatalog, setIsSavingCatalog] = useState<boolean>(false);
   
   // Selected Brand for Active Deep Interaction across all 3 Apps
   const [selectedBrandId, setSelectedBrandId] = useState<string>('clean_master');
@@ -254,8 +264,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         body: JSON.stringify({
           actionType: 'CONNECT_META_OAUTH',
           brandId: currentSelectedBrand.id || 'clean_master',
-          payload: { pageName: metaPageInput || currentSelectedBrand.name },
-          data: { pageName: metaPageInput || currentSelectedBrand.name }
+          payload: {
+            pageName: metaPageInput || currentSelectedBrand.name,
+            pageId: metaPageIdInput || undefined,
+            pageAccessToken: metaPageTokenInput || undefined
+          },
+          data: {
+            pageName: metaPageInput || currentSelectedBrand.name,
+            pageId: metaPageIdInput || undefined,
+            pageAccessToken: metaPageTokenInput || undefined
+          }
         })
       });
       const d = await res.json();
@@ -263,10 +281,90 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setMetaConnectInfo(d);
         setIsMetaConnectModalOpen(false);
         fetchObsidianVault();
-        playShadowVoice(`تم ربط صفحة فيسبوك وإنستجرام ${d.pageName || metaPageInput} بمحركي تيتو ستوديو وتيتو أجنت وتحديث عقدة أوبسيديان!`, 'male');
+        playShadowVoice(d.message || `تم ربط صفحة فيسبوك وإنستجرام ${d.pageName || metaPageInput} بمحركي تيتو ستوديو وتيتو أجنت وتحديث عقدة أوبسيديان!`, 'male');
       }
     } catch {} finally {
       setIsConnectingChannel(false);
+    }
+  };
+
+  const handleSaveObsidianMarkdown = async () => {
+    if (!obsidianNodeMarkdown.trim()) return;
+    setIsSavingObsidianMd(true);
+    try {
+      const targetId = currentSelectedBrand.id || 'clean_master';
+      const res = await fetch(`/api/obsidian/node/${targetId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown: obsidianNodeMarkdown })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setIsEditingObsidianMd(false);
+        fetchObsidianVault();
+        playShadowVoice(`تم حفظ تعديلات عقدة أوبسيديان ومزامنتها عكسياً مع متجر العميل وتوجيهات الأيجنت بنجاح يا ماستر!`, 'male');
+      }
+    } catch {} finally {
+      setIsSavingObsidianMd(false);
+    }
+  };
+
+  const handleAddCatalogService = async () => {
+    if (!newServiceTitle.trim()) return;
+    setIsSavingCatalog(true);
+    try {
+      const targetId = currentSelectedBrand.id || 'clean_master';
+      const res = await fetch('/api/jarvis/execute-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionType: 'UPDATE_STORE_CATALOG',
+          brandId: targetId,
+          data: {
+            addService: {
+              name: newServiceTitle.trim(),
+              price: newServicePrice.trim() || '650 ج.م',
+              description: 'خدمة مضافة حياً من كابينة جارفيس ومتزامنة مع واتساب'
+            }
+          }
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setNewServiceTitle('');
+        setNewServicePrice('');
+        fetchObsidianVault();
+        handleInspectObsidianNode(targetId);
+        playShadowVoice(d.message || `تم إضافة الخدمة الجديدة وتحديث المتجر المستنسخ وعقدة أوبسيديان فوراً!`, 'male');
+      }
+    } catch {} finally {
+      setIsSavingCatalog(false);
+    }
+  };
+
+  const handleUpdateBotPrompt = async () => {
+    if (!botPromptInput.trim()) return;
+    setIsSavingCatalog(true);
+    try {
+      const targetId = currentSelectedBrand.id || 'clean_master';
+      const res = await fetch('/api/jarvis/execute-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionType: 'UPDATE_BOT_INSTRUCTIONS',
+          brandId: targetId,
+          data: { systemInstruction: botPromptInput.trim() }
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setBotPromptInput('');
+        fetchObsidianVault();
+        handleInspectObsidianNode(targetId);
+        playShadowVoice(d.message || `تم تحديث توجيهات وعقل الأيجنت الذكي للبراند بنجاح!`, 'male');
+      }
+    } catch {} finally {
+      setIsSavingCatalog(false);
     }
   };
 
@@ -441,6 +539,25 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           const price = booking.price || '500 ج.م';
           playShadowVoice(`يا ماستر، وصل إشعار حجز مؤكد حالا عبر الواتساب لـ ${customer} بقيمة ${price}!`, 'male');
         } catch (err) {}
+      });
+
+      eventSource.addEventListener('OBSIDIAN_VAULT_EXTERNAL_SYNC', (e: any) => {
+        try {
+          const payload = JSON.parse(e.data);
+          const info = payload.data || payload;
+          fetchObsidianVault();
+          if (info.brandId) handleInspectObsidianNode(info.brandId);
+          setCyberLogs(prev => [`[OBSIDIAN_2WAY_SYNC]: ${info.message || 'External Markdown change synced live'}`, ...prev].slice(0, 25));
+        } catch {}
+      });
+
+      eventSource.addEventListener('OBSIDIAN_VAULT_SYNCED', (e: any) => {
+        try {
+          const payload = JSON.parse(e.data);
+          const info = payload.data || payload;
+          fetchObsidianVault();
+          setCyberLogs(prev => [`[OBSIDIAN_VAULT]: Node ${info.brandId} synced (${info.catalogCount || 0} catalog items)`, ...prev].slice(0, 25));
+        } catch {}
       });
     } catch {}
 
@@ -748,6 +865,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             }
           } else if (data.action.type === 'TOGGLE_BOT') {
             setBotStates(prev => ({ ...prev, [data.action.brandId]: data.action.status !== 'paused' }));
+          } else if (data.action.type === 'CATALOG_MUTATED') {
+            setActiveDeckTab('app_cloner');
+            fetchObsidianVault();
+            if (data.action.brandId) handleInspectObsidianNode(data.action.brandId);
+          } else if (data.action.type === 'BOT_PROMPT_MUTATED') {
+            setActiveDeckTab('obsidian_graph');
+            fetchObsidianVault();
+            if (data.action.brandId) handleInspectObsidianNode(data.action.brandId);
           }
         }
 
@@ -1544,21 +1669,48 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                 </div>
 
-                {/* Live Obsidian Markdown Inspector + Direct Action Bar */}
+                {/* Live Obsidian Markdown Inspector + Two-Way Live Editor + Direct Action Bar */}
                 <div className="p-3 rounded-2xl bg-black/70 border border-fuchsia-500/30 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
                     <span className="text-[11px] font-black text-fuchsia-300 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5" />
-                      ملف العقدة الحي: <code className="text-cyan-300 font-mono">obsidian_vault/01_Growth_Agency_Brands/{currentSelectedBrand.id}.md</code>
+                      ملف العقدة الحي (Two-Way Sync): <code className="text-cyan-300 font-mono">01_Growth_Agency_Brands/{currentSelectedBrand.id}.md</code>
                     </span>
-                    <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                      SYNCED
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setIsEditingObsidianMd(!isEditingObsidianMd)}
+                        className="text-[9.5px] font-bold px-2.5 py-0.5 rounded-lg bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-200 border border-fuchsia-500/40 transition"
+                      >
+                        {isEditingObsidianMd ? '👁️ وضع المعاينة' : '✏️ تحرير مباشر'}
+                      </button>
+                      {isEditingObsidianMd && (
+                        <button
+                          onClick={handleSaveObsidianMarkdown}
+                          disabled={isSavingObsidianMd}
+                          className="text-[9.5px] font-black px-2.5 py-0.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black transition"
+                        >
+                          {isSavingObsidianMd ? 'جاري الحفظ...' : '💾 حفظ ومزامنة عكسية ⚡'}
+                        </button>
+                      )}
+                      <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                        2-WAY LIVE
+                      </span>
+                    </div>
                   </div>
 
-                  <pre className="text-[10px] font-mono text-cyan-100/80 bg-[#020510] p-2.5 rounded-xl border border-white/5 max-h-28 overflow-y-auto whitespace-pre-wrap leading-relaxed dir-ltr text-right">
-                    {obsidianNodeMarkdown || `# ${currentSelectedBrand.name}\n- **Storefront PWA**: [[Storefront_${currentSelectedBrand.id}|/store/${currentSelectedBrand.slug || currentSelectedBrand.id}]]\n- **Tito Studio Calendar**: [[Studio_Calendar_${currentSelectedBrand.id}|${(currentSelectedBrand.weekContentPlan || []).length} Posts]]\n- **WhatsApp Agent**: [[WA_Agent_${currentSelectedBrand.id}|Connected 24/7]]`}
-                  </pre>
+                  {isEditingObsidianMd ? (
+                    <textarea
+                      value={obsidianNodeMarkdown}
+                      onChange={(e) => setObsidianNodeMarkdown(e.target.value)}
+                      rows={6}
+                      className="w-full text-[10px] font-mono text-cyan-100 bg-[#020510] p-2.5 rounded-xl border border-fuchsia-400/50 focus:outline-none leading-relaxed text-right"
+                      placeholder="عدّل الكتالوج أو توجيهات الأيجنت هنا وسيتم تحديث المتجر وتيتو أجنت فوراً..."
+                    />
+                  ) : (
+                    <pre className="text-[10px] font-mono text-cyan-100/80 bg-[#020510] p-2.5 rounded-xl border border-white/5 max-h-28 overflow-y-auto whitespace-pre-wrap leading-relaxed dir-ltr text-right">
+                      {obsidianNodeMarkdown || `# ${currentSelectedBrand.name}\n- **Storefront PWA**: [[Storefront_${currentSelectedBrand.id}|/store/${currentSelectedBrand.slug || currentSelectedBrand.id}]]\n- **Tito Studio Calendar**: [[Studio_Calendar_${currentSelectedBrand.id}|${(currentSelectedBrand.weekContentPlan || []).length} Posts]]\n- **WhatsApp Agent**: [[WA_Agent_${currentSelectedBrand.id}|Connected 24/7]]`}
+                    </pre>
+                  )}
 
                   {/* 4 Real Execution Triggers Directly from the Selected Obsidian Node */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
@@ -2149,8 +2301,55 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       <span className="text-emerald-400 font-bold block">{currentSelectedBrand.phone || '01013373634'}</span>
                     </div>
                     <div className="p-2 rounded-xl bg-white/5 border border-white/5">
-                      <span className="text-white/40 block text-[8.5px]">حالة الربط الذاتي</span>
-                      <span className="text-amber-300 font-bold block">متصل 100% ⚡</span>
+                      <span className="text-white/40 block text-[8.5px]">عناصر الكتالوج الحية</span>
+                      <span className="text-amber-300 font-bold block">{(currentSelectedBrand.productsCatalog || []).length || 4} خدمات ⚡</span>
+                    </div>
+                  </div>
+
+                  {/* Live Storefront Catalog & Agent Prompt Quick Editor */}
+                  <div className="pt-2 border-t border-blue-500/20 space-y-2">
+                    <div className="text-[10.5px] font-bold text-cyan-300">
+                      ⚡ تعديل فوري لكتالوج المتجر (/store/{currentSelectedBrand.slug || currentSelectedBrand.id}) وعقل الأيجنت:
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-1.5">
+                      <input
+                        type="text"
+                        value={newServiceTitle}
+                        onChange={(e) => setNewServiceTitle(e.target.value)}
+                        placeholder="اسم الخدمة/المنتج الجديد..."
+                        className="flex-1 px-2.5 py-1.5 rounded-xl bg-black/70 border border-white/15 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                      <input
+                        type="text"
+                        value={newServicePrice}
+                        onChange={(e) => setNewServicePrice(e.target.value)}
+                        placeholder="السعر (مثال: 750 ج.م)"
+                        className="sm:w-32 px-2.5 py-1.5 rounded-xl bg-black/70 border border-white/15 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                      <button
+                        onClick={handleAddCatalogService}
+                        disabled={isSavingCatalog || !newServiceTitle.trim()}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition disabled:opacity-40 shrink-0"
+                      >
+                        + إضافة للمتجر
+                      </button>
+                    </div>
+
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={botPromptInput}
+                        onChange={(e) => setBotPromptInput(e.target.value)}
+                        placeholder="تحديث توجيهات وعقل الأيجنت (مثال: قدم خصم 15% لأول 10 عملاء اليوم)..."
+                        className="flex-1 px-2.5 py-1.5 rounded-xl bg-black/70 border border-white/15 text-white text-xs focus:outline-none focus:border-purple-400"
+                      />
+                      <button
+                        onClick={handleUpdateBotPrompt}
+                        disabled={isSavingCatalog || !botPromptInput.trim()}
+                        className="px-3 py-1.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-black text-xs transition disabled:opacity-40 shrink-0"
+                      >
+                        تحديث الأيجنت
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2548,34 +2747,44 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className="lg:col-span-3 flex flex-col gap-4">
             
-            {/* RIGHT COLUMN: ACTIVE BRAND FLEET RADAR & SELECTOR */}
+            {/* RIGHT COLUMN: ACTIVE BRAND FLEET RADAR & SELECTOR (Multi-Tenant Isolated for Clients) */}
             <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
               <div className="w-full flex items-center justify-between pb-2 border-b border-cyan-500/20">
                 <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-cyan-400" />
-                  أسطول البراندات ({allBrandsList.length || realStats.totalVaultBrandsCount || 19})
+                  {persona === 'tito'
+                    ? `أسطول البراندات (${allBrandsList.length || realStats.totalVaultBrandsCount || 19})`
+                    : `كابينة براندك المعزولة (Multi-Tenant)`}
                 </span>
                 <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  متزامن 100%
+                  {persona === 'tito' ? 'إدارة شاملة' : 'حماية معزولة 🔒'}
                 </span>
               </div>
 
-              {/* Quick Brand Search Filter */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="ابحث عن براند لتشغيله..."
-                  value={brandSearch}
-                  onChange={(e) => setBrandSearch(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-xl bg-black/40 border border-cyan-500/30 text-xs text-white placeholder-white/40 focus:outline-none focus:border-cyan-400 text-right"
-                />
-              </div>
+              {/* Quick Brand Search Filter (Only in Master Admin Mode) */}
+              {persona === 'tito' && (
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="ابحث عن براند لتشغيله..."
+                    value={brandSearch}
+                    onChange={(e) => setBrandSearch(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl bg-black/40 border border-cyan-500/30 text-xs text-white placeholder-white/40 focus:outline-none focus:border-cyan-400 text-right"
+                  />
+                </div>
+              )}
 
-              {/* Interactive Brands List - Click to Select Brand */}
+              {/* Interactive Brands List - Strictly isolated to current brand if persona is client/trial */}
               <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto pr-1">
-                {(allBrandsList.length > 0 ? allBrandsList : (realStats.allVaultBrands || [])).filter((b: any) => 
-                  !brandSearch || (b.name || '').toLowerCase().includes(brandSearch.toLowerCase())
-                ).slice(0, 10).map((brand: any) => {
+                {(allBrandsList.length > 0 ? allBrandsList : (realStats.allVaultBrands || []))
+                  .filter((b: any) => {
+                    if (persona === 'client' || persona === 'trial') {
+                      return b.id === currentSelectedBrand.id || b.slug === currentSelectedBrand.slug;
+                    }
+                    return !brandSearch || (b.name || '').toLowerCase().includes(brandSearch.toLowerCase());
+                  })
+                  .slice(0, 12)
+                  .map((brand: any) => {
                   const isSelected = brand.id === currentSelectedBrand.id || brand.slug === currentSelectedBrand.slug;
                   return (
                     <button
@@ -2980,14 +3189,29 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
               {waPairingInfo && (
                 <div className="p-4 rounded-2xl bg-black/70 border border-emerald-500/40 text-center space-y-3">
-                  <span className="text-xs text-emerald-300 font-bold block">
-                    كود الربط الفوري (افتح واتساب &gt; الأجهزة المرتبطة &gt; الربط برقم الهاتف):
-                  </span>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-emerald-300 font-bold">
+                      كود الربط الفوري (افتح واتساب &gt; الأجهزة المرتبطة &gt; الربط برقم الهاتف):
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                      {waPairingInfo.liveBaileysConnected ? 'BAILEYS LIVE 🟢' : 'T2 AGENT SYNCED ⚡'}
+                    </span>
+                  </div>
                   <div className="text-2xl font-mono font-black tracking-[0.25em] text-white bg-emerald-950/60 border border-emerald-400/50 py-3 px-4 rounded-2xl shadow-inner select-all">
                     {waPairingInfo.pairingCode}
                   </div>
+                  {waPairingInfo.qrDataUrl && (
+                    <div className="flex flex-col items-center gap-1 pt-1">
+                      <img
+                        src={waPairingInfo.qrDataUrl}
+                        alt="WhatsApp QR"
+                        className="w-36 h-36 rounded-xl border-2 border-emerald-500/50 bg-white p-1.5"
+                      />
+                      <span className="text-[10px] text-white/50">أو امسح الـ QR مباشرة بالكاميرا</span>
+                    </div>
+                  )}
                   <div className="text-[11px] text-white/60 leading-relaxed">
-                    أو عبر تطبيق T2 Agent المستقل • الجلسة مربوطة مباشرة بعقدة أوبسيديان <code className="text-emerald-300 font-mono">[[WA_Agent_{currentSelectedBrand.id}]]</code>
+                    الجلسة مربوطة مباشرة بعقدة أوبسيديان <code className="text-emerald-300 font-mono">[[WA_Agent_{currentSelectedBrand.id}]]</code>
                   </div>
                 </div>
               )}
@@ -2996,7 +3220,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         </div>
       )}
 
-      {/* LIVE META GRAPH OAUTH CONNECTION MODAL */}
+      {/* LIVE META GRAPH OAUTH & TOKEN CONNECTION MODAL */}
       {isMetaConnectModalOpen && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in font-['Cairo']" dir="rtl">
           <div className="w-full max-w-lg bg-[#07081c] border-2 border-indigo-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(99,102,241,0.35)] space-y-4 text-right">
@@ -3015,17 +3239,40 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             <div className="space-y-3">
               <p className="text-xs text-white/70 leading-relaxed">
-                يربط هذا الإجراء براند <strong>{currentSelectedBrand.name}</strong> بمحرك النشر التلقائي في تيتو ستوديو وماكينة إعلانات Click-to-WhatsApp:
+                يربط هذا الإجراء براند <strong>{currentSelectedBrand.name}</strong> بمحرك النشر التلقائي في تيتو ستوديو وماكينة إعلانات Click-to-WhatsApp عبر Graph API v21.0:
               </p>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] text-white/70 block mb-1 font-bold">اسم صفحة فيسبوك / إنستجرام:</label>
+                  <input
+                    type="text"
+                    value={metaPageInput}
+                    onChange={(e) => setMetaPageInput(e.target.value)}
+                    placeholder={`${currentSelectedBrand.name} Official`}
+                    className="w-full bg-black/60 border border-indigo-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-white/70 block mb-1 font-bold">معرف الصفحة (Page ID - اختياري):</label>
+                  <input
+                    type="text"
+                    value={metaPageIdInput}
+                    onChange={(e) => setMetaPageIdInput(e.target.value)}
+                    placeholder="مثال: 10492837465"
+                    className="w-full bg-black/60 border border-indigo-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="text-xs text-white/70 block mb-1.5 font-bold">اسم صفحة فيسبوك / حساب إنستجرام التجاري:</label>
+                <label className="text-[11px] text-white/70 block mb-1 font-bold">توكن الصفحة المباشر (Meta Page Access Token للتحقق الحي):</label>
                 <input
-                  type="text"
-                  value={metaPageInput}
-                  onChange={(e) => setMetaPageInput(e.target.value)}
-                  placeholder={`${currentSelectedBrand.name} Official`}
-                  className="w-full bg-black/60 border border-indigo-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-400"
+                  type="password"
+                  value={metaPageTokenInput}
+                  onChange={(e) => setMetaPageTokenInput(e.target.value)}
+                  placeholder="EAAGm0PX4ZCpsBA... (اختياري للتحقق الفوري من Graph API v21.0)"
+                  className="w-full bg-black/60 border border-indigo-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-400"
                 />
               </div>
 

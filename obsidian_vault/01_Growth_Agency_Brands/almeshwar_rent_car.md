@@ -6,7 +6,7 @@ phone: "0112716060"
 status: "متوقف"
 storefront: "/store/almeshwar_rent_car"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.319Z"
+updated_at: "2026-11-10T09:34:19.340Z"
 ---
 
 # 🏢 [[المشوار لتأجير السيارات]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.319Z"
 - [[03_Tito_Studio_Calendars/almeshwar_rent_car_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/almeshwar_rent_car_agent|وكيل مبيعات واتساب (0112716060)]]
 - [[05_CRM_Confirmed_Bookings/almeshwar_rent_car_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ المشوار لتأجير السيارات. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ المشوار لتأجير السيارات**: `حسب المعاينة والاستشارة` — 

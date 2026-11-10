@@ -6,7 +6,7 @@ phone: "01038690400"
 status: "متوقف"
 storefront: "/store/kyan_store"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.317Z"
+updated_at: "2026-11-10T09:34:19.336Z"
 ---
 
 # 🏢 [[كيان]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.317Z"
 - [[03_Tito_Studio_Calendars/kyan_store_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/kyan_store_agent|وكيل مبيعات واتساب (01038690400)]]
 - [[05_CRM_Confirmed_Bookings/kyan_store_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ كيان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ كيان**: `حسب المعاينة والاستشارة` — 

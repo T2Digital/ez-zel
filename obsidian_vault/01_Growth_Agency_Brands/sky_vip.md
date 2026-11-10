@@ -6,7 +6,7 @@ phone: "201154040041"
 status: "متوقف"
 storefront: "/store/sky_vip"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.316Z"
+updated_at: "2026-11-10T09:34:19.335Z"
 ---
 
 # 🏢 [[SKY VIP]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.316Z"
 - [[03_Tito_Studio_Calendars/sky_vip_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/sky_vip_agent|وكيل مبيعات واتساب (201154040041)]]
 - [[05_CRM_Confirmed_Bookings/sky_vip_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ SKY VIP. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ SKY VIP**: `حسب المعاينة والاستشارة` — 

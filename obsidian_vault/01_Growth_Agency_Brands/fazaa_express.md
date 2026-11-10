@@ -6,7 +6,7 @@ phone: "01141244184"
 status: "متوقف"
 storefront: "/store/fazaa_express"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.317Z"
+updated_at: "2026-11-10T09:34:19.336Z"
 ---
 
 # 🏢 [[فزعه إكسبريس]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.317Z"
 - [[03_Tito_Studio_Calendars/fazaa_express_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/fazaa_express_agent|وكيل مبيعات واتساب (01141244184)]]
 - [[05_CRM_Confirmed_Bookings/fazaa_express_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ فزعه إكسبريس. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ فزعه إكسبريس**: `حسب المعاينة والاستشارة` — 

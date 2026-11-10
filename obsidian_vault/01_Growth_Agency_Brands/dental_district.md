@@ -6,7 +6,7 @@ phone: "01114664644"
 status: "متوقف"
 storefront: "/store/dental_district"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.314Z"
+updated_at: "2026-11-10T09:34:19.332Z"
 ---
 
 # 🏢 [[عيادة حي الأسنان]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.314Z"
 - [[03_Tito_Studio_Calendars/dental_district_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/dental_district_agent|وكيل مبيعات واتساب (01114664644)]]
 - [[05_CRM_Confirmed_Bookings/dental_district_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ عيادة حي الأسنان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ عيادة حي الأسنان**: `حسب المعاينة والاستشارة` — 

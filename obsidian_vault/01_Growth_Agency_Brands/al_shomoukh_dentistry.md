@@ -6,7 +6,7 @@ phone: "01114844884"
 status: "متوقف"
 storefront: "/store/al_shomoukh_dentistry"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.318Z"
+updated_at: "2026-11-10T09:34:19.338Z"
 ---
 
 # 🏢 [[الشموخ لطب الأسنان]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.318Z"
 - [[03_Tito_Studio_Calendars/al_shomoukh_dentistry_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/al_shomoukh_dentistry_agent|وكيل مبيعات واتساب (01114844884)]]
 - [[05_CRM_Confirmed_Bookings/al_shomoukh_dentistry_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ الشموخ لطب الأسنان. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ الشموخ لطب الأسنان**: `حسب المعاينة والاستشارة` — 

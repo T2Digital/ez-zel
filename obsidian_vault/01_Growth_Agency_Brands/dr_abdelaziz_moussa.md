@@ -6,7 +6,7 @@ phone: "920000007"
 status: "متوقف"
 storefront: "/store/dr_abdelaziz_moussa"
 meta_connected: true
-updated_at: "2026-11-10T09:11:05.315Z"
+updated_at: "2026-11-10T09:34:19.332Z"
 ---
 
 # 🏢 [[عيادة د. عبدالعزيز الموسى]]
@@ -19,6 +19,9 @@ updated_at: "2026-11-10T09:11:05.315Z"
 - [[03_Tito_Studio_Calendars/dr_abdelaziz_moussa_calendar|تقويم محتوى تيتو ستوديو (7 منشورات)]]
 - [[04_Tito_Agent_WhatsApp/dr_abdelaziz_moussa_agent|وكيل مبيعات واتساب (920000007)]]
 - [[05_CRM_Confirmed_Bookings/dr_abdelaziz_moussa_bookings|سجل الحجوزات المؤكدة (0 حجز)]]
+
+## 🤖 توجيهات وتعليمات الأيجنت (System Prompt)
+أنت المساعد الذكي الرسمي لـ عيادة د. عبدالعزيز الموسى. تتحدث باحترافية وتستقبل العملاء وتؤكد طلباتهم وحجوزاتهم.
 
 ## 📦 كتالوج الخدمات والمنتجات (1)
 - **الخدمة الرئيسية لـ عيادة د. عبدالعزيز الموسى**: `حسب المعاينة والاستشارة` — 
