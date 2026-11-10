@@ -199,7 +199,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         if (ctx.state === 'suspended') await ctx.resume();
       }
       stream.getTracks().forEach(t => t.stop());
-      playShadowVoice("تم تفعيل المايك بنجاح يا ماستر تيتو، أنا سامعك بصوت جميني البشري وجاهز لأوامرك!", 'male');
+      // Silent button activation
     } catch (e: any) {
       console.warn("Explicit mic request error:", e);
       alert("يرجى الضغط على علامة القفل بجوار رابط الموقع في المتصفح واختيار (Allow) للميكروفون.");
@@ -262,7 +262,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       const d = await res.json();
       if (d.success) {
         setWaPairingInfo(d);
-        playShadowVoice(`فتحتلك نافذة ربط الواتساب المباشر لبراند ${currentSelectedBrand.name}، كود الربط جاهز قدامك يا ماستر!`, 'male');
+        // Silent button activation
       }
     } catch {} finally {
       setIsConnectingChannel(false);
@@ -300,7 +300,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setMetaConnectInfo(d);
         setIsMetaConnectModalOpen(false);
         fetchObsidianVault();
-        playShadowVoice(d.message || `تم ربط صفحة فيسبوك وإنستجرام ${d.pageName || metaPageInput} بمحركي تيتو ستوديو وتيتو أجنت وتحديث عقدة أوبسيديان!`, 'male');
+        // Silent button activation
       }
     } catch {} finally {
       setIsConnectingChannel(false);
@@ -321,7 +321,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       if (d.success) {
         setIsEditingObsidianMd(false);
         fetchObsidianVault();
-        playShadowVoice(`تم حفظ تعديلات عقدة أوبسيديان ومزامنتها عكسياً مع متجر العميل وتوجيهات الأيجنت بنجاح يا ماستر!`, 'male');
+        // Silent button activation
       }
     } catch {} finally {
       setIsSavingObsidianMd(false);
@@ -354,7 +354,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setNewServicePrice('');
         fetchObsidianVault();
         handleInspectObsidianNode(targetId);
-        playShadowVoice(d.message || `تم إضافة الخدمة الجديدة وتحديث متجر وتطبيق البراند وعقدة أوبسيديان فوراً!`, 'male');
+        // Silent button activation
       }
     } catch {} finally {
       setIsSavingCatalog(false);
@@ -380,7 +380,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setBotPromptInput('');
         fetchObsidianVault();
         handleInspectObsidianNode(targetId);
-        playShadowVoice(d.message || `تم تحديث توجيهات وعقل الأيجنت الذكي للبراند بنجاح!`, 'male');
+        // Silent button activation
       }
     } catch {} finally {
       setIsSavingCatalog(false);
@@ -598,7 +598,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           status: 'PUBLISHED'
         });
       }
-      playShadowVoice(`تم اختيار براند ${b.name} وتحديث التقويم الأسبوعي بالكامل يا ماستر.`, 'male');
+      // Silent button activation
     }
   };
 
@@ -614,7 +614,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       if (d.success && d.post) {
         setSelectedPost(d.post);
         setActiveDeckTab('content_post_card');
-        playShadowVoice(`تم نشر بوست ${d.post.day} بنجاح يا ماستر وتوجيهه لخوارزميات ميتا وتيتو ستوديو!`, 'male');
+        // Silent button activation
       }
     } catch (err) {
       console.error('Publish error:', err);
@@ -640,7 +640,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       const d = await res.json();
       if (d && d.id) {
         setActiveDeckTab('ad_launcher');
-        playShadowVoice(`تم إطلاق حملة كليك تو واتساب بنجاح بميزانية 2000 جنيه يا ماستر!`, 'male');
+        // Silent button activation
       }
     } catch (err) {
       console.error('Campaign launch error:', err);
@@ -704,7 +704,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     const targetId = brandId || currentSelectedBrand.id;
     setIsBuildingStrategy(true);
     setActiveDeckTab('studio_calendar');
-    playShadowVoice(`فوراً يا ماستر تيتو، جاري بناء الاستراتيجية التسويقية الكاملة لبراند ${currentSelectedBrand.name} في تيتو ستوديو...`, 'male');
+    // Silent button activation
     try {
       const res = await fetch('/api/studio/strategy', {
         method: 'POST',
@@ -718,7 +718,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           setAllBrandsList(prev => prev.map(b => (b.id === d.brand.id ? d.brand : b)));
         }
         toast.success(`تم بناء الاستراتيجية التسويقية لـ ${currentSelectedBrand.name} في تيتو ستوديو!`);
-        playShadowVoice(`تم إعداد الاستراتيجية التسويقية لبراند ${currentSelectedBrand.name} وحفظها في تيتو ستوديو وأوبسيديان يا ماستر! قدامك ركائز المحتوى التلاتة، تحب نولد محتوى أول أسبوع دلوقتي؟`, 'male');
+        // Silent button activation
       }
     } catch (e) {
       toast.error('تعذر توليد الاستراتيجية');
@@ -731,7 +731,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     const targetId = brandId || currentSelectedBrand.id;
     setIsGeneratingWeekPlan(true);
     setActiveDeckTab('studio_calendar');
-    playShadowVoice(`أمرك يا ماستر، جاري توليد محتوى أول أسبوع في تيتو ستوديو: بنصمم بوستات الصور ونبعت أوامر الفيديو لجسر تيربو فلو وجوجل فلو!`, 'male');
+    // Silent button activation
     try {
       const res = await fetch('/api/studio/generate-week-plan', {
         method: 'POST',
@@ -754,7 +754,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         }
         fetchObsidianVault();
         toast.success(`تم توليد 7 منشورات (صور تيتو ستوديو + فيديوهات Turbo Flow)!`);
-        playShadowVoice(d.message || `تم توليد خطة محتوى أول أسبوع بالكامل وحفظها في تقويم تيتو ستوديو يا ماستر! تقدر تستعرض أي بوست أو تقولي اعتمد الجدولة.`, 'male');
+        // Silent button activation
       }
     } catch (e) {
       toast.error('تعذر توليد خطة الأسبوع');
@@ -779,7 +779,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         }
         fetchObsidianVault();
         toast.success(`تم اعتماد جدولة الأسبوع (${d.approvedCount || 7} منشورات) في تيتو ستوديو!`);
-        playShadowVoice(d.message || `تم اعتماد جدولة خطة المحتوى بالكامل في تيتو ستوديو للنشر التلقائي في أوقات الذروة يا ماستر!`, 'male');
+        // Silent button activation
       }
     } catch (e) {
       toast.error('تعذر اعتماد الجدولة');
@@ -804,7 +804,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       if (d.ok && d.paymentUrl) {
         window.open(d.paymentUrl, '_blank');
         toast.success(`تم فتح بوابة الدفع الآلي Paymob لتفعيل الاشتراك!`);
-        playShadowVoice(`تم فتح بوابة الدفع الآلي عبر موب باي لتفعيل اشتراك براند ${currentSelectedBrand.name} تلقائياً فور الدفع!`, 'male');
+        // Silent button activation
       }
     } catch {
       toast.error('تعذر فتح بوابة Paymob');
@@ -834,7 +834,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       return;
     }
     setIsCloningBrand(true);
-    playShadowVoice(`جاري بناء وتوليد متجر وتطبيق متكامل لـ ${name} فوراً يا ماستر!`, 'male');
+    // Silent button activation
     try {
       const res = await fetch('/api/cloner/clone', {
         method: 'POST',
@@ -846,7 +846,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setAllBrandsList(prev => [d.brand, ...prev]);
         setSelectedBrandId(d.brand.id);
         toast.success(`تم بناء تطبيق ومتجر ${d.brand.name} بنجاح!`);
-        playShadowVoice(`ألف مبروك يا ماستر، تم بناء متجر وتطبيق ${d.brand.name} وكتالوجه جاهز للربط والتشغيل!`, 'male');
+        // Silent button activation
         setCloneInputName('');
         setCloneInputCategory('');
       } else {
@@ -861,7 +861,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   };
 
   const isMobile = typeof window !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''));
-  const isContinuousLiveRef = useRef<boolean>(!isMobile);
+  const isContinuousLiveRef = useRef<boolean>(false);
   const isPlayingVoiceRef = useRef<boolean>(false);
   const isThinkingRef = useRef<boolean>(false);
 
@@ -894,17 +894,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setTranscript(text);
       };
 
-      recognition.onerror = (e: any) => {
+      recognition.onerror = () => {
         setIsListening(false);
-        if (!isMobile && isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
-          if (e.error === 'no-speech' || e.error === 'network') {
-            setTimeout(() => {
-              if (!isMobile && isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
-                startListeningLoop();
-              }
-            }, 800);
-          }
-        }
       };
 
       recognition.onend = () => {
@@ -912,12 +903,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         const finalRecorded = transcriptRef.current;
         if (finalRecorded && finalRecorded !== 'استمع إليك يا ماستر.. اتفضل' && finalRecorded.trim().length > 0) {
           handleSendLiveCommand(finalRecorded);
-        } else if (!isMobile && isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
-          setTimeout(() => {
-            if (!isMobile && isContinuousLiveRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
-              startListeningLoop();
-            }
-          }, 500);
         }
       };
 
@@ -955,28 +940,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     playShadowVoice(text, 'male', undefined, () => {
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
-      // Auto-resume continuous listening without pressing any buttons!
-      if (!isMobile && isContinuousLiveRef.current) {
-        setTimeout(startListeningLoop, 400);
-      }
     });
   };
 
-  // Two-Way Live Speech Recognition Trigger (Toggle Continuous Duplex Live Mode)
+  // Two-Way Live Speech Recognition Trigger (On-Demand Push/Tap-to-Talk)
   const handleToggleListening = () => {
-    if (isMobile) {
-      if (isListening) {
-        if (recognitionRef.current) {
-          try { recognitionRef.current.stop(); } catch {}
-        }
-        setIsListening(false);
-      } else {
-        startListeningLoop();
-      }
-      return;
-    }
-    if (isListening || isContinuousLiveRef.current) {
-      isContinuousLiveRef.current = false;
+    if (isListening) {
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
       }
@@ -985,13 +954,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
     } else {
-      isContinuousLiveRef.current = true;
+      stopVoice();
+      setIsPlayingVoice(false);
+      isPlayingVoiceRef.current = false;
       startListeningLoop();
     }
   };
 
   // Autonomous Marketing Agency Operator: 1-Month Plan (4 Weeks / 12 Posts) + Firestore Sync + First Post Spotlight
-  const handleExecuteAutonomousAgency = async (brandId?: string) => {
+  const handleExecuteAutonomousAgency = async (brandId?: string, isVoiceTriggered: boolean = false) => {
     const targetBrandId = brandId || currentSelectedBrand.id || 'tito_media';
     const targetBrand = allBrandsList.find(b => b.id === targetBrandId) || currentSelectedBrand;
     
@@ -1027,9 +998,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         toast.success(`تم إنجاز خطة الشهر وجدولة ${data.scheduledCount || 11} منشور لـ ${targetBrand.name}!`);
         appendLiveLog(`[AUTONOMOUS_AGENCY]: تم إنشاء خطة 4 أسابيع (12 بوست)، وجدولة ${data.scheduledCount || 11} بوست في فايربيس.`);
 
-        const voiceMsg = `يا ماستر تيتو، حللت هوية براند ${targetBrand.name}، وعملت خطة شهر كامل من 12 منشور على 4 محاور (أحد وثلاثاء وخميس). جدولنا 11 منشور في تيتو ستوديو فايربيس، والبوست الأول جاهز قدامك للمراجعة والاعتماد الفوري لميتا!`;
-        setTranscript(voiceMsg);
-        playShadowVoice(voiceMsg, 'male');
+        if (isVoiceTriggered) {
+          const voiceMsg = `يا ماستر تيتو، حللت هوية براند ${targetBrand.name}، وعملت خطة شهر كامل من 12 منشور على 4 محاور (أحد وثلاثاء وخميس). جدولنا 11 منشور في تيتو ستوديو فايربيس، والبوست الأول جاهز قدامك للمراجعة والاعتماد الفوري لميتا!`;
+          setTranscript(voiceMsg);
+          playShadowVoice(voiceMsg, 'male');
+        }
       } else {
         toast.error(data.error || 'تعذر استكمال دورة الوكالة الآلية');
       }
@@ -1061,7 +1034,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     if (!isNegated && /وكالة التسويق|الوكالة الآلية|مشغل الوكالة|خطة شهر|خطة الشهر|خطة شهر كامل|وكالة التسويق الآلي/i.test(commandText)) {
       setIsThinking(false);
       isThinkingRef.current = false;
-      await handleExecuteAutonomousAgency(matchedBrand.id);
+      await handleExecuteAutonomousAgency(matchedBrand.id, true);
       return;
     }
     if (!isNegated && /استراتيجي|إستراتيجي|خطة تسويق|خطه تسويق/i.test(commandText)) {
@@ -1140,10 +1113,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         const onSpeechEnd = () => {
           setIsPlayingVoice(false);
           isPlayingVoiceRef.current = false;
-          // Hands-free continuous duplex: automatically listen again on desktop ONLY!
-          if (!isMobile && isContinuousLiveRef.current) {
-            setTimeout(startListeningLoop, 400);
-          }
         };
 
         // Play authentic Egyptian Gemini Human voice reply
