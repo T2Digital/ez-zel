@@ -1197,6 +1197,65 @@ export async function executeRealJarvisEcosystemAction(payload: {
             };
         }
 
+        case 'CREATE_CUSTOM_STUDIO_POST': {
+            const allBrands = getUnifiedGrowthBrands();
+            const targetBrand = allBrands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || allBrands[0];
+            if (!targetBrand) {
+                return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
+            }
+
+            const topic = data.topic || 'عرض خاص وحصري';
+            const scheduleTime = data.scheduleTime || '8:00 مساءً';
+            const mediaFormat = data.mediaFormat || 'image';
+            const publishNow = !!data.publishNow;
+
+            const isVideo = mediaFormat === 'video';
+            const hook = `🔥 جديد وحصري من ${targetBrand.name}: ${topic}!`;
+            const caption = `${hook}\n\nاحجز الآن مباشرة واستفد من الخصم الاستثنائي للحجز المسبق وعربون 25% مع إمكانية الدفع عبر إنستاباي وفودافون كاش.\nتواصل واتساب فوراً: ${targetBrand.phone || '01013373634'}\nأو احجز من التطبيق: /store/${targetBrand.slug || targetBrand.id}`;
+
+            const docId = `custom_post_${Date.now()}`;
+            const postItem: any = {
+                id: docId,
+                day: 'مخصص',
+                mediaFormat,
+                contentType: isVideo ? 'فيديو ريلز وتيك توك (9:16)' : 'تصميم Feed (1:1)',
+                hook,
+                caption,
+                bestTime: scheduleTime,
+                status: publishNow ? 'published' : 'scheduled',
+                ctaType: 'WHATSAPP_VOICE_AGENT',
+                ctaBadge: '💬 تواصل واتساب فوري (رد صوتي ذكي)',
+                ctaTargetUrl: `https://wa.me/2${(targetBrand.phone || '01013373634').replace(/^0/, '')}`
+            };
+
+            if (!Array.isArray(targetBrand.weekContentPlan)) {
+                targetBrand.weekContentPlan = [];
+            }
+            targetBrand.weekContentPlan.unshift(postItem);
+            saveCustomBrandOverride(targetBrand);
+
+            // Sync to Tito Studio Firestore
+            await syncWeekPlanToTitoStudioFirestore(targetBrand, [postItem]);
+
+            let publishResult: any = null;
+            if (publishNow) {
+                publishResult = await publishBrandPost(targetBrand.id, 0);
+            }
+
+            syncAndBuildObsidianVault();
+
+            return {
+                success: true,
+                brand: targetBrand,
+                post: postItem,
+                publishedNow: publishNow,
+                publishResult,
+                message: publishNow
+                    ? `🚀 تم فتح براند (${targetBrand.name}) وتوليد منشور عن (${topic}) ونشره فوراً عبر تيتو ستوديو وميتا جراف!`
+                    : `📅 تم فتح براند (${targetBrand.name}) وتوليد منشور عن (${topic}) وجدولته في تيتو ستوديو لموعد (${scheduleTime}) بنجاح!`
+            };
+        }
+
         case 'PUBLISH_STUDIO_POST': {
             const res = await publishBrandPost(brandId, data.postIndex || 0);
             const allBrands = getUnifiedGrowthBrands();

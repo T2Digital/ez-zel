@@ -1521,6 +1521,25 @@ export const processToolActions = async (
                               description: d.message || `تم نشر المنشور بنجاح على صفحات البراند المرتبطة.`
                           });
                           window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'publish_post', data: d } }));
+                      } else if (action === 'create_custom_post') {
+                          const res = await fetch('/api/studio/custom-post', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                  brandId: brandName,
+                                  topic: args.topic || 'منشور إعلاني مخصص',
+                                  scheduleTime: args.schedule_time || '8:00 مساءً',
+                                  mediaFormat: args.media_format || 'image',
+                                  publishNow: !!args.publish_now
+                              })
+                          });
+                          const d = await res.json();
+                          uiCards.push({
+                              cardType: 'task_success',
+                              title: args.publish_now ? `🚀 تم النشر الفوري في تيتو ستوديو وميتا: ${d.brand?.name || brandName}` : `📅 تم إنشاء وجدولة المنشور في تيتو ستوديو: ${d.brand?.name || brandName}`,
+                              description: `${d.message || ''}\n\n📌 موضوع المنشور: "${args.topic || 'عرض خاص'}"\n⏰ موعد النشر: ${args.schedule_time || (args.publish_now ? 'فوري' : '8:00 مساءً')}\n📱 نوع المنشور: ${args.media_format === 'video' ? '🎬 فيديو ريلز وتيك توك (9:16)' : '🖼️ تصميم Feed (1:1)'}\n\n✅ تم المزامنة تلقائياً مع Firestore سحابة تيتو ستوديو وتقويم المحتوى!`
+                          });
+                          window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'custom_post', data: d } }));
                       }
                   } catch (err: any) {
                       uiCards.push({

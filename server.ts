@@ -504,6 +504,25 @@ async function startServer() {
       }
   });
 
+  app.post("/api/studio/custom-post", async (req, res) => {
+      try {
+          const { brandId, topic, scheduleTime, mediaFormat, publishNow } = req.body || {};
+          const result = await executeRealJarvisEcosystemAction({
+              actionType: 'CREATE_CUSTOM_STUDIO_POST',
+              brandId: brandId || 'clean_master',
+              data: {
+                  topic: topic || 'منشور إعلاني مخصص',
+                  scheduleTime: scheduleTime || '8:00 مساءً',
+                  mediaFormat: mediaFormat || 'image',
+                  publishNow: !!publishNow
+              }
+          });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ success: false, error: err?.message });
+      }
+  });
+
   // --- TURBO FLOW × GOOGLE FLOW CHROME EXTENSION BRIDGE API --- //
   app.get("/api/studio/turbo-flow/queue", (req, res) => {
       try {
