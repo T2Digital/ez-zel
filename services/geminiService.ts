@@ -29,8 +29,8 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
     // Dynamic Tool Loading: Filter tools based on active persona if specified
     if (activePersona) {
         const personaToolsMap: Record<string, string[]> = {
-            'client': ['brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator'],
-            'growth': ['brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator', 'content_machine_orchestrator', 'marketer_shadow', 'trend_hunter_ai', 'lead_generator_hunter'],
+            'client': ['brand_social_launch_kit', 'brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator'],
+            'growth': ['brand_social_launch_kit', 'brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator', 'content_machine_orchestrator', 'marketer_shadow', 'trend_hunter_ai', 'lead_generator_hunter'],
             'trader': ['crypto_trader', 'live_trader_chart', 'data_analyst', 'run_autonomous_agent'],
             'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin', 'run_autonomous_agent', 'zip_project_manager', 'live_app_integrator', 'external_webhook', 'read_system_source_code'],
             'manager': ['project_manager', 'activate_user_account', 'workspace_manager', 'run_autonomous_agent'],

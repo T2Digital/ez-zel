@@ -1556,6 +1556,52 @@ export const processToolActions = async (
                       });
                   }
               }
+              else if (t.name === 'brand_social_launch_kit') {
+                  const args = t.args;
+                  uiCards.push({
+                      cardType: 'system_terminal',
+                      content: `جاري تأسيس هوية البراند وتجهيز صفحات فيسبوك وإنستجرام وتيك توك لـ "${args.brand_name}"...`
+                  });
+
+                  try {
+                      const res = await fetch('/api/branding/forge', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                              brandName: args.brand_name,
+                              category: args.category,
+                              phone: args.phone,
+                              isNewBusiness: args.is_new_business
+                          })
+                      });
+                      const data = await res.json();
+                      if (data.success && data.kit) {
+                          const kit = data.kit;
+                          await fetch('/api/branding/save', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ kit, phone: args.phone, whatsapp: args.phone })
+                          });
+
+                          uiCards.push({
+                              cardType: 'task_success',
+                              title: `✨ تم تأسيس حقيبة البراند وتجهيز الصفحات: ${kit.brandName}`,
+                              description: `الشعار: "${kit.slogan}"\nالألوان: ${kit.colors?.primary} / ${kit.colors?.accent}\n\n📘 فيسبوك: ${kit.socialKits?.facebook?.title}\n📸 إنستجرام: ${kit.socialKits?.instagram?.title}\n🎵 تيك توك: ${kit.socialKits?.tiktok?.title}\n\n📅 أسبوع التجربة المجانية (3 منشورات: السبت تصميم، الإثنين فيديو، الأربعاء عرض خاص) جاهزة في التقويم!`
+                          });
+
+                          const hiddenPrompt = `[BRAND_SOCIAL_LAUNCH_KIT_GENERATED]\n${JSON.stringify(kit, null, 2)}\n\n[INSTRUCTION]: بارك للعميل بأسلوب راقٍ ومحفز باللهجة المصرية، واعرض عليه تفاصيل الهوية والبايو لكل منصة (فيسبوك، إنستجرام، وتيك توك) وخطة المنشورات الـ 3 المجانية، وشجعه على بدء توليد أول تصميم في تيتو ستوديو أو ربط الواتساب فوراً.`;
+                          setTimeout(() => handleSend(hiddenPrompt, undefined, undefined, true), 100);
+                      } else {
+                          throw new Error(data.error || 'تعذر توليد حقيبة البراند');
+                      }
+                  } catch (err: any) {
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: 'تنبيه محرك البراندينج',
+                          description: err?.message || 'تعذر استكمال تأسيس الصفحات'
+                      });
+                  }
+              }
               else {
                   const dynamicPlugins = await shadowDB.getPluginsByUserId(currentUser.email || 'GUEST');
                   const activePlugin = dynamicPlugins.find(p => p.name === t.name || `dyn_plugin_${p.id}` === t.name);

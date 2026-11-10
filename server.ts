@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
@@ -20,6 +20,7 @@ import { syncAndBuildObsidianVault, getObsidianNodeMarkdown, saveObsidianNodeMar
 import { readTurboFlowQueue, enqueueTurboFlowVideoJob, completeTurboFlowVideoJob, readTitoStudioCacheSync } from "./services/titoStudioFirestoreBridge";
 import { PAYMOB_PLANS, createPaymobCheckoutSession, verifyPaymobWebhookHmac, readPaymobSubscriptions, savePaymobSubscriptionRecord } from "./services/paymobService";
 import { readBookings, broadcastGatewayEvent } from "./services/microservicesGateway";
+import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./services/brandingForgeService";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -2468,7 +2469,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 🏢 البراندات المتزامنة: ${stats.totalVaultBrandsCount} براند تحت إدارتك.
 💬 إجمالي المحادثات المعالجة: ${stats.totalHandledMessages} محادثة ذكية.
 💰 الحجوزات المؤكدة بالـ CRM: ${stats.confirmedBookingsCount} حجز بإجمالي ${stats.realConfirmedRevenueEgp} ج.م.
-🤖 حالة الأسطول: كلين ماستر (297) وسيل جيت (61) في أقصى كفاءة رد بدون انقطاع.
+🤖 حالة الأسطول: ${stats.totalHandledMessages || 0} رسالة تم معالجتها ومتابعتها بكفاءة بدون انقطاع.
 ━━━━━━━━━━━━━━━━━━━━
 النظام السيادي مستقر 100% وجاهز لأي أوامر تنفيذية يا ماستر تيتو.`;
 
@@ -2489,6 +2490,45 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
+  // --- BRANDING FORGE & SOCIAL LAUNCH KIT API ---
+  app.post("/api/branding/forge", async (req, res) => {
+      try {
+          const { brandName, category, targetAudience, phone, isNewBusiness, currentAssets } = req.body;
+          if (!brandName) return res.status(400).json({ error: "اسم البراند أو المشروع مطلوب" });
+
+          const kit = await generateBrandingAndSocialKit({
+              brandName,
+              category,
+              targetAudience,
+              phone,
+              isNewBusiness,
+              currentAssets
+          });
+
+          res.json({ success: true, kit });
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message || "فشل توليد حقيبة البراندينج" });
+      }
+  });
+
+  app.post("/api/branding/save", async (req, res) => {
+      try {
+          const { kit, phone, whatsapp } = req.body;
+          if (!kit || !kit.brandId) return res.status(400).json({ error: "بيانات البراند غير مكتملة" });
+
+          const savedBrand = saveBrandedClientToVault(kit, { phone, whatsapp });
+          broadcastGatewayEvent('BRAND_CREATED', {
+              brandId: savedBrand.id,
+              name: savedBrand.name,
+              category: savedBrand.businessType
+          });
+
+          res.json({ success: true, brand: savedBrand });
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message || "فشل حفظ البراند في الخزنة" });
+      }
+  });
+
   // --- TWO-WAY LIVE VOICE CONVERSATION WITH JARVIS (SUPPORTS VISITOR, CLIENT CEO, AND MASTER TITO) ---
   app.post("/api/system/jarvis-conversation", async (req, res) => {
       try {
@@ -2504,13 +2544,16 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
           let personaRoleInstruction = '';
           if (persona === 'visitor') {
-              personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد" (Visitor) يستكشف منظومة النمو الشامل للأعمال (T2 Unified Growth OS).
-دورك معه: مهندس أعمال واستشاري نمو تنفيذي ودود وذكي جداً باللهجة المصرية الطبيعية.
-اشرح له باختصار شديد أو نفذ له فوراً:
-- أننا نستنسخ له تطبيق ويب وموبايل (PWA) خاص بنشاطه بكتالوج خدماته في ثوانٍ.
-- ونربط له رقم واتساب وصفحة فيسبوك/إنستجرام بـ T2 Agent للرد الفوري 24/7 وتأكيد الحجوزات.
-- ونشغل له خطة محتوى تيتو ستوديو لمدة 7 أيام مجاناً بالكامل كتجربة عملية!
-شجعه يكتب اسم نشاطه أو يفتح نافذة ربط واتساب وميتا من الشاشة قدامه فوراً.`;
+              personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط" (Visitor) يستكشف منظومة النمو الشامل للأعمال (T2 Unified Growth OS).
+دورك معه: أنت "جارفيس"، كبير مستشاري الأعمال والنمو الرقمي بالمنظومة. تتحدث باللهجة المصرية الطبيعية الذكية والودودة.
+قاعدة صارمة ومطلقة: ممنوع نهائياً استخدام كلمة "استنساخ" أو "مستنسخ"، واستبدلها دائماً بكلمات: "تأسيس، إطلاق، بناء، تجهيز، تفعيل".
+
+خطتك التفاعلية مع الزائر تسير في حوار استشاري تشخيصي معمق ومحترف (Consultative Business Diagnostic):
+1. اسأله وحلل موقفه التجاري أولاً بذكاء: هل عنده بيزنس قائم بالفعل وشغال وفيه عملاء ومبيعات؟ ولا دي فكرة جديدة بيبدأها من الصفر؟
+2. إذا كان بيزنس قائم: اسأله هل عنده موقع إلكتروني أو تطبيق؟ وهل عنده صفحات سوشيال ميديا (فيسبوك، إنستجرام، وتيك توك) ولا الاعتماد الأساسي على الواتساب؟
+3. إذا كان يبدأ من الصفر أو بيزنس محتاج تطوير: وضّح له أن المنظومة توفر له "محرك البراندينج وتجهيز صفحات السوشيال ميديا" لتأسيس الاسم، الشعار، الألوان، برومبت اللوجو، وبايو احترافي لكل من (فيسبوك، إنستجرام، وتيك توك) متوافق مع محركات البحث.
+4. اعرض عليه أسبوع التجربة المجانية الفعلي: خطة مركزة من 3 منشورات حقيقية (يوم ويوم: السبت بوست تصميم عالي الجودة، الإثنين فيديو ريلز/تيك توك إعلاني سينمائي، والأربعاء بوست عرض خاص وحجز فوري) مع تشغيل وكيل مبيعات واتساب 24/7.
+تفاعل معه بذكاء خطوة بخطوة، وشجعه يكتب اسم نشاطه لتجهيز الخطة فوراً قدامه على الشاشة.`;
           } else if (persona === 'trial' || persona === 'client') {
               personaRoleInstruction = `المتحدث معك الآن هو "المشترك / صاحب البراند" (${activeBrand?.name || 'براند العميل'}) في وضع المدير التنفيذي (Executive Brand CEO & Smart Secretary).
 دورك معه: أنت المدير التنفيذي المخضرم والسكرتير الذكي المسؤول عن إدارة برانده (${activeBrand?.name}) بالكامل:

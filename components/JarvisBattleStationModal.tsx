@@ -79,6 +79,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   // Modals for Real CRM Details and Meta Readiness
   const [isCrmModalOpen, setIsCrmModalOpen] = useState(false);
   const [isMetaReadinessOpen, setIsMetaReadinessOpen] = useState(false);
+  const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
+  const [isGeneratingBranding, setIsGeneratingBranding] = useState(false);
+  const [generatedBrandingKit, setGeneratedBrandingKit] = useState<any>(null);
+  const [brandingForm, setBrandingForm] = useState({
+    brandName: '',
+    category: 'عيادات ومراكز طبية',
+    targetAudience: 'العملاء في مصر والخليج',
+    phone: '01013372674',
+    isNewBusiness: true,
+    hasWebsite: false,
+    hasSocialPages: false,
+    hasLogo: false
+  });
 
   // Real Live Ecosystem Event Stream (Zero Fake Simulation Logs)
   const [cyberLogs, setCyberLogs] = useState<string[]>([
@@ -638,6 +651,51 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [activeBrandStrategy, setActiveBrandStrategy] = useState<any>(null);
   const [turboFlowVideoUrlInput, setTurboFlowVideoUrlInput] = useState('');
 
+  const handleGenerateBrandingKit = async () => {
+    if (!brandingForm.brandName.trim()) {
+      toast.error('من فضلك اكتب اسم النشاط أو البراند');
+      return;
+    }
+    setIsGeneratingBranding(true);
+    playShadowVoice(`جاري تشغيل محرك البراندينج وتأسيس هوية وصفحات ${brandingForm.brandName} وإعداد خطة الـ 3 منشورات...`, 'male');
+    try {
+      const res = await fetch('/api/branding/forge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandName: brandingForm.brandName,
+          category: brandingForm.category,
+          targetAudience: brandingForm.targetAudience,
+          phone: brandingForm.phone,
+          isNewBusiness: brandingForm.isNewBusiness,
+          currentAssets: {
+            hasWebsite: brandingForm.hasWebsite,
+            hasSocialPages: brandingForm.hasSocialPages,
+            hasLogo: brandingForm.hasLogo
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.kit) {
+        setGeneratedBrandingKit(data.kit);
+        await fetch('/api/branding/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kit: data.kit, phone: brandingForm.phone, whatsapp: brandingForm.phone })
+        });
+        toast.success(`تم تأسيس هوية وحقيبة صفحات ${data.kit.brandName} بنجاح!`);
+        playShadowVoice(`ألف مبروك يا فندم! تم تأسيس هوية براند ${data.kit.brandName} بالكامل، وتجهيز صفحات فيسبوك، إنستجرام، وتيك توك مع خطة 3 منشورات للأسبوع المجاني!`, 'male');
+        fetchDatabaseStats();
+      } else {
+        toast.error(data.error || 'تعذر تأسيس البراند');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'خطأ في الاتصال بالخادم');
+    } finally {
+      setIsGeneratingBranding(false);
+    }
+  };
+
   const handleBuildStudioStrategy = async (brandId?: string) => {
     const targetId = brandId || currentSelectedBrand.id;
     setIsBuildingStrategy(true);
@@ -877,9 +935,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     let text = '';
     if (activeP === 'visitor') {
-      text = `يا هلا بيك في منظومة النمو الشامل للأعمال! أنا جارفيس، قولي عندك بيزنس شغال ولا فكرة جديدة من الصفر؟ هنبني لك متجرك وتطبيقك ونربط واتساب وميتا ونشغلك أسبوع مجاناً فوراً!`;
+      text = `يا هلا بيك في منظومة T2 ديجيتال للنمو الشامل! أنا جارفيس المستشار التنفيذي لأعمالك.. قولي عشان أحلل موقفك صح: نشاطك التجاري شغال حالياً في السوق وفيه عملاء ومبيعات؟ ولا دي فكرة جديدة بتنطلق فيها من الصفر؟`;
     } else if (activeP === 'trial') {
-      text = `أهلاً بيك يا فندم في أسبوع التجربة المجانية! أنا معاك كمدير تنفيذي لبراندك، متجرك شغال والواتساب مربوط.. تحب نولد استراتيجية ومحتوى أول أسبوع في تيتو ستوديو دلوقتي؟`;
+      text = `أهلاً بيك يا فندم في أسبوع التجربة المجانية لـ ${currentSelectedBrand.name}! خطتك من 3 منشورات حقيقية (يوم ويوم: السبت، الإثنين، والأربعاء) جاهزة، والوكيل الذكي متصل بيرد 24 ساعة.. تحب نولد أول تصميم في تيتو ستوديو دلوقتي؟`;
     } else if (activeP === 'client') {
       text = `نورت كابينة قيادة براندك يا شريك النجاح! أنا معاك كمدير تنفيذي وسكرتير ذكي لمتابعة المحتوى والواتساب والحجوزات لحظة بلحظة.. تحب ننفذ إيه دلوقتي؟`;
     } else {
@@ -1752,7 +1810,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </div>
 
                     {/* Direct Real-Action Controls for the Client's Brand */}
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        onClick={() => {
+                          setBrandingForm(prev => ({ ...prev, brandName: currentSelectedBrand.name, category: currentSelectedBrand.businessType }));
+                          setIsBrandingModalOpen(true);
+                        }}
+                        className="py-1.5 px-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-400/40 text-cyan-300 text-[10px] font-bold flex items-center justify-center gap-1 transition shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+                      >
+                        <Sparkles className="w-3 h-3 text-cyan-400" />
+                        <span>الهوية والسوشيال</span>
+                      </button>
+
                       <button
                         onClick={() => handleOpenWhatsAppConnectModal()}
                         className="py-1.5 px-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
@@ -3878,6 +3947,243 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* BRANDING FORGE & SOCIAL PAGES LAUNCH KIT MODAL */}
+      {isBrandingModalOpen && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in font-['Cairo']" dir="rtl">
+          <div className="w-full max-w-2xl bg-[#03091e] border-2 border-cyan-400/50 rounded-3xl p-4 sm:p-6 shadow-[0_0_80px_rgba(6,182,212,0.35)] space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-cyan-500/30">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+                  <Sparkles className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                    محرك البراندينج وتجهيز صفحات السوشيال ميديا
+                    <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 px-2 py-0.5 rounded-full font-mono">
+                      FB • IG • TIKTOK
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-cyan-200/60">
+                    تأسيس هوية البراند بالكامل، الألوان، اللوجو، بايو السوشيال المعتمد، وخطة الـ 3 منشورات للأسبوع المجاني
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsBrandingModalOpen(false)}
+                className="p-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Input Form */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-right">
+              <div>
+                <label className="text-[11px] text-white/70 block mb-1 font-bold">اسم النشاط أو البراند:</label>
+                <input
+                  type="text"
+                  value={brandingForm.brandName}
+                  onChange={(e) => setBrandingForm({ ...brandingForm, brandName: e.target.value })}
+                  placeholder="مثال: عيادات دايموند سمايل أو رويال كارز"
+                  className="w-full bg-black/60 border border-cyan-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-white/70 block mb-1 font-bold">مجال وتصنيف النشاط:</label>
+                <select
+                  value={brandingForm.category}
+                  onChange={(e) => setBrandingForm({ ...brandingForm, category: e.target.value })}
+                  className="w-full bg-black/60 border border-cyan-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="عيادات ومراكز طبية">عيادات ومراكز طبية</option>
+                  <option value="عقارات وتطوير ومقاولات">عقارات وتطوير ومقاولات</option>
+                  <option value="خدمات ونظافة وصيانة">خدمات ونظافة وصيانة</option>
+                  <option value="تأجير وليموزين سيارات">تأجير وليموزين سيارات</option>
+                  <option value="تجارة إلكترونية وأزياء">تجارة إلكترونية وأزياء</option>
+                  <option value="مطاعم وكافيهات وأغذية">مطاعم وكافيهات وأغذية</option>
+                  <option value="شحن وخدمات لوجستية">شحن وخدمات لوجستية</option>
+                  <option value="أخرى">نشاط تجاري عام</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-white/70 block mb-1 font-bold">رقم واتساب المبيعات والحجوزات:</label>
+                <input
+                  type="tel"
+                  value={brandingForm.phone}
+                  onChange={(e) => setBrandingForm({ ...brandingForm, phone: e.target.value })}
+                  placeholder="01013372674"
+                  className="w-full bg-black/60 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-white/70 block mb-1 font-bold">حالة المشروع الحالي:</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBrandingForm({ ...brandingForm, isNewBusiness: false })}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${
+                      !brandingForm.isNewBusiness
+                        ? 'bg-cyan-500/25 border-cyan-400 text-white'
+                        : 'bg-black/40 border-white/10 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    نشاط قائم وشغال
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBrandingForm({ ...brandingForm, isNewBusiness: true })}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${
+                      brandingForm.isNewBusiness
+                        ? 'bg-cyan-500/25 border-cyan-400 text-white'
+                        : 'bg-black/40 border-white/10 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    فكرة جديدة من الصفر
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Button: Generate Kit */}
+            <button
+              onClick={handleGenerateBrandingKit}
+              disabled={isGeneratingBranding}
+              className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-blue-500 text-black font-black text-xs shadow-lg shadow-cyan-500/30 transition flex items-center justify-center gap-2"
+            >
+              {isGeneratingBranding ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                  <span>جاري تأسيس الهوية وحقيبة صفحات السوشيال...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-black" />
+                  <span>⚡ تأسيس هوية البراند وحقيبة صفحات السوشيال (فيسبوك، إنستا، تيك توك)</span>
+                </>
+              )}
+            </button>
+
+            {/* Generated Kit Display */}
+            {generatedBrandingKit && (
+              <div className="space-y-3 pt-2 border-t border-cyan-500/20 text-right animate-in fade-in">
+                {/* Brand Identity Summary Banner */}
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-cyan-950/60 to-black/80 border border-cyan-400/40 flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black text-white">{generatedBrandingKit.brandName}</span>
+                      <span className="text-[10px] font-mono text-cyan-300">({generatedBrandingKit.englishName})</span>
+                    </div>
+                    <p className="text-[11px] text-amber-300 font-bold mt-0.5">"{generatedBrandingKit.slogan}"</p>
+                    <p className="text-[10px] text-white/60 mt-0.5">{generatedBrandingKit.essence}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-white/60">ألوان الهوية:</span>
+                    <span className="w-5 h-5 rounded-full border border-white/40" style={{ backgroundColor: generatedBrandingKit.colors?.primary }} title="اللون الأساسي" />
+                    <span className="w-5 h-5 rounded-full border border-white/40" style={{ backgroundColor: generatedBrandingKit.colors?.secondary }} title="اللون الثانوي" />
+                    <span className="w-5 h-5 rounded-full border border-white/40" style={{ backgroundColor: generatedBrandingKit.colors?.accent }} title="لون الإجراء" />
+                  </div>
+                </div>
+
+                {/* 3 Social Media Profile Kits (Facebook, Instagram, TikTok) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-right">
+                  {/* Facebook Page Kit */}
+                  <div className="p-3 rounded-2xl bg-[#030d22] border border-blue-500/40 flex flex-col justify-between gap-2">
+                    <div>
+                      <div className="flex items-center justify-between text-blue-400 font-bold text-xs pb-1 border-b border-blue-500/20">
+                        <span className="flex items-center gap-1">📘 فيسبوك (Facebook Page)</span>
+                      </div>
+                      <p className="text-xs font-bold text-white mt-1.5">{generatedBrandingKit.socialKits?.facebook?.title}</p>
+                      <p className="text-[10px] text-white/70 mt-1 whitespace-pre-line leading-relaxed">
+                        {generatedBrandingKit.socialKits?.facebook?.bio}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${generatedBrandingKit.socialKits?.facebook?.title}\n\n${generatedBrandingKit.socialKits?.facebook?.bio}`);
+                        toast.success('تم نسخ بيانات صفحة فيسبوك');
+                      }}
+                      className="w-full py-1 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 text-[10px] font-bold transition flex items-center justify-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>نسخ بايو فيسبوك</span>
+                    </button>
+                  </div>
+
+                  {/* Instagram Profile Kit */}
+                  <div className="p-3 rounded-2xl bg-[#17051a] border border-fuchsia-500/40 flex flex-col justify-between gap-2">
+                    <div>
+                      <div className="flex items-center justify-between text-fuchsia-400 font-bold text-xs pb-1 border-b border-fuchsia-500/20">
+                        <span className="flex items-center gap-1">📸 إنستجرام (Instagram Profile)</span>
+                      </div>
+                      <p className="text-xs font-bold text-white mt-1.5">{generatedBrandingKit.socialKits?.instagram?.title}</p>
+                      <p className="text-[10px] text-white/70 mt-1 whitespace-pre-line leading-relaxed font-sans">
+                        {generatedBrandingKit.socialKits?.instagram?.bio}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedBrandingKit.socialKits?.instagram?.bio);
+                        toast.success('تم نسخ بايو إنستجرام');
+                      }}
+                      className="w-full py-1 rounded-xl bg-fuchsia-500/15 hover:bg-fuchsia-500/25 text-fuchsia-300 border border-fuchsia-500/30 text-[10px] font-bold transition flex items-center justify-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>نسخ بايو إنستجرام</span>
+                    </button>
+                  </div>
+
+                  {/* TikTok Channel Kit */}
+                  <div className="p-3 rounded-2xl bg-[#02131b] border border-cyan-500/40 flex flex-col justify-between gap-2">
+                    <div>
+                      <div className="flex items-center justify-between text-cyan-400 font-bold text-xs pb-1 border-b border-cyan-500/20">
+                        <span className="flex items-center gap-1">🎵 تيك توك (TikTok Kit)</span>
+                      </div>
+                      <p className="text-xs font-bold text-white mt-1.5">{generatedBrandingKit.socialKits?.tiktok?.title}</p>
+                      <p className="text-[10px] text-white/70 mt-1 whitespace-pre-line leading-relaxed">
+                        {generatedBrandingKit.socialKits?.tiktok?.bio}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedBrandingKit.socialKits?.tiktok?.bio);
+                        toast.success('تم نسخ بايو تيك توك');
+                      }}
+                      className="w-full py-1 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold transition flex items-center justify-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>نسخ بايو تيك توك</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3-Post Day-On-Day Trial Plan (السبت، الإثنين، الأربعاء) */}
+                <div className="p-3 rounded-2xl bg-black/60 border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                    <span>📅 خطة أسبوع التجربة المجانية (3 منشورات يوم ويوم):</span>
+                    <span className="text-[10px] font-mono text-emerald-400">جاهزة في تقويم تيتو ستوديو</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {(generatedBrandingKit.trialContentPlan || []).map((post: any, idx: number) => (
+                      <div key={idx} className="p-2 rounded-xl bg-white/5 border border-white/10 text-right space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          <span className="text-amber-400">{post.day}</span>
+                          <span className="text-cyan-300 font-mono text-[9px]">{post.formatName}</span>
+                        </div>
+                        <p className="text-[10px] font-bold text-white line-clamp-1">{post.hook}</p>
+                        <p className="text-[9px] text-white/60 line-clamp-2">{post.caption}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

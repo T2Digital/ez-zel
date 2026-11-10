@@ -43,6 +43,41 @@ export interface BrandConfig {
 }
 
 export const BRAND_VAULT: Record<string, BrandConfig> = {
+  "t2_digital_os": {
+    "id": "t2_digital_os",
+    "studioId": "1",
+    "name": "منظومة الظل وتيتو ستوديو (T2 Growth OS)",
+    "englishName": "T2 Digital & Ez-Zel Shadow OS",
+    "category": "أنظمة الذكاء الاصطناعي السيادي ونمو الشركات",
+    "source": "unified",
+    "status": "شغال",
+    "conversationsCount": 184,
+    "phone": "01013372674",
+    "whatsapp": "01013372674",
+    "primaryColor": "#06b6d4",
+    "accentColor": "#3b82f6",
+    "logoUrl": "https://i.ibb.co/3s3F05Z/t2-logo.png",
+    "address": "القاهرة الجديدة • التجمع الخامس • مصر",
+    "subscriptionPlan": "الماستر السيادي (غير محدود)",
+    "catalog": {
+      "trial_week": {
+        "name": "أسبوع التجربة المجانية الشامل (3 منشورات)",
+        "price": "0 ج.م",
+        "details": "3 منشورات (يوم ويوم: بوست تصميم، فيديو ريلز، بوست حجز) + بوت واتساب متصل 24/7"
+      },
+      "starter_growth": {
+        "name": "باقة انطلاق الأعمال والنمو",
+        "price": "1500 ج.م / شهر",
+        "details": "إدارة محتوى تيتو ستوديو 12 منشور + وكيل مبيعات واتساب ذكي + ربط ميتا"
+      },
+      "agency_unlimited": {
+        "name": "باقة الشركات والمدير التنفيذي الشامل",
+        "price": "3500 ج.م / شهر",
+        "details": "أتمتة تسويقية كاملة + إنتاج فيديوهات فلو وتيربو فلو + بوت واتساب وميتا مفاوض + بوابة دفع باي موب"
+      }
+    },
+    "systemPrompt": "أنت جارفيس، المستشار التنفيذي لمنظومة T2 ديجيتال والظل السيادي، تتحدث باللهجة المصرية الطبيعية وتساعد الشركات على مضاعفة أرباحهم بأتمتة الذكاء الاصطناعي."
+  },
   "crystal_teeth": {
     "id": "crystal_teeth",
     "studioId": "2",

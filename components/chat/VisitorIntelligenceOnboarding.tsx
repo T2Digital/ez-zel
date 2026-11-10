@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   Sparkles, Building2, Rocket, Globe, Smartphone, ArrowRight, 
   CheckCircle, Play, RefreshCw, Send, DollarSign, Share2, Layers, Bot, QrCode, Link2, CheckCircle2, ExternalLink
@@ -47,7 +47,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
       playShadowVoice("على بركة الله! سيب القيادة ليا وركز إنت في البيزنس. قولي يا غالي، إيه المجال أو النشاط اللي بتفكر فيه؟", 'male');
     } else {
       setStep(4);
-      playShadowVoice("نورتنا يا فندم! اكتبلي اسم نشاطك ورقم الواتساب عشان نستنسخ تطبيقك ونفتحلك نافذة ربط الواتساب وميتا فوراً!", 'male');
+      playShadowVoice("نورتنا يا فندم! اكتبلي اسم نشاطك ورقم الواتساب عشان نؤسس تطبيقك ونجهز صفحات السوشيال ونفتحلك نافذة ربط الواتساب فوراً!", 'male');
     }
   };
 
@@ -108,7 +108,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
     } finally {
       setIsGenerating(false);
       setStep(3);
-      playShadowVoice(`ألف مبروك يا فندم! تم بناء وتوليد تطبيق ${targetName} فعلياً، وتوليد خطة محتوى تيتو ستوديو لـ 7 أيام. دلوقتي تقدر تربط الواتساب وصفحة ميتا من النوافذ الحية قدامك وتدخل كابينة المدير التنفيذي لبراندك!`, 'male');
+      playShadowVoice(`ألف مبروك يا فندم! تم بناء وتجهيز تطبيق ${targetName}، وتأسيس خطة أسبوع التجربة المجانية (3 منشورات مركزة يوم ويوم: بوست تصميم، فيديو ريلز، وبوست حجز فوري). دلوقتي تقدر تربط الواتساب وصفحات السوشيال وتدخل كابينة قيادة براندك!`, 'male');
     }
   };
 
