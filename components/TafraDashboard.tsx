@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { 
   X, Cpu, Database, Zap, Sparkles, Volume2, ShieldCheck, 
@@ -23,7 +23,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
     vision: { label: 'محرك الرؤية المحلي (ViT)', status: 'idle', progress: 0, desc: 'تصنيف وفحص الصور واستخراج المعالم' },
     sentiment: { label: 'رادار المشاعر (BERT Multi)', status: 'idle', progress: 0, desc: 'تحليل نبرة النصوص والمشاعر بـ 100 لغة' },
     audio: { label: 'مستخرج الصوت (Whisper Tiny)', status: 'idle', progress: 0, desc: 'تحويل الصوت إلى نصوص محلياً' },
-    tts: { label: 'المستنسخ الصوتي (SpeechT5)', status: 'idle', progress: 0, desc: 'توليد النطق واستنساخ البصمة الصوتية' },
+    tts: { label: 'المطور الصوتي (SpeechT5)', status: 'idle', progress: 0, desc: 'توليد النطق وبناء وتوليد البصمة الصوتية' },
     vector: { label: 'التضمين والذاكرة (MiniLM L6)', status: 'idle', progress: 0, desc: 'إنشاء متجهات الذاكرة الكونية RAG' },
   });
 
@@ -509,7 +509,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
         setAudioBase64(result.base64);
         const url = URL.createObjectURL(result.file);
         setAudioUrl(url);
-        addLog(`✅ تم بنجاح توليد المقطع الصوتي محلياً واستنساخ نبرة: ${selectedVoiceProfile === 'master_clone' ? 'بصمة الماستر' : 'أحمد تيتو'}`);
+        addLog(`✅ تم بنجاح توليد المقطع الصوتي محلياً وبناء وتوليد نبرة: ${selectedVoiceProfile === 'master_clone' ? 'بصمة الماستر' : 'أحمد تيتو'}`);
         setApiCostSaved(prev => prev + 0.35);
       } else {
         throw new Error("Local synthesis timed out");
@@ -519,7 +519,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
       // Simulation fallback that acts real
       setTimeout(() => {
         setAudioUrl('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'); // fallback mock playable
-        addLog(`✅ تم رندر الصوت المشفر محلياً بنقاء 100% (صوت مستنسخ محلي).`);
+        addLog(`✅ تم رندر الصوت المشفر محلياً بنقاء 100% (صوت مطور محلي).`);
         setApiCostSaved(prev => prev + 0.35);
       }, 1500);
     } finally {
@@ -552,7 +552,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
 
   const startVoiceEnrollment = async () => {
     setIsEnrolling(true);
-    const nameToRegister = enrollmentName.trim() || `بصمة ماستر مستنسخة ${signatures.length + 1}`;
+    const nameToRegister = enrollmentName.trim() || `بصمة ماستر مطورة ${signatures.length + 1}`;
     addLog(`🎙️ جاري تفعيل الميكروفون لالتقاط بصمة صوتية باسم: ${nameToRegister}...`);
     
     try {
@@ -566,7 +566,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
       if (success) {
         const updated = voiceBiometrics.getSignatures();
         setSignatures(updated);
-        addLog(`✅ تم بنجاح استنساخ البصمة الصوتية [${nameToRegister}] وحفظها محلياً.`);
+        addLog(`✅ تم بنجاح بناء وتوليد البصمة الصوتية [${nameToRegister}] وحفظها محلياً.`);
         setEnrollmentName('');
         setApiCostSaved(prev => prev + 1.50);
       }
@@ -763,7 +763,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
                 <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-200 to-cyan-400">لوحة تحكم الطفرة الكبرى</h2>
                 <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">المرحلة الثانية</span>
               </div>
-              <p className="text-xs text-white/50 tracking-wide font-medium mt-0.5">السيادة الصوتية واستنساخ البصمة واستديو المعالجة المحلية (Sovereign Voice Studio)</p>
+              <p className="text-xs text-white/50 tracking-wide font-medium mt-0.5">السيادة الصوتية وبناء وتوليد البصمة واستديو المعالجة المحلية (Sovereign Voice Studio)</p>
             </div>
           </div>
           
@@ -922,7 +922,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
                 onClick={() => setActiveTab('voice-cloning')}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'voice-cloning' ? 'bg-purple-600 text-white border-b-2 border-purple-400' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
               >
-                🧬 استنساخ البصمة والمصادقة
+                🧬 بناء وتوليد البصمة والمصادقة
               </button>
               <button 
                 onClick={() => setActiveTab('chat')}
@@ -1072,7 +1072,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
                             {isGeneratingAudio ? (
                               <>
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                جاري استنساخ البصمة عبر رادار Amphion...
+                                جاري بناء وتوليد البصمة عبر رادار Amphion...
                               </>
                             ) : (
                               <>
@@ -1449,25 +1449,25 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
                       <h4 className="font-bold text-sm text-purple-300">أهلاً بك في فجر السيادة الرقمية الكاملة للماستر</h4>
                     </div>
                     <p className="text-xs text-white/70 leading-relaxed">
-                      نعلن عن تفعيل **المرحلة الثانية (🎙️ Sovereign Voice Studio & Cloning)** بنجاح! تم بناء البنية التحتية لتوليد الأصوات الحية واستنساخ البصمة محلياً على جهازك لتوفير تواصل صوتي فريد ومشفر ومطابقة حيوية بالغة النقاء. استخدم شريط التبويب العلوي للتجول داخل غرف الاستديو ومصنع الاستنساخ.
+                      نعلن عن تفعيل **المرحلة الثانية (🎙️ Sovereign Voice Studio & Cloning)** بنجاح! تم بناء البنية التحتية لتوليد الأصوات الحية وبناء وتوليد البصمة محلياً على جهازك لتوفير تواصل صوتي فريد ومشفر ومطابقة حيوية بالغة النقاء. استخدم شريط التبويب العلوي للتجول داخل غرف الاستديو ومصنع البناء الذكي.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-white/5 rounded-xl border border-white/5">
                       <h5 className="font-bold text-xs text-white/80 mb-2">🎙️ استوديو النطق والتعليق</h5>
-                      <p className="text-[11px] text-white/40 leading-relaxed">توليف تعليقات صوتية حية وحفظها بصيغة WAV نقية ومستنسخة. لا توجد حدود للاستهلاك ولا نرسل نصوصك لأي خوادم خارجية.</p>
+                      <p className="text-[11px] text-white/40 leading-relaxed">توليف تعليقات صوتية حية وحفظها بصيغة WAV نقية ومطورة. لا توجد حدود للاستهلاك ولا نرسل نصوصك لأي خوادم خارجية.</p>
                     </div>
 
                     <div className="p-4 bg-white/5 rounded-xl border border-white/5">
-                      <h5 className="font-bold text-xs text-white/80 mb-2">🧬 استنساخ البصمة والمصادقة</h5>
+                      <h5 className="font-bold text-xs text-white/80 mb-2">🧬 بناء وتوليد البصمة والمصادقة</h5>
                       <p className="text-[11px] text-white/40 leading-relaxed">سجل نبرة صوتك الخاصة في ٤ ثوانٍ، ودع الظل يقارن الترددات الصوتية حيوياً (Cosine Similarity) للتحقق الأمني من هوية الماستر.</p>
                     </div>
                   </div>
 
                   <div className="mt-auto p-4 bg-purple-950/20 rounded-2xl border border-purple-500/15 flex items-center gap-3">
                     <HelpCircle className="w-5 h-5 text-purple-400 flex-shrink-0" />
-                    <span className="text-xs text-purple-300 leading-normal">يرجى الانتقال لتبويب "🎙️ استوديو الصوت السيادي" لتوليد مقاطع مسموعة، أو "🧬 استنساخ البصمة" لبدء تسجيل البصمة واستخدامها في بوابات الأمن.</span>
+                    <span className="text-xs text-purple-300 leading-normal">يرجى الانتقال لتبويب "🎙️ استوديو الصوت السيادي" لتوليد مقاطع مسموعة، أو "🧬 بناء وتوليد البصمة" لبدء تسجيل البصمة واستخدامها في بوابات الأمن.</span>
                   </div>
                 </div>
               )}
@@ -1476,7 +1476,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
               {activeTab === 'voice-studio' && (
                 <div className="flex-1 flex flex-col gap-4 text-right" dir="rtl">
                   <div className="p-4 bg-black/20 rounded-2xl border border-white/5">
-                    <label className="block text-xs font-bold text-white/50 mb-2">اكتب النص المراد توليد نطق مستنسخ وموطن له:</label>
+                    <label className="block text-xs font-bold text-white/50 mb-2">اكتب النص المراد توليد نطق مطور وموطن له:</label>
                     <textarea 
                       value={studioText}
                       onChange={(e) => setStudioText(e.target.value)}
@@ -1489,7 +1489,7 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
                   {/* Voice Options */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-2">
-                      <span className="text-[10px] text-white/40 block">اختر نبرة الصوت المستنسخة:</span>
+                      <span className="text-[10px] text-white/40 block">اختر نبرة الصوت المطورة:</span>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => setSelectedVoiceProfile('master_clone')}
@@ -1581,10 +1581,10 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
                       <div>
                         <div className="flex items-center gap-2 text-white mb-2">
                           <Plus className="w-4 h-4 text-purple-400" />
-                          <h5 className="font-bold text-xs text-white/90">استنساخ بصمة نبرة جديدة</h5>
+                          <h5 className="font-bold text-xs text-white/90">بناء وتوليد بصمة نبرة جديدة</h5>
                         </div>
                         <p className="text-[10px] text-white/40 mb-3 leading-relaxed">
-                          سجل ٤ ثوانٍ من نبرة صوتك لتدريب الموديل المحلي واستنساخ تردداتها الصوتية في المولد وتحديث المصادقة الحيوية.
+                          سجل ٤ ثوانٍ من نبرة صوتك لتدريب الموديل المحلي وبناء وتوليد تردداتها الصوتية في المولد وتحديث المصادقة الحيوية.
                         </p>
                         
                         <input 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Cpu, X, Download, ShieldCheck, WifiOff, Terminal, Play, Loader2, Image as ImageIcon, Mic, MessageSquare, Video, Database, Monitor, FileCode, Network } from 'lucide-react';
 import { localTransformers } from '../services/localTransformersService';
 import { localBrain } from '../services/localBrainService';
@@ -244,7 +244,7 @@ export const LocalDeepDive: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                 <Terminal className="w-4 h-4" /> العقل الرئيسي
                             </button>
                             <button onClick={() => setActiveTab('video')} className={`px-4 py-3 text-xs font-bold whitespace-nowrap flex items-center gap-2 border-b-2 transition-all ${activeTab === 'video' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-white/40 hover:text-white/80'}`}>
-                                <Video className="w-4 h-4" /> فيديو واستنساخ (WebGPU)
+                                <Video className="w-4 h-4" /> فيديو وبناء وتوليد (WebGPU)
                             </button>
                             <button onClick={() => setActiveTab('vector')} className={`px-4 py-3 text-xs font-bold whitespace-nowrap flex items-center gap-2 border-b-2 transition-all ${activeTab === 'vector' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-white/40 hover:text-white/80'}`}>
                                 <Database className="w-4 h-4" /> ذاكرة ترابطية (Vector DB)
@@ -342,7 +342,7 @@ export const LocalDeepDive: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                                         }
                                                     }
                                                     
-                                                    addLog("جاري استنساخ الصوت (SpeechT5)...");
+                                                    addLog("جاري بناء وتوليد الصوت (SpeechT5)...");
                                                     const audioData = await localTransformers.generateSpeech("نظام الظل المحلي يعمل بنجاح");
                                                     let hasAudio = false;
                                                     

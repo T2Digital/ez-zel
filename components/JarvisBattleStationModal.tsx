@@ -337,7 +337,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setNewServicePrice('');
         fetchObsidianVault();
         handleInspectObsidianNode(targetId);
-        playShadowVoice(d.message || `تم إضافة الخدمة الجديدة وتحديث المتجر المستنسخ وعقدة أوبسيديان فوراً!`, 'male');
+        playShadowVoice(d.message || `تم إضافة الخدمة الجديدة وتحديث متجر وتطبيق البراند وعقدة أوبسيديان فوراً!`, 'male');
       }
     } catch {} finally {
       setIsSavingCatalog(false);
@@ -632,13 +632,147 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
+  const [isBuildingStrategy, setIsBuildingStrategy] = useState(false);
+  const [isGeneratingWeekPlan, setIsGeneratingWeekPlan] = useState(false);
+  const [isApprovingSchedule, setIsApprovingSchedule] = useState(false);
+  const [activeBrandStrategy, setActiveBrandStrategy] = useState<any>(null);
+  const [turboFlowVideoUrlInput, setTurboFlowVideoUrlInput] = useState('');
+
+  const handleBuildStudioStrategy = async (brandId?: string) => {
+    const targetId = brandId || currentSelectedBrand.id;
+    setIsBuildingStrategy(true);
+    setActiveDeckTab('studio_calendar');
+    playShadowVoice(`فوراً يا ماستر تيتو، جاري بناء الاستراتيجية التسويقية الكاملة لبراند ${currentSelectedBrand.name} في تيتو ستوديو...`, 'male');
+    try {
+      const res = await fetch('/api/studio/strategy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: targetId })
+      });
+      const d = await res.json();
+      if (d.success && d.strategy) {
+        setActiveBrandStrategy(d.strategy);
+        if (d.brand) {
+          setAllBrandsList(prev => prev.map(b => (b.id === d.brand.id ? d.brand : b)));
+        }
+        toast.success(`تم بناء الاستراتيجية التسويقية لـ ${currentSelectedBrand.name} في تيتو ستوديو!`);
+        playShadowVoice(`تم إعداد الاستراتيجية التسويقية لبراند ${currentSelectedBrand.name} وحفظها في تيتو ستوديو وأوبسيديان يا ماستر! قدامك ركائز المحتوى التلاتة، تحب نولد محتوى أول أسبوع دلوقتي؟`, 'male');
+      }
+    } catch (e) {
+      toast.error('تعذر توليد الاستراتيجية');
+    } finally {
+      setIsBuildingStrategy(false);
+    }
+  };
+
+  const handleGenerateWeekPlan = async (brandId?: string) => {
+    const targetId = brandId || currentSelectedBrand.id;
+    setIsGeneratingWeekPlan(true);
+    setActiveDeckTab('studio_calendar');
+    playShadowVoice(`أمرك يا ماستر، جاري توليد محتوى أول أسبوع في تيتو ستوديو: بنصمم بوستات الصور ونبعت أوامر الفيديو لجسر تيربو فلو وجوجل فلو!`, 'male');
+    try {
+      const res = await fetch('/api/studio/generate-week-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: targetId })
+      });
+      const d = await res.json();
+      if (d.success && d.weekPlan) {
+        if (d.brand) {
+          setAllBrandsList(prev => prev.map(b => (b.id === d.brand.id ? d.brand : b)));
+          if (d.brand.marketingStrategy) setActiveBrandStrategy(d.brand.marketingStrategy);
+        }
+        if (d.weekPlan[0]) {
+          setSelectedPost({
+            ...d.weekPlan[0],
+            brandId: targetId,
+            brandName: currentSelectedBrand.name,
+            platform: 'Instagram & Facebook (Meta Graph)'
+          });
+        }
+        fetchObsidianVault();
+        toast.success(`تم توليد 7 منشورات (صور تيتو ستوديو + فيديوهات Turbo Flow)!`);
+        playShadowVoice(d.message || `تم توليد خطة محتوى أول أسبوع بالكامل وحفظها في تقويم تيتو ستوديو يا ماستر! تقدر تستعرض أي بوست أو تقولي اعتمد الجدولة.`, 'male');
+      }
+    } catch (e) {
+      toast.error('تعذر توليد خطة الأسبوع');
+    } finally {
+      setIsGeneratingWeekPlan(false);
+    }
+  };
+
+  const handleApproveSchedule = async (brandId?: string) => {
+    const targetId = brandId || currentSelectedBrand.id;
+    setIsApprovingSchedule(true);
+    try {
+      const res = await fetch('/api/studio/approve-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: targetId })
+      });
+      const d = await res.json();
+      if (d.success) {
+        if (d.brand) {
+          setAllBrandsList(prev => prev.map(b => (b.id === d.brand.id ? d.brand : b)));
+        }
+        fetchObsidianVault();
+        toast.success(`تم اعتماد جدولة الأسبوع (${d.approvedCount || 7} منشورات) في تيتو ستوديو!`);
+        playShadowVoice(d.message || `تم اعتماد جدولة خطة المحتوى بالكامل في تيتو ستوديو للنشر التلقائي في أوقات الذروة يا ماستر!`, 'male');
+      }
+    } catch (e) {
+      toast.error('تعذر اعتماد الجدولة');
+    } finally {
+      setIsApprovingSchedule(false);
+    }
+  };
+
+  const handleCreatePaymobCheckout = async (planId: 'starter_monthly' | 'growth_pro' | 'agency_unlimited' = 'growth_pro') => {
+    try {
+      const res = await fetch('/api/payments/paymob/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: currentSelectedBrand.id,
+          brandName: currentSelectedBrand.name,
+          planId,
+          customerPhone: currentSelectedBrand.phone || '01013373634'
+        })
+      });
+      const d = await res.json();
+      if (d.ok && d.paymentUrl) {
+        window.open(d.paymentUrl, '_blank');
+        toast.success(`تم فتح بوابة الدفع الآلي Paymob لتفعيل الاشتراك!`);
+        playShadowVoice(`تم فتح بوابة الدفع الآلي عبر موب باي لتفعيل اشتراك براند ${currentSelectedBrand.name} تلقائياً فور الدفع!`, 'male');
+      }
+    } catch {
+      toast.error('تعذر فتح بوابة Paymob');
+    }
+  };
+
+  const handleSendDailyBriefingNow = async (period: 'morning' | 'evening') => {
+    try {
+      const res = await fetch('/api/system/trigger-daily-briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period, brandId: currentSelectedBrand.id })
+      });
+      const d = await res.json();
+      if (d.ok) {
+        toast.success(d.message || 'تم إرسال التقرير الدوري إلى واتساب!');
+        playShadowVoice(d.briefing?.voiceScript || d.message, 'male');
+      }
+    } catch {
+      toast.error('تعذر إرسال التقرير');
+    }
+  };
+
   const handleCloneBrand = async (name: string, category: string) => {
     if (!name.trim()) {
       toast.error('يرجى إدخال اسم النشاط أو البراند');
       return;
     }
     setIsCloningBrand(true);
-    playShadowVoice(`جاري استنساخ وتوليد تطبيق متكامل لـ ${name} فوراً يا ماستر!`, 'male');
+    playShadowVoice(`جاري بناء وتوليد متجر وتطبيق متكامل لـ ${name} فوراً يا ماستر!`, 'male');
     try {
       const res = await fetch('/api/cloner/clone', {
         method: 'POST',
@@ -649,16 +783,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       if (d.success && d.brand) {
         setAllBrandsList(prev => [d.brand, ...prev]);
         setSelectedBrandId(d.brand.id);
-        toast.success(`تم استنساخ تطبيق ${d.brand.name} بنجاح!`);
-        playShadowVoice(`ألف مبروك يا ماستر، تم استنساخ متجر ${d.brand.name} وكتالوجه جاهز للربط والتشغيل!`, 'male');
+        toast.success(`تم بناء تطبيق ومتجر ${d.brand.name} بنجاح!`);
+        playShadowVoice(`ألف مبروك يا ماستر، تم بناء متجر وتطبيق ${d.brand.name} وكتالوجه جاهز للربط والتشغيل!`, 'male');
         setCloneInputName('');
         setCloneInputCategory('');
       } else {
-        toast.error('حدث خطأ أثناء الاستنساخ');
+        toast.error('حدث خطأ أثناء بناء المتجر');
       }
     } catch (e) {
       console.error(e);
-      toast.error('تعذر الاتصال بخدمة الاستنساخ');
+      toast.error('تعذر الاتصال بمنصة بناء المتاجر');
     } finally {
       setIsCloningBrand(false);
     }
@@ -731,7 +865,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const handlePlayPersonaGreeting = (targetPersona?: 'visitor' | 'trial' | 'client' | 'tito') => {
+  const handlePlayPersonaGreeting = async (targetPersona?: 'visitor' | 'trial' | 'client' | 'tito') => {
     const activeP = targetPersona || persona;
     stopVoice();
     setIsPlayingVoice(true);
@@ -739,19 +873,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     const now = new Date();
     const hours = now.getHours();
-    const timeGreeting = hours < 12 ? 'صباح الفل والجمال' : 'مساء الفل والجمال';
-    const brandsCount = realStats.totalVaultBrandsCount || 19;
+    const timeGreeting = hours < 12 ? 'صباح الفل والنشاط' : 'مساء النور والهمة العالية';
 
     let text = '';
     if (activeP === 'visitor') {
-      text = `يا هلا بيك في منظومة النمو الشامل للأعمال! أنا جارفيس، قولي عندك بيزنس شغال ولا فكرة جديدة من الصفر؟ هنولدلك تطبيقك ونربط واتساب وميتا ونشغلك اسبوع مجاناً فوراً!`;
+      text = `يا هلا بيك في منظومة النمو الشامل للأعمال! أنا جارفيس، قولي عندك بيزنس شغال ولا فكرة جديدة من الصفر؟ هنبني لك متجرك وتطبيقك ونربط واتساب وميتا ونشغلك أسبوع مجاناً فوراً!`;
     } else if (activeP === 'trial') {
-      text = `أهلاً بيك يا فندم في اسبوع التجربة المجانية! أنا معاك كمدير تنفيذي لبراندك، تطبيقك شغال والواتساب مربوط.. تحب نراجع تقويم محتوى تيتو ستوديو ولا نطلق حملة إعلانات دلوقتي؟`;
+      text = `أهلاً بيك يا فندم في أسبوع التجربة المجانية! أنا معاك كمدير تنفيذي لبراندك، متجرك شغال والواتساب مربوط.. تحب نولد استراتيجية ومحتوى أول أسبوع في تيتو ستوديو دلوقتي؟`;
     } else if (activeP === 'client') {
       text = `نورت كابينة قيادة براندك يا شريك النجاح! أنا معاك كمدير تنفيذي وسكرتير ذكي لمتابعة المحتوى والواتساب والحجوزات لحظة بلحظة.. تحب ننفذ إيه دلوقتي؟`;
     } else {
-      // Supreme Executive Greeting Exclusively for Master Tito!
-      text = `${timeGreeting} عليك يا ماستر تيتو! نورت كابينة قيادتك، خزنة أوبسيديان والـ ${brandsCount} براند وعملاء الظل جاهزين قدامك.. تحب نعمل إيه دلوقتي يا باشا؟`;
+      try {
+        const res = await fetch(`/api/system/jarvis-dynamic-greeting?brandId=${encodeURIComponent(currentSelectedBrand.id || '')}`);
+        const d = await res.json();
+        if (d.ok && d.text) {
+          text = d.text;
+        }
+      } catch {}
+      if (!text) {
+        const brandsCount = allBrandsList.length || realStats.totalVaultBrandsCount || 19;
+        text = `${timeGreeting} يا ماستر تيتو! معانا دلوقتي ${brandsCount} براند متصلين بتيتو ستوديو وأوبسيديان، والتركيز الحالي على ${currentSelectedBrand.name}. تحب نعمل استراتيجية تسويقية ونولد محتوى أول أسبوع؟`;
+      }
     }
 
     setTranscript(text);
@@ -789,6 +931,51 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     isThinkingRef.current = true;
     stopVoice();
     appendLiveLog(`[VOICE_CMD]: "${commandText}"`);
+
+    // Direct Studio Workflow Voice Commands (Strategy -> Week Plan -> Preview -> Publish / Approve Schedule)
+    const matchedBrand = allBrandsList.find(b => commandText.includes(b.name) || (b.slug && commandText.toLowerCase().includes(b.slug.toLowerCase()))) || currentSelectedBrand;
+    if (matchedBrand && matchedBrand.id !== currentSelectedBrand.id) {
+      setSelectedBrandId(matchedBrand.id);
+    }
+
+    if (/استراتيجي|إستراتيجي/i.test(commandText)) {
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      await handleBuildStudioStrategy(matchedBrand.id);
+      return;
+    }
+    if (/ولد محتوى|محتوى اول اسبوع|محتوى أول أسبوع|خطة محتوى|خطه محتوى/i.test(commandText)) {
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      await handleGenerateWeekPlan(matchedBrand.id);
+      return;
+    }
+    if (/اعتمد الجدول|اعتماد الجدول|جدول المحتوى|جدولة الخطة/i.test(commandText)) {
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      await handleApproveSchedule(matchedBrand.id);
+      return;
+    }
+    if (/اعرض منشور|اعرض بوست|افتح المنشور|اعرض الفيديو|اعرض التصميم/i.test(commandText)) {
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      const plan = matchedBrand.weekContentPlan || [];
+      const dayMatch = plan.find((p: any) => commandText.includes(p.day));
+      const postToShow = dayMatch || selectedPost || plan[0];
+      if (postToShow) {
+        setSelectedPost({ ...postToShow, brandId: matchedBrand.id, brandName: matchedBrand.name });
+      }
+      setActiveDeckTab('content_post_card');
+      playShadowVoice(`عرضت لك بطاقة المنشور والتصميم لبراند ${matchedBrand.name} قدامك يا ماستر. قولي انشره لو تحب أنشره فوراً!`, 'male');
+      return;
+    }
+    if (/^انشره|انشر المنشور|انشر البوست|انشر دلوقتي/i.test(commandText.trim())) {
+      setIsThinking(false);
+      isThinkingRef.current = false;
+      await handlePublishPost(matchedBrand.id, 0);
+      return;
+    }
+
     try {
       let recentChatSummary = '';
       try {
@@ -1185,7 +1372,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   }`}
                 >
                   <Smartphone className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs font-bold">مستنسخ PWA</span>
+                  <span className="text-xs font-bold">متجر البراند</span>
                   <span className="text-[9px] text-white/40">متاجر وحجز فوري</span>
                 </button>
 
@@ -1485,7 +1672,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   }`}
                 >
                   <Smartphone className="w-3 h-3" />
-                  <span>المستنسخ</span>
+                  <span>المتجر</span>
                 </button>
 
                 <button
@@ -1542,7 +1729,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                             )}
                           </h3>
                           <p className="text-[10px] text-white/60">
-                            أدير لك خطة محتوى تيتو ستوديو، وأرد على عملاء الواتساب بصوت بشري، وأستقبل الحجوزات في متجرك المستنسخ
+                            أدير لك خطة محتوى تيتو ستوديو، وأرد على عملاء الواتساب بصوت بشري، وأستقبل الحجوزات في متجر وتطبيق براندك
                           </p>
                         </div>
                       </div>
@@ -2029,30 +2216,30 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button
-                      onClick={async () => {
-                        setIsPublishingPost(true);
-                        try {
-                          const res = await fetch('/api/jarvis/execute-action', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              actionType: 'SYNC_TITO_STUDIO_FIRESTORE',
-                              brandId: currentSelectedBrand.id
-                            })
-                          });
-                          const d = await res.json();
-                          fetchObsidianVault();
-                          playShadowVoice(d.message || `تمت المزامنة الحية ثنائية الاتجاه مع سحابة تيتو ستوديو بنجاح يا ماستر!`, 'male');
-                        } catch {} finally {
-                          setIsPublishingPost(false);
-                        }
-                      }}
+                      onClick={() => handleBuildStudioStrategy(currentSelectedBrand.id)}
+                      disabled={isBuildingStrategy}
+                      className="px-2.5 py-1.5 rounded-xl bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-200 border border-fuchsia-500/40 text-[10px] font-bold flex items-center gap-1 transition"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{isBuildingStrategy ? 'جاري بناء الاستراتيجية...' : '1) بناء الاستراتيجية'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleGenerateWeekPlan(currentSelectedBrand.id)}
+                      disabled={isGeneratingWeekPlan}
+                      className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[10px] font-bold flex items-center gap-1 transition"
+                    >
+                      <Zap className="w-3 h-3" />
+                      <span>{isGeneratingWeekPlan ? 'جاري التوليد...' : '2) توليد محتوى أول أسبوع'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleApproveSchedule(currentSelectedBrand.id)}
+                      disabled={isApprovingSchedule}
                       className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1 transition"
                     >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>مزامنة السحابة</span>
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>{isApprovingSchedule ? 'جاري الاعتماد...' : '3) اعتمد الجدولة'}</span>
                     </button>
                     <button
                       onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
@@ -2060,10 +2247,79 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-xs font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition flex items-center gap-1"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>{isPublishingPost ? 'جاري النشر...' : 'نشر بوست اليوم'}</span>
+                      <span>{isPublishingPost ? 'جاري النشر...' : 'نشر فوري'}</span>
                     </button>
                   </div>
                 </div>
+
+                {/* Paymob Auto-Subscription & Daily Proactive Reports Bar */}
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-black/50 border border-white/10 flex-wrap text-[10px]">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      onClick={() => handleCreatePaymobCheckout('growth_pro')}
+                      className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black flex items-center gap-1 shadow-sm"
+                    >
+                      💳 تفعيل اشتراك البراند آلياً (Paymob)
+                    </button>
+                    <a
+                      href="/api/studio/turbo-flow/export-csv"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-bold"
+                    >
+                      🎬 تحميل أوامر الفيديو لـ Turbo Flow (CSV)
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleSendDailyBriefingNow('morning')}
+                      className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-bold"
+                      title="إرسال التقرير الصباحي على واتساب بدون فتح التطبيق"
+                    >
+                      ☀️ تقرير الصباح
+                    </button>
+                    <button
+                      onClick={() => handleSendDailyBriefingNow('evening')}
+                      className="px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-bold"
+                      title="إرسال تقرير المساء على واتساب بدون فتح التطبيق"
+                    >
+                      🌙 تقرير المساء
+                    </button>
+                  </div>
+                </div>
+
+                {/* Active Brand Marketing Strategy Card (Displayed when strategy is built) */}
+                {(activeBrandStrategy || currentSelectedBrand.marketingStrategy) && (() => {
+                  const st = activeBrandStrategy || currentSelectedBrand.marketingStrategy;
+                  return (
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-fuchsia-950/40 via-[#060d24] to-cyan-950/30 border border-fuchsia-500/40 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-fuchsia-300 flex items-center gap-1.5">
+                          🎯 الاستراتيجية التسويقية المعتمدة في تيتو ستوديو: {currentSelectedBrand.name}
+                        </span>
+                        <span className="text-[9.5px] font-mono bg-fuchsia-500/20 text-fuchsia-200 px-2 py-0.5 rounded-full border border-fuchsia-500/30">
+                          3 ركائز محتوى
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-white/85 leading-relaxed">
+                        <b className="text-cyan-300">التموضع:</b> {st.positioning}
+                      </p>
+                      <p className="text-[10.5px] text-white/70">
+                        <b className="text-amber-300">الجمهور المستهدف:</b> {st.targetAudience} • <b className="text-emerald-300">خليط الإنتاج:</b> {st.weeklyMixSummary}
+                      </p>
+                      {Array.isArray(st.pillars) && st.pillars.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
+                          {st.pillars.map((p: any, i: number) => (
+                            <div key={i} className="p-2 rounded-xl bg-black/50 border border-white/10 text-[10px]">
+                              <div className="font-black text-cyan-300">{p.title} ({p.percentage}%)</div>
+                              <div className="text-white/60 text-[9.5px] mt-0.5">{p.objective}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* 7-Day Interactive Schedule Cards */}
                 <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-1">
@@ -2198,8 +2454,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </span>
                   </div>
 
-                  {/* Branded Social Design Visual Preview */}
-                  {(selectedPost?.visualUrl || currentSelectedBrand?.weekContentPlan?.[0]?.visualUrl) ? (
+                  {/* Branded Social Design or Google Flow × Turbo Flow Video Preview */}
+                  {selectedPost?.videoUrl ? (
+                    <div className="relative w-full h-60 rounded-xl overflow-hidden bg-[#050b14] border border-purple-500/40 flex items-center justify-center">
+                      <video
+                        src={selectedPost.videoUrl}
+                        controls
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  ) : (selectedPost?.visualUrl || currentSelectedBrand?.weekContentPlan?.[0]?.visualUrl) ? (
                     <div className="relative w-full h-52 rounded-xl overflow-hidden bg-[#050b14] border border-purple-500/30 flex items-center justify-center">
                       <img
                         src={selectedPost?.visualUrl || currentSelectedBrand?.weekContentPlan?.[0]?.visualUrl}
@@ -2219,31 +2483,104 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </div>
                   )}
 
+                  {/* Google Flow × Turbo Flow Video Automation Panel (when post is video or has omniPrompt) */}
+                  {(selectedPost?.mediaFormat === 'video' || String(selectedPost?.contentType || '').includes('فيديو') || String(selectedPost?.contentType || '').includes('Reel')) && (
+                    <div className="p-2.5 rounded-xl bg-purple-950/30 border border-purple-500/40 flex flex-col gap-2 text-[10.5px]">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <span className="font-black text-purple-300 flex items-center gap-1">
+                          🎬 جسر Google Flow × Turbo Flow (Veo 3.1):
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => window.open('https://labs.google/fx/tools/flow', '_blank')}
+                            className="px-2 py-0.5 rounded-lg bg-purple-500/25 hover:bg-purple-500/40 text-purple-200 border border-purple-400/40 font-bold"
+                          >
+                            فتح Google Flow
+                          </button>
+                          <a
+                            href="/api/studio/turbo-flow/export-csv"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2 py-0.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/40 font-bold"
+                          >
+                            ملف Turbo Flow CSV
+                          </a>
+                        </div>
+                      </div>
+                      {selectedPost?.omniPrompt && (
+                        <div className="p-2 rounded-lg bg-black/60 border border-white/10 font-mono text-[9.5px] text-cyan-200 select-all" dir="ltr">
+                          {selectedPost.omniPrompt}
+                        </div>
+                      )}
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={turboFlowVideoUrlInput}
+                          onChange={(e) => setTurboFlowVideoUrlInput(e.target.value)}
+                          placeholder="أو الصق رابط الفيديو المولد من Flow (.mp4) لحفظه في التقويم..."
+                          className="flex-1 px-2.5 py-1 rounded-lg bg-black/70 border border-white/15 text-white text-[10px]"
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!turboFlowVideoUrlInput.trim()) return;
+                            const res = await fetch('/api/studio/turbo-flow/complete', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                jobId: selectedPost?.turboFlowJobId,
+                                postId: selectedPost?.id,
+                                brandId: currentSelectedBrand.id,
+                                videoUrl: turboFlowVideoUrlInput.trim()
+                              })
+                            });
+                            const d = await res.json();
+                            if (d.ok) {
+                              setSelectedPost((prev: any) => ({ ...prev, videoUrl: turboFlowVideoUrlInput.trim(), visualUrl: turboFlowVideoUrlInput.trim() }));
+                              setTurboFlowVideoUrlInput('');
+                              toast.success('تم حفظ الفيديو في تقويم تيتو ستوديو!');
+                              playShadowVoice('تم ربط الفيديو المولد من جوجل فلو وحفظه في تقويم تيتو ستوديو بنجاح يا ماستر!', 'male');
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-500 text-black font-black text-[10px]"
+                        >
+                          حفظ بالتقويم
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Caption & Copywriting */}
                   <div className="text-xs text-white/85 leading-relaxed bg-white/[0.03] p-2.5 rounded-xl border border-white/10 whitespace-pre-line">
                     {selectedPost?.caption || currentSelectedBrand?.weekContentPlan?.[0]?.caption || 'احجز كشفك الآن واستمتع بفحص شامل ومجاني مع خطة تقسيط مريحة بدون فوائد. تواصل معنا على الواتساب فوراً!'}
                   </div>
 
                   {/* Dual Action Boosters */}
-                  <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                    <button
+                      onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
+                      disabled={isPublishingPost}
+                      className="py-2 px-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-[11px] font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition flex items-center justify-center gap-1"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{isPublishingPost ? 'جاري النشر...' : '🚀 انشره الآن'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleApproveSchedule(currentSelectedBrand.id)}
+                      disabled={isApprovingSchedule}
+                      className="py-2 px-2 rounded-xl bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-500/40 text-[11px] font-black transition flex items-center justify-center gap-1"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>✅ اعتمد الجدولة</span>
+                    </button>
+
                     <button
                       onClick={() => handleLaunchAdForPost(selectedPost)}
                       disabled={isLaunchingCampaign}
                       className="py-2 px-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-[11px] font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] transition flex items-center justify-center gap-1"
                     >
                       <TrendingUp className="w-3.5 h-3.5" />
-                      <span>{isLaunchingCampaign ? 'جاري الإطلاق...' : 'تمويل كإعلان (2000 ج)'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const targetUrl = selectedPost?.ctaTargetUrl || `/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`;
-                        window.open(targetUrl, '_blank');
-                      }}
-                      className="py-2 px-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold transition flex items-center justify-center gap-1"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>تجربة مسار الـ CTA</span>
+                      <span>{isLaunchingCampaign ? 'جاري الإطلاق...' : 'تمويل كإعلان'}</span>
                     </button>
 
                     <button
@@ -2495,7 +2832,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse" />
                     <div>
                       <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                        مصنع استنساخ التطبيقات والمتاجر: <span className="text-blue-300">{currentSelectedBrand.name}</span>
+                        منصة بناء متجر وتطبيق البراند: <span className="text-blue-300">{currentSelectedBrand.name}</span>
                       </h4>
                       <p className="text-[10px] text-white/50">توليد متجر PWA كامل، كتالوج عروض، وربط تلقائي مع واتساب ميتا</p>
                     </div>
@@ -2595,7 +2932,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-950/30 to-black/80 border border-blue-500/20 flex flex-col gap-2">
                   <span className="text-xs font-bold text-white flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                    استنساخ نشاط جديد بالذكاء الاصطناعي (AI Autonomous Cloner)
+                    بناء متجر وتطبيق براند جديد بالذكاء الاصطناعي (AI Brand Store Builder)
                   </span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-right">
                     <div>
@@ -2626,7 +2963,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     className="w-full py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-1.5 disabled:opacity-40"
                   >
                     <Smartphone className="w-3.5 h-3.5" />
-                    <span>{isCloningBrand ? 'جاري استنساخ وتوليد التطبيق...' : 'استنساخ وتوليد التطبيق والكتالوج فوراً ⚡'}</span>
+                    <span>{isCloningBrand ? 'جاري بناء وتوليد المتجر والتطبيق...' : 'بناء وتوليد المتجر والتطبيق والكتالوج فوراً ⚡'}</span>
                   </button>
                 </div>
               </div>
@@ -3554,7 +3891,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </span>
                 </h2>
                 <p className="text-[11px] text-white/60">
-                  عرض وتحكم متزامن في: المتجر المستنسخ PWA • تقويم وتصميمات تيتو ستوديو • وكيل الواتساب وميتا • عقدة أوبسيديان الحية
+                  عرض وتحكم متزامن في: متجر وتطبيق البراند PWA • تقويم وتصميمات تيتو ستوديو • وكيل الواتساب وميتا • عقدة أوبسيديان الحية
                 </p>
               </div>
             </div>
@@ -3593,7 +3930,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <div className="flex items-center justify-between pb-2 border-b border-blue-500/25">
                 <span className="text-xs font-black text-blue-300 flex items-center gap-1.5">
                   <Smartphone className="w-4 h-4 text-blue-400" />
-                  النافذة 1: متجر وتطبيق البراند المستنسخ (PWA Storefront)
+                  النافذة 1: متجر وتطبيق البراند الرسمي (PWA Storefront)
                 </span>
                 <button
                   onClick={() => window.open(`/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`, '_blank')}

@@ -1,4 +1,4 @@
-import { Type, Modality, FunctionDeclaration, GenerateContentResponse, getAI } from "./aiClient";
+﻿import { Type, Modality, FunctionDeclaration, GenerateContentResponse, getAI } from "./aiClient";
 import { Capacitor } from '@capacitor/core';
 import { shadowDB, UserProfile, AgentProfile } from "./dbService";
 import { getDeviceContext, triggerDeviceAction } from "./deviceService";
@@ -463,12 +463,15 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                     const revenueEgp = finRes?.realConfirmedRevenueEgp || 1000;
                     win.__UNIFIED_SECOND_BRAIN_CACHE = `
 [UNIFIED_SECOND_BRAIN_OBSIDIAN_AND_JARVIS_MEMORY]:
-أنت والظل "جارفيس" تتشاركان عقلاً موحداً 100% متصلاً بخزنة أوبسيديان الحية (Obsidian Vault) وسحابة تيتو ستوديو (t2-content-studio) وتيتو أجنت ومصنع التطبيقات المستنسخة:
+أنت والظل "جارفيس" تتشاركان عقلاً موحداً 100% متصلاً بخزنة أوبسيديان الحية (Obsidian Vault) وسحابة تيتو ستوديو (t2-content-studio) وجسر Turbo Flow × Google Flow وتيتو أجنت ومنصة بناء المتاجر والتطبيقات:
 - إجمالي البراندات الموحدة تحت إدارتنا: ${(obsRes.growthAgencyBrands || []).length} براند حي:
 ${brandsSummary}
 - مشتركو مساعد "الظل" الشخصي:
 ${ezzelSubs}
 - الحجوزات الفعلية المؤكدة في الـ CRM: ${bookingsCount} حجز مؤكد بإجمالي إيرادات ${revenueEgp} ج.م.
+- تعليمات تنفيذية:
+  1) لا تذكر أبداً كلمة "بناء وتوليد" أو "مطور" في أي رد، واستخدم بدلاً منها "متجر وتطبيق البراند" أو "منصة بناء المتاجر".
+  2) عندما يطلب المستخدم عمل استراتيجية تسويقية لبراند، أو توليد محتوى أول أسبوع، أو اعتماد الجدولة، أو نشر منشور، استدعِ فوراً أداة \`tito_studio_workflow\` لتنفيذ العملية فعلياً في تيتو ستوديو وعرض البطاقة التفاعلية!
 `;
                     win.__UNIFIED_SECOND_BRAIN_TS = nowMs;
                 }
@@ -770,7 +773,9 @@ ${ezzelSubs}
             } else if (toolActions.some((t: any) => t.name === 'agent_dashboard_monitor')) {
                 finalText = "بفتحلك لوحة تحكم عمال الخلفية عشان تراقب المهام الحية يا ريس.";
             } else if (toolActions.some((t: any) => t.name === 'digital_twin_automation')) {
-                finalText = "المستنسخ جاهز يا ماستر، هرد عليه بلسانك وبالستايل بتاعك دلوقتي حالا من غير ما تتعب نفسك!";
+                finalText = "التوأم الرقمي جاهز يا ماستر، هرد عليه بلسانك وبالستايل بتاعك دلوقتي حالا من غير ما تتعب نفسك!";
+            } else if (toolActions.some((t: any) => t.name === 'tito_studio_workflow')) {
+                finalText = "فوراً يا ماستر تيتو! نفذت لك العملية في تيتو ستوديو وجسر تيربو فلو، ودي بطاقة النتيجة قدامك.";
             } else if (toolActions.some((t: any) => t.name === 'marketer_shadow')) {
                 finalText = "الظل المسوق اشتغل يا ماستر.. بجمع داتا المنافسين وهحطلك خطة تكتسح السوق كله.";
             } else if (toolActions.some((t: any) => t.name === 'economic_swarm_mode')) {

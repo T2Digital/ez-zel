@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "T2 Studio × Turbo Flow Bridge (Google Flow Automator)",
+  "version": "1.0.0",
+  "description": "يربط خطة محتوى تيتو ستوديو وجارفيس مباشرة مع Google Flow و Turbo Flow لتوليد فيديوهات Veo 3.1 وحفظها تلقائياً في التقويم.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://labs.google/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://labs.google/fx/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

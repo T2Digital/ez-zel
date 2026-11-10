@@ -1,17 +1,109 @@
 import fs from 'fs';
 import path from 'path';
+import { GoogleGenAI } from '@google/genai';
 
 const PROJECT_ID = 't2-content-studio';
+const TITO_STUDIO_FIREBASE_API_KEY = process.env.TITO_STUDIO_FIREBASE_API_KEY || 'AIzaSyBMuPVJpC8A7_3g2SIjdCWtXjsvi2EnCI0';
 const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 const CACHE_PATH = path.join(process.cwd(), 'data', 'tito_studio_cache.json');
+const TURBO_FLOW_QUEUE_PATH = path.join(process.cwd(), 'data', 'turbo_flow_queue.json');
+const TURBO_FLOW_CSV_PATH = path.join(process.cwd(), 'data', 'turbo_flow_prompts.csv');
+const IMGBB_API_KEY = process.env.IMGBB_API_KEY || 'd4f1c9a5e6b8c7d2e3f4a5b6c7d8e9f0';
+
+let cachedStudioIdToken: string | null = null;
+let cachedStudioTokenExpiry = 0;
+
+/**
+ * Authenticates with `t2-content-studio` Firebase via Anonymous Auth (just like D:\t2-studio\server.ts)
+ * so all cloud Firestore reads & writes to `/clinics`, `/content`, `/ideas`, and `/appointments` succeed.
+ */
+export async function getTitoStudioAuthToken(): Promise<string | null> {
+    if (cachedStudioIdToken && Date.now() < cachedStudioTokenExpiry) {
+        return cachedStudioIdToken;
+    }
+    try {
+        const res = await fetch(
+            `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${TITO_STUDIO_FIREBASE_API_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ returnSecureToken: true }),
+                signal: AbortSignal.timeout(6000)
+            }
+        );
+        if (res.ok) {
+            const data: any = await res.json();
+            if (data.idToken) {
+                cachedStudioIdToken = data.idToken;
+                cachedStudioTokenExpiry = Date.now() + 50 * 60 * 1000; // 50 minutes
+                return cachedStudioIdToken;
+            }
+        }
+    } catch (e: any) {
+        console.warn('[TitoStudioBridge] Anonymous auth warning:', e?.message);
+    }
+    return null;
+}
+
+async function buildFirestoreHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = await getTitoStudioAuthToken();
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
 
 export type OmniCtaType = 'APP_CONVERSION' | 'WHATSAPP_VOICE_AGENT' | 'COMMENT_TO_MESSENGER';
+
+export interface BrandMarketingStrategy {
+    brandId: string;
+    brandName: string;
+    createdAt: string;
+    positioning: string;
+    targetAudience: string;
+    toneOfVoice: string;
+    visualIdentity: {
+        primaryColor: string;
+        secondaryColor: string;
+        typographyStyle: string;
+        artDirection: string;
+    };
+    pillars: Array<{
+        id: 'product_marketing' | 'events_seasons' | 'educational_loyalty';
+        title: string;
+        percentage: number;
+        objective: string;
+        sampleAngles: string[];
+    }>;
+    weeklyMixSummary: string;
+    keyHooks: string[];
+}
+
+export interface TurboFlowVideoJob {
+    jobId: string;
+    postId: string;
+    brandId: string;
+    brandName: string;
+    day: string;
+    hook: string;
+    omniPrompt: string;
+    aspectRatio: '9:16' | '16:9';
+    model: 'veo-3.1-fast' | 'veo-3.1-quality';
+    status: 'queued' | 'processing_in_flow' | 'completed' | 'failed';
+    videoUrl?: string;
+    createdAt: string;
+    completedAt?: string;
+}
 
 export interface OmniWeekPostItem {
     id?: string;
     day: string;
     dateIso?: string;
+    mediaFormat?: 'image' | 'video';
     contentType: string;
+    pillar?: 'product_marketing' | 'events_seasons' | 'educational_loyalty';
+    pillarLabel?: string;
     hook: string;
     caption: string;
     bestTime: string;
@@ -21,6 +113,10 @@ export interface OmniWeekPostItem {
     ctaTargetUrl: string;
     commentKeyword?: string;
     visualUrl: string;
+    videoUrl?: string;
+    omniPrompt?: string;
+    turboFlowJobId?: string;
+    turboFlowStatus?: 'not_required' | 'queued' | 'processing_in_flow' | 'completed';
     status?: 'draft' | 'scheduled' | 'published';
     firestoreDocId?: string;
 }
@@ -30,6 +126,7 @@ export interface TitoStudioCache {
     clinics: any[];
     content: any[];
     appointments: any[];
+    strategies?: Record<string, BrandMarketingStrategy>;
 }
 
 /**
@@ -123,7 +220,7 @@ function escapeXml(str: string): string {
 
 /**
  * Generates a crisp, branded SVG data URL social media poster for any calendar post
- * so every post in Tito Studio & Jarvis Battle Station has a real visual creative preview.
+ * so every post in Tito Studio & Jarvis has a real visual creative preview.
  */
 export function generateBrandedPostSvgDataUrl(params: {
     brandName: string;
@@ -154,54 +251,289 @@ export function generateBrandedPostSvgDataUrl(params: {
     const phone = escapeXml(params.phone || '01013373634');
     const dayBadge = escapeXml(`${params.day} • ${params.contentType}`);
 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#050b14"/>
-      <stop offset="55%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="${primary}33"/>
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="55%" stop-color="#091326"/>
+      <stop offset="100%" stop-color="${primary}38"/>
     </linearGradient>
     <linearGradient id="pill" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="${accent}"/>
       <stop offset="100%" stop-color="${primary}"/>
     </linearGradient>
   </defs>
-  <rect width="800" height="800" fill="url(#bg)"/>
-  <circle cx="700" cy="120" r="210" fill="${primary}" opacity="0.12"/>
-  <circle cx="100" cy="700" r="240" fill="${accent}" opacity="0.10"/>
-  <rect x="44" y="44" width="712" height="712" rx="34" fill="none" stroke="${primary}" stroke-opacity="0.35" stroke-width="2"/>
+  <rect width="1080" height="1080" fill="url(#bg)"/>
+  <circle cx="940" cy="140" r="280" fill="${primary}" opacity="0.14"/>
+  <circle cx="140" cy="940" r="320" fill="${accent}" opacity="0.12"/>
+  <rect x="56" y="56" width="968" height="968" rx="44" fill="none" stroke="${primary}" stroke-opacity="0.4" stroke-width="2.5"/>
   
   <!-- Top Header -->
-  <rect x="80" y="82" width="290" height="44" rx="22" fill="${primary}26" stroke="${primary}" stroke-width="1.5"/>
-  <text x="225" y="110" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="18" font-weight="bold" fill="#e2e8f0" text-anchor="middle">${dayBadge}</text>
+  <rect x="100" y="105" width="380" height="58" rx="29" fill="${primary}26" stroke="${primary}" stroke-width="1.8"/>
+  <text x="290" y="142" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="23" font-weight="bold" fill="#e2e8f0" text-anchor="middle">${dayBadge}</text>
 
-  <text x="720" y="108" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="28" font-weight="900" fill="#ffffff" text-anchor="end">${brandName}</text>
-  <text x="720" y="138" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="16" font-weight="600" fill="${accent}" text-anchor="end">${businessType}</text>
+  <text x="975" y="140" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="38" font-weight="900" fill="#ffffff" text-anchor="end">${brandName}</text>
+  <text x="975" y="180" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="22" font-weight="600" fill="${accent}" text-anchor="end">${businessType}</text>
 
   <!-- Center Hook Box -->
-  <rect x="76" y="210" width="648" height="310" rx="28" fill="#0f172acc" stroke="#334155" stroke-width="2"/>
-  <text x="400" y="325" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="33" font-weight="900" fill="#ffffff" text-anchor="middle">${hookLine1}</text>
-  <text x="400" y="380" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="30" font-weight="800" fill="#38bdf8" text-anchor="middle">${hookLine2}</text>
-  <text x="400" y="455" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="20" font-weight="700" fill="#94a3b8" text-anchor="middle">متابعة فورية بالذكاء الاصطناعي • ضمان معتمد • خصم 10% للحجز المبكر</text>
+  <rect x="96" y="280" width="888" height="420" rx="36" fill="#0f172acc" stroke="#334155" stroke-width="2.5"/>
+  <text x="540" y="435" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="44" font-weight="900" fill="#ffffff" text-anchor="middle">${hookLine1}</text>
+  <text x="540" y="510" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="40" font-weight="800" fill="#38bdf8" text-anchor="middle">${hookLine2}</text>
+  <text x="540" y="615" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="26" font-weight="700" fill="#94a3b8" text-anchor="middle">متابعة فورية بالذكاء الاصطناعي • ضمان معتمد • خصم 10% للحجز المبكر</text>
 
   <!-- Omni-CTA Pill -->
-  <rect x="130" y="565" width="540" height="74" rx="37" fill="url(#pill)"/>
-  <text x="400" y="611" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="24" font-weight="900" fill="#041019" text-anchor="middle">${ctaBadge}</text>
+  <rect x="170" y="765" width="740" height="96" rx="48" fill="url(#pill)"/>
+  <text x="540" y="825" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="32" font-weight="900" fill="#020617" text-anchor="middle">${ctaBadge}</text>
 
   <!-- Footer -->
-  <text x="715" y="710" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="20" font-weight="bold" fill="#cbd5e1" text-anchor="end">واتساب وخدمة العملاء: ${phone}</text>
-  <text x="85" y="710" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="16" font-weight="bold" fill="${accent}" text-anchor="start">T2 STUDIO × JARVIS OMNI-ENGINE</text>
+  <text x="970" y="965" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="26" font-weight="bold" fill="#cbd5e1" text-anchor="end">واتساب وخدمة العملاء: ${phone}</text>
+  <text x="110" y="965" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="22" font-weight="bold" fill="${accent}" text-anchor="start">TITO STUDIO × TURBO FLOW ENGINE</text>
 </svg>`;
 
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 /**
- * Builds the 7-Day Omni-Channel CTA Matrix (The "Addiction Funnel") for any brand.
- *Alternates between:
- * 1) APP_CONVERSION -> Drives traffic to `/store/:slug` with 10% instant booking discount.
- * 2) WHATSAPP_VOICE_AGENT -> Drives traffic to `wa.me/201...` where T2 Agent replies with Gemini 24kHz voice.
- * 3) COMMENT_TO_MESSENGER -> Viral comment keyword trigger (`"عرض"` / `"تفاصيل"`) for auto-DM + reply.
+ * Reads & writes the Turbo Flow Video Queue (`data/turbo_flow_queue.json` + `data/turbo_flow_prompts.csv`)
+ */
+export function readTurboFlowQueue(): TurboFlowVideoJob[] {
+    try {
+        if (fs.existsSync(TURBO_FLOW_QUEUE_PATH)) {
+            const parsed = JSON.parse(fs.readFileSync(TURBO_FLOW_QUEUE_PATH, 'utf8'));
+            if (Array.isArray(parsed)) return parsed;
+        }
+    } catch {}
+    return [];
+}
+
+export function saveTurboFlowQueue(jobs: TurboFlowVideoJob[]): void {
+    try {
+        const dir = path.dirname(TURBO_FLOW_QUEUE_PATH);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(TURBO_FLOW_QUEUE_PATH, JSON.stringify(jobs, null, 2), 'utf8');
+
+        // Also write a ready-to-import CSV file for Turbo Flow Chrome Extension batch import
+        const csvHeader = 'JobID,BrandName,Day,AspectRatio,Model,OmniPrompt\n';
+        const csvRows = jobs
+            .filter(j => j.status === 'queued' || j.status === 'processing_in_flow')
+            .map(j => {
+                const safePrompt = `"${String(j.omniPrompt || '').replace(/"/g, '""')}"`;
+                return `${j.jobId},"${j.brandName}","${j.day}",${j.aspectRatio},${j.model},${safePrompt}`;
+            })
+            .join('\n');
+        fs.writeFileSync(TURBO_FLOW_CSV_PATH, '\uFEFF' + csvHeader + csvRows, 'utf8');
+    } catch (e: any) {
+        console.warn('[TurboFlowBridge] Failed to save queue:', e?.message);
+    }
+}
+
+export function enqueueTurboFlowVideoJob(job: Omit<TurboFlowVideoJob, 'jobId' | 'createdAt' | 'status'>): TurboFlowVideoJob {
+    const queue = readTurboFlowQueue();
+    const existingIdx = queue.findIndex(j => j.postId === job.postId && j.brandId === job.brandId);
+    const fullJob: TurboFlowVideoJob = {
+        ...job,
+        jobId: existingIdx >= 0 ? queue[existingIdx].jobId : `tf_${job.brandId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        status: 'queued',
+        createdAt: new Date().toISOString()
+    };
+    if (existingIdx >= 0) {
+        queue[existingIdx] = fullJob;
+    } else {
+        queue.unshift(fullJob);
+    }
+    saveTurboFlowQueue(queue);
+    return fullJob;
+}
+
+/**
+ * Generates a complete, high-converting Marketing Strategy for a brand in Tito Studio
+ * based on the 3 Pillars (`product_marketing`, `events_seasons`, `educational_loyalty`).
+ */
+export async function generateBrandMarketingStrategy(brand: {
+    id: string;
+    slug?: string;
+    name: string;
+    businessType?: string;
+    phone?: string;
+    primaryColor?: string;
+    directKnowledge?: string;
+    productsCatalog?: any[];
+}): Promise<BrandMarketingStrategy> {
+    const brandId = String(brand.id || brand.slug);
+    const catalogSummary = (brand.productsCatalog || [])
+        .map((p: any) => `${p.name} (${p.price})`)
+        .join('، ');
+
+    let strategy: BrandMarketingStrategy | null = null;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+
+    if (apiKey) {
+        try {
+            const ai = new GoogleGenAI({ apiKey });
+            const prompt = `أنت المدير الاستراتيجي لمنظومة تيتو ستوديو (Tito Studio).
+قم ببناء استراتيجية تسويقية احترافية شاملة للبراند التالي:
+- اسم البراند: ${brand.name}
+- القطاع / التخصص: ${brand.businessType || 'خدمات وتجارة'}
+- نبذة عن البراند: ${brand.directKnowledge || ''}
+- قائمة الخدمات/المنتجات: ${catalogSummary || 'خدمات متكاملة'}
+
+أرجع النتيجة بصيغة JSON فقط تطابق الهيكل التالي:
+{
+  "positioning": "جملة التموضع التسويقي القوية للبراند في السوق المصري والعربي",
+  "targetAudience": "وصف دقيق لشريحة العملاء المستهدفة ودوافع الشراء لديهم",
+  "toneOfVoice": "نبرة الصوت التسويقية (مثال: احترافية، ودودة، حاسمة، تركز على النتائج)",
+  "visualIdentity": {
+    "primaryColor": "${brand.primaryColor || '#06b6d4'}",
+    "secondaryColor": "#020617",
+    "typographyStyle": "خط Cairo العريض للعناوين الخاطفة مع تباين نيون",
+    "artDirection": "تصميمات سوشيال ميديا سينمائية في تيتو ستوديو + فيديوهات ريلز واقعية عبر Google Flow (Veo 3.1)"
+  },
+  "pillars": [
+    {
+      "id": "product_marketing",
+      "title": "تسويق الخدمات والعروض المباشرة (تحويل للتطبيق والمتجر)",
+      "percentage": 45,
+      "objective": "تحقيق حجوزات ومبيعات فورية من متجر البراند وتطبيقه بخصم 10%",
+      "sampleAngles": ["زاوية 1", "زاوية 2", "زاوية 3"]
+    },
+    {
+      "id": "events_seasons",
+      "title": "فيديوهات ريلز التفاعل السريع والمحادثة الصوتية (Google Flow + واتساب)",
+      "percentage": 30,
+      "objective": "جذب العملاء للتحدث مع وكيل البراند الذكي على واتساب وحسم الحجوزات صوتياً",
+      "sampleAngles": ["زاوية 1", "زاوية 2"]
+    },
+    {
+      "id": "educational_loyalty",
+      "title": "محتوى القيمة والولاء والرد التلقائي (Comment-to-Messenger)",
+      "percentage": 25,
+      "objective": "مضاعفة الوصول العضوي وإرسال الكتالوج تلقائياً في الرسائل لكل متفاعل",
+      "sampleAngles": ["زاوية 1", "زاوية 2"]
+    }
+  ],
+  "weeklyMixSummary": "4 تصميمات سوشيال احترافية من تيتو ستوديو + 3 فيديوهات ريلز سينمائية يتم توليدها عبر Turbo Flow في Google Flow",
+  "keyHooks": ["هوك 1", "هوك 2", "هوك 3", "هوك 4", "هوك 5", "هوك 6", "هوك 7"]
+}`;
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { responseMimeType: 'application/json' }
+            });
+            const parsed = JSON.parse(response.text || '{}');
+            if (parsed && parsed.positioning) {
+                strategy = {
+                    brandId,
+                    brandName: brand.name,
+                    createdAt: new Date().toISOString(),
+                    positioning: parsed.positioning,
+                    targetAudience: parsed.targetAudience || `عملاء ${brand.businessType || brand.name} الباحثين عن الجودة والسرعة`,
+                    toneOfVoice: parsed.toneOfVoice || 'احترافية، مقنعة، ومباشرة باللهجة المصرية الراقية',
+                    visualIdentity: parsed.visualIdentity || {
+                        primaryColor: brand.primaryColor || '#06b6d4',
+                        secondaryColor: '#020617',
+                        typographyStyle: 'خط Cairo العريض مع إضاءة Blue-Black Fiber',
+                        artDirection: 'تصميمات تيتو ستوديو + فيديوهات Veo 3.1 عبر Turbo Flow'
+                    },
+                    pillars: Array.isArray(parsed.pillars) && parsed.pillars.length >= 3 ? parsed.pillars : [],
+                    weeklyMixSummary: parsed.weeklyMixSummary || '4 تصميمات صور في تيتو ستوديو + 3 فيديوهات ريلز عبر Google Flow (Turbo Flow)',
+                    keyHooks: Array.isArray(parsed.keyHooks) && parsed.keyHooks.length > 0 ? parsed.keyHooks : []
+                };
+            }
+        } catch (e: any) {
+            console.warn('[TitoStudioBridge] Gemini strategy generation fallback:', e?.message);
+        }
+    }
+
+    if (!strategy) {
+        strategy = {
+            brandId,
+            brandName: brand.name,
+            createdAt: new Date().toISOString(),
+            positioning: `الاختيار الأول في ${brand.businessType || 'الخدمات المتكاملة'} مع تجربة حجز ذكية في 30 ثانية وخدمة عملاء صوتية فورية.`,
+            targetAudience: `العملاء المهتمون بـ ${brand.businessType || brand.name} والراغبون في جودة مضمونة وسرعة استجابة فورية.`,
+            toneOfVoice: 'احترافية، موثوقة، وحاسمة تركز على القيمة والنتائج الملموسة.',
+            visualIdentity: {
+                primaryColor: brand.primaryColor || '#06b6d4',
+                secondaryColor: '#020617',
+                typographyStyle: 'خط Cairo الاحترافي بتباين واضح للهوك وزر الـ CTA',
+                artDirection: 'تصميمات سوشيال في تيتو ستوديو + فيديوهات ريلز سينمائية عبر Google Flow (Turbo Flow)'
+            },
+            pillars: [
+                {
+                    id: 'product_marketing',
+                    title: 'تسويق الخدمات والعروض المباشرة (تحويل لمتجر وتطبيق البراند)',
+                    percentage: 45,
+                    objective: 'تحويل المشاهدين إلى حجوزات مؤكدة داخل تطبيق البراند بخصم 10% فوري',
+                    sampleAngles: [
+                        `عرض الحجز المبكر من تطبيق ${brand.name} بخصم 10%`,
+                        `مقارنة الباقات والأسعار الشفافة لـ ${brand.name}`,
+                        `تجربة عميل حقيقية قبل وبعد مع ${brand.name}`
+                    ]
+                },
+                {
+                    id: 'events_seasons',
+                    title: 'فيديوهات ريلز التفاعل والمحادثة الصوتية (Google Flow + واتساب)',
+                    percentage: 30,
+                    objective: 'تشغيل فيديوهات ريلز سينمائية عبر Turbo Flow تدفع العميل لمحادثة وكيل الواتساب الصوتي',
+                    sampleAngles: [
+                        `جولة بصرية سينمائية داخل ${brand.name} مع دعوة للتواصل عبر واتساب`,
+                        `عرض نهاية الأسبوع الحصري لأول 10 حجوزات عبر واتساب`
+                    ]
+                },
+                {
+                    id: 'educational_loyalty',
+                    title: 'محتوى القيمة والرد التلقائي (Comment-to-Messenger)',
+                    percentage: 25,
+                    objective: 'إطلاق منشورات تفاعلية تطلب كتابة كلمة مفتاحية في تعليق لإرسال الكتالوج في الرسائل فوراً',
+                    sampleAngles: [
+                        `اكتب كلمة "عرض" في تعليق لاستلام كتالوج أسعار ${brand.name} كاملاً`,
+                        `3 نصائح ذهبية من خبراء ${brand.name} توفر عليك الوقت والتكلفة`
+                    ]
+                }
+            ],
+            weeklyMixSummary: '4 تصميمات صور في تيتو ستوديو + 3 فيديوهات ريلز سينمائية في Google Flow عبر إضافة Turbo Flow',
+            keyHooks: [
+                `احجز خدمتك الآن من تطبيق ${brand.name} الرسمي بخصم 10% فوري بدون انتظار!`,
+                `عندك استفسار؟ وكيل ${brand.name} الذكي يرد عليك بصوت بشري في 3 ثوانٍ على واتساب!`,
+                `اكتب كلمة "عرض" في تعليق وهيوصلك كتالوج أسعار ${brand.name} وكود الخصم في رسالة فوراً!`,
+                `شوف النتيجة بنفسك مع ${brand.name} — ثبت موعدك الآن من التطبيق بعربون 25%!`,
+                `3 أسرار ذهبية من خبراء ${brand.name} توفر عليك نص التكلفة والوقت!`,
+                `اكتب "تفاصيل" في الكومنتات وهنبعتلك هدية نهاية الأسبوع من ${brand.name} حالاً!`,
+                `عرض الجمعة الحصري من ${brand.name} — أول 10 حجوزات اليوم بخصم إضافي وأولوية تنفيذ!`
+            ]
+        };
+    }
+
+    // Save strategy into local cache and t2-content-studio Firestore clinic doc
+    try {
+        const cache = readTitoStudioCacheSync();
+        if (!cache.strategies) cache.strategies = {};
+        cache.strategies[brandId] = strategy;
+        const clinicIdx = cache.clinics.findIndex((c: any) => c.id === brandId || c.slug === brand.slug);
+        if (clinicIdx >= 0) {
+            cache.clinics[clinicIdx].marketingStrategy = strategy;
+        }
+        fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2), 'utf8');
+    } catch {}
+
+    try {
+        const headers = await buildFirestoreHeaders();
+        const fields = toFirestoreFields({ marketingStrategy: strategy });
+        await fetch(`${FIRESTORE_BASE_URL}/clinics/${encodeURIComponent(brandId)}?updateMask.fieldPaths=marketingStrategy`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ fields }),
+            signal: AbortSignal.timeout(5000)
+        });
+    } catch {}
+
+    return strategy;
+}
+
+/**
+ * Builds the 7-Day Omni-Channel Content Plan for any brand:
+ * - Image posts ('image') -> Rendered immediately in Tito Studio engine.
+ * - Video posts ('video') -> Generates a cinematic Veo 3.1 `omniPrompt` and queues it into Turbo Flow Bridge for Google Flow!
  */
 export function buildOmniChannelWeekPlan(brand: {
     id: string;
@@ -211,6 +543,7 @@ export function buildOmniChannelWeekPlan(brand: {
     phone?: string;
     primaryColor?: string;
     existingPlan?: any[];
+    strategy?: BrandMarketingStrategy;
 }): OmniWeekPostItem[] {
     const slug = brand.slug || brand.id;
     const rawPhone = String(brand.phone || '01013373634').replace(/[^0-9]/g, '');
@@ -218,9 +551,13 @@ export function buildOmniChannelWeekPlan(brand: {
     const storePath = `/store/${slug}`;
     const fullStoreUrl = `https://t2-growth-os.vercel.app/store/${slug}?utm_source=tito_studio`;
     const waLink = `https://wa.me/${intlPhone}?text=${encodeURIComponent(`أهلاً ${brand.name}، شفت عرض السوشيال وعاوز أحجز وأستفيد بخصم 10% الفوري`)}`;
+    const customHooks = brand.strategy?.keyHooks || [];
 
     const baseDays: Array<{
         day: string;
+        mediaFormat: 'image' | 'video';
+        pillar: 'product_marketing' | 'events_seasons' | 'educational_loyalty';
+        pillarLabel: string;
         contentType: string;
         defaultHook: string;
         ctaType: OmniCtaType;
@@ -229,78 +566,107 @@ export function buildOmniChannelWeekPlan(brand: {
         ctaTargetUrl: string;
         commentKeyword?: string;
         bestTime: string;
+        omniPrompt: string;
     }> = [
         {
             day: 'السبت',
-            contentType: 'بوست تحويل مباشر للتطبيق (Feed 1:1)',
-            defaultHook: `احجز خدمتك الآن من تطبيق ${brand.name} الرسمي بخصم 10% فوري بدون انتظار!`,
+            mediaFormat: 'image',
+            pillar: 'product_marketing',
+            pillarLabel: 'تسويق المنتجات والخدمات',
+            contentType: 'تصميم تيتو ستوديو (Feed 1:1)',
+            defaultHook: customHooks[0] || `احجز خدمتك الآن من تطبيق ${brand.name} الرسمي بخصم 10% فوري بدون انتظار!`,
             ctaType: 'APP_CONVERSION',
             ctaBadge: '🛒 احجز من التطبيق بخصم 10% فوري',
             ctaActionText: `افتح المتجر واحجز في 30 ثانية: ${storePath}`,
             ctaTargetUrl: storePath,
-            bestTime: '8:00 مساءً'
+            bestTime: '8:00 مساءً',
+            omniPrompt: `Ultra-luxury commercial photography for ${brand.name} (${brand.businessType || 'premium brand'}), dramatic studio lighting, cyan and deep navy accents, 8k photorealistic.`
         },
         {
             day: 'الأحد',
-            contentType: 'فيديو ريلز محادثة واتساب (Reels 9:16)',
-            defaultHook: `عندك استفسار؟ وكيل ${brand.name} الذكي يرد عليك بصوت بشري في 3 ثوانٍ على واتساب!`,
+            mediaFormat: 'video',
+            pillar: 'events_seasons',
+            pillarLabel: 'ريلز سينمائي (Turbo Flow / Google Flow)',
+            contentType: 'فيديو ريلز Google Flow (Reels 9:16)',
+            defaultHook: customHooks[1] || `عندك استفسار؟ وكيل ${brand.name} الذكي يرد عليك بصوت بشري في 3 ثوانٍ على واتساب!`,
             ctaType: 'WHATSAPP_VOICE_AGENT',
             ctaBadge: '💬 تواصل واتساب فوري (رد صوتي ذكي)',
-            ctaActionText: `اضغط لمحادثة واتساب المباشرة: ${ brand.phone || '01013373634' }`,
+            ctaActionText: `اضغط لمحادثة واتساب المباشرة: ${brand.phone || '01013373634'}`,
             ctaTargetUrl: waLink,
-            bestTime: '9:00 مساءً'
+            bestTime: '9:00 مساءً',
+            omniPrompt: `Vertical 9:16 cinematic commercial reel for ${brand.name} (${brand.businessType || 'modern service business'}), smooth gimbal camera movement entering a high-end modern space, warm welcoming atmosphere with subtle cyan fiber-optic rim lighting, happy client experiencing top-tier service, photorealistic 4K Veo 3.1 commercial quality, no text overlay.`
         },
         {
             day: 'الإثنين',
-            contentType: 'بوست تفاعلي فيروسي (Auto-DM Trigger)',
-            defaultHook: `اكتب كلمة "عرض" في تعليق وهيوصلك كتالوج أسعار ${brand.name} وكود الخصم في رسالة فوراً!`,
+            mediaFormat: 'image',
+            pillar: 'educational_loyalty',
+            pillarLabel: 'تفاعل وولاء (Auto-DM)',
+            contentType: 'تصميم تفاعلي تيتو ستوديو (Auto-DM)',
+            defaultHook: customHooks[2] || `اكتب كلمة "عرض" في تعليق وهيوصلك كتالوج أسعار ${brand.name} وكود الخصم في رسالة فوراً!`,
             ctaType: 'COMMENT_TO_MESSENGER',
             ctaBadge: '🤖 اكتب "عرض" في تعليق لاستلام الكتالوج',
             ctaActionText: 'رد تلقائي على التعليق + رسالة ماسنجر فورية بالكتالوج',
             ctaTargetUrl: storePath,
             commentKeyword: 'عرض',
-            bestTime: '8:30 مساءً'
+            bestTime: '8:30 مساءً',
+            omniPrompt: `High-impact social media showcase for ${brand.name}, spotlighting premium catalog items on a sleek dark podium, studio rim lighting.`
         },
         {
             day: 'الثلاثاء',
-            contentType: 'دراسة حالة قبل وبعد + تحويل للتطبيق',
-            defaultHook: `شوف النتيجة بنفسك مع ${brand.name} — ثبت موعدك الآن من التطبيق بعربون 25%!`,
+            mediaFormat: 'video',
+            pillar: 'product_marketing',
+            pillarLabel: 'ريلز تحويل مباشر (Turbo Flow)',
+            contentType: 'فيديو ريلز Google Flow (Reels 9:16)',
+            defaultHook: customHooks[3] || `شوف النتيجة بنفسك مع ${brand.name} — ثبت موعدك الآن من التطبيق بعربون 25%!`,
             ctaType: 'APP_CONVERSION',
             ctaBadge: '🛒 ثبت حجزك من التطبيق (خصم 10%)',
             ctaActionText: `احجز الباقة المناسبة من التطبيق: ${storePath}`,
             ctaTargetUrl: storePath,
-            bestTime: '7:30 مساءً'
+            bestTime: '7:30 مساءً',
+            omniPrompt: `Vertical 9:16 dynamic transformation and showcase video for ${brand.name} (${brand.businessType || 'premium brand'}), macro close-up shots transitioning to a wide hero reveal, luxury commercial lighting, 60fps slow-motion details, photorealistic Veo 3.1 style, no text.`
         },
         {
             day: 'الأربعاء',
-            contentType: 'كاروسيل تعليمي + استشارة واتساب صوتية',
-            defaultHook: `3 أسرار ذهبية من خبراء ${brand.name} توفر عليك نص التكلفة والوقت!`,
+            mediaFormat: 'image',
+            pillar: 'educational_loyalty',
+            pillarLabel: 'محتوى تعليمي واستشارة صوتية',
+            contentType: 'تصميم كاروسيل تيتو ستوديو + استشارة واتساب',
+            defaultHook: customHooks[4] || `3 أسرار ذهبية من خبراء ${brand.name} توفر عليك نص التكلفة والوقت!`,
             ctaType: 'WHATSAPP_VOICE_AGENT',
             ctaBadge: '💬 اطلب استشارتك الصوتية عبر واتساب',
             ctaActionText: `تحدث مع المستشار الذكي على واتساب: ${brand.phone || '01013373634'}`,
             ctaTargetUrl: waLink,
-            bestTime: '9:00 مساءً'
+            bestTime: '9:00 مساءً',
+            omniPrompt: `Editorial portrait of expert team at ${brand.name}, modern studio backdrop, confident and trustworthy aura.`
         },
         {
             day: 'الخميس',
-            contentType: 'مسابقة وعرض تفاعلي (Comment-to-DM)',
-            defaultHook: `اكتب "تفاصيل" في الكومنتات وهنبعتلك هدية نهاية الأسبوع من ${brand.name} حالاً!`,
+            mediaFormat: 'image',
+            pillar: 'educational_loyalty',
+            pillarLabel: 'مسابقة وعرض تفاعلي (Comment-to-DM)',
+            contentType: 'تصميم تيتو ستوديو التفاعلي (Comment-to-DM)',
+            defaultHook: customHooks[5] || `اكتب "تفاصيل" في الكومنتات وهنبعتلك هدية نهاية الأسبوع من ${brand.name} حالاً!`,
             ctaType: 'COMMENT_TO_MESSENGER',
             ctaBadge: '🤖 علق بكلمة "تفاصيل" لاستلام الهدية',
             ctaActionText: 'إرسال فوري عبر Messenger / Instagram DM',
             ctaTargetUrl: storePath,
             commentKeyword: 'تفاصيل',
-            bestTime: '10:00 مساءً'
+            bestTime: '10:00 مساءً',
+            omniPrompt: `Luxury gift box and VIP voucher presentation for ${brand.name}, glowing golden and cyan highlights, celebratory mood.`
         },
         {
             day: 'الجمعة',
-            contentType: 'عرض نهاية الأسبوع VIP (إغلاق مبيعات)',
-            defaultHook: `عرض الجمعة الحصري من ${brand.name} — أول 10 حجوزات اليوم بخصم إضافي وأولوية تنفيذ!`,
+            mediaFormat: 'video',
+            pillar: 'events_seasons',
+            pillarLabel: 'ريلز إغلاق مبيعات الجمعة (Turbo Flow)',
+            contentType: 'فيديو ريلز VIP عبر Google Flow (Reels 9:16)',
+            defaultHook: customHooks[6] || `عرض الجمعة الحصري من ${brand.name} — أول 10 حجوزات اليوم بخصم إضافي وأولوية تنفيذ!`,
             ctaType: 'WHATSAPP_VOICE_AGENT',
             ctaBadge: '🔥 اقفل حجزك الآن عبر واتساب أو التطبيق',
             ctaActionText: `حجز فوري عبر واتساب (${brand.phone || '01013373634'}) أو المتجر (${storePath})`,
             ctaTargetUrl: waLink,
-            bestTime: '5:00 مساءً'
+            bestTime: '5:00 مساءً',
+            omniPrompt: `Vertical 9:16 high-energy weekend VIP commercial for ${brand.name} (${brand.businessType || 'flagship service'}), dramatic cinematic lighting, fast-paced luxury b-roll cuts, inviting VIP atmosphere, shot on Arri Alexa Mini LF, Veo 3.1 photorealistic quality, no text.`
         }
     ];
 
@@ -311,13 +677,16 @@ export function buildOmniChannelWeekPlan(brand: {
         const ctaBadge = existingItem?.ctaBadge || slot.ctaBadge;
         const ctaActionText = existingItem?.ctaActionText || slot.ctaActionText;
         const ctaTargetUrl = existingItem?.ctaTargetUrl || slot.ctaTargetUrl;
+        const mediaFormat: 'image' | 'video' = existingItem?.mediaFormat || slot.mediaFormat;
+        const omniPrompt = existingItem?.omniPrompt || slot.omniPrompt;
+        const postId = existingItem?.id || `${brand.id}_day_${idx + 1}`;
 
         let strategicCaption = existingItem?.caption || '';
         if (!strategicCaption || strategicCaption.length < 40) {
             if (ctaType === 'APP_CONVERSION') {
-                strategicCaption = `${hook}\n\n✅ تصفح الباقات والأسعار واحجز موعدك مباشرة من تطبيقنا في 30 ثانية:\n${fullStoreUrl}\n🎁 خصم 10% فوري عند تأكيد الحجز بعربون 25% عبر إنستاباي أو فودافون كاش.\n📞 للتواصل السريع: ${brand.phone || '01013373634'}`;
+                strategicCaption = `${hook}\n\n✅ تصفح الباقات والأسعار واحجز موعدك مباشرة من متجر وتطبيق البراند في 30 ثانية:\n${fullStoreUrl}\n🎁 خصم 10% فوري عند تأكيد الحجز بعربون 25% عبر إنستاباي أو فودافون كاش.\n📞 للتواصل السريع: ${brand.phone || '01013373634'}`;
             } else if (ctaType === 'WHATSAPP_VOICE_AGENT') {
-                strategicCaption = `${hook}\n\n💬 اضغط على رابط واتساب للتحدث فوراً مع وكيلنا الذكي (رد صوتي ونصي في 3 ثوانٍ على مدار الساعة):\n${waLink}\n🛒 أو احجز مباشرة من متجرنا الرسمي: ${fullStoreUrl}`;
+                strategicCaption = `${hook}\n\n💬 اضغط على رابط واتساب للتحدث فوراً مع وكيلنا الذكي (رد صوتي بشري ونصي في 3 ثوانٍ على مدار الساعة):\n${waLink}\n🛒 أو احجز مباشرة من متجرنا الرسمي: ${fullStoreUrl}`;
             } else {
                 const kw = slot.commentKeyword || 'عرض';
                 strategicCaption = `${hook}\n\n👇 اكتب كلمة (${kw}) في التعليقات الآن، وسيقوم نظام ${brand.name} الذكي بالرد عليك وإرسال تفاصيل الباقات ورابط الحجز المباشر في رسائل الصفحة فوراً!\n📞 واتساب مباشر: ${brand.phone || '01013373634'}`;
@@ -340,12 +709,34 @@ export function buildOmniChannelWeekPlan(brand: {
                       ctaType
                   });
 
+        let turboFlowJobId = existingItem?.turboFlowJobId;
+        let turboFlowStatus: OmniWeekPostItem['turboFlowStatus'] = existingItem?.turboFlowStatus || (mediaFormat === 'video' ? 'queued' : 'not_required');
+        if (mediaFormat === 'video') {
+            const job = enqueueTurboFlowVideoJob({
+                postId,
+                brandId: brand.id,
+                brandName: brand.name,
+                day: slot.day,
+                hook,
+                omniPrompt,
+                aspectRatio: '9:16',
+                model: 'veo-3.1-fast'
+            });
+            turboFlowJobId = job.jobId;
+            if (existingItem?.videoUrl) {
+                turboFlowStatus = 'completed';
+            }
+        }
+
         const postDate = new Date(Date.now() + idx * 86400000);
 
         return {
-            id: existingItem?.id || `${brand.id}_day_${idx + 1}`,
+            id: postId,
             day: slot.day,
             dateIso: existingItem?.dateIso || postDate.toISOString(),
+            mediaFormat,
+            pillar: slot.pillar,
+            pillarLabel: slot.pillarLabel,
             contentType: existingItem?.contentType || slot.contentType,
             hook,
             caption: strategicCaption,
@@ -356,8 +747,12 @@ export function buildOmniChannelWeekPlan(brand: {
             ctaTargetUrl,
             commentKeyword: slot.commentKeyword,
             visualUrl,
-            status: existingItem?.status || 'scheduled',
-            firestoreDocId: existingItem?.firestoreDocId
+            videoUrl: existingItem?.videoUrl,
+            omniPrompt,
+            turboFlowJobId,
+            turboFlowStatus,
+            status: existingItem?.status || 'draft',
+            firestoreDocId: existingItem?.firestoreDocId || `jarvis_${brand.id}_day_${idx + 1}`
         };
     });
 }
@@ -378,21 +773,23 @@ export function readTitoStudioCacheSync(): TitoStudioCache {
         lastSyncedAt: '',
         clinics: [],
         content: [],
-        appointments: []
+        appointments: [],
+        strategies: {}
     };
 }
 
 /**
  * Fetches live `/clinics`, `/content`, and `/appointments` from `t2-content-studio` Firestore
- * and updates the local cache file (`data/tito_studio_cache.json`).
+ * using authenticated Firebase token and updates `data/tito_studio_cache.json`.
  */
 export async function syncFromTitoStudioFirestore(): Promise<TitoStudioCache> {
     const currentCache = readTitoStudioCacheSync();
     try {
+        const headers = await buildFirestoreHeaders();
         const [clinicsResp, contentResp, appsResp] = await Promise.all([
-            fetch(`${FIRESTORE_BASE_URL}/clinics?pageSize=100`, { signal: AbortSignal.timeout(7000) }),
-            fetch(`${FIRESTORE_BASE_URL}/content?pageSize=200`, { signal: AbortSignal.timeout(7000) }),
-            fetch(`${FIRESTORE_BASE_URL}/appointments?pageSize=100`, { signal: AbortSignal.timeout(7000) })
+            fetch(`${FIRESTORE_BASE_URL}/clinics?pageSize=100`, { headers, signal: AbortSignal.timeout(7000) }),
+            fetch(`${FIRESTORE_BASE_URL}/content?pageSize=200`, { headers, signal: AbortSignal.timeout(7000) }),
+            fetch(`${FIRESTORE_BASE_URL}/appointments?pageSize=100`, { headers, signal: AbortSignal.timeout(7000) })
         ]);
 
         const clinicsJson: any = clinicsResp.ok ? await clinicsResp.json() : {};
@@ -407,7 +804,8 @@ export async function syncFromTitoStudioFirestore(): Promise<TitoStudioCache> {
             lastSyncedAt: new Date().toISOString(),
             clinics: clinics.length > 0 ? clinics : currentCache.clinics,
             content: content.length > 0 ? content : currentCache.content,
-            appointments: appointments.length > 0 ? appointments : currentCache.appointments
+            appointments: appointments.length > 0 ? appointments : currentCache.appointments,
+            strategies: currentCache.strategies || {}
         };
 
         try {
@@ -425,9 +823,8 @@ export async function syncFromTitoStudioFirestore(): Promise<TitoStudioCache> {
 }
 
 /**
- * Upserts a brand document into `/clinics/{brandId}` in `t2-content-studio` Firestore (if write rules allow)
- * AND persists it immediately into the unified local Tito Studio cache (`data/tito_studio_cache.json`)
- * so any brand created or edited in Jarvis / App Cloner immediately appears in Tito Studio & Jarvis!
+ * Upserts a brand document into `/clinics/{brandId}` in `t2-content-studio` Firestore (with authenticated token)
+ * AND persists it immediately into the unified local Tito Studio cache (`data/tito_studio_cache.json`).
  */
 export async function upsertBrandToTitoStudioFirestore(brand: any): Promise<boolean> {
     if (!brand || (!brand.id && !brand.slug)) return false;
@@ -475,6 +872,9 @@ export async function upsertBrandToTitoStudioFirestore(brand: any): Promise<bool
         }
     };
 
+    if (brand.marketingStrategy) {
+        clinicDoc.marketingStrategy = brand.marketingStrategy;
+    }
     if (brand.metaToken) clinicDoc.metaToken = brand.metaToken;
     if (brand.metaPageId || brand.metaPageName) {
         clinicDoc.selectedMetaPage = {
@@ -483,7 +883,7 @@ export async function upsertBrandToTitoStudioFirestore(brand: any): Promise<bool
         };
     }
 
-    // 1. Update local Tito Studio cache immediately so both apps share instant state
+    // 1. Update local Tito Studio cache immediately
     try {
         const cache = readTitoStudioCacheSync();
         const existingIdx = cache.clinics.findIndex((c: any) => c.id === docId || c.slug === brand.slug);
@@ -499,15 +899,16 @@ export async function upsertBrandToTitoStudioFirestore(brand: any): Promise<bool
         fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2), 'utf8');
     } catch {}
 
-    // 2. Attempt direct Firestore REST PATCH
+    // 2. Authenticated Firestore REST PATCH to `t2-content-studio`
     try {
+        const headers = await buildFirestoreHeaders();
         const fields = toFirestoreFields(clinicDoc);
         const url = `${FIRESTORE_BASE_URL}/clinics/${encodeURIComponent(docId)}`;
         await fetch(url, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ fields }),
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(6000)
         });
     } catch {}
 
@@ -516,7 +917,7 @@ export async function upsertBrandToTitoStudioFirestore(brand: any): Promise<bool
 
 /**
  * Pushes a brand's 7-Day Omni-Channel Content Plan into `/content` collection in `t2-content-studio`
- * (both local shared cache and Firestore REST endpoint) so the calendar in Tito Studio and Jarvis are 100% unified!
+ * (both local shared cache and authenticated Firestore REST endpoint) so the calendar in Tito Studio and Jarvis are 100% unified!
  */
 export async function syncWeekPlanToTitoStudioFirestore(brand: any, weekPlan?: OmniWeekPostItem[]): Promise<number> {
     const clinicId = String(brand.titoStudioClinicId || brand.id || brand.slug);
@@ -527,36 +928,45 @@ export async function syncWeekPlanToTitoStudioFirestore(brand: any, weekPlan?: O
         businessType: brand.businessType,
         phone: brand.phone,
         primaryColor: brand.primaryColor,
-        existingPlan: brand.weekContentPlan
+        existingPlan: brand.weekContentPlan,
+        strategy: brand.marketingStrategy
     });
 
     const cache = readTitoStudioCacheSync();
+    const headers = await buildFirestoreHeaders();
     let syncedCount = 0;
 
     for (let i = 0; i < plan.length; i++) {
         const post = plan[i];
         const docId = post.firestoreDocId || `jarvis_${clinicId}_day_${i + 1}`;
         const postDate = post.dateIso ? new Date(post.dateIso) : new Date(Date.now() + i * 86400000);
+        const isVideo = post.mediaFormat === 'video' || post.contentType.includes('فيديو') || post.contentType.includes('Reel');
 
         const contentDoc: Record<string, any> = {
             id: docId,
             clinicId,
-            type: post.contentType.includes('فيديو') || post.contentType.includes('Reel') ? 'video' : 'image',
+            type: isVideo ? 'video' : 'image',
+            mediaFormat: isVideo ? 'video' : 'image',
             title: `${post.day}: ${post.hook.slice(0, 60)}`,
             hook: post.hook,
             caption: post.caption,
             content: post.caption,
-            visualUrl: post.visualUrl,
+            visualUrl: post.videoUrl || post.visualUrl,
+            videoUrl: post.videoUrl || '',
+            omniPrompt: post.omniPrompt || '',
+            turboFlowJobId: post.turboFlowJobId || '',
+            turboFlowStatus: post.turboFlowStatus || (isVideo ? 'queued' : 'not_required'),
             hashtags: ['#T2_Studio', `#${(brand.name || '').replace(/\s+/g, '_')}`, '#خصم_الحجز_الفوري'],
             date: postDate.toISOString(),
-            status: post.status || 'scheduled',
+            bestTime: post.bestTime || '8:00 مساءً',
+            status: post.status || 'draft',
             scheduledPlatforms: ['facebook', 'instagram'],
-            postFormat: post.contentType.includes('9:16') || post.contentType.includes('Reel') ? 'reels' : 'post',
+            postFormat: isVideo ? 'reels' : 'post',
             ownerUid: brand.ownerUid || 'system_jarvis_os',
             isAutopilot: true,
-            autopilotApproved: true,
-            pillar: post.ctaType === 'APP_CONVERSION' ? 'product_marketing' : post.ctaType === 'WHATSAPP_VOICE_AGENT' ? 'events_seasons' : 'educational_loyalty',
-            pillarLabel: post.ctaBadge,
+            autopilotApproved: post.status === 'scheduled' || post.status === 'published',
+            pillar: post.pillar || (post.ctaType === 'APP_CONVERSION' ? 'product_marketing' : post.ctaType === 'WHATSAPP_VOICE_AGENT' ? 'events_seasons' : 'educational_loyalty'),
+            pillarLabel: post.pillarLabel || post.ctaBadge,
             ctaType: post.ctaType,
             ctaBadge: post.ctaBadge,
             ctaTargetUrl: post.ctaTargetUrl
@@ -568,6 +978,18 @@ export async function syncWeekPlanToTitoStudioFirestore(brand: any, weekPlan?: O
         } else {
             cache.content.push(contentDoc);
         }
+
+        // Push to live `t2-content-studio` Firestore `/content/{docId}`
+        try {
+            const fields = toFirestoreFields(contentDoc);
+            await fetch(`${FIRESTORE_BASE_URL}/content/${encodeURIComponent(docId)}`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ fields }),
+                signal: AbortSignal.timeout(4500)
+            });
+        } catch {}
+
         syncedCount++;
     }
 
@@ -580,4 +1002,100 @@ export async function syncWeekPlanToTitoStudioFirestore(brand: any, weekPlan?: O
     } catch {}
 
     return syncedCount;
+}
+
+/**
+ * Approves and schedules all posts in a brand's 7-day plan (`status = 'scheduled'`, `autopilotApproved = true`)
+ * both in `t2-content-studio` Firestore and in local cache.
+ */
+export async function approveBrandScheduleInTitoStudio(brandId: string): Promise<{ approvedCount: number; posts: any[] }> {
+    const cache = readTitoStudioCacheSync();
+    const headers = await buildFirestoreHeaders();
+    const updatedPosts: any[] = [];
+
+    for (let i = 0; i < cache.content.length; i++) {
+        const item = cache.content[i];
+        if (item.clinicId === brandId || String(item.id || '').includes(brandId)) {
+            if (item.status !== 'published') {
+                item.status = 'scheduled';
+                item.autopilotApproved = true;
+                item.approvedAt = new Date().toISOString();
+            }
+            updatedPosts.push(item);
+            try {
+                const fields = toFirestoreFields(item);
+                await fetch(`${FIRESTORE_BASE_URL}/content/${encodeURIComponent(item.id)}`, {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify({ fields }),
+                    signal: AbortSignal.timeout(4000)
+                });
+            } catch {}
+        }
+    }
+
+    try {
+        cache.lastSyncedAt = new Date().toISOString();
+        fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2), 'utf8');
+    } catch {}
+
+    return { approvedCount: updatedPosts.length, posts: updatedPosts };
+}
+
+/**
+ * Attaches a completed video URL from Turbo Flow Bridge to the calendar post in `t2-content-studio`
+ */
+export async function completeTurboFlowVideoJob(params: {
+    jobId?: string;
+    postId?: string;
+    brandId?: string;
+    videoUrl: string;
+}): Promise<{ updated: boolean; job?: TurboFlowVideoJob; post?: any }> {
+    const queue = readTurboFlowQueue();
+    const jobIdx = queue.findIndex(
+        j => (params.jobId && j.jobId === params.jobId) || (params.postId && j.postId === params.postId)
+    );
+
+    let matchedJob: TurboFlowVideoJob | undefined;
+    if (jobIdx >= 0) {
+        queue[jobIdx].status = 'completed';
+        queue[jobIdx].videoUrl = params.videoUrl;
+        queue[jobIdx].completedAt = new Date().toISOString();
+        matchedJob = queue[jobIdx];
+        saveTurboFlowQueue(queue);
+    }
+
+    const cache = readTitoStudioCacheSync();
+    const headers = await buildFirestoreHeaders();
+    let matchedPost: any = null;
+
+    for (let i = 0; i < cache.content.length; i++) {
+        const c = cache.content[i];
+        if (
+            (matchedJob && (c.turboFlowJobId === matchedJob.jobId || c.id === matchedJob.postId || c.id === `jarvis_${matchedJob.brandId}_day_${matchedJob.postId.split('_').pop()}`)) ||
+            (params.postId && c.id === params.postId)
+        ) {
+            c.videoUrl = params.videoUrl;
+            c.visualUrl = params.videoUrl;
+            c.turboFlowStatus = 'completed';
+            matchedPost = c;
+
+            try {
+                const fields = toFirestoreFields(c);
+                await fetch(`${FIRESTORE_BASE_URL}/content/${encodeURIComponent(c.id)}`, {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify({ fields }),
+                    signal: AbortSignal.timeout(4500)
+                });
+            } catch {}
+            break;
+        }
+    }
+
+    try {
+        fs.writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2), 'utf8');
+    } catch {}
+
+    return { updated: Boolean(matchedJob || matchedPost), job: matchedJob, post: matchedPost };
 }

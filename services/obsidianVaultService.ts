@@ -9,7 +9,9 @@ import {
     syncFromTitoStudioFirestore,
     buildOmniChannelWeekPlan,
     upsertBrandToTitoStudioFirestore,
-    syncWeekPlanToTitoStudioFirestore
+    syncWeekPlanToTitoStudioFirestore,
+    generateBrandMarketingStrategy,
+    approveBrandScheduleInTitoStudio
 } from './titoStudioFirestoreBridge';
 
 export interface ObsidianNode {
@@ -537,7 +539,7 @@ updated_at: "${new Date().toISOString()}"
 # 🏢 [[${b.name}]]
 - **التصنيف:** ${b.businessType}
 - **رقم واتساب المبيعات:** \`${b.phone}\`
-- **رابط التطبيق المستنسخ (PWA):** [فتح المتجر التفاعلي](/store/${b.slug || b.id})
+- **رابط متجر وتطبيق البراند (PWA):** [فتح المتجر التفاعلي](/store/${b.slug || b.id})
 - **حالة الربط مع Meta:** ${b.metaConnected ? `متصل (${b.metaPageName})` : 'جاهز للربط الفوري'}
 
 ## 🔗 العقد المتصلة في أوبسيديان
@@ -1070,7 +1072,112 @@ export async function executeRealJarvisEcosystemAction(payload: {
                 trialClient: newClient,
                 storeUrl: `/store/${cloned.slug}`,
                 studioPostsCount,
-                message: `تم استنساخ تطبيق (${cloned.name}) في مصنع التطبيقات، وتسجيله في قاعدة بيانات تيتو ستوديو السحابية وتيتو أجنت، وجدولة (${studioPostsCount}) منشورات بمصفوفة الـ 3 مسارات (تطبيق + واتساب صوتي + تعليق تلقائي) لتفعيل أسبوع التجربة المجانية بالكامل!`
+                message: `تم بناء وتجهيز متجر وتطبيق (${cloned.name})، وتسجيله في قاعدة بيانات تيتو ستوديو السحابية وتيتو أجنت، وجدولة (${studioPostsCount}) منشورات بمصفوفة الـ 3 مسارات (تطبيق + واتساب صوتي + تعليق تلقائي) لتفعيل أسبوع التجربة المجانية بالكامل!`
+            };
+        }
+
+        case 'GENERATE_STUDIO_STRATEGY': {
+            const brands = getUnifiedGrowthBrands();
+            const targetBrand = brands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || brands[0];
+            if (!targetBrand) {
+                return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
+            }
+            const strategy = await generateBrandMarketingStrategy(targetBrand);
+            targetBrand.marketingStrategy = strategy;
+            saveCustomBrandOverride(targetBrand);
+            await upsertBrandToTitoStudioFirestore(targetBrand);
+            syncAndBuildObsidianVault();
+            return {
+                success: true,
+                brand: targetBrand,
+                strategy,
+                message: `تم بناء وحفظ الاستراتيجية التسويقية الكاملة لبراند (${targetBrand.name}) في تيتو ستوديو وأوبسيديان بنجاح!`
+            };
+        }
+
+        case 'GENERATE_WEEK_CONTENT_PLAN': {
+            const brands = getUnifiedGrowthBrands();
+            const targetBrand = brands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || brands[0];
+            if (!targetBrand) {
+                return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
+            }
+            if (!targetBrand.marketingStrategy) {
+                targetBrand.marketingStrategy = await generateBrandMarketingStrategy(targetBrand);
+            }
+            const freshPlan = buildOmniChannelWeekPlan({
+                id: targetBrand.id,
+                slug: targetBrand.slug || targetBrand.id,
+                name: targetBrand.name,
+                businessType: targetBrand.businessType,
+                phone: targetBrand.phone,
+                primaryColor: targetBrand.primaryColor,
+                strategy: targetBrand.marketingStrategy
+            });
+            targetBrand.weekContentPlan = freshPlan;
+            saveCustomBrandOverride(targetBrand);
+            const syncedCount = await syncWeekPlanToTitoStudioFirestore(targetBrand, freshPlan);
+            syncAndBuildObsidianVault();
+            const imagePostsCount = freshPlan.filter(p => p.mediaFormat === 'image').length;
+            const videoPostsCount = freshPlan.filter(p => p.mediaFormat === 'video').length;
+            return {
+                success: true,
+                brand: targetBrand,
+                weekPlan: freshPlan,
+                syncedCount,
+                imagePostsCount,
+                videoPostsCount,
+                message: `تم توليد خطة محتوى أول أسبوع لبراند (${targetBrand.name}) بإجمالي 7 منشورات: (${imagePostsCount}) تصميمات صور جاهزة في تيتو ستوديو، و(${videoPostsCount}) فيديوهات ريلز تم إرسال أوامرها لجسر Turbo Flow × Google Flow وحفظها في التقويم!`
+            };
+        }
+
+        case 'APPROVE_STUDIO_SCHEDULE': {
+            const brands = getUnifiedGrowthBrands();
+            const targetBrand = brands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || brands[0];
+            if (!targetBrand) {
+                return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
+            }
+            if (Array.isArray(targetBrand.weekContentPlan)) {
+                targetBrand.weekContentPlan = targetBrand.weekContentPlan.map((p: any) => ({
+                    ...p,
+                    status: p.status === 'published' ? 'published' : 'scheduled'
+                }));
+                saveCustomBrandOverride(targetBrand);
+                await syncWeekPlanToTitoStudioFirestore(targetBrand, targetBrand.weekContentPlan);
+            }
+            const approval = await approveBrandScheduleInTitoStudio(targetBrand.id);
+            syncAndBuildObsidianVault();
+            return {
+                success: true,
+                brand: targetBrand,
+                approvedCount: approval.approvedCount,
+                message: `تم اعتماد جدولة خطة المحتوى الأسبوعية لبراند (${targetBrand.name}) في تيتو ستوديو (${approval.approvedCount} منشورات مجدولة للنشر التلقائي حسب المواعيد المثالية)!`
+            };
+        }
+
+        case 'ACTIVATE_PAYMOB_SUBSCRIPTION': {
+            const brands = getUnifiedGrowthBrands();
+            const targetBrand = brands.find(b => b.id === brandId || b.slug === brandId) || brands[0];
+            if (targetBrand) {
+                targetBrand.subscriptionStatus = 'active';
+                targetBrand.subscriptionPlan = data.planId || 'growth_pro';
+                targetBrand.subscriptionActivatedAt = new Date().toISOString();
+                saveCustomBrandOverride(targetBrand);
+                await upsertBrandToTitoStudioFirestore(targetBrand);
+            }
+            const clients = loadEzZelClients();
+            const cIdx = clients.findIndex((c: any) => c.linkedBrandId === brandId || c.id === brandId);
+            if (cIdx >= 0) {
+                clients[cIdx].status = 'active';
+                clients[cIdx].plan = data.planName || 'باقة النمو الشامل (Paymob)';
+                try {
+                    fs.writeFileSync(EZZEL_CLIENTS_PATH, JSON.stringify(clients, null, 2), 'utf8');
+                } catch {}
+            }
+            syncAndBuildObsidianVault();
+            return {
+                success: true,
+                brand: targetBrand,
+                message: `تم تفعيل اشتراك براند (${targetBrand?.name || brandId}) آلياً عبر موب باي (Paymob) بنجاح!`
             };
         }
 
@@ -1123,13 +1230,13 @@ export async function executeRealJarvisEcosystemAction(payload: {
         case 'CREATE_LIVE_BOOKING': {
             const saved = saveBooking({
                 brandId,
-                customerName: data.customerName || 'عميل التطبيق المستنسخ',
+                customerName: data.customerName || 'عميل تطبيق البراند',
                 customerPhone: data.customerPhone || '01099887766',
                 service: data.service || 'خدمة VIP متكاملة',
                 price: data.price || '950 ج.م',
                 address: data.address || 'القاهرة - مدينة نصر',
                 status: 'CONFIRMED',
-                source: 'cloned_pwa_storefront'
+                source: 'brand_pwa_storefront'
             });
             syncAndBuildObsidianVault();
             return {

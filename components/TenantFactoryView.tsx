@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   Building2, Car, Sparkles, ShoppingBag, Rocket, Globe, 
   Github, CheckCircle, Smartphone, ExternalLink, RefreshCw, 
@@ -104,7 +104,7 @@ export const TenantFactoryView: React.FC = () => {
                 مصنع التطبيقات وباقة دكتور بزنس | Dr. Business Platform
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                لوحة إمبراطور المنظومة (تيتو) — استنساخ ونشر تطبيقات الـ 100 عميل ومتابعة الاشتراكات الشهرية
+                لوحة إمبراطور المنظومة (تيتو) — بناء وتوليد ونشر تطبيقات الـ 100 عميل ومتابعة الاشتراكات الشهرية
               </p>
             </div>
           </div>
@@ -251,7 +251,7 @@ export const TenantFactoryView: React.FC = () => {
                 </div>
 
                 <div className="text-[11px] text-slate-400 font-mono">
-                  {provisionStep === 1 && '📦 1. استنساخ كود القالب الجاهز من المستودع المركزي...'}
+                  {provisionStep === 1 && '📦 1. بناء وتوليد كود القالب الجاهز من المستودع المركزي...'}
                   {provisionStep === 2 && '🎨 2. حقن هوية العميل والأسعار ورقم الواتساب في ملفات التكوين...'}
                   {provisionStep === 3 && '🐙 3. إنشاء مستودع GitHub جديد ورفع الكود عبر الـ API...'}
                   {provisionStep === 4 && '🚀 4. تشغيل خط البناء السحابي على Vercel وربط شهادة الأمان...'}

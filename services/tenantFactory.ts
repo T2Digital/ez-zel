@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Sovereign Tenant Factory Engine (D:\ez-zel-\services\tenantFactory.ts)
  * 
  * Automates 0-to-1 client app generation, GitHub repository creation, 
@@ -244,6 +244,6 @@ export async function provisionClientApp(config: TenantProvisionConfig): Promise
     tenantId,
     liveUrl,
     githubUrl,
-    message: `تم بنجاح استنساخ قالب (${template.name}) وإنشاء المستودع وتفعيله على الرابط: ${liveUrl}`
+    message: `تم بنجاح بناء وتوليد قالب (${template.name}) وإنشاء المستودع وتفعيله على الرابط: ${liveUrl}`
   };
 }

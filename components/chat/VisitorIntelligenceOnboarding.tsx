@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { 
   Sparkles, Building2, Rocket, Globe, Smartphone, ArrowRight, 
   CheckCircle, Play, RefreshCw, Send, DollarSign, Share2, Layers, Bot, QrCode, Link2, CheckCircle2, ExternalLink
@@ -108,7 +108,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
     } finally {
       setIsGenerating(false);
       setStep(3);
-      playShadowVoice(`ألف مبروك يا فندم! تم استنساخ تطبيق ${targetName} فعلياً، وتوليد خطة محتوى تيتو ستوديو لـ 7 أيام. دلوقتي تقدر تربط الواتساب وصفحة ميتا من النوافذ الحية قدامك وتدخل كابينة المدير التنفيذي لبراندك!`, 'male');
+      playShadowVoice(`ألف مبروك يا فندم! تم بناء وتوليد تطبيق ${targetName} فعلياً، وتوليد خطة محتوى تيتو ستوديو لـ 7 أيام. دلوقتي تقدر تربط الواتساب وصفحة ميتا من النوافذ الحية قدامك وتدخل كابينة المدير التنفيذي لبراندك!`, 'male');
     }
   };
 
@@ -176,12 +176,12 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           </div>
           <div>
             <h3 className="text-xs md:text-sm font-black text-white flex items-center gap-1.5">
-              محرك تأسيس واستنساخ البيزنس للزائر الجديد (0→1)
+              محرك تأسيس وبناء وتوليد البيزنس للزائر الجديد (0→1)
               <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">
                 REAL EXECUTION
               </span>
             </h3>
-            <p className="text-[10px] text-white/50">استنساخ تطبيق PWA فعلي + ربط واتساب وميتا + تفعيل 7 أيام مجاناً</p>
+            <p className="text-[10px] text-white/50">بناء وتوليد تطبيق PWA فعلي + ربط واتساب وميتا + تفعيل 7 أيام مجاناً</p>
           </div>
         </div>
 
@@ -212,7 +212,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 <Rocket className="w-5 h-5" />
               </div>
               <div className="text-xs font-black text-white">🚀 فكرة جديدة من الصفر (0→1)</div>
-              <p className="text-[10px] text-white/60">ابتكار الاسم والهوية + استنساخ متجر + ربط واتساب وميتا + أسبوع مجاناً</p>
+              <p className="text-[10px] text-white/60">ابتكار الاسم والهوية + بناء وتوليد متجر + ربط واتساب وميتا + أسبوع مجاناً</p>
             </button>
 
             <button
@@ -223,7 +223,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 <Building2 className="w-5 h-5" />
               </div>
               <div className="text-xs font-black text-white">🏢 عندي نشاط وبيزنس قائم</div>
-              <p className="text-[10px] text-white/60">استنساخ تطبيق لنشاطك + ربط رقم واتساب وصفحة فيسبوك + تجربة 7 أيام مجاناً</p>
+              <p className="text-[10px] text-white/60">بناء وتوليد تطبيق لنشاطك + ربط رقم واتساب وصفحة فيسبوك + تجربة 7 أيام مجاناً</p>
             </button>
           </div>
         </div>
@@ -255,7 +255,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           {isGenerating ? (
             <div className="p-5 text-center text-cyan-400 text-xs font-bold animate-pulse space-y-2">
               <RefreshCw className="w-5 h-5 mx-auto animate-spin" />
-              <p>جاري بناء الهوية واستنساخ التطبيق وتقويم المحتوى...</p>
+              <p>جاري بناء الهوية وبناء وتوليد التطبيق وتقويم المحتوى...</p>
             </div>
           ) : suggestedNames.length > 0 && (
             <div className="space-y-2.5 pt-1">
@@ -302,7 +302,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-black font-black text-xs shadow-lg transition flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4 fill-current" />
-                توليد التطبيق المستنسخ وفتح نوافذ ربط واتساب وميتا فوراً ⚡
+                توليد التطبيق المطور وفتح نوافذ ربط واتساب وميتا فوراً ⚡
               </button>
             </div>
           )}
@@ -372,7 +372,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
             <div className="flex items-center gap-2.5">
               <CheckCircle className="w-6 h-6 text-emerald-400 shrink-0" />
               <div>
-                <h4 className="text-xs font-black text-white">تم استنساخ وتفعيل تطبيق: {generatedBrand?.name || brandName}</h4>
+                <h4 className="text-xs font-black text-white">تم بناء وتوليد وتفعيل تطبيق: {generatedBrand?.name || brandName}</h4>
                 <p className="text-[10px] text-emerald-300 font-mono">{generatedAppUrl}</p>
               </div>
             </div>

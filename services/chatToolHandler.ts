@@ -1,4 +1,4 @@
-
+﻿
 import { shadowDB, DBTask, UserProfile } from './dbService';
 import { submitAutonomousTask } from './autonomousAgentService';
 import { memorizeFact, playShadowVoice, generateMp3FromShadowVoice, generateImageNative, getShadowResponse } from './geminiService';
@@ -524,7 +524,7 @@ export const processToolActions = async (
                   }, 300);
               }
               else if (t.name === 'open_onboarding_wizard') {
-                  uiCards.push({ cardType: 'task_success', title: '🚀 مصنع التطبيقات الذكي', description: 'تم فتح نافذة استنساخ البراند وربط واتساب وميتا.' });
+                  uiCards.push({ cardType: 'task_success', title: '🚀 مصنع التطبيقات الذكي', description: 'تم فتح نافذة بناء وتوليد البراند وربط واتساب وميتا.' });
                   window.dispatchEvent(new CustomEvent('shadow:open-onboarding', { 
                       detail: { 
                           businessName: t.args?.business_name || '', 
@@ -532,7 +532,7 @@ export const processToolActions = async (
                       } 
                   }));
                   setTimeout(() => {
-                      handleSend(`[ONBOARDING_WIZARD_OPENED]\nتم فتح نافذة تجهيز التطبيق للمستخدم الآن على الشاشة لكتابة اسم البراند ورفع اللوجو وربط واتساب وصفحات ميتا.\n[INSTRUCTION]: رحب به بحرارة وبصوتك البشري المصري، وأخبره أن يملأ البيانات وسيقوم الظل باستنساخ تطبيقه وتشغيل البوت فوراً.`, undefined, undefined, true);
+                      handleSend(`[ONBOARDING_WIZARD_OPENED]\nتم فتح نافذة تجهيز التطبيق للمستخدم الآن على الشاشة لكتابة اسم البراند ورفع اللوجو وربط واتساب وصفحات ميتا.\n[INSTRUCTION]: رحب به بحرارة وبصوتك البشري المصري، وأخبره أن يملأ البيانات وسيقوم الظل ببناء وتوليد تطبيقه وتشغيل البوت فوراً.`, undefined, undefined, true);
                   }, 400);
               }
               else if (t.name === 'open_jarvis_battlestation') {
@@ -551,7 +551,7 @@ export const processToolActions = async (
                           const res = await fetch('/api/factory/tenants');
                           const data = await res.json();
                           const summary = `إجمالي الشركات النشطة: ${data.count} شركات.\nإجمالي الـ MRR الشهري: ${data.totalMRR} جنيه مصري.\nالشركات: ${data.tenants?.map((t: any) => `${t.businessName} (${t.monthlyRevenue} ج.م)`).join('، ')}`;
-                          handleSend(`[TENANTS_OVERVIEW_RESULT]\n${summary}\n[INSTRUCTION]: اعرض هذه البيانات للمستخدم بفخر ووضح جاهزية استنساخ المزيد من التطبيقات.`, undefined, undefined, true);
+                          handleSend(`[TENANTS_OVERVIEW_RESULT]\n${summary}\n[INSTRUCTION]: اعرض هذه البيانات للمستخدم بفخر ووضح جاهزية بناء وتوليد المزيد من التطبيقات.`, undefined, undefined, true);
                       } catch {
                           handleSend(`[TENANTS_OVERVIEW_RESULT]\nتعذر جلب إحصائيات المصنع لحظياً.`, undefined, undefined, true);
                       }
@@ -1217,8 +1217,8 @@ export const processToolActions = async (
                   const args = t.args;
                   uiCards.push({
                       cardType: 'task_success',
-                      title: 'المستنسخ الرقمي (Twin) 👤',
-                      description: `تم إرسال رسالة بلسانك إلى: ${args.target_person}\nتلقائياً عبر 플랫폼: ${args.platform}\n(تمت العملية في الخفاء)`
+                      title: 'التوأم الرقمي (Digital Twin) 👤',
+                      description: `تم إرسال رسالة بلسانك إلى: ${args.target_person}\nتلقائياً عبر منصة: ${args.platform}\n(تمت العملية في الخفاء)`
                   });
               }
               else if (t.name === 'marketer_shadow') {
@@ -1461,6 +1461,101 @@ export const processToolActions = async (
 
                   const dispatchConfirm = `[OMNICHANNEL_DISPATCH_SUCCESS]\nتم إرسال الرسالة إلى ${channel}\n\n[INSTRUCTION]: أكد للمستخدم إرسال التقرير/الرسالة لهاتفه بنجاح.`;
                   setTimeout(() => handleSend(dispatchConfirm, undefined, undefined, true), 100);
+              }
+              else if (t.name === 'tito_studio_workflow') {
+                  const args = t.args || {};
+                  const action = args.action || 'build_strategy';
+                  const brandName = args.brand_name || 'el_baraka';
+                  try {
+                      if (action === 'build_strategy') {
+                          const res = await fetch('/api/studio/strategy', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ brandId: brandName })
+                          });
+                          const d = await res.json();
+                          const st = d.strategy;
+                          const pillarsText = (st?.pillars || []).map((p: any) => `• ${p.title} (${p.percentage}%): ${p.objective}`).join('\n');
+                          uiCards.push({
+                              cardType: 'task_success',
+                              title: `🎯 الاستراتيجية التسويقية لبراند (${d.brand?.name || brandName}) — تيتو ستوديو`,
+                              description: `📌 التموضع: ${st?.positioning || ''}\n👥 الجمهور: ${st?.targetAudience || ''}\n🎨 الهوية والإنتاج: ${st?.weeklyMixSummary || ''}\n\n📊 ركائز المحتوى الثلاث:\n${pillarsText}\n\n💡 قل للظل الآن: "ولد محتوى أول أسبوع" لتوليد تصميمات الصور في تيتو ستوديو وفيديوهات الريلز عبر جسر Turbo Flow!`
+                          });
+                          window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'strategy', data: d } }));
+                      } else if (action === 'generate_week_plan') {
+                          const res = await fetch('/api/studio/generate-week-plan', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ brandId: brandName })
+                          });
+                          const d = await res.json();
+                          const planLines = (d.weekPlan || []).map((p: any, i: number) => `${i + 1}) ${p.day} [${p.mediaFormat === 'video' ? '🎬 فيديو Turbo Flow' : '🖼️ تصميم تيتو ستوديو'}]: ${p.hook} (${p.bestTime})`).join('\n');
+                          uiCards.push({
+                              cardType: 'task_success',
+                              title: `📅 خطة محتوى أول أسبوع (${d.brand?.name || brandName}) — جاهزة في التقويم`,
+                              description: `${d.message || ''}\n\n${planLines}\n\n✅ قل للظل: "اعتمد الجدولة بناء على الخطة" لجدولتها تلقائياً أو "انشر منشور يوم السبت" للنشر الفوري!`
+                          });
+                          window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'week_plan', data: d } }));
+                      } else if (action === 'approve_schedule') {
+                          const res = await fetch('/api/studio/approve-schedule', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ brandId: brandName })
+                          });
+                          const d = await res.json();
+                          uiCards.push({
+                              cardType: 'task_success',
+                              title: `✅ تم اعتماد جدولة المحتوى في تيتو ستوديو (${d.approvedCount || 7} منشورات)`,
+                              description: d.message || 'تم تحويل جميع منشورات الأسبوع إلى حالة المجدول (Scheduled) للنشر الآلي في مواعيد الذروة.'
+                          });
+                          window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'approve_schedule', data: d } }));
+                      } else if (action === 'publish_post') {
+                          const res = await fetch('/api/studio/publish-post', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ brandId: brandName, postIndex: args.post_index || 0 })
+                          });
+                          const d = await res.json();
+                          uiCards.push({
+                              cardType: 'task_success',
+                              title: `🚀 تم النشر الفوري عبر Meta Graph API`,
+                              description: d.message || `تم نشر المنشور بنجاح على صفحات البراند المرتبطة.`
+                          });
+                          window.dispatchEvent(new CustomEvent('t2-studio-workflow-update', { detail: { type: 'publish_post', data: d } }));
+                      }
+                  } catch (err: any) {
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: 'تنبيه تيتو ستوديو',
+                          description: err?.message || 'حدث خطأ أثناء الاتصال بمحرك تيتو ستوديو'
+                      });
+                  }
+              }
+              else if (t.name === 'paymob_subscription_checkout') {
+                  const args = t.args || {};
+                  try {
+                      const res = await fetch('/api/payments/paymob/create-checkout', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                              brandId: args.brand_name || 'el_baraka',
+                              brandName: args.brand_name || 'براند المنظومة',
+                              planId: args.plan_id || 'growth_pro'
+                          })
+                      });
+                      const d = await res.json();
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: `💳 بوابة الدفع الآلي عبر موب باي (Paymob) — ${d.planName || ''}`,
+                          description: `المبلغ: ${d.amountEgp} ج.م\nرقم الطلب: ${d.orderId}\nرابط الدفع والتفعيل الآلي الفوري: ${d.paymentUrl}`
+                      });
+                  } catch (err: any) {
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: 'تنبيه بوابة الدفع Paymob',
+                          description: err?.message || 'تعذر إنشاء جلسة الدفع'
+                      });
+                  }
               }
               else {
                   const dynamicPlugins = await shadowDB.getPluginsByUserId(currentUser.email || 'GUEST');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   X, CheckCircle, Sparkles, Building2, Car, ShoppingBag, 
   Truck, HeartPulse, Layers, Smartphone, QrCode, Facebook, 
@@ -134,7 +134,7 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
           'male'
         );
       } else {
-        alert(data.error || 'حدث خطأ أثناء استنساخ التطبيق');
+        alert(data.error || 'حدث خطأ أثناء بناء وتوليد التطبيق');
       }
     } catch (err: any) {
       alert('تعذر الاتصال بسيرفر المصنع: ' + err.message);
@@ -155,7 +155,7 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
             </div>
             <div>
               <h2 className="text-base md:text-lg font-black text-white flex items-center gap-2">
-                مصنع استنساخ وتشغيل التطبيقات
+                مصنع بناء وتوليد وتشغيل التطبيقات
                 <span className="text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold">
                   Sovereign Factory 0→1
                 </span>
@@ -207,7 +207,7 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                 <CheckCircle className="w-10 h-10 animate-pulse" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-white">تم استنساخ ونشر تطبيق [{completedTenant.businessName}] بنجاح!</h3>
+                <h3 className="text-xl font-black text-white">تم بناء وتوليد ونشر تطبيق [{completedTenant.businessName}] بنجاح!</h3>
                 <p className="text-sm text-white/60 mt-1">تم حقن الهوية، تشغيل بوت الواتساب، وربط صفحات ميتا على مدار الساعة.</p>
               </div>
 
@@ -603,12 +603,12 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    جاري الاستنساخ والنشر...
+                    جاري البناء الذكي والنشر...
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    استنساخ وتشغيل التطبيق الآن
+                    بناء وتوليد وتشغيل التطبيق الآن
                   </>
                 )}
               </button>

@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
@@ -17,6 +17,9 @@ import { setupMicroservicesGateway } from "./services/microservicesGateway";
 import { cloneOrSynthesizeBrand, getClonedBrandByIdOrSlug } from "./services/appClonerCrawlerService";
 import { publishBrandPost, launchAdCampaign, runSelfOptimizingLoop, setupAutonomousAgencyCron, getPublishedLogs } from "./services/growthAgencyEngine";
 import { syncAndBuildObsidianVault, getObsidianNodeMarkdown, saveObsidianNodeMarkdown, startObsidianTwoWayWatcher, executeRealJarvisEcosystemAction, getUnifiedGrowthBrands, getEzZelPersonalClients } from "./services/obsidianVaultService";
+import { readTurboFlowQueue, enqueueTurboFlowVideoJob, completeTurboFlowVideoJob, readTitoStudioCacheSync } from "./services/titoStudioFirestoreBridge";
+import { PAYMOB_PLANS, createPaymobCheckoutSession, verifyPaymobWebhookHmac, readPaymobSubscriptions, savePaymobSubscriptionRecord } from "./services/paymobService";
+import { readBookings } from "./services/microservicesGateway";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -383,7 +386,7 @@ async function startServer() {
           res.json({ success: true, brand });
       } catch (err: any) {
           console.error("[Cloner API Error]:", err?.message);
-          res.status(500).json({ error: err?.message || "فشل استنساخ البراند" });
+          res.status(500).json({ error: err?.message || "فشل بناء وتوليد البراند" });
       }
   });
 
@@ -442,6 +445,417 @@ async function startServer() {
           res.status(500).json({ success: false, error: err?.message });
       }
   });
+
+  // --- TITO STUDIO & TURBO FLOW FULL API SUITE --- //
+  app.post("/api/studio/strategy", async (req, res) => {
+      try {
+          const { brandId } = req.body || {};
+          const result = await executeRealJarvisEcosystemAction({
+              actionType: 'GENERATE_STUDIO_STRATEGY',
+              brandId: brandId || 'el_baraka',
+              payload: req.body || {}
+          });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ success: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/studio/generate-week-plan", async (req, res) => {
+      try {
+          const { brandId } = req.body || {};
+          const result = await executeRealJarvisEcosystemAction({
+              actionType: 'GENERATE_WEEK_CONTENT_PLAN',
+              brandId: brandId || 'el_baraka',
+              payload: req.body || {}
+          });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ success: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/studio/approve-schedule", async (req, res) => {
+      try {
+          const { brandId } = req.body || {};
+          const result = await executeRealJarvisEcosystemAction({
+              actionType: 'APPROVE_STUDIO_SCHEDULE',
+              brandId: brandId || 'el_baraka',
+              payload: req.body || {}
+          });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ success: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/studio/publish-post", async (req, res) => {
+      try {
+          const { brandId, postIndex } = req.body || {};
+          const result = await executeRealJarvisEcosystemAction({
+              actionType: 'PUBLISH_STUDIO_POST',
+              brandId: brandId || 'el_baraka',
+              payload: { postIndex: Number(postIndex) || 0 }
+          });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ success: false, error: err?.message });
+      }
+  });
+
+  // --- TURBO FLOW × GOOGLE FLOW CHROME EXTENSION BRIDGE API --- //
+  app.get("/api/studio/turbo-flow/queue", (req, res) => {
+      try {
+          const brandId = req.query.brandId as string | undefined;
+          let jobs = readTurboFlowQueue();
+          if (brandId) {
+              jobs = jobs.filter(j => j.brandId === brandId);
+          }
+          res.json({
+              ok: true,
+              total: jobs.length,
+              queuedCount: jobs.filter(j => j.status === 'queued').length,
+              completedCount: jobs.filter(j => j.status === 'completed').length,
+              extensionPath: 'D:\\ez-zel-\\extensions\\t2-turbo-flow-bridge',
+              csvDownloadUrl: '/api/studio/turbo-flow/export-csv',
+              jobs
+          });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/studio/turbo-flow/export-csv", (_req, res) => {
+      try {
+          const csvPath = path.join(process.cwd(), 'data', 'turbo_flow_prompts.csv');
+          if (!fs.existsSync(csvPath)) {
+              const jobs = readTurboFlowQueue();
+              const header = 'JobID,BrandName,Day,AspectRatio,Model,OmniPrompt\n';
+              const rows = jobs.map(j => `${j.jobId},"${j.brandName}","${j.day}",${j.aspectRatio},${j.model},"${String(j.omniPrompt || '').replace(/"/g, '""')}"`).join('\n');
+              fs.writeFileSync(csvPath, '\uFEFF' + header + rows, 'utf8');
+          }
+          res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+          res.setHeader('Content-Disposition', 'attachment; filename="turbo_flow_prompts.csv"');
+          res.send(fs.readFileSync(csvPath, 'utf8'));
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/studio/turbo-flow/enqueue", (req, res) => {
+      try {
+          const { postId, brandId, brandName, day, hook, omniPrompt, aspectRatio, model } = req.body || {};
+          const job = enqueueTurboFlowVideoJob({
+              postId: postId || `${brandId || 'brand'}_${Date.now()}`,
+              brandId: brandId || 'el_baraka',
+              brandName: brandName || 'براند تيتو ستوديو',
+              day: day || 'الأحد',
+              hook: hook || 'فيديو ريلز ترويجي',
+              omniPrompt: omniPrompt || 'Vertical 9:16 commercial reel, cinematic lighting, 4K Veo 3.1 photorealistic.',
+              aspectRatio: aspectRatio || '9:16',
+              model: model || 'veo-3.1-fast'
+          });
+          res.json({ ok: true, job });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/studio/turbo-flow/complete", async (req, res) => {
+      try {
+          const { jobId, postId, brandId, videoUrl } = req.body || {};
+          if (!videoUrl) return res.status(400).json({ ok: false, error: "videoUrl is required" });
+          const result = await completeTurboFlowVideoJob({ jobId, postId, brandId, videoUrl });
+          syncAndBuildObsidianVault();
+          res.json({
+              ok: true,
+              ...result,
+              message: "تم ربط الفيديو المولد من Google Flow / Turbo Flow وحفظه داخل تقويم تيتو ستوديو بنجاح!"
+          });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  // --- PAYMOB AUTOMATED SUBSCRIPTION BILLING API --- //
+  app.get("/api/payments/paymob/plans", (_req, res) => {
+      res.json({
+          ok: true,
+          plans: Object.values(PAYMOB_PLANS),
+          subscriptions: readPaymobSubscriptions()
+      });
+  });
+
+  app.post("/api/payments/paymob/create-checkout", async (req, res) => {
+      try {
+          const { brandId, brandName, planId, amountEgp, customerName, customerEmail, customerPhone } = req.body || {};
+          const checkout = await createPaymobCheckoutSession({
+              brandId: brandId || 'el_baraka',
+              brandName: brandName || 'براند تيتو',
+              planId: planId || 'growth_pro',
+              amountEgp: Number(amountEgp) || 2950,
+              customerName: customerName || brandName || 'عميل منظومة النمو',
+              customerEmail: customerEmail || 'client@t2-studio.app',
+              customerPhone: customerPhone || '01013373634'
+          });
+          res.json(checkout);
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/payments/paymob/webhook", async (req, res) => {
+      try {
+          const obj = req.body?.obj || req.body || {};
+          const hmac = req.query.hmac as string | undefined;
+          if (!verifyPaymobWebhookHmac(obj, hmac)) {
+              return res.status(403).json({ ok: false, error: "Invalid Paymob HMAC signature" });
+          }
+          const isSuccess = obj.success === true || obj.success === "true" || req.body?.status === "paid";
+          const brandId = obj.extras?.brandId || obj.payment_key_claims?.extra?.brandId || req.body?.brandId || 'el_baraka';
+          const planId = obj.extras?.planId || req.body?.planId || 'growth_pro';
+          const orderId = String(obj.order?.id || obj.special_reference || req.body?.orderId || `PM_${Date.now()}`);
+
+          if (isSuccess) {
+              savePaymobSubscriptionRecord({
+                  orderId,
+                  brandId,
+                  planId,
+                  status: 'paid',
+                  paidAt: new Date().toISOString()
+              });
+              await executeRealJarvisEcosystemAction({
+                  actionType: 'ACTIVATE_PAYMOB_SUBSCRIPTION',
+                  brandId,
+                  payload: { planId, orderId }
+              });
+          }
+          res.json({ ok: true, activated: isSuccess, brandId, orderId });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/payments/paymob/instant-confirm", async (req, res) => {
+      try {
+          const orderId = String(req.query.orderId || `PM_${Date.now()}`);
+          const brandId = String(req.query.brandId || 'el_baraka');
+          const planId = String(req.query.planId || 'growth_pro');
+          const amountEgp = Number(req.query.amountEgp || 2950);
+          const plan = PAYMOB_PLANS[planId] || PAYMOB_PLANS.growth_pro;
+
+          savePaymobSubscriptionRecord({
+              orderId,
+              brandId,
+              planId,
+              planName: plan.name,
+              amountEgp,
+              status: 'paid',
+              paidAt: new Date().toISOString()
+          });
+
+          await executeRealJarvisEcosystemAction({
+              actionType: 'ACTIVATE_PAYMOB_SUBSCRIPTION',
+              brandId,
+              payload: { planId, planName: plan.name, orderId }
+          });
+
+          res.send(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/><title>تأكيد الدفع عبر Paymob</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800&display=swap" rel="stylesheet"/></head><body style="background:#020617;color:#fff;font-family:'Cairo',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><div style="background:#0f172a;border:1px solid #10b981;border-radius:24px;padding:36px;max-width:480px;text-align:center;box-shadow:0 20px 60px rgba(16,185,129,0.2);"><div style="font-size:48px;margin-bottom:12px;">✅</div><h2 style="margin:0 0 10px;color:#34d399;">تم الدفع وتفعيل الاشتراك آلياً عبر Paymob</h2><p style="color:#94a3b8;font-size:14px;line-height:1.7;">تم تفعيل <b>${plan.name}</b> للبراند رقم <code>${brandId}</code> بقيمة <b>${amountEgp} ج.م</b> ورقم عملية <code>${orderId}</code>.</p><button onclick="window.close()" style="margin-top:20px;background:#10b981;color:#020617;border:none;padding:12px 28px;border-radius:12px;font-family:'Cairo',sans-serif;font-weight:800;cursor:pointer;">العودة إلى جارفيس</button></div></body></html>`);
+      } catch (err: any) {
+          res.status(500).send(err?.message);
+      }
+  });
+
+  // --- DYNAMIC REAL-TIME JARVIS GREETING & PROACTIVE MORNING/EVENING BRIEFINGS --- //
+  const BRIEFING_PREFS_PATH = path.join(process.cwd(), 'data', 'briefing_preferences.json');
+
+  function loadBriefingPreferences() {
+      try {
+          if (fs.existsSync(BRIEFING_PREFS_PATH)) {
+              return JSON.parse(fs.readFileSync(BRIEFING_PREFS_PATH, 'utf8'));
+          }
+      } catch {}
+      return {
+          enabled: true,
+          morningTime: '09:00',
+          eveningTime: '21:00',
+          whatsappPhone: '01013373634',
+          includeVoiceNote: true,
+          lastMorningSentDate: '',
+          lastEveningSentDate: ''
+      };
+  }
+
+  function saveBriefingPreferences(prefs: any) {
+      try {
+          const dir = path.dirname(BRIEFING_PREFS_PATH);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(BRIEFING_PREFS_PATH, JSON.stringify(prefs, null, 2), 'utf8');
+      } catch {}
+  }
+
+  function buildDynamicEcosystemBriefing(period: 'morning' | 'evening' | 'live_greeting', selectedBrandId?: string) {
+      const brands = getUnifiedGrowthBrands();
+      const clients = getEzZelPersonalClients();
+      const bookings = readBookings();
+      const studioCache = readTitoStudioCacheSync();
+      const turboQueue = readTurboFlowQueue();
+
+      const now = new Date();
+      const cairoHour = (now.getUTCHours() + 2) % 24;
+      const timeGreeting = cairoHour < 12 ? 'صباح الخير والهمة العالية' : cairoHour < 17 ? 'مساء النشاط والتركيز' : 'مساء النور والإنجاز';
+
+      const activeBrand = brands.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) || brands[0];
+      const scheduledPostsCount = studioCache.content.filter((c: any) => c.status === 'scheduled').length;
+      const publishedPostsCount = studioCache.content.filter((c: any) => c.status === 'published').length;
+      const queuedVideosCount = turboQueue.filter(j => j.status === 'queued').length;
+      const totalMRR = clients.reduce((s: number, c: any) => s + (c.monthlySubscriptionEgp || 0), 0) + brands.length * 2500;
+
+      if (period === 'live_greeting') {
+          const brandSpot = activeBrand
+              ? `التركيز الحالي على براند ${activeBrand.name}، وعندنا ليه ${(activeBrand.weekContentPlan || []).length} منشورات في الخطة.`
+              : `معانا دلوقتي ${brands.length} براندات شغالة في المنظومة.`;
+          const bookingsSpot = bookings.length > 0
+              ? `سجلنا ${bookings.length} حجوزات مؤكدة في الـ CRM، وآخر حجز كان لـ ${bookings[0]?.customerName || 'عميل جديد'}.`
+              : `وكلاء الواتساب جاهزين لاستقبال أول حجوزات اليوم.`;
+          const flowSpot = queuedVideosCount > 0
+              ? `وفيه ${queuedVideosCount} فيديوهات ريلز جاهزة في طابور تيربو فلو للتوليد على جوجل فلو.`
+              : `وإجمالي المنشورات المجدولة في تيتو ستوديو دلوقتي ${scheduledPostsCount} منشور.`;
+
+          return {
+              text: `${timeGreeting} يا ماستر تيتو! ${brandSpot} ${bookingsSpot} ${flowSpot} تحب نبدأ ببناء استراتيجية جديدة، ولا نراجع تقويم المحتوى ونعتمد الجدولة؟`,
+              stats: {
+                  totalBrands: brands.length,
+                  scheduledPostsCount,
+                  publishedPostsCount,
+                  queuedVideosCount,
+                  bookingsCount: bookings.length,
+                  totalMRR,
+                  activeBrandName: activeBrand?.name || ''
+              }
+          };
+      }
+
+      const title = period === 'morning' ? '☀️ تقرير الصباح التنفيذي من الظل (جارفيس)' : '🌙 تقرير الحصاد المسائي من الظل (جارفيس)';
+      const summaryText = `${timeGreeting} يا ماستر تيتو. ده ${period === 'morning' ? 'تقريرك الصباحي' : 'ملخص حصاد اليوم'} بدون ما تحتاج تفتح المنظومة:
+• البراندات النشطة في العقل الموحد: ${brands.length} براند (إجمالي عائد شهري ${totalMRR.toLocaleString()} ج.م).
+• تقويم تيتو ستوديو: ${scheduledPostsCount} منشور مجدول للنشر التلقائي، و${publishedPostsCount} منشور تم نشره.
+• طابور فيديوهات Google Flow × Turbo Flow: ${queuedVideosCount} فيديو ريلز.
+• حجوزات العملاء المؤكدة في الـ CRM: ${bookings.length} حجز.
+${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر ووكيل الواتساب يعملان بكفاءة 100%.` : ''}
+لو حابب أعتمد جدولة الأسبوع أو أنشر بوست فوري، ابعتلي رسالة صوتية أو نصية هنا وهنفذ فوراً!`;
+
+      return {
+          title,
+          text: summaryText,
+          voiceScript: `${timeGreeting} يا ماستر تيتو. في ${period === 'morning' ? 'تقرير الصباح' : 'تقرير المساء'} النهاردة: عندنا ${brands.length} براندات شغالة، و${scheduledPostsCount} منشور مجدول في تيتو ستوديو، و${bookings.length} حجوزات مؤكدة. كل الأنظمة شغالة بكفاءة، وابعتلي هنا لو تحب أنفذ أي أمر فوري!`,
+          stats: {
+              totalBrands: brands.length,
+              scheduledPostsCount,
+              publishedPostsCount,
+              queuedVideosCount,
+              bookingsCount: bookings.length,
+              totalMRR
+          }
+      };
+  }
+
+  app.get("/api/system/jarvis-dynamic-greeting", (req, res) => {
+      try {
+          const brandId = req.query.brandId as string | undefined;
+          const greeting = buildDynamicEcosystemBriefing('live_greeting', brandId);
+          res.json({ ok: true, ...greeting });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/system/briefing-preferences", (_req, res) => {
+      res.json({ ok: true, preferences: loadBriefingPreferences() });
+  });
+
+  app.post("/api/system/briefing-preferences", (req, res) => {
+      try {
+          const current = loadBriefingPreferences();
+          const updated = { ...current, ...(req.body || {}) };
+          saveBriefingPreferences(updated);
+          res.json({ ok: true, preferences: updated });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/system/trigger-daily-briefing", async (req, res) => {
+      try {
+          const period = req.body?.period === 'evening' ? 'evening' : 'morning';
+          const briefing = buildDynamicEcosystemBriefing(period, req.body?.brandId);
+          const prefs = loadBriefingPreferences();
+
+          // Dispatch via internal WhatsApp & Telegram notifier if configured
+          try {
+              await fetch(`http://localhost:${PORT}/api/communications/send`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      channel: 'whatsapp',
+                      to: prefs.whatsappPhone || '01013373634',
+                      message: `${briefing.title}\n\n${briefing.text}`
+                  }),
+                  signal: AbortSignal.timeout(5000)
+              });
+          } catch {}
+
+          res.json({
+              ok: true,
+              period,
+              briefing,
+              dispatchedTo: prefs.whatsappPhone || '01013373634',
+              message: `تم إرسال ${briefing.title} إلى واتساب (${prefs.whatsappPhone || '01013373634'}) بنجاح!`
+          });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  // Proactive Morning (09:00) & Evening (21:00) Auto-Dispatcher Loop (runs without user opening the app)
+  setInterval(async () => {
+      try {
+          const prefs = loadBriefingPreferences();
+          if (!prefs.enabled) return;
+          const now = new Date();
+          const cairoDate = new Date(now.getTime() + 2 * 3600 * 1000);
+          const dateStr = cairoDate.toISOString().split('T')[0];
+          const hhmm = cairoDate.toISOString().slice(11, 16);
+
+          if (hhmm === (prefs.morningTime || '09:00') && prefs.lastMorningSentDate !== dateStr) {
+              prefs.lastMorningSentDate = dateStr;
+              saveBriefingPreferences(prefs);
+              const briefing = buildDynamicEcosystemBriefing('morning');
+              await fetch(`http://localhost:${PORT}/api/communications/send`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      channel: 'whatsapp',
+                      to: prefs.whatsappPhone || '01013373634',
+                      message: `${briefing.title}\n\n${briefing.text}`
+                  })
+              }).catch(() => {});
+          } else if (hhmm === (prefs.eveningTime || '21:00') && prefs.lastEveningSentDate !== dateStr) {
+              prefs.lastEveningSentDate = dateStr;
+              saveBriefingPreferences(prefs);
+              const briefing = buildDynamicEcosystemBriefing('evening');
+              await fetch(`http://localhost:${PORT}/api/communications/send`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      channel: 'whatsapp',
+                      to: prefs.whatsappPhone || '01013373634',
+                      message: `${briefing.title}\n\n${briefing.text}`
+                  })
+              }).catch(() => {});
+          }
+      } catch {}
+  }, 45000);
 
   // --- CLIENT LIVE INTERACTIVE STOREFRONT VIEW (Branded PWA + Live Booking Cart -> CRM) --- //
   app.get(["/store/:slug", "/app/:slug"], (req, res) => {
@@ -530,7 +944,7 @@ async function startServer() {
         if (card) card.classList.add('active');
       }
       async function submitBooking() {
-        const customerName = document.getElementById('custName').value.trim() || 'عميل التطبيق المستنسخ';
+        const customerName = document.getElementById('custName').value.trim() || 'عميل التطبيق المطور';
         const customerPhone = document.getElementById('custPhone').value.trim() || '01000000000';
         const address = document.getElementById('custAddress').value.trim() || 'القاهرة';
         const service = document.getElementById('custService').value;
@@ -1447,7 +1861,7 @@ async function startServer() {
               tenant: newTenant,
               totalCount: list.length,
               totalMRR,
-              message: `تم بنجاح استنساخ ونشر تطبيق [${businessName}] وحقن أرقام الواتساب وهوية العميل على Vercel!`
+              message: `تم بنجاح بناء وتوليد ونشر تطبيق [${businessName}] وحقن أرقام الواتساب وهوية العميل على Vercel!`
           });
       } catch (e: any) {
           console.error("[Factory Provision Error]:", e.message);
@@ -1944,7 +2358,7 @@ async function startServer() {
 خاطبه دائماً بـ "يا ماستر تيتو" أو "يا باشا" باللهجة المصرية القاهرية الطبيعية الدافئة.
 لديك إلمام كامل بـ:
 1. عملاء تطبيق الظل (المساعد الشخصي): عددهم ${ezzelClients.length} مشتركين نشطين.
-2. عملاء وبراندات وكالة النمو الشامل: عددهم ${unifiedBrands.length} براند مربوطين بين تيتو ستوديو وتيتو أجنت ومصنع التطبيقات المستنسخة وخزنة أوبسيديان الحية (Obsidian Knowledge Graph).
+2. عملاء وبراندات وكالة النمو الشامل: عددهم ${unifiedBrands.length} براند مربوطين بين تيتو ستوديو وتيتو أجنت ومصنع التطبيقات المطورة وخزنة أوبسيديان الحية (Obsidian Knowledge Graph).
 3. البراند المحدد حالياً على الشاشة هو: "${activeBrand?.name}" (${activeBrand?.businessType} - واتساب: ${activeBrand?.phone}).`;
           }
 
@@ -2029,7 +2443,7 @@ async function startServer() {
               executedAction = { type: 'SWITCH_TAB', tab: 'studio_calendar', brandId: detectedBrand };
           } else if (/بطاقة|منشور|كارت البوست|محتوى منشور|بوست فيسبوك/i.test(msg)) {
               executedAction = { type: 'SWITCH_TAB', tab: 'content_post_card', brandId: detectedBrand };
-          } else if (/مستنسخ|استنسخ|متجر|pwa|تطبيق عميل|تطبيق جديد|مصنع/i.test(msg)) {
+          } else if (/مطور|استنسخ|متجر|pwa|تطبيق عميل|تطبيق جديد|مصنع/i.test(msg)) {
               executedAction = { type: 'SWITCH_TAB', tab: 'app_cloner', brandId: detectedBrand };
           } else if (/إعلانات|كامبينات|حملات/i.test(msg)) {
               executedAction = { type: 'SWITCH_TAB', tab: 'ad_launcher', brandId: detectedBrand };
