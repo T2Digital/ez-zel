@@ -5,11 +5,12 @@ import path from 'path';
 export interface PaymobCheckoutRequest {
     brandId: string;
     brandName: string;
-    planId: 'starter_monthly' | 'growth_pro' | 'agency_unlimited';
-    amountEgp: number;
-    customerName: string;
-    customerEmail: string;
-    customerPhone: string;
+    planId: string;
+    billingCycle?: 'monthly' | 'yearly';
+    amountEgp?: number;
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
 }
 
 export interface PaymobCheckoutResponse {
@@ -24,69 +25,99 @@ export interface PaymobCheckoutResponse {
 
 const SUBSCRIPTIONS_LOG_PATH = path.join(process.cwd(), 'data', 'paymob_subscriptions.json');
 
-export const PAYMOB_PLANS: Record<string, { id: string; name: string; amountEgp: number; adBudgetEgp: number; features: string[] }> = {
+export const PAYMOB_PLANS: Record<string, {
+    id: string;
+    name: string;
+    amountEgp: number;
+    originalAmountEgp: number;
+    discountPercentage: number;
+    adBudgetEgp: number;
+    offerCondition: string;
+    yearlyDiscountedTotal: number;
+    features: string[];
+}> = {
     tier_2500: {
         id: 'tier_2500',
-        name: 'باقة الانطلاق الفضي (2,500 ج.م)',
+        name: 'باقة الانطلاق الفضي (2,500 ج.م / شهر)',
         amountEgp: 2500,
+        originalAmountEgp: 5000,
+        discountPercentage: 50,
         adBudgetEgp: 1250,
+        offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
+        yearlyDiscountedTotal: 30000,
         features: [
-            '1,250 ج.م ميزانية إعلانات ممولة مباشرة لنشاطك (نصف قيمة الباقة)',
-            'نسخة تطبيق ويب وموبايل PWA مخصصة لنشاطك مع كتالوج الحجوزات',
-            'وكيل واتساب وميتا الذكي للرد الفوري 24/7 بصوت بشري نقي',
-            'إدارة وجدولة محتوى تيتو ستوديو الشهري'
+            '🎯 1,250 ج.م ميزانية إعلانات ممولة مباشرة لنشاطك (نصف قيمة الباقة إعلانات!)',
+            '📱 نسخة تطبيق ويب وموبايل PWA مخصصة لنشاطك مع كتالوج وحجوزات',
+            '🤖 وكيل واتساب وميتا الذكي للرد الفوري 24/7 بصوت بشري فائق النقاء',
+            '🎨 إدارة وجدولة محتوى تيتو ستوديو الأسبوعي والشهري'
         ]
     },
     tier_5000: {
         id: 'tier_5000',
-        name: 'باقة النمو الذهبي (5,000 ج.م)',
+        name: 'باقة النمو الذهبي (5,000 ج.م / شهر)',
         amountEgp: 5000,
+        originalAmountEgp: 10000,
+        discountPercentage: 50,
         adBudgetEgp: 2500,
+        offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
+        yearlyDiscountedTotal: 60000,
         features: [
-            '2,500 ج.م ميزانية إعلانات ممولة مباشرة (Meta & TikTok)',
-            'نسخة تطبيق وموقع PWA مخصص حسب مجال نشاطك',
-            'إنتاج فيديوهات ريلز وسيناريوهات فلو عبر Turbo Flow',
-            'وكيل مبيعات واتساب تفاوضي وإغلاق الحجوزات آلياً',
-            'تقارير يومية صباحية ومسائية عن الأداء والمبيعات'
+            '🎯 2,500 ج.م ميزانية إعلانات ممولة مباشرة (Meta & TikTok) لنصف القيمة',
+            '📱 نسخة تطبيق وموقع PWA متكامل مخصص حسب مجال نشاطك التجاري',
+            '🎬 إنتاج فيديوهات ريلز وسيناريوهات فلو عبر Turbo Flow & Veo',
+            '🤖 وكيل مبيعات واتساب تفاوضي لتأكيد وإغلاق الحجوزات آلياً',
+            '☀️🌙 تقارير يومية صباحية ومسائية عن الأداء والمبيعات عبر واتساب'
         ]
     },
     tier_10000: {
         id: 'tier_10000',
-        name: 'باقة التوسع البلاتيني (10,000 ج.م)',
+        name: 'باقة التوسع البلاتيني (10,000 ج.م / شهر)',
         amountEgp: 10000,
+        originalAmountEgp: 20000,
+        discountPercentage: 50,
         adBudgetEgp: 5000,
+        offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
+        yearlyDiscountedTotal: 120000,
         features: [
-            '5,000 ج.م ميزانية إعلانات ممولة مستهدفة لحصد المبيعات',
-            'تطبيق PWA متقدم مع لوحة تحكم وإدارة مخزون وحجوزات',
-            'أتمتة تسويقية كاملة عبر تيتو ستوديو + نشر ميتا وجوجل فلو',
-            'وكيل مبيعات صوتي متعدد القنوات (واتساب + تليجرام + إنستا)',
-            'بوابة دفع إلكتروني Paymob لتأكيد الحجوزات بالعربون فوراً'
+            '🎯 5,000 ج.م ميزانية إعلانات ممولة مستهدفة لحصد المبيعات (نصف القيمة إعلانات!)',
+            '📱 تطبيق PWA متقدم مع لوحة تحكم وإدارة مخزون وحجوزات و CRM متكامل',
+            '🚀 أتمتة تسويقية كاملة عبر تيتو ستوديو + نشر فوري على ميتا وجوجل فلو',
+            '🎙️ وكيل مبيعات صوتي متعدد القنوات (واتساب + ماسنجر + إنستجرام)',
+            '💳 بوابة دفع إلكتروني Paymob لتأكيد الحجوزات بالعربون فوراً'
         ]
     },
     tier_25000: {
         id: 'tier_25000',
-        name: 'باقة الهيمنة السوقية VIP (25,000 ج.م)',
+        name: 'باقة الهيمنة السوقية VIP (25,000 ج.م / شهر)',
         amountEgp: 25000,
+        originalAmountEgp: 50000,
+        discountPercentage: 50,
         adBudgetEgp: 12500,
+        offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
+        yearlyDiscountedTotal: 300000,
         features: [
-            '12,500 ج.م ميزانية إعلانات ممولة قوية للسيطرة على السوق',
-            'تطبيق ومنظومة متكاملة متعددة الفروع ونقاط البيع',
-            'إنتاج مكثف للفيديوهات والتصاميم وإدارة الحملات اليومية',
-            'تخصيص كامل لعقل الذكاء الاصطناعي ونبرة الصوت والردود',
-            'دعم تنفيذي مباشر 24/7 مع مدير حساب ذكي'
+            '🎯 12,500 ج.م ميزانية إعلانات ممولة قوية للسيطرة على السوق (نصف القيمة إعلانات!)',
+            '🏢 تطبيق ومنظومة متكاملة متعددة الفروع ونقاط البيع',
+            '🎥 إنتاج مكثف للفيديوهات والتصاميم وإدارة الحملات اليومية',
+            '🧠 تخصيص كامل لعقل الذكاء الاصطناعي ونبرة الصوت والردود السيادية',
+            '👑 دعم تنفيذي مباشر 24/7 مع مدير حساب ذكي وخبير نمو مخصص'
         ]
     },
     tier_50000: {
         id: 'tier_50000',
-        name: 'باقة الشركات الكبرى والمؤسسات (50,000 ج.م)',
+        name: 'باقة الشركات الكبرى والمؤسسات (50,000 ج.م / شهر)',
         amountEgp: 50000,
+        originalAmountEgp: 100000,
+        discountPercentage: 50,
         adBudgetEgp: 25000,
+        offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
+        yearlyDiscountedTotal: 600000,
         features: [
-            '25,000 ج.م ميزانية حملات إعلانية ضخمة عبر كافة المنصات',
-            'بناء وتخصيص أنظمة وتطبيقات متكاملة (Enterprise PWA Suite)',
-            'أتمتة تسويقية وسيادية غير محدودة في تيتو ستوديو وتيتو أجنت',
-            'تحليل تنبؤي ومراقبة سلوك الزوار وتحسين معدلات التحويل',
-            'سيرفرات مخصصة وأولوية قصوى لكافة عمليات الأتمتة'
+            '🎯 25,000 ج.م ميزانية حملات إعلانية ضخمة عبر كافة المنصات (نصف القيمة إعلانات!)',
+            '🌐 بناء وتخصيص أنظمة وتطبيقات متكاملة (Enterprise PWA Suite)',
+            '⚡ أتمتة تسويقية وسيادية غير محدودة في تيتو ستوديو وتيتو أجنت',
+            '📊 تحليل تنبؤي ومراقبة سلوك الزوار وتحسين معدلات التحويل',
+            '🛡️ سيرفرات مخصصة وأولوية قصوى لكافة عمليات الأتمتة'
         ]
     }
 };
@@ -136,8 +167,9 @@ export function savePaymobSubscriptionRecord(record: any): void {
  * that requires either a signed Paymob Webhook or Sovereign Admin confirmation.
  */
 export async function createPaymobCheckoutSession(req: PaymobCheckoutRequest): Promise<PaymobCheckoutResponse> {
-    const plan = PAYMOB_PLANS[req.planId] || PAYMOB_PLANS.growth_pro;
-    const amountEgp = req.amountEgp || plan.amountEgp;
+    const plan = PAYMOB_PLANS[req.planId] || PAYMOB_PLANS.tier_5000;
+    const isYearly = req.billingCycle === 'yearly';
+    const amountEgp = req.amountEgp || (isYearly ? plan.yearlyDiscountedTotal : plan.amountEgp);
     const amountCents = Math.round(amountEgp * 100);
 
     const apiKey = process.env.PAYMOB_API_KEY || '';
