@@ -1964,41 +1964,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 className="relative z-10"
               />
 
-              {/* Interactive Core Mic Trigger Button (Tap to Talk to Jarvis) */}
-              <button
-                onClick={handleToggleListening}
-                className={`absolute -bottom-3 z-20 px-4 py-1.5 rounded-full text-[11px] font-bold font-['Cairo'] flex items-center gap-2 backdrop-blur-md shadow-2xl transition-all duration-300 border select-none cursor-pointer ${
-                  isListening
-                    ? 'bg-rose-500 text-white border-rose-400 shadow-[0_0_25px_rgba(244,63,94,0.7)] animate-pulse'
-                    : isThinking
-                    ? 'bg-fuchsia-600/90 text-white border-fuchsia-400 shadow-[0_0_25px_rgba(217,70,239,0.7)]'
-                    : isPlayingVoice
-                    ? 'bg-emerald-500 text-black border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.7)] animate-bounce'
-                    : 'bg-black/80 hover:bg-black/95 text-cyan-200 border-cyan-400/50 hover:border-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.4)]'
-                }`}
-              >
-                {isListening ? (
-                  <>
-                    <MicOff className="w-3.5 h-3.5 text-white" />
-                    <span className="font-black">أنا سامعك يا ماستر.. اتفضل (اضغط للإنهاء)</span>
-                  </>
-                ) : isThinking ? (
-                  <>
-                    <span className="w-2.5 h-2.5 rounded-full bg-fuchsia-400 animate-spin" />
-                    <span className="font-black">جارفيس يعالج وينفذ الأمر...</span>
-                  </>
-                ) : isPlayingVoice ? (
-                  <>
-                    <Volume2 className="w-3.5 h-3.5 text-black animate-pulse" />
-                    <span className="font-black text-black">جارفيس يتحدث إليك (24kHz)</span>
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                    <span>🎙️ اضغط للتحدث مع جارفيس (أنا سامعك)</span>
-                  </>
-                )}
-              </button>
+              {/* Clean Voice State Indicator (Non-clashing HUD Badge) */}
+              <div className="absolute -bottom-2 z-20 px-3.5 py-1 rounded-full text-[10px] font-bold font-['Cairo'] flex items-center gap-2 backdrop-blur-md shadow-xl border select-none bg-black/80 border-cyan-500/40 text-cyan-200">
+                <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-rose-500 animate-ping' : isPlayingVoice ? 'bg-emerald-400 animate-bounce' : 'bg-cyan-400'}`} />
+                <span>{isListening ? '🎙️ استماع صوتي نشط (Full-Duplex)' : isPlayingVoice ? '🔊 جارفيس يتحدث (24kHz)' : '🟢 العقل الحي متصل وجاهز'}</span>
+              </div>
             </div>
 
             {/* TOP BAR: Explicit Chromium Mic Activator + Operational Mode Switcher */}
@@ -2013,27 +1983,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </span>
                 </div>
 
-                {!hasMicPermission ? (
-                  <button
-                    onClick={handleExplicitMicRequest}
-                    className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-[10px] rounded-xl shadow-lg shadow-amber-500/30 transition flex items-center gap-1 animate-pulse"
-                  >
-                    <Mic className="w-3 h-3" />
-                    اضغط هنا لتفعيل المايك فوراً
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleToggleListening}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 transition shadow-lg ${
-                      isListening
-                        ? 'bg-rose-500 text-white animate-pulse'
-                        : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-black font-black'
-                    }`}
-                  >
-                    {isListening ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
-                    <span>{isListening ? 'أنا سامعك..' : '🎙️ تحدث صوتياً الآن'}</span>
-                  </button>
-                )}
+                <div className="px-2.5 py-0.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-[9.5px] font-bold text-cyan-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>سوكيت الصوت الموحد 24kHz</span>
+                </div>
               </div>
 
               {/* 2. Dynamic Operations Stage Navigator (Streamlined & Clean for 2026 Stark HUD) */}
@@ -3612,14 +3565,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <div className="w-full grid grid-cols-2 gap-2">
                 <button
                   onClick={handleToggleListening}
-                  className={`py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-black transition-all ${
+                  className={`py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-black transition-all shadow-xl select-none cursor-pointer ${
                     isListening
-                      ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.6)] animate-pulse'
-                      : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-black shadow-lg shadow-emerald-500/30'
+                      ? 'bg-gradient-to-r from-rose-600 to-red-500 text-white shadow-[0_0_25px_rgba(244,63,94,0.7)] animate-pulse border border-rose-400'
+                      : 'bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-black shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-cyan-200'
                   }`}
                 >
-                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                  {isListening ? 'أنا سامعك.. اتكلم' : '🎙️ محادثة لايف صوتية'}
+                  {isListening ? <MicOff className="w-4 h-4 animate-bounce" /> : <Mic className="w-4 h-4 animate-pulse" />}
+                  <span>{isListening ? '🔴 أنا سامعك يا ماستر.. اتكلم (اضغط للإنهاء)' : '🎙️ تحدث صوتياً الآن (Full-Duplex Live)'}</span>
                 </button>
 
                 <button

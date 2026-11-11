@@ -27,6 +27,16 @@ import {
     publishMetaPost,
     processScheduledPosts
 } from "./services/metaAndCloudSuiteService";
+import {
+    getT2AgentBrands,
+    getT2AgentBrandStatus,
+    getT2AgentPairingQr,
+    updateT2AgentInstructions,
+    sendT2AgentWhatsAppMessage,
+    getT2AgentBookings,
+    getT2AgentConversations,
+    toggleT2AgentBotStatus
+} from "./services/titoAgentBridgeService";
 import { setupMicroservicesGateway } from "./services/microservicesGateway";
 import { cloneOrSynthesizeBrand, getClonedBrandByIdOrSlug } from "./services/appClonerCrawlerService";
 import { publishBrandPost, launchAdCampaign, runSelfOptimizingLoop, setupAutonomousAgencyCron, getPublishedLogs } from "./services/growthAgencyEngine";
@@ -1258,6 +1268,79 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   app.get("/api/growth/published-logs", (_req, res) => {
       res.json({ success: true, logs: getPublishedLogs() });
+  });
+
+  // --- SOVEREIGN T2 AGENT SUITE (WHATSAPP & AI FLEET) --- //
+  app.get("/api/t2-agent/brands", async (_req, res) => {
+      try {
+          const result = await getT2AgentBrands();
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.get("/api/t2-agent/brands/:id/status", async (req, res) => {
+      try {
+          const result = await getT2AgentBrandStatus(req.params.id);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.get("/api/t2-agent/brands/:id/qr", async (req, res) => {
+      try {
+          const result = await getT2AgentPairingQr(req.params.id);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.post("/api/t2-agent/brands/:id/instructions", async (req, res) => {
+      try {
+          const result = await updateT2AgentInstructions(req.params.id, req.body?.systemInstruction || "");
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.post("/api/t2-agent/brands/:id/send-message", async (req, res) => {
+      try {
+          const result = await sendT2AgentWhatsAppMessage(req.params.id, req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.get("/api/t2-agent/brands/:id/bookings", async (req, res) => {
+      try {
+          const result = await getT2AgentBookings(req.params.id);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.get("/api/t2-agent/brands/:id/conversations", async (req, res) => {
+      try {
+          const result = await getT2AgentConversations(req.params.id);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  app.post("/api/t2-agent/brands/:id/toggle-bot", async (req, res) => {
+      try {
+          const result = await toggleT2AgentBotStatus(req.params.id, req.body?.status);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
   });
 
   // --- SOVEREIGN META & CLOUD SUITE API (12 ENDPOINTS) --- //
