@@ -716,13 +716,6 @@ export function persistBrandUpdateAcrossEcosystem(brandId: string, updates: Reco
     return mergedBrand;
 }
 
-export function saveCustomBrandOverride(brand: any) {
-    if (!brand || !brand.id) return;
-    persistBrandUpdateAcrossEcosystem(brand.id, brand);
-}
-
-export const loadEzZelClients = getEzZelPersonalClients;
-
 /**
  * Saves edited Obsidian Markdown from the HUD or external editor and syncs changes back to Storefront PWA & T2-Agent
  */
@@ -829,6 +822,19 @@ export function getObsidianNodeMarkdown(brandOrNodeId: string): { title: string;
 /**
  * Executes real cross-app actions triggered from Jarvis HUD (Visitor, Subscriber/CEO, or Master Admin)
  */
+export function saveCustomBrandOverride(brand: any) {
+    try {
+        const brandsOverridePath = path.join(VAULT_ROOT, '.brands_override.json');
+        let overrides: any = {};
+        if (fs.existsSync(brandsOverridePath)) {
+            overrides = JSON.parse(fs.readFileSync(brandsOverridePath, 'utf8'));
+        }
+        overrides[brand.id] = brand;
+        fs.writeFileSync(brandsOverridePath, JSON.stringify(overrides, null, 2), 'utf8');
+    } catch {}
+}
+export const loadEzZelClients = getEzZelPersonalClients;
+
 export async function executeRealJarvisEcosystemAction(payload: {
     actionType: string;
     brandId?: string;

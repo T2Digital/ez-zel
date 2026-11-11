@@ -282,3 +282,5 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         throw lastErr || edgeErr || new Error('All neural human voice engines failed');
     }
 }
+
+export const synthesizeSpeechAudio = synthesizeEdgeSpeech;

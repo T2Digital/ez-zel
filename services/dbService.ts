@@ -1296,6 +1296,7 @@ class ShadowDB {
       } catch (e) { console.error('Failed saving audio cache', e); }
   }
 
+  async getMessages(userId: string = "master_tito"): Promise<DBMessage[]> { return this.getHistory(userId); }
   async getHistory(userId: string, limit?: number, offset?: number): Promise<DBMessage[]> {
     const db = await this.init();
     const tx = db.transaction('history', 'readonly');

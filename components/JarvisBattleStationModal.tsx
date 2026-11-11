@@ -18,7 +18,7 @@ import { ObsidianHolographicConstellation } from './ObsidianHolographicConstella
 import { JarvisAutonomousAgencyDeck } from './jarvis/JarvisAutonomousAgencyDeck';
 import { JarvisGrowthRadarDeck } from './jarvis/JarvisGrowthRadarDeck';
 import { JarvisUnifiedCatalogModal } from './jarvis/JarvisUnifiedCatalogModal';
-import { Jarvis3DSpatialTheater, SpatialSceneId } from './jarvis/Jarvis3DSpatialTheater';
+import { jarvisVoiceSocket, VoiceSocketState } from '../services/jarvisVoiceSocketService';
 import { BRAND_VAULT } from '../services/brandVault';
 import { shadowDB } from '../services/dbService';
 
@@ -57,8 +57,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [audioLevel, setAudioLevel] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
-  const [spatialScene, setSpatialScene] = useState<SpatialSceneId>('wake_up');
-  const [isSpatialTheaterMode, setIsSpatialTheaterMode] = useState<boolean>(true);
   const [isBrandSuperWindowOpen, setIsBrandSuperWindowOpen] = useState(false);
   const [graphFilter, setGraphFilter] = useState<'all' | 'studio' | 'agent' | 'ezzel'>('all');
   const [graphZoom, setGraphZoom] = useState<number>(1);
@@ -114,6 +112,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   // Two-Way Live Conversation State
   const [isListening, setIsListening] = useState(false);
+  const [voiceSocketState, setVoiceSocketState] = useState<VoiceSocketState>('disconnected');
   const [transcript, setTranscript] = useState('');
   const transcriptRef = useRef<string>('');
   const [isThinking, setIsThinking] = useState(false);
@@ -278,7 +277,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const handleOpenMetaConnectModal = async () => {
+  const handleOpenMetaConnectModal = async (targetBrandId?: string) => {
     setIsMetaConnectModalOpen(true);
     setMetaPageInput(`${currentSelectedBrand.name} - Official`);
   };
@@ -483,6 +482,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   // Fetch real database telemetry on open
   useEffect(() => {
     if (!isOpen) {
+      jarvisVoiceSocket.disconnect();
       stopVoice();
       setIsPlayingVoice(false);
       return;
@@ -966,8 +966,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     });
   };
 
-  // Two-Way Live Speech Recognition Trigger (On-Demand Push/Tap-to-Talk)
-  const handleToggleListening = () => {
+  // Two-Way Live Speech Recognition Trigger (Full-Duplex Audio Socket & Barge-in)
+  const handleToggleListening = async () => {
     // 1. Immediately unlock browser audio context on user gesture
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -977,7 +977,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       }
     } catch {}
 
-    if (isListening) {
+    if (isListening || jarvisVoiceSocket.active) {
+      jarvisVoiceSocket.disconnect();
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
       }
@@ -985,11 +986,66 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       stopVoice();
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
+      setTranscript('');
     } else {
       stopVoice();
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
-      startListeningLoop();
+      setTranscript('جاري الاتصال بالسوكيت المباشر (Full-Duplex Stream)...');
+
+      // Setup Real-Time Callbacks for the Socket Engine
+      jarvisVoiceSocket.setCallbacks({
+        onStateChange: (state) => {
+          setVoiceSocketState(state);
+          if (state === 'listening') {
+            setIsListening(true);
+            setIsPlayingVoice(false);
+            isPlayingVoiceRef.current = false;
+            setTranscript('أنا سامعك يا ماستر.. اتفضل اتكلم');
+          } else if (state === 'speaking') {
+            setIsPlayingVoice(true);
+            isPlayingVoiceRef.current = true;
+          } else if (state === 'disconnected' || state === 'error') {
+            setIsListening(false);
+            setIsPlayingVoice(false);
+            isPlayingVoiceRef.current = false;
+          }
+        },
+        onInputTranscript: (userText) => {
+          if (userText) {
+            setTranscript(userText);
+            transcriptRef.current = userText;
+            appendLiveLog(`[USER_VOICE]: ${userText}`);
+          }
+        },
+        onOutputTranscript: (jarvisText) => {
+          if (jarvisText) {
+            setTranscript(jarvisText);
+            appendLiveLog(`[JARVIS_VOICE]: ${jarvisText}`);
+          }
+        },
+        onVolumeChange: (vol) => {
+          setAudioLevel(vol);
+        },
+        onError: (err) => {
+          console.warn('[Jarvis Voice Socket Warning]:', err);
+          // Fall back gracefully to browser recognition if WebSocket is interrupted
+          startListeningLoop();
+        }
+      });
+
+      const success = await jarvisVoiceSocket.connect(
+        persona === 'tito' ? 'ماستر تيتو' : currentSelectedBrand.name,
+        'male'
+      );
+
+      if (!success) {
+        // Fall back seamlessly to browser recognition
+        startListeningLoop();
+      } else {
+        setIsListening(true);
+        setHasMicPermission(true);
+      }
     }
   };
 
@@ -1054,31 +1110,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     isThinkingRef.current = true;
     stopVoice();
     appendLiveLog(`[VOICE_CMD]: "${commandText}"`);
-
-    // Reactive 3D Spatial Theater Scene Trigger
-    const lowerCmd = commandText.toLowerCase();
-    if (lowerCmd.includes('متجر') || lowerCmd.includes('طلب') || lowerCmd.includes('اوردر') || lowerCmd.includes('شحن') || lowerCmd.includes('مبيعات')) {
-      setSpatialScene('online_store');
-      setIsSpatialTheaterMode(true);
-    } else if (lowerCmd.includes('وكالة') || lowerCmd.includes('عملا') || lowerCmd.includes('ابراج') || lowerCmd.includes('برج') || lowerCmd.includes('نمو')) {
-      setSpatialScene('agency_towers');
-      setIsSpatialTheaterMode(true);
-    } else if (lowerCmd.includes('محتوى') || lowerCmd.includes('اسبوع') || lowerCmd.includes('أسبوع') || lowerCmd.includes('ريلز') || lowerCmd.includes('ستوديو') || lowerCmd.includes('تقويم')) {
-      setSpatialScene('content_carousel');
-      setIsSpatialTheaterMode(true);
-    } else if (lowerCmd.includes('انبوكس') || lowerCmd.includes('إنبوكس') || lowerCmd.includes('بريد') || lowerCmd.includes('رسائل') || lowerCmd.includes('فلتر') || lowerCmd.includes('سبام')) {
-      setSpatialScene('inbox_filter');
-      setIsSpatialTheaterMode(true);
-    } else if (lowerCmd.includes('ابني') || lowerCmd.includes('صفحة') || lowerCmd.includes('بناء') || lowerCmd.includes('موقع') || lowerCmd.includes('pwa')) {
-      setSpatialScene('page_builder');
-      setIsSpatialTheaterMode(true);
-    } else if (lowerCmd.includes('صباح') || lowerCmd.includes('قهوة') || lowerCmd.includes('جدول') || lowerCmd.includes('مهام') || lowerCmd.includes('صحيني')) {
-      setSpatialScene('wake_up');
-      setIsSpatialTheaterMode(true);
-    } else if (lowerCmd.includes('سيادة') || lowerCmd.includes('حراسة') || lowerCmd.includes('جاهز') || lowerCmd.includes('سلام') || lowerCmd.includes('امان')) {
-      setSpatialScene('sign_off');
-      setIsSpatialTheaterMode(true);
-    }
 
     // Direct Studio Workflow Voice Commands (Strategy -> Week Plan -> Preview -> Publish / Approve Schedule)
     const matchedBrand = allBrandsList.find(b => commandText.includes(b.name) || (b.slug && commandText.toLowerCase().includes(b.slug.toLowerCase()))) || currentSelectedBrand;
@@ -1150,7 +1181,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       let recentChatSummary = '';
       if (persona === 'tito') {
         try {
-          const recentMsgs = (shadowDB as any).getHistory ? await (shadowDB as any).getHistory('tito', 6) : [];
+          const recentMsgs = await shadowDB.getMessages();
           recentChatSummary = (recentMsgs || [])
             .slice(-6)
             .map((m: any) => `${m.sender === 'user' ? 'الماستر' : 'الظل'}: ${(m.text || '').slice(0, 180)}`)
@@ -1242,7 +1273,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             if (data.action.modal === 'whatsapp_connect') {
               handleOpenWhatsAppConnectModal(data.action.brandId);
             } else if (data.action.modal === 'meta_connect') {
-              handleOpenMetaConnectModal();
+              handleOpenMetaConnectModal(data.action.brandId);
             } else if (data.action.modal === 'brand_super_window' && persona !== 'visitor') {
               setIsBrandSuperWindowOpen(true);
             }
@@ -1856,86 +1887,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* Mode Switcher: 3D Spatial Theater vs Arc Reactor Core */}
-            <div className="flex items-center gap-2 my-2 z-20 select-none">
-              <button
-                onClick={() => setIsSpatialTheaterMode(true)}
-                className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold font-['Cairo'] flex items-center gap-1.5 transition-all ${
-                  isSpatialTheaterMode
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-[0_0_20px_rgba(6,182,212,0.6)] font-black'
-                    : 'bg-[#03091e]/90 text-white/60 hover:text-white border border-white/10'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-black" />
-                <span>🎭 المسرح السينمائي 3D (Fable 7-Scenes)</span>
-              </button>
-
-              <button
-                onClick={() => setIsSpatialTheaterMode(false)}
-                className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold font-['Cairo'] flex items-center gap-1.5 transition-all ${
-                  !isSpatialTheaterMode
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_0_20px_rgba(245,158,11,0.6)] font-black'
-                    : 'bg-[#03091e]/90 text-white/60 hover:text-white border border-white/10'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span>⚛️ مفاعل النواة (Reactor Core)</span>
-              </button>
-            </div>
-
-            {/* CONDITIONAL RENDER: 3D SPATIAL THEATER VS CLASSIC ARC REACTOR */}
-            {isSpatialTheaterMode ? (
-              <div className="w-full max-w-4xl my-2 flex flex-col items-center">
-                <Jarvis3DSpatialTheater
-                  currentScene={spatialScene}
-                  onSceneChange={(sc) => setSpatialScene(sc)}
-                  isPlayingVoice={isPlayingVoice}
-                  audioLevel={audioLevel}
-                  onActionClick={(deck) => setActiveDeckTab(deck as any)}
-                  onSpeakScript={(txt) => playShadowVoice(txt, 'male')}
-                  className="w-full"
-                />
-
-                {/* Interactive Mic Trigger Button for 3D Mode */}
-                <div className="relative mt-3 z-20 flex items-center justify-center">
-                  <button
-                    onClick={handleToggleListening}
-                    className={`px-6 py-2.5 rounded-full text-xs font-bold font-['Cairo'] flex items-center gap-2 backdrop-blur-md shadow-2xl transition-all duration-300 border select-none cursor-pointer ${
-                      isListening
-                        ? 'bg-rose-500 text-white border-rose-400 shadow-[0_0_25px_rgba(244,63,94,0.7)] animate-pulse'
-                        : isThinking
-                        ? 'bg-fuchsia-600/90 text-white border-fuchsia-400 shadow-[0_0_25px_rgba(217,70,239,0.7)]'
-                        : isPlayingVoice
-                        ? 'bg-emerald-500 text-black border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.7)] animate-bounce'
-                        : 'bg-black/90 hover:bg-black text-cyan-200 border-cyan-400/50 hover:border-cyan-400 shadow-[0_0_25px_rgba(0,240,255,0.4)]'
-                    }`}
-                  >
-                    {isListening ? (
-                      <>
-                        <MicOff className="w-4 h-4 text-white" />
-                        <span className="font-black">أنا سامعك يا ماستر.. اتفضل (اضغط للإنهاء)</span>
-                      </>
-                    ) : isThinking ? (
-                      <>
-                        <span className="w-3 h-3 rounded-full bg-fuchsia-400 animate-spin" />
-                        <span className="font-black">جارفيس يعالج وينفذ الأمر...</span>
-                      </>
-                    ) : isPlayingVoice ? (
-                      <>
-                        <Volume2 className="w-4 h-4 text-black animate-pulse" />
-                        <span className="font-black text-black">جارفيس يتحدث إليك (24kHz)</span>
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="w-4 h-4 text-cyan-400 animate-pulse" />
-                        <span className="font-bold">🎙️ تحدث مع جارفيس (أنا سامعك)</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="relative w-72 h-72 md:w-84 md:h-84 flex items-center justify-center my-1 select-none">
+            {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB */}
+            <div className="relative w-72 h-72 md:w-84 md:h-84 flex items-center justify-center my-1 select-none">
               
               {/* Outer Ambient Glow */}
               <div 
@@ -2047,7 +2000,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 )}
               </button>
             </div>
-            )}
 
             {/* TOP BAR: Explicit Chromium Mic Activator + Operational Mode Switcher */}
             <div className="w-full max-w-xl flex flex-col gap-2 bg-[#040a24]/95 p-2.5 rounded-3xl border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.2)]">

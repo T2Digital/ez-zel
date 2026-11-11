@@ -11,7 +11,7 @@ import { spawn, exec } from "child_process";
 import puppeteer from "puppeteer";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { synthesizeTrack } from "./services/musicSynthesizer";
-import { synthesizeEdgeSpeech } from "./services/edgeSpeechSynthesizer";
+import { synthesizeEdgeSpeech, synthesizeSpeechAudio, pcmToWavBuffer } from "./services/edgeSpeechSynthesizer";
 import { BRAND_VAULT } from "./services/brandVault";
 import { setupMicroservicesGateway } from "./services/microservicesGateway";
 import { cloneOrSynthesizeBrand, getClonedBrandByIdOrSlug } from "./services/appClonerCrawlerService";
@@ -3728,7 +3728,7 @@ ${formattedHistory ? `[سجل الحوار السابق بينك وبين الم
   httpServer.on("upgrade", (request, socket, head) => {
       try {
           const reqUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
-          if (reqUrl.pathname === "/api/gemini/live") {
+          if (reqUrl.pathname === "/api/gemini/live" || reqUrl.pathname === "/api/jarvis/voice-stream") {
               wss.handleUpgrade(request, socket, head, (ws) => {
                   wss.emit("connection", ws, request);
               });
@@ -3876,11 +3876,100 @@ ${formattedHistory ? `[سجل الحوار السابق بينك وبين الم
               if (queued) handleClientPayload(queued);
           }
       } catch (err: any) {
-          console.error("[Gemini Live Connect Failed]:", err?.message || err);
+          console.warn("[Gemini Live Standby] Activating Autonomous Resilient Voice Streamer:", err?.message || err);
           if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ error: err?.message || "Failed to connect to Gemini Live API" }));
-              ws.close();
+              ws.send(JSON.stringify({ status: "connected", mode: "smart-stream" }));
           }
+
+          let audioChunksBuffer: Buffer[] = [];
+          let silenceTimer: any = null;
+
+          const processAccumulatedAudio = async () => {
+              if (audioChunksBuffer.length === 0) return;
+              const combinedPcm = Buffer.concat(audioChunksBuffer);
+              audioChunksBuffer = [];
+              if (combinedPcm.length < 3200) return;
+
+              try {
+                  const wavBuffer = pcmToWavBuffer(combinedPcm, 16000);
+                  const base64Wav = wavBuffer.toString("base64");
+                  const ai = getServerAI();
+
+                  const transcribeResp = await ai.models.generateContent({
+                      model: "gemini-2.0-flash",
+                      contents: [
+                          {
+                              role: "user",
+                              parts: [
+                                  { inlineData: { mimeType: "audio/wav", data: base64Wav } },
+                                  { text: "أنت أداة تفريغ صوتي دقيقة جداً. استخرج ما قيل في التسجيل باللهجة المصرية العامية فقط دون أي إضافات أو تعليق. إذا كان الصوت غير مفهوم أو صمت، اكتب: [صمت]." }
+                              ]
+                          }
+                      ]
+                  });
+                  const transcription = transcribeResp.text?.trim() || "";
+                  if (!transcription || transcription.includes("[صمت]")) return;
+
+                  if (ws.readyState === WebSocket.OPEN) {
+                      ws.send(JSON.stringify({ inputTranscript: transcription }));
+                  }
+
+                  const replyResp = await ai.models.generateContent({
+                      model: "gemini-2.0-flash",
+                      contents: [
+                          {
+                              role: "user",
+                              parts: [{ text: `أنت جارفيس (الظل الرقمي)، المساعد الذكي لمؤسس T2 Digital (ماستر تيتو). رد باقتضاب وسرعة وذكاء باللهجة المصرية الطبيعية الودودة.\nكلام المستخدم: ${transcription}` }]
+                          }
+                      ]
+                  });
+                  const replyText = replyResp.text?.trim() || "تمام يا ماستر تيتو، معاك وسامعك تمام.";
+                  if (ws.readyState === WebSocket.OPEN) {
+                      ws.send(JSON.stringify({ outputTranscript: replyText }));
+                  }
+
+                  const audioBuf = await synthesizeSpeechAudio({
+                      text: replyText,
+                      voice: voiceName,
+                      outputFormat: "raw-24khz-16bit-mono-pcm"
+                  });
+                  if (ws.readyState === WebSocket.OPEN) {
+                      ws.send(JSON.stringify({ audio: audioBuf.toString("base64"), turnComplete: true }));
+                  }
+              } catch (pipeErr: any) {
+                  console.error("[Voice Stream Fallback Pipeline Error]:", pipeErr?.message || pipeErr);
+              }
+          };
+
+          ws.on("message", async (raw) => {
+              try {
+                  const data = JSON.parse(raw.toString());
+                  if (data.interrupted) {
+                      audioChunksBuffer = [];
+                      if (silenceTimer) clearTimeout(silenceTimer);
+                      return;
+                  }
+                  if (data.audio) {
+                      const chunk = Buffer.from(data.audio, "base64");
+                      audioChunksBuffer.push(chunk);
+                      if (silenceTimer) clearTimeout(silenceTimer);
+                      silenceTimer = setTimeout(processAccumulatedAudio, 1100);
+                  } else if (data.text) {
+                      const text = data.text;
+                      const ai = getServerAI();
+                      const replyResp = await ai.models.generateContent({
+                          model: "gemini-2.0-flash",
+                          contents: [{ role: "user", parts: [{ text: `أنت جارفيس، المساعد الذكي لماستر تيتو. رد باقتضاب وسرعة وذكاء باللهجة المصرية.\n${text}` }] }]
+                      });
+                      const replyText = replyResp.text?.trim() || "تمام يا ماستر.";
+                      if (ws.readyState === WebSocket.OPEN) {
+                          ws.send(JSON.stringify({ outputTranscript: replyText }));
+                          const audioBuf = await synthesizeSpeechAudio({ text: replyText, voice: voiceName, outputFormat: "raw-24khz-16bit-mono-pcm" });
+                          ws.send(JSON.stringify({ audio: audioBuf.toString("base64"), turnComplete: true }));
+                      }
+                  }
+              } catch {}
+          });
       }
   });
 
