@@ -13,6 +13,20 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { synthesizeTrack } from "./services/musicSynthesizer";
 import { synthesizeEdgeSpeech, synthesizeSpeechAudio, pcmToWavBuffer } from "./services/edgeSpeechSynthesizer";
 import { BRAND_VAULT } from "./services/brandVault";
+import {
+    createMetaPage,
+    getMetaAdAccounts,
+    createMetaAdCampaign,
+    getMetaAdsInsights,
+    uploadMediaPayload,
+    testStorageBucket,
+    sendAlertTest,
+    generateBrandKit,
+    generateVeoVideo,
+    downloadVeoVideo,
+    publishMetaPost,
+    processScheduledPosts
+} from "./services/metaAndCloudSuiteService";
 import { setupMicroservicesGateway } from "./services/microservicesGateway";
 import { cloneOrSynthesizeBrand, getClonedBrandByIdOrSlug } from "./services/appClonerCrawlerService";
 import { publishBrandPost, launchAdCampaign, runSelfOptimizingLoop, setupAutonomousAgencyCron, getPublishedLogs } from "./services/growthAgencyEngine";
@@ -358,6 +372,7 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   app.use(express.json({ limit: '50mb' }));
+  app.use('/uploads', express.static(path.join(process.cwd(), 'dist', 'uploads')));
 
   // Mount Sovereign Microservices API Gateway (Webhooks, Realtime SSE & Service Fleet Orchestrator)
   setupMicroservicesGateway(app);
@@ -1243,6 +1258,131 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   app.get("/api/growth/published-logs", (_req, res) => {
       res.json({ success: true, logs: getPublishedLogs() });
+  });
+
+  // --- SOVEREIGN META & CLOUD SUITE API (12 ENDPOINTS) --- //
+  // 1. Create Facebook Page & Link Instagram Business
+  app.post("/api/meta/pages/create", async (req, res) => {
+      try {
+          const result = await createMetaPage(req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 2. Fetch Connected Meta Ad Accounts
+  app.get("/api/meta/ads/accounts", async (req, res) => {
+      try {
+          const token = req.query.token as string | undefined;
+          const result = await getMetaAdAccounts(token);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 3. Launch AI-Powered Meta Ad Campaign
+  app.post("/api/meta/ads/campaigns/create", async (req, res) => {
+      try {
+          const result = await createMetaAdCampaign(req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 4. Live Ad Insights & ROAS Telemetry
+  app.get("/api/meta/ads/insights", async (req, res) => {
+      try {
+          const token = req.query.token as string | undefined;
+          const result = await getMetaAdsInsights(token);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 5. Cloud Storage & CDN Media Upload
+  app.post("/api/upload", async (req, res) => {
+      try {
+          const hostUrl = `${req.protocol}://${req.get("host")}`;
+          const result = await uploadMediaPayload(req.body || {}, hostUrl);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 6. Test Cloud Storage Bucket Connectivity (R2 / S3 / GCS)
+  app.post("/api/storage/test", async (req, res) => {
+      try {
+          const result = await testStorageBucket(req.body?.storageConfig);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 7. Dispatch Alert Test Notification (Telegram & WhatsApp)
+  app.post("/api/alerts/test", async (req, res) => {
+      try {
+          const result = await sendAlertTest(req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 8. Generate Brand Identity & Kit with Gemini AI
+  app.post("/api/brand/generateKit", async (req, res) => {
+      try {
+          const result = await generateBrandKit(req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 9. Generate Google Veo Cinematic 3D Videos (9:16)
+  app.post("/api/gemini/generateVideos", async (req, res) => {
+      try {
+          const result = await generateVeoVideo(req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 10. Cache and Download Veo Video to Permanent CDN URL
+  app.post("/api/gemini/downloadVideo", async (req, res) => {
+      try {
+          const hostUrl = `${req.protocol}://${req.get("host")}`;
+          const result = await downloadVeoVideo(req.body?.videoUri || "", hostUrl);
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 11. Dual Live Publish to Facebook & Instagram
+  app.post("/api/meta/publish", async (req, res) => {
+      try {
+          const result = await publishMetaPost(req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
+  });
+
+  // 12. Automated Cron Execution for Scheduled Posts
+  app.post("/api/cron/process-scheduled-posts", async (_req, res) => {
+      try {
+          const result = await processScheduledPosts();
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message });
+      }
   });
 
   // --- SERVER-SIDE GEMINI API ENDPOINTS --- //
