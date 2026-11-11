@@ -872,24 +872,35 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const isThinkingRef = useRef<boolean>(false);
 
   const startListeningLoop = () => {
-    if (isPlayingVoiceRef.current || isThinkingRef.current) return;
+    // Unconditionally force-unlock any voice/thinking states so user speech is NEVER blocked
+    isPlayingVoiceRef.current = false;
+    isThinkingRef.current = false;
+    setIsPlayingVoice(false);
+    setIsThinking(false);
+
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRec) return;
+    if (!SpeechRec) {
+      toast.error('المتصفح لا يدعم الميكروفون المباشر، استخدم Google Chrome أو Microsoft Edge');
+      return;
+    }
 
     try {
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
+        recognitionRef.current = null;
       }
 
       const recognition = new SpeechRec();
       recognition.lang = 'ar-EG';
       recognition.continuous = false;
       recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         setIsListening(true);
+        setHasMicPermission(true);
         transcriptRef.current = '';
-        setTranscript('استمع إليك يا ماستر.. اتفضل');
+        setTranscript('أنا سامعك يا ماستر.. اتفضل اتكلم');
       };
 
       recognition.onresult = (event: any) => {
@@ -900,21 +911,24 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setTranscript(text);
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (err: any) => {
+        console.warn('[Speech Recognition Error]:', err?.error || err);
         setIsListening(false);
       };
 
       recognition.onend = () => {
         setIsListening(false);
         const finalRecorded = transcriptRef.current;
-        if (finalRecorded && finalRecorded !== 'استمع إليك يا ماستر.. اتفضل' && finalRecorded.trim().length > 0) {
+        if (finalRecorded && finalRecorded !== 'أنا سامعك يا ماستر.. اتفضل اتكلم' && finalRecorded.trim().length > 0) {
           handleSendLiveCommand(finalRecorded);
         }
       };
 
       recognitionRef.current = recognition;
       recognition.start();
-    } catch (e) {
+      setIsListening(true);
+    } catch (e: any) {
+      console.error('[Speech Recognition Start Error]:', e);
       setIsListening(false);
     }
   };
@@ -1108,7 +1122,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       let recentChatSummary = '';
       if (persona === 'tito') {
         try {
-          const recentMsgs = await shadowDB.getMessages();
+          const recentMsgs = (shadowDB as any).getHistory ? await (shadowDB as any).getHistory('tito', 6) : [];
           recentChatSummary = (recentMsgs || [])
             .slice(-6)
             .map((m: any) => `${m.sender === 'user' ? 'الماستر' : 'الظل'}: ${(m.text || '').slice(0, 180)}`)
@@ -1200,7 +1214,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             if (data.action.modal === 'whatsapp_connect') {
               handleOpenWhatsAppConnectModal(data.action.brandId);
             } else if (data.action.modal === 'meta_connect') {
-              handleOpenMetaConnectModal(data.action.brandId);
+              handleOpenMetaConnectModal();
             } else if (data.action.modal === 'brand_super_window' && persona !== 'visitor') {
               setIsBrandSuperWindowOpen(true);
             }

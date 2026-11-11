@@ -149,7 +149,7 @@ export interface OmniWeekPostItem {
     dateIso?: string;
     mediaFormat?: 'image' | 'video';
     contentType: string;
-    pillar?: 'product_marketing' | 'events_seasons' | 'educational_loyalty';
+    pillar?: 'product_marketing' | 'events_seasons' | 'educational_loyalty' | 'conversion_offer';
     pillarLabel?: string;
     hook: string;
     caption: string;

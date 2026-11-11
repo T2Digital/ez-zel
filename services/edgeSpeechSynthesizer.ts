@@ -1,7 +1,9 @@
 ﻿import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
+import { EdgeTTS } from 'node-edge-tts';
 
 export interface SynthesizeOptions {
     text: string;
@@ -126,6 +128,36 @@ export function normalizeTextForGeminiHumanTTS(text: string): string {
  * with Puck (Male) and Kore (Female) prebuilt human voices + persistent SHA-256 disk caching.
  * Zero robotic Puck / Kore voices!
  */
+
+async function synthesizeWithNodeEdgeTts(cleanText: string, isFemale: boolean, outputFormat?: string): Promise<Buffer> {
+    const edgeVoice = isFemale ? 'ar-EG-SalmaNeural' : 'ar-EG-ShakirNeural';
+    const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const tmpMp3Path = path.join(os.tmpdir(), `node_edge_${uniqueId}.mp3`);
+    try {
+        const tts = new EdgeTTS({
+            voice: edgeVoice,
+            outputFormat: outputFormat || 'audio-24khz-48kbitrate-mono-mp3',
+            timeout: 12000
+        });
+        await Promise.race([
+            tts.ttsPromise(cleanText, tmpMp3Path),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('EDGE_TTS_TIMEOUT')), 13000))
+        ]);
+        if (fs.existsSync(tmpMp3Path)) {
+            const buf = fs.readFileSync(tmpMp3Path);
+            try { fs.unlinkSync(tmpMp3Path); } catch {}
+            if (buf && buf.length > 200) {
+                console.log(`🎙️ [Node Edge Human Egyptian TTS]: Synthesized ${buf.length} bytes via (${edgeVoice})`);
+                return buf;
+            }
+        }
+    } catch (err: any) {
+        try { if (fs.existsSync(tmpMp3Path)) fs.unlinkSync(tmpMp3Path); } catch {}
+        console.warn(`[Node Edge TTS Error]:`, err?.message || err);
+    }
+    throw new Error('Node Edge TTS synthesis failed');
+}
+
 export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<Buffer> {
     const cleanText = normalizeTextForGeminiHumanTTS(options.text || '');
     if (!cleanText) {
@@ -165,7 +197,8 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
 
     const candidateKeys = collectAllGeminiKeys();
     if (candidateKeys.length === 0) {
-        throw new Error('No Gemini API keys available for Gemini Human TTS');
+        console.log(`🎙️ [TTS Direct]: No Gemini keys on host, synthesizing directly via Node Edge Human Egyptian Voice...`);
+        return await synthesizeWithNodeEdgeTts(cleanText, isFemale, wantRawPcm ? 'raw-24khz-16bit-mono-pcm' : undefined);
     }
 
     // Latest verified Gemini Human TTS models (exact models powering T2 Agent human voice)
@@ -241,5 +274,11 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         }
     }
 
-    throw lastErr || new Error('Gemini Human TTS synthesis failed across all models and keys');
+    // If Gemini models fail or keys are absent on Render, immediately synthesize with Node-Edge-TTS (100% human Egyptian voice)
+    try {
+        console.log(`🎙️ [TTS Failover]: Falling back to Node Edge Human Egyptian Voice (${geminiVoice})...`);
+        return await synthesizeWithNodeEdgeTts(cleanText, isFemale, wantRawPcm ? 'raw-24khz-16bit-mono-pcm' : undefined);
+    } catch (edgeErr: any) {
+        throw lastErr || edgeErr || new Error('All neural human voice engines failed');
+    }
 }
