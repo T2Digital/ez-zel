@@ -9,6 +9,7 @@ import {
   Search, Sliders, PhoneCall, Trash2, Key, Bell, Copy, Check, ChevronDown, Server,
   Calendar, CalendarDays, Clock, Megaphone
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { playShadowVoice, stopVoice, speakBrowserNaturalVoice } from '../services/speechService';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
@@ -1571,7 +1572,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             
             {/* ACTION ACTUATOR: Visitor Pricing & Trial Info vs Executive Command Hub */}
             {persona === 'visitor' ? (
-              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
+              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(0,240,255,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
                 <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
                   <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -1871,7 +1872,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   onClick={() => { setPersona('visitor'); handlePlayPersonaGreeting('visitor'); }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
                     persona === 'visitor'
-                      ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                      ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black shadow-[0_0_15px_rgba(0,240,255,0.5)]'
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
@@ -1879,7 +1880,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </button>
               </div>
             ) : (
-              <div className="bg-[#03091e]/90 border border-cyan-500/40 px-4 py-1.5 rounded-2xl flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
+              <div className="bg-[#03091e]/90 border border-cyan-500/40 px-4 py-1.5 rounded-2xl flex items-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.25)]">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
                 <span className="text-xs font-black text-cyan-300">
                   🌐 مستشار النمو الرقمي والذكاء السيادي للأعمال (جارفيس)
@@ -2022,7 +2023,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     onClick={() => setActiveDeckTab('agent_fleet')}
                     className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1.5 ${
                       activeDeckTab === 'agent_fleet'
-                        ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black font-black shadow-[0_0_20px_rgba(16,185,129,0.6)]'
+                        ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black font-black shadow-[0_0_20px_rgba(0,240,255,0.6)]'
                         : 'text-cyan-200/80 hover:text-white hover:bg-white/5'
                     }`}
                   >
@@ -2070,7 +2071,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <>
                 {/* EXECUTIVE BRAND CEO COCKPIT BANNER (For Trial & Subscribed Clients) */}
                 {(persona === 'trial' || persona === 'client') && (
-                  <div className="w-full max-w-xl bg-gradient-to-r from-[#061a16] via-[#041226] to-[#120824] border border-cyan-500/40 rounded-3xl p-3.5 shadow-[0_0_25px_rgba(16,185,129,0.2)] flex flex-col gap-2.5 text-right font-['Cairo'] animate-in fade-in">
+                  <div className="w-full max-w-xl bg-gradient-to-r from-[#040b22] via-[#041226] to-[#120824] border border-cyan-500/40 rounded-3xl p-3.5 shadow-[0_0_25px_rgba(0,240,255,0.2)] flex flex-col gap-2.5 text-right font-['Cairo'] animate-in fade-in">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
@@ -2695,7 +2696,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             {/* TAB 2: PUBLISHED CONTENT SHOWCASE CARD */}
             {activeDeckTab === 'content_post_card' && (
-              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-purple-500/40 shadow-[0_0_35px_rgba(168,85,247,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 30 }}
+                transition={{ type: "spring", damping: 22, stiffness: 280 }}
+                className="w-full max-w-xl rounded-3xl bg-[#01040f]/95 border-2 border-purple-500/40 shadow-[0_0_60px_rgba(168,85,247,0.35)] p-5 flex flex-col gap-3 backdrop-blur-2xl font-['Cairo'] text-right"
+              >
                 {/* Header */}
                 <div className="flex items-center justify-between pb-2 border-b border-purple-500/20">
                   <div className="flex items-center gap-2">
@@ -2874,12 +2881,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* TAB 1: T2 AI AGENT FLEET (MATCHES khedr-bot-agent.onrender.com/dashboard) */}
             {activeDeckTab === 'agent_fleet' && (
-              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(16,185,129,0.2)] p-3 flex flex-col gap-2.5 backdrop-blur-md animate-in fade-in duration-200">
+              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(0,240,255,0.2)] p-3 flex flex-col gap-2.5 backdrop-blur-md animate-in fade-in duration-200">
                 {/* Fleet Subheader */}
                 <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
                   <div className="flex items-center gap-2">
@@ -3538,12 +3545,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {/* TWO-WAY LIVE CONVERSATION & AUDIO DOCK */}
             <div className="w-full max-w-md flex flex-col items-center gap-2.5">
               
-              {/* Transcript Display Box */}
-              {transcript && (
-                <div className="w-full px-4 py-2 rounded-2xl bg-black/60 border border-cyan-500/30 text-center text-xs text-cyan-200 font-bold animate-in fade-in">
-                  {isThinking ? '🧠 جاري التفكير ومعالجة طلبك يا ماستر...' : `🗣️ "${transcript}"`}
-                </div>
-              )}
+              {/* Living Holographic Voice Ribbon (Framer Motion Spring Physics) */}
+              <AnimatePresence>
+                {transcript && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                    className="w-full px-5 py-2.5 rounded-2xl bg-black/80 border border-cyan-400/40 text-center text-xs text-cyan-200 font-bold shadow-[0_0_30px_rgba(0,240,255,0.25)] backdrop-blur-xl"
+                  >
+                    {isThinking ? (
+                      <span className="flex items-center justify-center gap-2 text-cyan-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-spin" />
+                        🧠 جاري التفكير ومعالجة طلبك يا ماستر...
+                      </span>
+                    ) : (
+                      <span className="leading-relaxed">🗣️ "${transcript}"</span>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* 16-Bar Audio Spectrum Visualizer */}
               <div className="flex items-end justify-center gap-1.5 h-6 w-full px-4">
@@ -3605,7 +3627,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             
             {/* RIGHT COLUMN: Tailored Visitor App Preview vs Multi-Tenant Brand Selector */}
             {persona === 'visitor' ? (
-              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
+              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(0,240,255,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
                 <div className="w-full flex items-center justify-between pb-2 border-b border-cyan-500/20">
                   <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
                     <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
@@ -3929,7 +3951,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       {/* REAL CRM BOOKINGS DETAIL MODAL */}
       {isCrmModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
-          <div className="w-full max-w-2xl bg-[#04081c] border-2 border-cyan-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(16,185,129,0.3)] space-y-4">
+          <div className="w-full max-w-2xl bg-[#04081c] border-2 border-cyan-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(0,240,255,0.3)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-cyan-500/30">
               <div className="flex items-center gap-2 text-cyan-400 font-bold text-base">
                 <FileText className="w-5 h-5" />
@@ -4038,7 +4060,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       {/* LIVE WHATSAPP PAIRING & QR CONNECTION MODAL */}
       {isWaConnectModalOpen && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in font-['Cairo']" dir="rtl">
-          <div className="w-full max-w-lg bg-[#041016] border-2 border-cyan-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(16,185,129,0.35)] space-y-4 text-right">
+          <div className="w-full max-w-lg bg-[#041016] border-2 border-cyan-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(0,240,255,0.35)] space-y-4 text-right">
             <div className="flex items-center justify-between pb-3 border-b border-cyan-500/30">
               <div className="flex items-center gap-2 text-cyan-400 font-black text-base">
                 <MessageSquare className="w-5 h-5" />
@@ -4590,7 +4612,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             </div>
 
             {/* WINDOW 3: WHATSAPP VOICE AGENT, META GRAPH & LIVE CHANNELS */}
-            <div className="rounded-2xl bg-[#020614] border border-cyan-500/40 p-4 flex flex-col gap-3 shadow-[0_0_25px_rgba(16,185,129,0.15)]">
+            <div className="rounded-2xl bg-[#020614] border border-cyan-500/40 p-4 flex flex-col gap-3 shadow-[0_0_25px_rgba(0,240,255,0.15)]">
               <div className="flex items-center justify-between pb-2 border-b border-cyan-500/25">
                 <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
                   <Bot className="w-4 h-4 text-cyan-400" />
