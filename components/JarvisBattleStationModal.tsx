@@ -1436,7 +1436,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <span className="px-2 py-0.5 rounded bg-fuchsia-500/15 border border-fuchsia-500/35 text-fuchsia-300 font-bold">
                 OBSIDIAN 2-WAY VAULT
               </span>
-              <span className="text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+              <span className="text-cyan-300 font-bold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
                 UNIFIED BRAIN // ONLINE
               </span>
             </div>
@@ -1523,10 +1523,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         </div>
 
         {/* MAIN HUD INTERACTION VIEWPORT (3 Sci-Fi Columns With Mobile-First Spatial Hierarchy) */}
-        <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 md:p-6 overflow-y-auto">
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-between p-4 md:p-6 overflow-y-auto w-full max-w-4xl mx-auto">
 
           {/* Mobile-First Floating Control Pill Bar (Visible on mobile screens < lg) */}
-          <div className="lg:hidden col-span-1 flex items-center justify-between p-1.5 bg-[#020617]/95 border border-cyan-500/30 rounded-2xl text-xs font-bold font-['Cairo'] shadow-[0_0_20px_rgba(6,182,212,0.2)]">
+          <div className="hidden col-span-1 flex items-center justify-between p-1.5 bg-[#020617]/95 border border-cyan-500/30 rounded-2xl text-xs font-bold font-['Cairo'] shadow-[0_0_20px_rgba(6,182,212,0.2)]">
             <button
               onClick={() => setMobileActiveView('stage')}
               className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1 ${
@@ -1555,7 +1555,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               onClick={() => setMobileActiveView('radar')}
               className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1 ${
                 mobileActiveView === 'radar'
-                  ? 'bg-emerald-500 text-black font-black shadow-lg shadow-emerald-500/30'
+                  ? 'bg-cyan-500 text-black font-black shadow-lg shadow-cyan-500/30'
                   : 'text-white/60 hover:text-white'
               }`}
             >
@@ -1567,17 +1567,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           {/* RIGHT COLUMN (RTL): CONTROLS & TELEMETRY (3 Cols)         */}
           {/* ========================================================= */}
-          <div className={`lg:col-span-3 flex flex-col gap-4 order-2 lg:order-1 ${mobileActiveView === 'radar' ? 'flex' : 'hidden lg:flex'}`}>
+          <div className="hidden">
             
             {/* ACTION ACTUATOR: Visitor Pricing & Trial Info vs Executive Command Hub */}
             {persona === 'visitor' ? (
-              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
-                <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
-                  <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
+                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
+                  <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                     باقات النمو المعتمدة (50% إعلانات)
                   </span>
-                  <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/30">
                     5 TIERS
                   </span>
                 </div>
@@ -1586,7 +1586,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
                     <div>
                       <div className="font-bold text-white text-[11px]">الانطلاق الفضي</div>
-                      <div className="text-[9.5px] text-emerald-400">1,250 ج.م إعلانات ممولة</div>
+                      <div className="text-[9.5px] text-cyan-400">1,250 ج.م إعلانات ممولة</div>
                     </div>
                     <span className="font-black text-amber-300 text-xs">2,500 ج.م</span>
                   </div>
@@ -1594,7 +1594,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="p-2 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between">
                     <div>
                       <div className="font-bold text-cyan-200 text-[11px]">النمو الذهبي (الأكثر طلباً)</div>
-                      <div className="text-[9.5px] text-emerald-400">2,500 ج.م إعلانات ممولة</div>
+                      <div className="text-[9.5px] text-cyan-400">2,500 ج.م إعلانات ممولة</div>
                     </div>
                     <span className="font-black text-amber-300 text-xs">5,000 ج.م</span>
                   </div>
@@ -1602,7 +1602,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="p-2 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between">
                     <div>
                       <div className="font-bold text-purple-200 text-[11px]">الريادة البلاتينية</div>
-                      <div className="text-[9.5px] text-emerald-400">5,000 ج.م إعلانات ممولة</div>
+                      <div className="text-[9.5px] text-cyan-400">5,000 ج.م إعلانات ممولة</div>
                     </div>
                     <span className="font-black text-amber-300 text-xs">10,000 ج.م</span>
                   </div>
@@ -1610,7 +1610,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
                     <div>
                       <div className="font-bold text-white text-[11px]">المؤسسات VIP</div>
-                      <div className="text-[9.5px] text-emerald-400">12,500 ج.م إعلانات ممولة</div>
+                      <div className="text-[9.5px] text-cyan-400">12,500 ج.م إعلانات ممولة</div>
                     </div>
                     <span className="font-black text-amber-300 text-xs">25,000 ج.م</span>
                   </div>
@@ -1618,13 +1618,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="p-2 rounded-xl bg-amber-950/30 border border-amber-500/30 flex items-center justify-between">
                     <div>
                       <div className="font-bold text-amber-200 text-[11px]">السيادة التوسعية</div>
-                      <div className="text-[9.5px] text-emerald-400">25,000 ج.م إعلانات ممولة</div>
+                      <div className="text-[9.5px] text-cyan-400">25,000 ج.م إعلانات ممولة</div>
                     </div>
                     <span className="font-black text-amber-300 text-xs">50,000 ج.م</span>
                   </div>
                 </div>
 
-                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 leading-relaxed">
+                <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-300 leading-relaxed">
                   🛡️ <strong>أسبوع التجربة المجانية:</strong> 3 منشورات مركزة (يوم ويوم: تصميم، فيديو ريلز، بوست عرض خاص وحجز فوري) + وكيل واتساب 24/7.
                 </div>
               </div>
@@ -1635,7 +1635,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <Zap className="w-3.5 h-3.5 text-amber-400" />
                     متحكم الإجراءات والربط
                   </span>
-                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/30">
                     REAL-TIME
                   </span>
                 </div>
@@ -1696,9 +1696,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                   <button
                     onClick={() => handleOpenWhatsAppConnectModal()}
-                    className="p-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-right transition-all flex flex-col items-start gap-1"
+                    className="p-2.5 rounded-2xl border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-right transition-all flex flex-col items-start gap-1"
                   >
-                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <MessageSquare className="w-4 h-4 text-cyan-400" />
                     <span className="text-xs font-bold">ربط واتساب لايف</span>
                     <span className="text-[9px] text-white/40">كود ربط أو QR فوري</span>
                   </button>
@@ -1768,7 +1768,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     onClick={() => setTelemetryMode('human')}
                     className={`px-2 py-0.5 rounded-lg transition text-[9.5px] ${
                       telemetryMode === 'human'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black'
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-black'
                         : 'text-white/40 hover:text-white'
                     }`}
                   >
@@ -1785,12 +1785,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     ⚙️ سجل الأوامر
                   </button>
                 </div>
-                <span className="animate-pulse text-emerald-400 font-bold font-mono">● LIVE</span>
+                <span className="animate-pulse text-cyan-400 font-bold font-mono">● LIVE</span>
               </div>
 
               {telemetryMode === 'human' ? (
                 <div className="flex-1 overflow-y-auto space-y-2 scrollbar-none text-[11px] font-['Cairo'] leading-relaxed">
-                  <div className="p-2 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-emerald-300 flex items-center justify-between">
+                  <div className="p-2 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-cyan-300 flex items-center justify-between">
                     <span>💬 عميل جديد يطلب استشارة عبر واتساب {currentSelectedBrand.name}</span>
                     <span className="text-[9px] text-white/40 font-mono">الآن</span>
                   </div>
@@ -1871,7 +1871,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   onClick={() => { setPersona('visitor'); handlePlayPersonaGreeting('visitor'); }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
                     persona === 'visitor'
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                      ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)]'
                       : 'text-white/60 hover:text-white'
                   }`}
                 >
@@ -1879,9 +1879,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </button>
               </div>
             ) : (
-              <div className="bg-[#03091e]/90 border border-emerald-500/40 px-4 py-1.5 rounded-2xl flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs font-black text-emerald-300">
+              <div className="bg-[#03091e]/90 border border-cyan-500/40 px-4 py-1.5 rounded-2xl flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="text-xs font-black text-cyan-300">
                   🌐 مستشار النمو الرقمي والذكاء السيادي للأعمال (جارفيس)
                 </span>
               </div>
@@ -1966,7 +1966,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
               {/* Clean Voice State Indicator (Non-clashing HUD Badge) */}
               <div className="absolute -bottom-2 z-20 px-3.5 py-1 rounded-full text-[10px] font-bold font-['Cairo'] flex items-center gap-2 backdrop-blur-md shadow-xl border select-none bg-black/80 border-cyan-500/40 text-cyan-200">
-                <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-rose-500 animate-ping' : isPlayingVoice ? 'bg-emerald-400 animate-bounce' : 'bg-cyan-400'}`} />
+                <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-rose-500 animate-ping' : isPlayingVoice ? 'bg-cyan-400 animate-bounce' : 'bg-cyan-400'}`} />
                 <span>{isListening ? '🎙️ استماع صوتي نشط (Full-Duplex)' : isPlayingVoice ? '🔊 جارفيس يتحدث (24kHz)' : '🟢 العقل الحي متصل وجاهز'}</span>
               </div>
             </div>
@@ -1977,14 +1977,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               {/* 1. Explicit Mic & Voice Activation Alert (Gemini 24kHz Human Voice Engine) */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-black/50 rounded-2xl border border-white/5">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${hasMicPermission ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                  <span className={`w-2.5 h-2.5 rounded-full ${hasMicPermission ? 'bg-cyan-400 animate-ping' : 'bg-amber-400'}`} />
                   <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
                     {hasMicPermission ? '🟢 الميكروفون نشط • صوت Gemini البشري 24kHz (Puck)' : '⚠️ إذن الميكروفون يتطلب تفعيل يدوي للمتصفح'}
                   </span>
                 </div>
 
                 <div className="px-2.5 py-0.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-[9.5px] font-bold text-cyan-300 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="w-2 h-2 rounded-full bg-cyan-400" />
                   <span>سوكيت الصوت الموحد 24kHz</span>
                 </div>
               </div>
@@ -2022,8 +2022,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     onClick={() => setActiveDeckTab('agent_fleet')}
                     className={`py-2 px-1 rounded-xl transition flex items-center justify-center gap-1.5 ${
                       activeDeckTab === 'agent_fleet'
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black shadow-[0_0_20px_rgba(16,185,129,0.6)]'
-                        : 'text-emerald-200/80 hover:text-white hover:bg-white/5'
+                        ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black font-black shadow-[0_0_20px_rgba(16,185,129,0.6)]'
+                        : 'text-cyan-200/80 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
@@ -2043,10 +2043,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </button>
                 </div>
               ) : (
-                <div className="w-full py-2 px-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between text-xs font-bold font-['Cairo']">
+                <div className="w-full py-2 px-3 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-xs font-bold font-['Cairo']">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-emerald-300">محادثة حية تفاعلية مع جارفيس (تشخيص وبناء البيزنس وتفعيل التجربة)</span>
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                    <span className="text-cyan-300">محادثة حية تفاعلية مع جارفيس (تشخيص وبناء البيزنس وتفعيل التجربة)</span>
                   </div>
                   <span className="text-[10px] text-cyan-300 font-mono bg-cyan-950/40 px-2.5 py-0.5 rounded-full border border-cyan-500/20">
                     AI GROWTH CONSULTANT
@@ -2070,10 +2070,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <>
                 {/* EXECUTIVE BRAND CEO COCKPIT BANNER (For Trial & Subscribed Clients) */}
                 {(persona === 'trial' || persona === 'client') && (
-                  <div className="w-full max-w-xl bg-gradient-to-r from-[#061a16] via-[#041226] to-[#120824] border border-emerald-500/40 rounded-3xl p-3.5 shadow-[0_0_25px_rgba(16,185,129,0.2)] flex flex-col gap-2.5 text-right font-['Cairo'] animate-in fade-in">
+                  <div className="w-full max-w-xl bg-gradient-to-r from-[#061a16] via-[#041226] to-[#120824] border border-cyan-500/40 rounded-3xl p-3.5 shadow-[0_0_25px_rgba(16,185,129,0.2)] flex flex-col gap-2.5 text-right font-['Cairo'] animate-in fade-in">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
                         <div>
                           <h3 className="text-xs font-black text-white flex items-center gap-1.5">
                             👔 جارفيس: المدير التنفيذي والسكرتير الذكي لبراند <span className="text-cyan-300">{currentSelectedBrand.name}</span>
@@ -2113,7 +2113,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                       <button
                         onClick={() => handleOpenWhatsAppConnectModal()}
-                        className="py-1.5 px-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
+                        className="py-1.5 px-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
                       >
                         <MessageSquare className="w-3 h-3" />
                         <span>ربط واتساب البراند</span>
@@ -2142,7 +2142,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <span className="text-[10.5px] font-black text-amber-300 flex items-center gap-1.5">
                           💎 عداد حصاد منظومة النمو لبراندك (القيمة السوقية المنفذة مجاناً):
                         </span>
-                        <span className="text-[10px] font-mono font-black text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                        <span className="text-[10px] font-mono font-black text-cyan-400 bg-cyan-500/15 px-2 py-0.5 rounded-full border border-cyan-500/30">
                           إجمالي القيمة: 22,500 ج.م
                         </span>
                       </div>
@@ -2156,9 +2156,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                           <span className="text-white/50 block text-[8px]">7 منشورات ستوديو</span>
                           <span className="text-cyan-300 font-black">3 مسارات CTA ✔</span>
                         </div>
-                        <div className="p-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                        <div className="p-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
                           <span className="text-white/50 block text-[8px]">وكيل واتساب صوتي</span>
-                          <span className="text-emerald-300 font-black">رد في 3 ثوانٍ ✔</span>
+                          <span className="text-cyan-300 font-black">رد في 3 ثوانٍ ✔</span>
                         </div>
                         <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
                           <span className="text-white/50 block text-[8px]">مبيعات وحجوزات</span>
@@ -2314,12 +2314,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <button
                           onClick={handleSaveObsidianMarkdown}
                           disabled={isSavingObsidianMd}
-                          className="text-[9.5px] font-black px-2.5 py-0.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black transition"
+                          className="text-[9.5px] font-black px-2.5 py-0.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black transition"
                         >
                           {isSavingObsidianMd ? 'جاري الحفظ...' : '💾 حفظ ومزامنة عكسية ⚡'}
                         </button>
                       )}
-                      <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                      <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
                         2-WAY LIVE
                       </span>
                     </div>
@@ -2357,7 +2357,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </button>
                     <button
                       onClick={() => handleOpenWhatsAppConnectModal()}
-                      className="py-1.5 px-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 text-[10px] font-bold flex items-center justify-center gap-1"
+                      className="py-1.5 px-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 text-[10px] font-bold flex items-center justify-center gap-1"
                     >
                       <MessageSquare className="w-3 h-3" />
                       <span>ربط الواتساب</span>
@@ -2401,7 +2401,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       <Users className="w-3.5 h-3.5 text-cyan-400" />
                       أولاً: عملاء ومشتركو مساعد "الظل" الشخصي ({(obsidianSnapshot?.ezZelPersonalClients || []).length || 4})
                     </span>
-                    <span className="text-[9.5px] font-mono text-emerald-400">Personal AI Subscribers</span>
+                    <span className="text-[9.5px] font-mono text-cyan-400">Personal AI Subscribers</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
@@ -2420,7 +2420,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         </div>
                         <div className="flex items-center justify-between text-[9.5px] text-white/60 font-mono">
                           <span>مهام: {client.activeTasksCount} • ذاكرة: {client.memoryNodesCount}</span>
-                          <span className="text-emerald-400 font-bold">عمولة: {client.affiliateEarningsEgp} ج</span>
+                          <span className="text-cyan-400 font-bold">عمولة: {client.affiliateEarningsEgp} ج</span>
                         </div>
                       </div>
                     ))}
@@ -2446,7 +2446,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-bold text-white truncate">{brand.name}</span>
-                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">
+                            <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded font-mono">
                               {(brand.weekContentPlan || []).length || 7} بوست
                             </span>
                           </div>
@@ -2489,7 +2489,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <div>
                       <h4 className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap">
                         تقويم تيتو ستوديو: <span className="text-cyan-300">{currentSelectedBrand.name}</span>
-                        <span className="text-[9px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                        <span className="text-[9px] font-mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full">
                           ☁️ Firestore: t2-content-studio
                         </span>
                       </h4>
@@ -2518,7 +2518,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <button
                       onClick={() => handleApproveSchedule(currentSelectedBrand.id)}
                       disabled={isApprovingSchedule}
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1 transition"
+                      className="px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 text-[10px] font-bold flex items-center gap-1 transition"
                     >
                       <CheckCircle2 className="w-3 h-3" />
                       <span>{isApprovingSchedule ? 'جاري الاعتماد...' : '3) اعتمد الجدولة'}</span>
@@ -2539,7 +2539,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       onClick={() => handleCreatePaymobCheckout('growth_pro')}
-                      className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black flex items-center gap-1 shadow-sm"
+                      className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-500 text-black font-black flex items-center gap-1 shadow-sm"
                     >
                       💳 تفعيل اشتراك البراند آلياً (Paymob)
                     </button>
@@ -2587,7 +2587,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <b className="text-cyan-300">التموضع:</b> {st.positioning}
                       </p>
                       <p className="text-[10.5px] text-white/70">
-                        <b className="text-amber-300">الجمهور المستهدف:</b> {st.targetAudience} • <b className="text-emerald-300">خليط الإنتاج:</b> {st.weeklyMixSummary}
+                        <b className="text-amber-300">الجمهور المستهدف:</b> {st.targetAudience} • <b className="text-cyan-300">خليط الإنتاج:</b> {st.weeklyMixSummary}
                       </p>
                       {Array.isArray(st.pillars) && st.pillars.length > 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
@@ -2618,7 +2618,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       ctaType === 'APP_CONVERSION'
                         ? 'bg-blue-500/15 text-blue-300 border-blue-500/35'
                         : ctaType === 'WHATSAPP_VOICE_AGENT'
-                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                          ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/35'
                           : 'bg-amber-500/15 text-amber-300 border-amber-500/35';
 
                     return (
@@ -2707,7 +2707,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       <p className="text-[10px] text-white/50">معاينة تفاعلية للتصميم، الكابشن، ومسار التحويل (Omni-Channel CTA)</p>
                     </div>
                   </div>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                  <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
                     {selectedPost?.status === 'PUBLISHED' ? 'منشور بنجاح' : 'جاهز للنشر'}
                   </span>
@@ -2823,7 +2823,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                               playShadowVoice('تم ربط الفيديو المولد من جوجل فلو وحفظه في تقويم تيتو ستوديو بنجاح يا ماستر!', 'male');
                             }
                           }}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-500 text-black font-black text-[10px]"
+                          className="px-2.5 py-1 rounded-lg bg-cyan-500 text-black font-black text-[10px]"
                         >
                           حفظ بالتقويم
                         </button>
@@ -2850,7 +2850,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <button
                       onClick={() => handleApproveSchedule(currentSelectedBrand.id)}
                       disabled={isApprovingSchedule}
-                      className="py-2 px-2 rounded-xl bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-500/40 text-[11px] font-black transition flex items-center justify-center gap-1"
+                      className="py-2 px-2 rounded-xl bg-cyan-500/25 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-500/40 text-[11px] font-black transition flex items-center justify-center gap-1"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>✅ اعتمد الجدولة</span>
@@ -2879,16 +2879,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             {/* TAB 1: T2 AI AGENT FLEET (MATCHES khedr-bot-agent.onrender.com/dashboard) */}
             {activeDeckTab === 'agent_fleet' && (
-              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-emerald-500/40 shadow-[0_0_35px_rgba(16,185,129,0.2)] p-3 flex flex-col gap-2.5 backdrop-blur-md animate-in fade-in duration-200">
+              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(16,185,129,0.2)] p-3 flex flex-col gap-2.5 backdrop-blur-md animate-in fade-in duration-200">
                 {/* Fleet Subheader */}
-                <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                     <span className="text-xs font-bold text-white">لوحة تحكم الأيجنت الذكي • إدارة المحادثات والـ CRM</span>
                   </div>
                   <button
                     onClick={() => setIsOnboardingOpen(true)}
-                    className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-[10px] font-bold transition flex items-center gap-1"
+                    className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-[10px] font-bold transition flex items-center gap-1"
                   >
                     <Sparkles className="w-3 h-3" />
                     + إضافة نشاط جديد
@@ -2897,7 +2897,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                 {/* Filter Pills from Real Screenshot */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[9.5px] font-mono select-none scrollbar-none">
-                  <span className="px-2.5 py-1 rounded-lg bg-emerald-500 text-black font-bold whitespace-nowrap">أنشطة وحالة الأيجنت (6)</span>
+                  <span className="px-2.5 py-1 rounded-lg bg-cyan-500 text-black font-bold whitespace-nowrap">أنشطة وحالة الأيجنت (6)</span>
                   <button onClick={() => setIsCrmModalOpen(true)} className="px-2.5 py-1 rounded-lg bg-black/40 text-white/70 hover:text-white border border-white/5 whitespace-nowrap">المحادثات والتحكم اليدوي (CRM)</button>
                   <button onClick={() => setIsCrmModalOpen(true)} className="px-2.5 py-1 rounded-lg bg-black/40 text-white/70 hover:text-white border border-white/5 whitespace-nowrap">التقويم والحجوزات</button>
                   <button onClick={() => setIsMetaReadinessOpen(true)} className="px-2.5 py-1 rounded-lg bg-black/40 text-white/70 hover:text-white border border-white/5 whitespace-nowrap">الربط والمتاجر</button>
@@ -2907,7 +2907,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[380px] overflow-y-auto pr-1">
                   
                   {/* 1. CLEAN MASTER */}
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#061c14] to-[#020a06] border border-emerald-500/40 flex flex-col gap-2 relative shadow-lg shadow-emerald-950/40">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#061c14] to-[#020a06] border border-cyan-500/40 flex flex-col gap-2 relative shadow-lg shadow-cyan-950/40">
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-1.5">
@@ -2915,7 +2915,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         </div>
                         <span className="text-[9px] font-mono text-white/40 block">ID: clean_master</span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.clean_master ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.clean_master ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'}`}>
                         {botStates.clean_master ? 'شغال' : 'متوقف'}
                       </span>
                     </div>
@@ -2932,7 +2932,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       className={`w-full py-1.5 rounded-xl text-[10px] font-bold transition flex items-center justify-center gap-1.5 border ${
                         botStates.clean_master
                           ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
-                          : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40 font-black'
+                          : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40 font-black'
                       }`}
                     >
                       {botStates.clean_master ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
@@ -2943,10 +2943,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono">
                       <div 
                         onClick={() => setIsCrmModalOpen(true)}
-                        className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between cursor-pointer hover:border-emerald-400/50 transition"
+                        className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between cursor-pointer hover:border-cyan-400/50 transition"
                       >
                         <span className="text-white/70">صندوق المحادثات</span>
-                        <span className="font-bold text-emerald-400">{realStats.totalHandledMessages || 0} 💬</span>
+                        <span className="font-bold text-cyan-400">{realStats.totalHandledMessages || 0} 💬</span>
                       </div>
                       <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
                         <span className="text-white/70">فحص المنصات</span>
@@ -2955,9 +2955,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </div>
 
                     {/* WhatsApp Connection Status */}
-                    <div className="p-1.5 rounded-lg bg-black/60 border border-emerald-500/20 flex items-center justify-between text-[8.5px] font-mono">
+                    <div className="p-1.5 rounded-lg bg-black/60 border border-cyan-500/20 flex items-center justify-between text-[8.5px] font-mono">
                       <span className="text-white/60">واتساب: +201013372674</span>
-                      <span className="text-emerald-400 font-bold">متصل وفعال</span>
+                      <span className="text-cyan-400 font-bold">متصل وفعال</span>
                     </div>
 
                     {/* Secondary Buttons Row */}
@@ -2989,7 +2989,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         </div>
                         <span className="text-[9px] font-mono text-white/40 block">ID: besho</span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.besho ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.besho ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'}`}>
                         {botStates.besho ? 'شغال' : 'متوقف'}
                       </span>
                     </div>
@@ -3005,7 +3005,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       className={`w-full py-1.5 rounded-xl text-[10px] font-bold transition flex items-center justify-center gap-1.5 border ${
                         botStates.besho
                           ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
-                          : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40 font-black'
+                          : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40 font-black'
                       }`}
                     >
                       {botStates.besho ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
@@ -3019,7 +3019,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       </div>
                       <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
                         <span className="text-white/70">فحص المنصات</span>
-                        <span className="font-bold text-emerald-400">100% 🛡️</span>
+                        <span className="font-bold text-cyan-400">100% 🛡️</span>
                       </div>
                     </div>
 
@@ -3043,7 +3043,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <span className="font-bold text-white text-xs">شركة الخضر لتأجير السيارات</span>
                         <span className="text-[9px] font-mono text-white/40 block">ID: alkhedr_car_rental</span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.alkhedr_car_rental ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/60'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.alkhedr_car_rental ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/10 text-white/60'}`}>
                         {botStates.alkhedr_car_rental ? 'شغال' : 'متوقف'}
                       </span>
                     </div>
@@ -3054,7 +3054,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         setBotStates(prev => ({ ...prev, alkhedr_car_rental: newState }));
                         playShadowVoice(newState ? 'تم استئناف أيجنت الخضر للسيارات 24 ساعة!' : 'تم إيقاف أيجنت الخضر مؤقتاً!', 'male');
                       }}
-                      className="w-full py-1.5 rounded-xl text-[10px] font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center gap-1.5"
+                      className="w-full py-1.5 rounded-xl text-[10px] font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition flex items-center justify-center gap-1.5"
                     >
                       <Play className="w-3 h-3" />
                       تفعيل الاتصال واستئناف رد الأيجنت
@@ -3154,7 +3154,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </div>
                     <div className="p-2 rounded-xl bg-white/5 border border-white/5">
                       <span className="text-white/40 block text-[8.5px]">رقم الواتساب المربوط</span>
-                      <span className="text-emerald-400 font-bold block">{currentSelectedBrand.phone || '01013373634'}</span>
+                      <span className="text-cyan-400 font-bold block">{currentSelectedBrand.phone || '01013373634'}</span>
                     </div>
                     <div className="p-2 rounded-xl bg-white/5 border border-white/5">
                       <span className="text-white/40 block text-[8.5px]">عناصر الكتالوج الحية</span>
@@ -3185,7 +3185,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       <button
                         onClick={handleAddCatalogService}
                         disabled={isSavingCatalog || !newServiceTitle.trim()}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition disabled:opacity-40 shrink-0"
+                        className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs transition disabled:opacity-40 shrink-0"
                       >
                         + إضافة للمتجر
                       </button>
@@ -3299,7 +3299,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </div>
                     <div className="p-2 rounded-xl bg-white/5 border border-white/5">
                       <span className="text-white/40 block text-[8.5px]">محادثات متوقعة</span>
-                      <span className="text-emerald-400 font-bold block">180 - 240 عميل 💬</span>
+                      <span className="text-cyan-400 font-bold block">180 - 240 عميل 💬</span>
                     </div>
                     <div className="p-2 rounded-xl bg-white/5 border border-white/5">
                       <span className="text-white/40 block text-[8.5px]">عوائد بيع تقديرية</span>
@@ -3329,7 +3329,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                     خزنة البراندات الموحدة • Unified Brand Vault
                   </span>
-                  <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  <span className="text-[10px] font-mono bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-500/30">
                     {realStats.totalVaultBrandsCount ?? allBrandsList.length ?? 0} براند إنتاجي
                   </span>
                 </div>
@@ -3341,7 +3341,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <span className="text-sm md:text-base font-black font-mono text-white mt-0.5">
                       {realStats.studioConnectedCount ?? allBrandsList.length ?? 0} براند
                     </span>
-                    <span className="text-[8px] text-emerald-400 font-mono">فيسبوك • إنستجرام</span>
+                    <span className="text-[8px] text-cyan-400 font-mono">فيسبوك • إنستجرام</span>
                   </div>
 
                   <div className="p-2 rounded-2xl bg-black/40 border border-white/5 flex flex-col">
@@ -3354,16 +3354,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                   <div 
                     onClick={() => setIsCrmModalOpen(true)}
-                    className="p-2 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-black/60 border border-emerald-500/30 flex flex-col cursor-pointer hover:border-emerald-400 transition"
+                    className="p-2 rounded-2xl bg-gradient-to-br from-cyan-950/40 to-black/60 border border-cyan-500/30 flex flex-col cursor-pointer hover:border-cyan-400 transition"
                   >
-                    <span className="text-[9px] text-emerald-300 font-bold flex items-center justify-between">
+                    <span className="text-[9px] text-cyan-300 font-bold flex items-center justify-between">
                       حجوزات CRM
                       <ExternalLink className="w-2.5 h-2.5" />
                     </span>
-                    <span className="text-sm md:text-base font-black font-mono text-emerald-400 mt-0.5">
+                    <span className="text-sm md:text-base font-black font-mono text-cyan-400 mt-0.5">
                       {realStats.confirmedBookingsCount ?? 0} حجز مؤكد
                     </span>
-                    <span className="text-[8px] text-emerald-300/80 font-mono">
+                    <span className="text-[8px] text-cyan-300/80 font-mono">
                       {realStats.realConfirmedRevenueEgp ?? 0} ج.م (كلين ماستر)
                     </span>
                   </div>
@@ -3396,12 +3396,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 {/* Header */}
                 <div className="flex items-center justify-between pb-2 border-b border-blue-500/20">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
                     <span className="text-xs font-black text-blue-300">
                       بوابة الـ Microservices المركزية (API Gateway)
                     </span>
                   </div>
-                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/30">
                     SSE LIVE STREAM • نشط
                   </span>
                 </div>
@@ -3409,11 +3409,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 {/* Microservice Fleet Status Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-right">
                   {/* Service 1: T2 Agent Core */}
-                  <div className="p-2.5 rounded-2xl bg-[#020914] border border-emerald-500/30 flex flex-col justify-between">
+                  <div className="p-2.5 rounded-2xl bg-[#020914] border border-cyan-500/30 flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center justify-between text-[10px] text-emerald-400 font-bold">
+                      <div className="flex items-center justify-between text-[10px] text-cyan-400 font-bold">
                         <span>وكيل الواتساب (T2 Agent)</span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                       </div>
                       <p className="text-[9px] text-white/60 mt-1 leading-tight">
                         مستقل 100% • محرك صوت نقي وتفاوض مبيعات
@@ -3421,7 +3421,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </div>
                     <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center justify-between text-[9px] font-mono">
                       <span className="text-white/40">الردود: {realStats.totalHandledMessages || 0} محادثة</span>
-                      <span className="text-emerald-400 font-bold">متصل</span>
+                      <span className="text-cyan-400 font-bold">متصل</span>
                     </div>
                   </div>
 
@@ -3516,7 +3516,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         toast.error(err?.message || 'فشل إرسال التجربة');
                       }
                     }}
-                    className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-[11px] shadow-lg shadow-emerald-500/30 transition flex items-center justify-center gap-1.5"
+                    className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-cyan-400 text-black font-black text-[11px] shadow-lg shadow-cyan-500/30 transition flex items-center justify-center gap-1.5"
                   >
                     <Send className="w-3 h-3" />
                     إرسال تجربة حجز حقيقي عبر الـ Webhook لحظياً
@@ -3568,7 +3568,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   className={`py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-black transition-all shadow-xl select-none cursor-pointer ${
                     isListening
                       ? 'bg-gradient-to-r from-rose-600 to-red-500 text-white shadow-[0_0_25px_rgba(244,63,94,0.7)] animate-pulse border border-rose-400'
-                      : 'bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-black shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-cyan-200'
+                      : 'bg-gradient-to-r from-cyan-400 via-cyan-400 to-cyan-400 hover:from-cyan-300 hover:to-cyan-300 text-black shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-cyan-200'
                   }`}
                 >
                   {isListening ? <MicOff className="w-4 h-4 animate-bounce" /> : <Mic className="w-4 h-4 animate-pulse" />}
@@ -3605,18 +3605,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             
             {/* RIGHT COLUMN: Tailored Visitor App Preview vs Multi-Tenant Brand Selector */}
             {persona === 'visitor' ? (
-              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
-                <div className="w-full flex items-center justify-between pb-2 border-b border-emerald-500/20">
-                  <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
-                    <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="p-4 rounded-3xl bg-[#040b22]/90 border border-cyan-500/30 shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-3 font-['Cairo'] text-right">
+                <div className="w-full flex items-center justify-between pb-2 border-b border-cyan-500/20">
+                  <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
                     معاينة تطبيقك المخصص (PWA)
                   </span>
-                  <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/30">
                     LIVE PREVIEW
                   </span>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-black/60 border border-emerald-500/30 space-y-2">
+                <div className="p-3 rounded-2xl bg-black/60 border border-cyan-500/30 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-white">{brandingForm.brandName || 'براندك الرسمي المخصص'}</span>
                     <span className="text-[10px] text-cyan-300 font-mono bg-cyan-950/40 px-2 py-0.5 rounded-full border border-cyan-500/20">
@@ -3626,9 +3626,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <p className="text-[10.5px] text-white/60 leading-relaxed">
                     نسخة تطبيق ويب وموبايل مخصصة فوراً لنشاطك، مجهزة بكتالوج الخدمات، الحجز الفوري، ووكيل مبيعات واتساب بالصوت البشري.
                   </p>
-                  <div className="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-[9.5px] text-emerald-300 flex items-center justify-between font-mono">
+                  <div className="p-2 rounded-xl bg-cyan-950/30 border border-cyan-500/20 text-[9.5px] text-cyan-300 flex items-center justify-between font-mono">
                     <span>حالة التطبيق:</span>
-                    <span className="text-emerald-400 font-bold">جاهز للإطلاق 🚀</span>
+                    <span className="text-cyan-400 font-bold">جاهز للإطلاق 🚀</span>
                   </div>
                 </div>
 
@@ -3647,14 +3647,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       <span className="font-bold text-cyan-300">الثلاثاء:</span>
                       <span className="text-cyan-200">فيديو ريلز/تيك توك (Google Flow × Turbo)</span>
                     </div>
-                    <div className="p-1.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20 flex items-center justify-between">
-                      <span className="font-bold text-emerald-300">الخميس:</span>
-                      <span className="text-emerald-200">بوست عرض خاص وحجز فوري بنهاية الأسبوع (CTA)</span>
+                    <div className="p-1.5 rounded-lg bg-cyan-950/30 border border-cyan-500/20 flex items-center justify-between">
+                      <span className="font-bold text-cyan-300">الخميس:</span>
+                      <span className="text-cyan-200">بوست عرض خاص وحجز فوري بنهاية الأسبوع (CTA)</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-[10px] text-emerald-300 text-center font-bold">
+                <div className="p-2.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-[10px] text-cyan-300 text-center font-bold">
                   ⚡ جاوب على جارفيس الآن بصوتك أو كتابة لتفعيل الخطة وتجهيز تطبيقك فوراً!
                 </div>
               </div>
@@ -3667,7 +3667,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       ? `أسطول البراندات (${allBrandsList.length || realStats.totalVaultBrandsCount || 0})`
                       : `كابينة براندك المعزولة (Multi-Tenant)`}
                   </span>
-                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  <span className="text-[10px] text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/30">
                     {persona === 'tito' ? 'إدارة شاملة' : 'حماية معزولة 🔒'}
                   </span>
                 </div>
@@ -3708,7 +3708,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400'}`} />
+                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-cyan-400 animate-ping' : 'bg-cyan-400'}`} />
                           <span className="text-xs font-bold truncate">{brand.name}</span>
                         </div>
                         <span className="text-[9px] font-mono text-cyan-300/60 shrink-0">
@@ -3721,7 +3721,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                 <div className="w-full flex items-center justify-between text-[10px] font-mono text-cyan-400/70 pt-1 border-t border-cyan-500/10">
                   <span>البراند المختار:</span>
-                  <span className="text-emerald-400 font-bold truncate max-w-[140px]">{currentSelectedBrand.name}</span>
+                  <span className="text-cyan-400 font-bold truncate max-w-[140px]">{currentSelectedBrand.name}</span>
                 </div>
               </div>
             )}
@@ -3750,7 +3750,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <div>
                 <h2 className="text-sm md:text-base font-black text-white flex items-center gap-2">
                   الأجنت التنفيذي المستقل • Autonomous Executive Browser (Chromium Actuator)
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono">
+                  <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-full font-mono">
                     LIVE EYE & HANDS
                   </span>
                 </h2>
@@ -3783,7 +3783,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <button
                 onClick={() => handleRunExecutiveBrowser('clean_master_booking')}
                 disabled={executiveRunning}
-                className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 حجز معاينة (كلين ماستر)
@@ -3816,12 +3816,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <span className="flex gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-500/80" />
                 </span>
                 <span className="bg-black/60 px-3 py-1 rounded-lg text-cyan-300 border border-white/5 flex-1 truncate">
                   🔒 {executiveUrl}
                 </span>
-                <span className="text-[10px] text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
+                <span className="text-[10px] text-cyan-400 bg-cyan-500/20 px-2 py-0.5 rounded">
                   HEADLESS CHROMIUM
                 </span>
               </div>
@@ -3871,7 +3871,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <Terminal className="w-4 h-4" />
                   سجل الأجنت التنفيذي اللحظي
                 </span>
-                <span className="text-[10px] text-emerald-400">PUPPETEER OK</span>
+                <span className="text-[10px] text-cyan-400">PUPPETEER OK</span>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-2 scrollbar-none font-mono text-xs text-white/80 leading-relaxed">
@@ -3929,9 +3929,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       {/* REAL CRM BOOKINGS DETAIL MODAL */}
       {isCrmModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
-          <div className="w-full max-w-2xl bg-[#04081c] border-2 border-emerald-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(16,185,129,0.3)] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-emerald-500/30">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-base">
+          <div className="w-full max-w-2xl bg-[#04081c] border-2 border-cyan-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(16,185,129,0.3)] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-cyan-500/30">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-base">
                 <FileText className="w-5 h-5" />
                 <span>حجوزات الـ CRM المؤكدة (قواعد البيانات الحقيقية)</span>
               </div>
@@ -3945,11 +3945,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
               {(realStats.recentBookings || []).map((booking: any, idx: number) => (
-                <div key={idx} className="p-4 rounded-2xl bg-[#020512] border border-emerald-500/20 flex items-center justify-between">
+                <div key={idx} className="p-4 rounded-2xl bg-[#020512] border border-cyan-500/20 flex items-center justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-white text-sm">{booking.customerName}</span>
-                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">
+                      <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full font-mono">
                         {booking.status}
                       </span>
                     </div>
@@ -3957,14 +3957,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <p className="text-[10px] font-mono text-cyan-400/80">المعرف: {booking.id}</p>
                   </div>
                   <div className="text-left font-mono">
-                    <span className="text-base font-black text-emerald-400">{booking.price}</span>
+                    <span className="text-base font-black text-cyan-400">{booking.price}</span>
                     <p className="text-[9px] text-white/40">عربون ومؤكد</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between">
+            <div className="p-3 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 text-xs text-cyan-300 flex items-center justify-between">
               <span>إجمالي الحجوزات المؤكدة:</span>
               <span className="font-bold font-mono text-white text-sm">
                 {realStats.realConfirmedRevenueEgp ?? 0} ج.م (كلين ماستر)
@@ -4017,9 +4017,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   2. صلاحيات النشر التلقائي والرد على التعليقات (Organic & Engagement):
                 </span>
                 <ul className="list-disc list-inside space-y-1 text-white/70 text-[11px] font-mono mr-2">
-                  <li><strong className="text-emerald-300">pages_manage_posts & pages_read_engagement:</strong> لنشر البوستات والفيديوهات وسحب التفاعل من تيتو ستوديو.</li>
-                  <li><strong className="text-emerald-300">pages_manage_engagement & pages_read_user_content:</strong> لقراءة تعليقات العملاء والرد التلقائي عليها فورياً.</li>
-                  <li><strong className="text-emerald-300">instagram_content_publish & instagram_manage_comments:</strong> لنشر ريلز إنستجرام والرد على تعليقات الحساب.</li>
+                  <li><strong className="text-cyan-300">pages_manage_posts & pages_read_engagement:</strong> لنشر البوستات والفيديوهات وسحب التفاعل من تيتو ستوديو.</li>
+                  <li><strong className="text-cyan-300">pages_manage_engagement & pages_read_user_content:</strong> لقراءة تعليقات العملاء والرد التلقائي عليها فورياً.</li>
+                  <li><strong className="text-cyan-300">instagram_content_publish & instagram_manage_comments:</strong> لنشر ريلز إنستجرام والرد على تعليقات الحساب.</li>
                 </ul>
               </div>
 
@@ -4038,9 +4038,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       {/* LIVE WHATSAPP PAIRING & QR CONNECTION MODAL */}
       {isWaConnectModalOpen && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in font-['Cairo']" dir="rtl">
-          <div className="w-full max-w-lg bg-[#041016] border-2 border-emerald-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(16,185,129,0.35)] space-y-4 text-right">
-            <div className="flex items-center justify-between pb-3 border-b border-emerald-500/30">
-              <div className="flex items-center gap-2 text-emerald-400 font-black text-base">
+          <div className="w-full max-w-lg bg-[#041016] border-2 border-cyan-500/50 rounded-3xl p-6 shadow-[0_0_80px_rgba(16,185,129,0.35)] space-y-4 text-right">
+            <div className="flex items-center justify-between pb-3 border-b border-cyan-500/30">
+              <div className="flex items-center gap-2 text-cyan-400 font-black text-base">
                 <MessageSquare className="w-5 h-5" />
                 <span>نافذة ربط واتساب الذكي: {currentSelectedBrand.name}</span>
               </div>
@@ -4061,12 +4061,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     value={waPhoneInput}
                     onChange={(e) => setWaPhoneInput(e.target.value)}
                     placeholder="01013373634"
-                    className="flex-1 bg-black/60 border border-emerald-500/40 rounded-xl px-3.5 py-2 text-sm text-white font-mono focus:outline-none focus:border-emerald-400"
+                    className="flex-1 bg-black/60 border border-cyan-500/40 rounded-xl px-3.5 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
                   />
                   <button
                     onClick={() => handleOpenWhatsAppConnectModal(waPhoneInput)}
                     disabled={isConnectingChannel}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition"
+                    className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs transition"
                   >
                     {isConnectingChannel ? 'جاري التوليد...' : 'توليد كود جديد'}
                   </button>
@@ -4074,16 +4074,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
 
               {waPairingInfo && (
-                <div className="p-4 rounded-2xl bg-black/70 border border-emerald-500/40 text-center space-y-3">
+                <div className="p-4 rounded-2xl bg-black/70 border border-cyan-500/40 text-center space-y-3">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-emerald-300 font-bold">
+                    <span className="text-cyan-300 font-bold">
                       كود الربط الفوري (افتح واتساب &gt; الأجهزة المرتبطة &gt; الربط برقم الهاتف):
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                    <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono">
                       {waPairingInfo.liveBaileysConnected ? 'BAILEYS LIVE 🟢' : 'T2 AGENT SYNCED ⚡'}
                     </span>
                   </div>
-                  <div className="text-2xl font-mono font-black tracking-[0.25em] text-white bg-emerald-950/60 border border-emerald-400/50 py-3 px-4 rounded-2xl shadow-inner select-all">
+                  <div className="text-2xl font-mono font-black tracking-[0.25em] text-white bg-cyan-950/60 border border-cyan-400/50 py-3 px-4 rounded-2xl shadow-inner select-all">
                     {waPairingInfo.pairingCode}
                   </div>
                   {waPairingInfo.qrDataUrl && (
@@ -4091,13 +4091,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       <img
                         src={waPairingInfo.qrDataUrl}
                         alt="WhatsApp QR"
-                        className="w-36 h-36 rounded-xl border-2 border-emerald-500/50 bg-white p-1.5"
+                        className="w-36 h-36 rounded-xl border-2 border-cyan-500/50 bg-white p-1.5"
                       />
                       <span className="text-[10px] text-white/50">أو امسح الـ QR مباشرة بالكاميرا</span>
                     </div>
                   )}
                   <div className="text-[11px] text-white/60 leading-relaxed">
-                    الجلسة مربوطة مباشرة بعقدة أوبسيديان <code className="text-emerald-300 font-mono">[[WA_Agent_{currentSelectedBrand.id}]]</code>
+                    الجلسة مربوطة مباشرة بعقدة أوبسيديان <code className="text-cyan-300 font-mono">[[WA_Agent_{currentSelectedBrand.id}]]</code>
                   </div>
                 </div>
               )}
@@ -4251,7 +4251,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   value={brandingForm.phone}
                   onChange={(e) => setBrandingForm({ ...brandingForm, phone: e.target.value })}
                   placeholder="01013372674"
-                  className="w-full bg-black/60 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-400"
+                  className="w-full bg-black/60 border border-cyan-500/40 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
                 />
               </div>
 
@@ -4400,7 +4400,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <div className="p-3 rounded-2xl bg-black/60 border border-amber-500/30 space-y-2">
                   <div className="flex items-center justify-between text-xs font-bold text-amber-300">
                     <span>📅 خطة أسبوع التجربة المجانية (3 منشورات يوم ويوم):</span>
-                    <span className="text-[10px] font-mono text-emerald-400">جاهزة في تقويم تيتو ستوديو</span>
+                    <span className="text-[10px] font-mono text-cyan-400">جاهزة في تقويم تيتو ستوديو</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {(generatedBrandingKit.trialContentPlan || []).map((post: any, idx: number) => (
@@ -4497,7 +4497,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </div>
                 <div className="p-2 rounded-xl bg-black/60 border border-white/10">
                   <span className="text-white/40 block text-[8.5px]">واتساب المبيعات</span>
-                  <span className="text-emerald-400 font-bold block">{currentSelectedBrand.phone || '01013373634'}</span>
+                  <span className="text-cyan-400 font-bold block">{currentSelectedBrand.phone || '01013373634'}</span>
                 </div>
                 <div className="p-2 rounded-xl bg-black/60 border border-white/10">
                   <span className="text-white/40 block text-[8.5px]">عناصر الكتالوج</span>
@@ -4516,7 +4516,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 ).map((item: any, i: number) => (
                   <div key={i} className="p-2 rounded-xl bg-black/50 border border-white/5 flex items-center justify-between text-xs">
                     <span className="font-bold text-white truncate">{item.name || item.title}</span>
-                    <span className="font-mono text-emerald-400 font-bold shrink-0">{item.price || 'حسب الطلب'}</span>
+                    <span className="font-mono text-cyan-400 font-bold shrink-0">{item.price || 'حسب الطلب'}</span>
                   </div>
                 ))}
               </div>
@@ -4540,7 +4540,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <button
                   onClick={handleAddCatalogService}
                   disabled={isSavingCatalog || !newServiceTitle.trim()}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition disabled:opacity-40"
+                  className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs transition disabled:opacity-40"
                 >
                   + إضافة
                 </button>
@@ -4577,7 +4577,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-[10px] font-black text-cyan-300">{post.day} • {post.contentType}</span>
-                        <span className="text-[9px] font-mono text-emerald-300 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        <span className="text-[9px] font-mono text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/30">
                           {post.ctaBadge || 'Omni-CTA'}
                         </span>
                       </div>
@@ -4590,13 +4590,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             </div>
 
             {/* WINDOW 3: WHATSAPP VOICE AGENT, META GRAPH & LIVE CHANNELS */}
-            <div className="rounded-2xl bg-[#020614] border border-emerald-500/40 p-4 flex flex-col gap-3 shadow-[0_0_25px_rgba(16,185,129,0.15)]">
-              <div className="flex items-center justify-between pb-2 border-b border-emerald-500/25">
-                <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
-                  <Bot className="w-4 h-4 text-emerald-400" />
+            <div className="rounded-2xl bg-[#020614] border border-cyan-500/40 p-4 flex flex-col gap-3 shadow-[0_0_25px_rgba(16,185,129,0.15)]">
+              <div className="flex items-center justify-between pb-2 border-b border-cyan-500/25">
+                <span className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
+                  <Bot className="w-4 h-4 text-cyan-400" />
                   النافذة 3: وكيل الواتساب الصوتي (Gemini 24kHz) وقنوات ميتا
                 </span>
-                <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                <span className="text-[10px] font-mono bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-500/30">
                   ACTIVE 24/7
                 </span>
               </div>
@@ -4604,9 +4604,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => handleOpenWhatsAppConnectModal()}
-                  className="p-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-200 text-xs font-black flex items-center justify-center gap-2 transition"
+                  className="p-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-xs font-black flex items-center justify-center gap-2 transition"
                 >
-                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <MessageSquare className="w-4 h-4 text-cyan-400" />
                   <span>ربط واتساب (كود / QR)</span>
                 </button>
                 <button
@@ -4624,12 +4624,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   value={botPromptInput}
                   onChange={(e) => setBotPromptInput(e.target.value)}
                   placeholder="توجيه فوري لوكيل الواتساب (مثال: قدم خصم 20% اليوم)..."
-                  className="flex-1 px-3 py-2 rounded-xl bg-black/70 border border-white/15 text-white text-xs focus:outline-none focus:border-emerald-400"
+                  className="flex-1 px-3 py-2 rounded-xl bg-black/70 border border-white/15 text-white text-xs focus:outline-none focus:border-cyan-400"
                 />
                 <button
                   onClick={handleUpdateBotPrompt}
                   disabled={isSavingCatalog || !botPromptInput.trim()}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition disabled:opacity-40"
+                  className="px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs transition disabled:opacity-40"
                 >
                   تحديث الأيجنت
                 </button>
@@ -4654,7 +4654,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <button
                       onClick={handleSaveObsidianMarkdown}
                       disabled={isSavingObsidianMd}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-[10px] font-black"
+                      className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black text-[10px] font-black"
                     >
                       {isSavingObsidianMd ? 'حفظ...' : '💾 حفظ ومزامنة'}
                     </button>
