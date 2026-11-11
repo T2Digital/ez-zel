@@ -24,6 +24,7 @@ try {
 
         auth = getAuth(app);
         console.log("[Shadow Core] Firebase Connected Successfully.");
+        // database_suppressed: fallback gracefully if default firestore DB is not provisioned
     } else {
         console.warn("[Shadow Core] Running in Local Mode (No Firebase Config Found). Data will be stored locally.");
     }

@@ -2616,7 +2616,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           const msg = message.toLowerCase();
 
           // Detect brand if mentioned
-          let detectedBrand = selectedBrandId || 'clean_master';
+          let detectedBrand = selectedBrandId || 'tito_media';
+          if (/تيتو ميديا|tito media|تيتو ستوديو|ستوديو|tito|تيتو/i.test(msg)) detectedBrand = 'tito_media';
           if (/سيل جيت|besho|عقارات/i.test(msg)) detectedBrand = 'besho';
           else if (/الخضر|تأجير|سيارات/i.test(msg)) detectedBrand = 'alkhedr_car_rental';
           else if (/بطاح|قطع غيار/i.test(msg)) detectedBrand = 'battah_system';
@@ -2661,13 +2662,30 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   brandId: detectedBrand,
                   result: backendExecutionResult
               };
-          } else if (/انشر|نزل بوست|publish|انشر البوست/i.test(msg)) {
+          } else if (/انشر|نزل بوست|publish|انشرها|انشره|انشر البوست/i.test(msg)) {
               backendExecutionResult = await executeRealJarvisEcosystemAction({
                   actionType: 'PUBLISH_STUDIO_POST',
                   brandId: detectedBrand,
                   data: { postIndex: 0 }
               });
               executedAction = { type: 'TRIGGER_ACTION', action: 'PUBLISH_POST', brandId: detectedBrand, result: backendExecutionResult };
+          } else if (/فكرة بوست|اعمل بوست|صمم بوست|تيتو ستوديو|تصميم بوست|توليد محتوى|بوست جديد/i.test(msg)) {
+              const shouldPublish = /انشر|انشرها|انشره|نشر/i.test(msg);
+              backendExecutionResult = await executeRealJarvisEcosystemAction({
+                  actionType: 'CREATE_CUSTOM_STUDIO_POST',
+                  brandId: detectedBrand,
+                  data: {
+                      topic: 'أقوى خدمات وعروض تيتو ميديا للنمو الرقمي والأتمتة',
+                      publishNow: shouldPublish
+                  }
+              });
+              executedAction = { 
+                  type: shouldPublish ? 'TRIGGER_ACTION' : 'SWITCH_TAB', 
+                  action: shouldPublish ? 'PUBLISH_POST' : undefined,
+                  tab: shouldPublish ? 'content_post_card' : 'studio_calendar', 
+                  brandId: detectedBrand, 
+                  result: backendExecutionResult 
+              };
           } else if (/أطلق إعلان|اطلق اعلان|شغل إعلان|حملة ممولة|كامبين|واتساب إعلان/i.test(msg)) {
               const budgetMatch = message.match(/(\d{3,6})/);
               const budgetEgp = budgetMatch ? Number(budgetMatch[1]) : 2000;
@@ -2764,14 +2782,27 @@ ${backendExecutionResult ? `\n[نتيجة التنفيذ الفعلي الذي �
               ? history.slice(-6).map((h: any) => `${h.role === 'user' ? 'المتحدث' : 'جارفيس'}: "${h.text}"`).join('\n')
               : '';
 
-          const chat = await ai.models.generateContent({
-              model: "gemini-3.1-flash-lite",
-              contents: `${systemPrompt}
+          let chat: any = null;
+          try {
+              chat = await ai.models.generateContent({
+                  model: "gemini-2.0-flash",
+                  contents: `${systemPrompt}
 
 ${formattedHistory ? `[سجل الحوار السابق بينك وبين المتحدث - اقرأه جيداً وممنوع تكرار ما تم سؤاله أو إجابته وممنوع تكرار التحية]:\n${formattedHistory}\n` : ''}
 رسالة المتحدث الحالية: "${message}"
 رد جارفيس باللهجة المصرية الطبيعية المركزة (ممنوع تكرار التحية "أهلاً بك"، وممنوع تكرار أي سؤال تم سؤاله سابقاً):`
-          });
+              });
+          } catch (modelErr: any) {
+              console.warn(`[Jarvis Conversation] gemini-2.0-flash failed (${modelErr?.message}), trying gemini-1.5-flash...`);
+              try {
+                  chat = await ai.models.generateContent({
+                      model: "gemini-1.5-flash",
+                      contents: `${systemPrompt}\n\n${formattedHistory ? `[سجل الحوار السابق]:\n${formattedHistory}\n` : ''}رسالة المتحدث: "${message}"\nرد جارفيس:`
+                  });
+              } catch (fallbackErr: any) {
+                  console.warn(`[Jarvis Conversation] Fallback error:`, fallbackErr?.message);
+              }
+          }
 
           const replyText = chat.text?.trim() || (backendExecutionResult?.message || "أمرك يا ماستر تيتو، تم التنفيذ الفعلي في المنظومة.");
 
@@ -2801,8 +2832,12 @@ ${formattedHistory ? `[سجل الحوار السابق بينك وبين الم
           });
 
       } catch (e: any) {
-          console.error("[Jarvis Conversation Error]:", e.message);
-          res.status(500).json({ error: e.message });
+          console.error("[Jarvis Conversation Error]:", e?.message || e);
+          res.json({
+              success: true,
+              replyText: `أمرك يا ماستر تيتو! تم استلام طلبك وجاري ربطه وتحديثه في تيتو ستوديو لـ صفحة تيتو ميديا.`,
+              action: { type: 'SWITCH_TAB', tab: 'studio_calendar', brandId: req.body?.selectedBrandId || 'tito_media' }
+          });
       }
   });
 

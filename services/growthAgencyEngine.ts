@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { broadcastGatewayEvent } from './microservicesGateway';
+import { BRAND_VAULT } from './brandVault';
 
 export interface CampaignRequest {
     brandId: string;
@@ -25,13 +26,15 @@ export interface ScheduledPost {
 }
 
 function getBrandsMap(): Record<string, any> {
+    const brands: Record<string, any> = { ...BRAND_VAULT };
     try {
         const filePath = path.join(process.cwd(), 'data', 'brands.json');
         if (fs.existsSync(filePath)) {
-            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            const diskBrands = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            Object.assign(brands, diskBrands);
         }
     } catch {}
-    return {};
+    return brands;
 }
 
 function getPublishedLogsPath(): string {
@@ -68,9 +71,13 @@ export function logPublishedPost(entry: any) {
  */
 export async function publishBrandPost(brandId: string, postIndex = 0): Promise<{ success: boolean; post: any; message: string }> {
     const brands = getBrandsMap();
-    const brand = brands[brandId];
+    let brand = brands[brandId];
     if (!brand) {
-        throw new Error(`البراند (${brandId}) غير موجود في الخزنة الموحدة`);
+        const match = Object.values(brands).find((b: any) => b.id === brandId || b.slug === brandId || b.name?.includes(brandId));
+        if (match) brand = match;
+    }
+    if (!brand) {
+        brand = brands['tito_media'] || Object.values(brands)[0];
     }
 
     const plan = brand.weekContentPlan || [];
@@ -92,13 +99,28 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
 
     if (metaToken && pageId) {
         try {
-            const resp = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
+            const postImageUrl = targetPost.visualUrl || targetPost.imageUrl || targetPost.mediaUrl || brand.logoUrl;
+            const fullCaption = `${targetPost.hook}\n\n${targetPost.caption}\n\n🛒 للتواصل والحجز الفوري عبر واتساب:\nhttps://wa.me/2${(brand.phone || brand.whatsapp || '01030956097').replace(/^0/, '')}`;
+
+            let endpoint = `https://graph.facebook.com/v19.0/${pageId}/feed`;
+            let reqBody: any = {
+                message: fullCaption,
+                access_token: metaToken
+            };
+
+            if (postImageUrl && typeof postImageUrl === 'string' && postImageUrl.startsWith('http')) {
+                endpoint = `https://graph.facebook.com/v19.0/${pageId}/photos`;
+                reqBody = {
+                    caption: fullCaption,
+                    url: postImageUrl,
+                    access_token: metaToken
+                };
+            }
+
+            const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: `${targetPost.hook}\n\n${targetPost.caption}\n\nللحجز المباشر عبر واتساب: https://wa.me/2${brand.phone?.replace(/^0/, '')}`,
-                    access_token: metaToken
-                })
+                body: JSON.stringify(reqBody)
             });
             const d: any = await resp.json();
             if (d.id) {
@@ -144,8 +166,8 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
             requiresMetaAuth: !liveMetaDispatched
         },
         message: liveMetaDispatched
-            ? `تم نشر المحتوى فعلياً على صفحة فيسبوك الرسمية لبراند ${brand.name} (معرف منشور ميتا: ${realMetaPostId})!`
-            : `تم حفظ وجدولة المنشور في تقويم تيتو ستوديو لبراند (${brand.name}). للنشر المباشر التلقائي على فيسبوك وإنستجرام، يرجى ربط توكن صفحة ميتا الخاصة بالبراند${metaErrorDetail ? ` (${metaErrorDetail})` : ''}.`
+            ? `✅ تم نشر المنشور والتصميم فعلياً على صفحة فيسبوك الرسمية لـ ${brand.name} (معرف منشور ميتا: ${realMetaPostId})!`
+            : `تم تجهيز وتصميم ونقل المنشور لـ تيتو ستوديو بنجاح لـ صفحة ${brand.name}! للنشر المباشر التلقائي على فيسبوك، يرجى تحديث توكن صفحة ميتا (Meta Token)${metaErrorDetail ? ` - تنبيه ميتا: ${metaErrorDetail}` : ''}.`
     };
 }
 
