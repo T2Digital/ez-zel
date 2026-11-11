@@ -19,6 +19,11 @@ import { ObsidianHolographicConstellation } from './ObsidianHolographicConstella
 import { JarvisAutonomousAgencyDeck } from './jarvis/JarvisAutonomousAgencyDeck';
 import { JarvisGrowthRadarDeck } from './jarvis/JarvisGrowthRadarDeck';
 import { JarvisUnifiedCatalogModal } from './jarvis/JarvisUnifiedCatalogModal';
+import { JarvisMasterVoiceDock } from './jarvis/JarvisMasterVoiceDock';
+import { JarvisContentPostCard } from './jarvis/JarvisContentPostCard';
+import { JarvisStudioCalendarDeck } from './jarvis/JarvisStudioCalendarDeck';
+import { JarvisAgentFleetDeck } from './jarvis/JarvisAgentFleetDeck';
+import { JarvisArcReactorCore } from './jarvis/JarvisArcReactorCore';
 import { jarvisVoiceSocket, VoiceSocketState } from '../services/jarvisVoiceSocketService';
 import { BRAND_VAULT } from '../services/brandVault';
 import { shadowDB } from '../services/dbService';
@@ -1888,89 +1893,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB */}
-            <div className="relative w-72 h-72 md:w-84 md:h-84 flex items-center justify-center my-1 select-none">
-              
-              {/* Outer Ambient Glow */}
-              <div 
-                className="absolute inset-0 rounded-full bg-cyan-500/10 blur-3xl transition-all duration-200 pointer-events-none"
-                style={{ transform: `scale(${1 + audioLevel * 0.4})` }}
-              />
-
-              {/* SVG Holographic Multi-Ring Structure */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 400">
-                {/* Ring 1: Outer Compass Degree Ring (Clockwise) */}
-                <circle
-                  cx="200" cy="200" r="185"
-                  fill="none"
-                  stroke="rgba(0, 240, 255, 0.25)"
-                  strokeWidth="1.5"
-                  strokeDasharray="4 8 16 8"
-                  className="animate-[spin_60s_linear_infinite]"
-                  style={{ transformOrigin: '200px 200px' }}
-                />
-
-                {/* Ring 2: Segmented Caliper Arcs */}
-                <circle
-                  cx="200" cy="200" r="165"
-                  fill="none"
-                  stroke="#00f0ff"
-                  strokeWidth="2"
-                  strokeDasharray="80 30 140 30"
-                  className="animate-[spin_40s_linear_infinite_reverse] opacity-80"
-                  style={{ transformOrigin: '200px 200px' }}
-                />
-
-                {/* Ring 3: Tech Dashed Orbital Ring */}
-                <circle
-                  cx="200" cy="200" r="140"
-                  fill="none"
-                  stroke="rgba(56, 189, 248, 0.4)"
-                  strokeWidth="3"
-                  strokeDasharray="6 14"
-                  className="animate-[spin_25s_linear_infinite]"
-                  style={{ transformOrigin: '200px 200px' }}
-                />
-
-                {/* Ring 4: Inner Caliper Ring */}
-                <circle
-                  cx="200" cy="200" r="110"
-                  fill="none"
-                  stroke="#38bdf8"
-                  strokeWidth="1.5"
-                  strokeDasharray="180 40 40 40"
-                  className="animate-[spin_15s_linear_infinite_reverse] opacity-90"
-                  style={{ transformOrigin: '200px 200px' }}
-                />
-
-                {/* Crosshairs & Compass Degree Markers */}
-                <line x1="200" y1="5" x2="200" y2="25" stroke="#00f0ff" strokeWidth="2" />
-                <line x1="200" y1="375" x2="200" y2="395" stroke="#00f0ff" strokeWidth="2" />
-                <line x1="5" y1="200" x2="25" y2="200" stroke="#00f0ff" strokeWidth="2" />
-                <line x1="375" y1="200" x2="395" y2="200" stroke="#00f0ff" strokeWidth="2" />
-
-                <text x="200" y="38" textAnchor="middle" fill="#00f0ff" fontSize="9" fontFamily="monospace" fontWeight="bold">000°</text>
-                <text x="365" y="204" textAnchor="middle" fill="#00f0ff" fontSize="9" fontFamily="monospace" fontWeight="bold">090°</text>
-                <text x="200" y="370" textAnchor="middle" fill="#00f0ff" fontSize="9" fontFamily="monospace" fontWeight="bold">180°</text>
-                <text x="35" y="204" textAnchor="middle" fill="#00f0ff" fontSize="9" fontFamily="monospace" fontWeight="bold">270°</text>
-              </svg>
-
-              {/* Central Fluid Luminescent Water Orb (Fluid Organic Light Core with Voice Reactive Shifting) */}
-              <FluidLuminescentOrb
-                isListening={isListening}
-                isPlayingVoice={isPlayingVoice}
-                isThinking={isThinking}
-                audioLevel={audioLevel}
-                size={230}
-                className="relative z-10"
-              />
-
-              {/* Clean Voice State Indicator (Non-clashing HUD Badge) */}
-              <div className="absolute -bottom-2 z-20 px-3.5 py-1 rounded-full text-[10px] font-bold font-['Cairo'] flex items-center gap-2 backdrop-blur-md shadow-xl border select-none bg-black/80 border-cyan-500/40 text-cyan-200">
-                <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-rose-500 animate-ping' : isPlayingVoice ? 'bg-cyan-400 animate-bounce' : 'bg-cyan-400'}`} />
-                <span>{isListening ? '🎙️ استماع صوتي نشط (Full-Duplex)' : isPlayingVoice ? '🔊 جارفيس يتحدث (24kHz)' : '🟢 العقل الحي متصل وجاهز'}</span>
-              </div>
-            </div>
+            {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB (Modular Component) */}
+            <JarvisArcReactorCore
+              isListening={isListening}
+              isPlayingVoice={isPlayingVoice}
+              isThinking={isThinking}
+              audioLevel={audioLevel}
+            />
 
             {/* TOP BAR: Explicit Chromium Mic Activator + Operational Mode Switcher */}
             <div className="w-full max-w-xl flex flex-col gap-2 bg-[#040a24]/95 p-2.5 rounded-3xl border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.2)]">
@@ -2480,635 +2409,55 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* TAB 1: TITO STUDIO 7-DAY CONTENT CALENDAR */}
+            {/* TAB 1: TITO STUDIO 7-DAY CONTENT CALENDAR (Modular Component) */}
             {activeDeckTab === 'studio_calendar' && (
-              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(6,182,212,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
-                {/* Calendar Header with Selected Brand Info */}
-                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20 flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-                    <div>
-                      <h4 className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap">
-                        تقويم تيتو ستوديو: <span className="text-cyan-300">{currentSelectedBrand.name}</span>
-                        <span className="text-[9px] font-mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full">
-                          ☁️ Firestore: t2-content-studio
-                        </span>
-                      </h4>
-                      <p className="text-[10px] text-white/50">
-                        مصفوفة الـ 3 مسارات (تحويل للمتجر PWA • محادثة واتساب صوتية • تعليق لرسالة تلقائية)
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      onClick={() => handleBuildStudioStrategy(currentSelectedBrand.id)}
-                      disabled={isBuildingStrategy}
-                      className="px-2.5 py-1.5 rounded-xl bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-200 border border-fuchsia-500/40 text-[10px] font-bold flex items-center gap-1 transition"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      <span>{isBuildingStrategy ? 'جاري بناء الاستراتيجية...' : '1) بناء الاستراتيجية'}</span>
-                    </button>
-                    <button
-                      onClick={() => handleGenerateWeekPlan(currentSelectedBrand.id)}
-                      disabled={isGeneratingWeekPlan}
-                      className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[10px] font-bold flex items-center gap-1 transition"
-                    >
-                      <Zap className="w-3 h-3" />
-                      <span>{isGeneratingWeekPlan ? 'جاري التوليد...' : '2) توليد محتوى أول أسبوع'}</span>
-                    </button>
-                    <button
-                      onClick={() => handleApproveSchedule(currentSelectedBrand.id)}
-                      disabled={isApprovingSchedule}
-                      className="px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 text-[10px] font-bold flex items-center gap-1 transition"
-                    >
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>{isApprovingSchedule ? 'جاري الاعتماد...' : '3) اعتمد الجدولة'}</span>
-                    </button>
-                    <button
-                      onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
-                      disabled={isPublishingPost}
-                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-xs font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition flex items-center gap-1"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{isPublishingPost ? 'جاري النشر...' : 'نشر فوري'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Paymob Auto-Subscription & Daily Proactive Reports Bar */}
-                <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-black/50 border border-white/10 flex-wrap text-[10px]">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      onClick={() => handleCreatePaymobCheckout('growth_pro')}
-                      className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-500 text-black font-black flex items-center gap-1 shadow-sm"
-                    >
-                      💳 تفعيل اشتراك البراند آلياً (Paymob)
-                    </button>
-                    <a
-                      href="/api/studio/turbo-flow/export-csv"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-2.5 py-1 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-bold"
-                    >
-                      🎬 تحميل أوامر الفيديو لـ Turbo Flow (CSV)
-                    </a>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleSendDailyBriefingNow('morning')}
-                      className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-bold"
-                      title="إرسال التقرير الصباحي على واتساب بدون فتح التطبيق"
-                    >
-                      ☀️ تقرير الصباح
-                    </button>
-                    <button
-                      onClick={() => handleSendDailyBriefingNow('evening')}
-                      className="px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-bold"
-                      title="إرسال تقرير المساء على واتساب بدون فتح التطبيق"
-                    >
-                      🌙 تقرير المساء
-                    </button>
-                  </div>
-                </div>
-
-                {/* Active Brand Marketing Strategy Card (Displayed when strategy is built) */}
-                {(activeBrandStrategy || currentSelectedBrand.marketingStrategy) && (() => {
-                  const st = activeBrandStrategy || currentSelectedBrand.marketingStrategy;
-                  return (
-                    <div className="p-3 rounded-2xl bg-gradient-to-br from-fuchsia-950/40 via-[#060d24] to-cyan-950/30 border border-fuchsia-500/40 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-fuchsia-300 flex items-center gap-1.5">
-                          🎯 الاستراتيجية التسويقية المعتمدة في تيتو ستوديو: {currentSelectedBrand.name}
-                        </span>
-                        <span className="text-[9.5px] font-mono bg-fuchsia-500/20 text-fuchsia-200 px-2 py-0.5 rounded-full border border-fuchsia-500/30">
-                          3 ركائز محتوى
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-white/85 leading-relaxed">
-                        <b className="text-cyan-300">التموضع:</b> {st.positioning}
-                      </p>
-                      <p className="text-[10.5px] text-white/70">
-                        <b className="text-amber-300">الجمهور المستهدف:</b> {st.targetAudience} • <b className="text-cyan-300">خليط الإنتاج:</b> {st.weeklyMixSummary}
-                      </p>
-                      {Array.isArray(st.pillars) && st.pillars.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
-                          {st.pillars.map((p: any, i: number) => (
-                            <div key={i} className="p-2 rounded-xl bg-black/50 border border-white/10 text-[10px]">
-                              <div className="font-black text-cyan-300">{p.title} ({p.percentage}%)</div>
-                              <div className="text-white/60 text-[9.5px] mt-0.5">{p.objective}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* 7-Day Interactive Schedule Cards */}
-                <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-1">
-                  {(currentSelectedBrand.weekContentPlan || []).map((item: any, idx: number) => {
-                    const ctaType = item.ctaType || (idx % 3 === 0 ? 'APP_CONVERSION' : idx % 3 === 1 ? 'WHATSAPP_VOICE_AGENT' : 'COMMENT_TO_MESSENGER');
-                    const ctaBadge = item.ctaBadge || (
-                      ctaType === 'APP_CONVERSION'
-                        ? '🛒 تحويل للتطبيق PWA (خصم 10%)'
-                        : ctaType === 'WHATSAPP_VOICE_AGENT'
-                          ? '💬 محادثة واتساب صوتية فورية'
-                          : '🤖 تعليق بكلمة "عرض" لرسالة تلقائية'
-                    );
-                    const ctaColorClass =
-                      ctaType === 'APP_CONVERSION'
-                        ? 'bg-blue-500/15 text-blue-300 border-blue-500/35'
-                        : ctaType === 'WHATSAPP_VOICE_AGENT'
-                          ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/35'
-                          : 'bg-amber-500/15 text-amber-300 border-amber-500/35';
-
-                    return (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-2xl bg-white/[0.03] border border-cyan-500/20 hover:border-cyan-400/50 hover:bg-cyan-500/[0.05] transition-all flex flex-col gap-1.5 group"
-                    >
-                      <div className="flex items-center justify-between flex-wrap gap-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-black text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded-lg border border-cyan-500/30">
-                            {item.day}
-                          </span>
-                          <span className="text-[10px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/20">
-                            {item.contentType}
-                          </span>
-                          <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-lg border ${ctaColorClass}`}>
-                            {ctaBadge}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] text-white/50 font-mono">
-                          <Clock className="w-3 h-3 text-amber-400" />
-                          <span>{item.bestTime || '20:00'}</span>
-                        </div>
-                      </div>
-
-                      {/* Hook */}
-                      <div className="text-xs font-bold text-white leading-relaxed">
-                        🎯 "{item.hook}"
-                      </div>
-
-                      {/* Caption Preview */}
-                      <div className="text-[11px] text-white/60 line-clamp-2 leading-normal">
-                        {item.caption}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5 flex-wrap">
-                        <span className="text-[9.5px] font-mono text-cyan-300/70 truncate max-w-[220px]">
-                          {item.ctaActionText || `المسار: /store/${currentSelectedBrand.slug || currentSelectedBrand.id}`}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedPost({
-                                ...item,
-                                ctaType,
-                                ctaBadge,
-                                brandId: currentSelectedBrand.id,
-                                brandName: currentSelectedBrand.name,
-                                platform: 'Instagram & Facebook (Meta Graph)',
-                                status: 'SCHEDULED'
-                              });
-                              setActiveDeckTab('content_post_card');
-                            }}
-                            className="text-[10px] text-cyan-300 hover:text-white flex items-center gap-1 font-bold"
-                          >
-                            👁️ فتح بطاقة المنشور والتصميم
-                          </button>
-                          <button
-                            onClick={() => handlePublishPost(currentSelectedBrand.id, idx)}
-                            disabled={isPublishingPost}
-                            className="text-[10px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-bold transition flex items-center gap-1"
-                          >
-                            🚀 نشر فوري بالـ Meta Graph
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                  })}
-                </div>
-              </div>
+              <JarvisStudioCalendarDeck
+                currentSelectedBrand={currentSelectedBrand}
+                activeBrandStrategy={activeBrandStrategy}
+                isBuildingStrategy={isBuildingStrategy}
+                isGeneratingWeekPlan={isGeneratingWeekPlan}
+                isApprovingSchedule={isApprovingSchedule}
+                isPublishingPost={isPublishingPost}
+                handleBuildStudioStrategy={handleBuildStudioStrategy}
+                handleGenerateWeekPlan={handleGenerateWeekPlan}
+                handleApproveSchedule={handleApproveSchedule}
+                handlePublishPost={handlePublishPost}
+                handleCreatePaymobCheckout={handleCreatePaymobCheckout}
+                handleSendDailyBriefingNow={handleSendDailyBriefingNow}
+                onOpenPostCard={(postItem) => {
+                  setSelectedPost(postItem);
+                  setActiveDeckTab('content_post_card');
+                }}
+              />
             )}
 
-            {/* TAB 2: PUBLISHED CONTENT SHOWCASE CARD */}
+            {/* TAB 2: PUBLISHED CONTENT SHOWCASE CARD (Modular Component) */}
             {activeDeckTab === 'content_post_card' && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.92, y: 30 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.92, y: 30 }}
-                transition={{ type: "spring", damping: 22, stiffness: 280 }}
-                className="w-full max-w-xl rounded-3xl bg-[#01040f]/95 border-2 border-purple-500/40 shadow-[0_0_60px_rgba(168,85,247,0.35)] p-5 flex flex-col gap-3 backdrop-blur-2xl font-['Cairo'] text-right"
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between pb-2 border-b border-purple-500/20">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
-                    <div>
-                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-                        بطاقة المحتوى والتصميم: <span className="text-purple-300">{selectedPost?.brandName || currentSelectedBrand.name}</span>
-                      </h4>
-                      <p className="text-[10px] text-white/50">معاينة تفاعلية للتصميم، الكابشن، ومسار التحويل (Omni-Channel CTA)</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    {selectedPost?.status === 'PUBLISHED' ? 'منشور بنجاح' : 'جاهز للنشر'}
-                  </span>
-                </div>
-
-                {/* The Social Post Preview Mock */}
-                <div className="rounded-2xl bg-black/60 border border-purple-500/30 p-3.5 flex flex-col gap-3">
-                  {/* Brand Profile Bar */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-cyan-500 flex items-center justify-center text-xs font-black text-white">
-                        {(selectedPost?.brandName || currentSelectedBrand.name || 'T2').slice(0, 2)}
-                      </div>
-                      <div>
-                        <div className="text-xs font-black text-white flex items-center gap-1">
-                          {selectedPost?.brandName || currentSelectedBrand.name}
-                          <span className="text-cyan-400 text-[10px]">✔</span>
-                        </div>
-                        <div className="text-[9px] text-white/40">
-                          {selectedPost?.platform || 'Instagram & Facebook (Meta Graph)'} • {selectedPost?.day || 'اليوم'} ({selectedPost?.bestTime || '20:00'})
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono text-purple-300 bg-purple-500/15 px-2.5 py-0.5 rounded-md border border-purple-500/30 font-bold">
-                      {selectedPost?.ctaBadge || '🛒 تحويل مباشر للتطبيق PWA'}
-                    </span>
-                  </div>
-
-                  {/* Branded Social Design or Google Flow × Turbo Flow Video Preview */}
-                  {selectedPost?.videoUrl ? (
-                    <div className="relative w-full h-60 rounded-xl overflow-hidden bg-[#050b14] border border-purple-500/40 flex items-center justify-center">
-                      <video
-                        src={selectedPost.videoUrl}
-                        controls
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  ) : (selectedPost?.visualUrl || currentSelectedBrand?.weekContentPlan?.[0]?.visualUrl) ? (
-                    <div className="relative w-full h-52 rounded-xl overflow-hidden bg-[#050b14] border border-purple-500/30 flex items-center justify-center">
-                      <img
-                        src={selectedPost?.visualUrl || currentSelectedBrand?.weekContentPlan?.[0]?.visualUrl}
-                        alt={selectedPost?.hook || currentSelectedBrand.name}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="relative w-full h-40 rounded-xl overflow-hidden bg-gradient-to-br from-purple-950/60 via-[#070e28] to-cyan-950/60 border border-purple-500/20 flex flex-col items-center justify-center text-center p-4">
-                      <Sparkles className="w-6 h-6 text-purple-400 animate-pulse mb-1" />
-                      <div className="text-sm font-black text-white max-w-sm leading-snug">
-                        "{selectedPost?.hook || 'ابتسامتك هوليودية بأحدث تقنيات الليزر في مصر!'}"
-                      </div>
-                      <span className="mt-2 text-[9px] text-cyan-300 bg-black/40 px-3 py-1 rounded-full border border-cyan-500/30 font-bold">
-                        {selectedPost?.contentType || 'Reel فيديو (9:16)'}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Google Flow × Turbo Flow Video Automation Panel (when post is video or has omniPrompt) */}
-                  {(selectedPost?.mediaFormat === 'video' || String(selectedPost?.contentType || '').includes('فيديو') || String(selectedPost?.contentType || '').includes('Reel')) && (
-                    <div className="p-2.5 rounded-xl bg-purple-950/30 border border-purple-500/40 flex flex-col gap-2 text-[10.5px]">
-                      <div className="flex items-center justify-between flex-wrap gap-1">
-                        <span className="font-black text-purple-300 flex items-center gap-1">
-                          🎬 جسر Google Flow × Turbo Flow (Veo 3.1):
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => window.open('https://labs.google/fx/tools/flow', '_blank')}
-                            className="px-2 py-0.5 rounded-lg bg-purple-500/25 hover:bg-purple-500/40 text-purple-200 border border-purple-400/40 font-bold"
-                          >
-                            فتح Google Flow
-                          </button>
-                          <a
-                            href="/api/studio/turbo-flow/export-csv"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-0.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/40 font-bold"
-                          >
-                            ملف Turbo Flow CSV
-                          </a>
-                        </div>
-                      </div>
-                      {selectedPost?.omniPrompt && (
-                        <div className="p-2 rounded-lg bg-black/60 border border-white/10 font-mono text-[9.5px] text-cyan-200 select-all" dir="ltr">
-                          {selectedPost.omniPrompt}
-                        </div>
-                      )}
-                      <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          value={turboFlowVideoUrlInput}
-                          onChange={(e) => setTurboFlowVideoUrlInput(e.target.value)}
-                          placeholder="أو الصق رابط الفيديو المولد من Flow (.mp4) لحفظه في التقويم..."
-                          className="flex-1 px-2.5 py-1 rounded-lg bg-black/70 border border-white/15 text-white text-[10px]"
-                        />
-                        <button
-                          onClick={async () => {
-                            if (!turboFlowVideoUrlInput.trim()) return;
-                            const res = await fetch('/api/studio/turbo-flow/complete', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                jobId: selectedPost?.turboFlowJobId,
-                                postId: selectedPost?.id,
-                                brandId: currentSelectedBrand.id,
-                                videoUrl: turboFlowVideoUrlInput.trim()
-                              })
-                            });
-                            const d = await res.json();
-                            if (d.ok) {
-                              setSelectedPost((prev: any) => ({ ...prev, videoUrl: turboFlowVideoUrlInput.trim(), visualUrl: turboFlowVideoUrlInput.trim() }));
-                              setTurboFlowVideoUrlInput('');
-                              toast.success('تم حفظ الفيديو في تقويم تيتو ستوديو!');
-                              playShadowVoice('تم ربط الفيديو المولد من جوجل فلو وحفظه في تقويم تيتو ستوديو بنجاح يا ماستر!', 'male');
-                            }
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-cyan-500 text-black font-black text-[10px]"
-                        >
-                          حفظ بالتقويم
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Caption & Copywriting */}
-                  <div className="text-xs text-white/85 leading-relaxed bg-white/[0.03] p-2.5 rounded-xl border border-white/10 whitespace-pre-line">
-                    {selectedPost?.caption || currentSelectedBrand?.weekContentPlan?.[0]?.caption || 'احجز كشفك الآن واستمتع بفحص شامل ومجاني مع خطة تقسيط مريحة بدون فوائد. تواصل معنا على الواتساب فوراً!'}
-                  </div>
-
-                  {/* Dual Action Boosters */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                    <button
-                      onClick={() => handlePublishPost(currentSelectedBrand.id, 0)}
-                      disabled={isPublishingPost}
-                      className="py-2 px-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-[11px] font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition flex items-center justify-center gap-1"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{isPublishingPost ? 'جاري النشر...' : '🚀 انشره الآن'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleApproveSchedule(currentSelectedBrand.id)}
-                      disabled={isApprovingSchedule}
-                      className="py-2 px-2 rounded-xl bg-cyan-500/25 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-500/40 text-[11px] font-black transition flex items-center justify-center gap-1"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>✅ اعتمد الجدولة</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleLaunchAdForPost(selectedPost)}
-                      disabled={isLaunchingCampaign}
-                      className="py-2 px-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-[11px] font-black shadow-[0_0_15px_rgba(245,158,11,0.4)] transition flex items-center justify-center gap-1"
-                    >
-                      <TrendingUp className="w-3.5 h-3.5" />
-                      <span>{isLaunchingCampaign ? 'جاري الإطلاق...' : 'تمويل كإعلان'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveDeckTab('studio_calendar')}
-                      className="py-2 px-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-[11px] font-bold transition flex items-center justify-center gap-1"
-                    >
-                      <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>العودة للتقويم</span>
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
+              <JarvisContentPostCard
+                selectedPost={selectedPost}
+                currentSelectedBrand={currentSelectedBrand}
+                setSelectedPost={setSelectedPost}
+                handlePublishPost={handlePublishPost}
+                isPublishingPost={isPublishingPost}
+                handleApproveSchedule={handleApproveSchedule}
+                isApprovingSchedule={isApprovingSchedule}
+                handleLaunchAdForPost={handleLaunchAdForPost}
+                isLaunchingCampaign={isLaunchingCampaign}
+                onBackToCalendar={() => setActiveDeckTab('studio_calendar')}
+              />
             )}
 
-            {/* TAB 1: T2 AI AGENT FLEET (MATCHES khedr-bot-agent.onrender.com/dashboard) */}
+            {/* TAB 3: T2 AI AGENT FLEET (Modular Component) */}
             {activeDeckTab === 'agent_fleet' && (
-              <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(0,240,255,0.2)] p-3 flex flex-col gap-2.5 backdrop-blur-md animate-in fade-in duration-200">
-                {/* Fleet Subheader */}
-                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                    <span className="text-xs font-bold text-white">لوحة تحكم الأيجنت الذكي • إدارة المحادثات والـ CRM</span>
-                  </div>
-                  <button
-                    onClick={() => setIsOnboardingOpen(true)}
-                    className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-[10px] font-bold transition flex items-center gap-1"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    + إضافة نشاط جديد
-                  </button>
-                </div>
-
-                {/* Filter Pills from Real Screenshot */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[9.5px] font-mono select-none scrollbar-none">
-                  <span className="px-2.5 py-1 rounded-lg bg-cyan-500 text-black font-bold whitespace-nowrap">أنشطة وحالة الأيجنت (6)</span>
-                  <button onClick={() => setIsCrmModalOpen(true)} className="px-2.5 py-1 rounded-lg bg-black/40 text-white/70 hover:text-white border border-white/5 whitespace-nowrap">المحادثات والتحكم اليدوي (CRM)</button>
-                  <button onClick={() => setIsCrmModalOpen(true)} className="px-2.5 py-1 rounded-lg bg-black/40 text-white/70 hover:text-white border border-white/5 whitespace-nowrap">التقويم والحجوزات</button>
-                  <button onClick={() => setIsMetaReadinessOpen(true)} className="px-2.5 py-1 rounded-lg bg-black/40 text-white/70 hover:text-white border border-white/5 whitespace-nowrap">الربط والمتاجر</button>
-                </div>
-
-                {/* REAL BOT CARDS GRID (Clean Master, Sale Gates, Alkhedr, Battah, Baraka, T2 Digital) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[380px] overflow-y-auto pr-1">
-                  
-                  {/* 1. CLEAN MASTER */}
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#061c14] to-[#020a06] border border-cyan-500/40 flex flex-col gap-2 relative shadow-lg shadow-cyan-950/40">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-white text-xs">كلين ماستر لخدمات النظافة والتعقيم</span>
-                        </div>
-                        <span className="text-[9px] font-mono text-white/40 block">ID: clean_master</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.clean_master ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'}`}>
-                        {botStates.clean_master ? 'شغال' : 'متوقف'}
-                      </span>
-                    </div>
-
-                    <div className="text-[9px] font-mono text-cyan-300">حالة الاشتراك: VIP غير محدود ∞</div>
-
-                    {/* Main Action: Pause / Resume Bot */}
-                    <button
-                      onClick={() => {
-                        const newState = !botStates.clean_master;
-                        setBotStates(prev => ({ ...prev, clean_master: newState }));
-                        playShadowVoice(newState ? 'تم استئناف رد أيجنت كلين ماستر 24 ساعة!' : 'تم تعليق رد أيجنت كلين ماستر مؤقتاً!', 'male');
-                      }}
-                      className={`w-full py-1.5 rounded-xl text-[10px] font-bold transition flex items-center justify-center gap-1.5 border ${
-                        botStates.clean_master
-                          ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
-                          : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40 font-black'
-                      }`}
-                    >
-                      {botStates.clean_master ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                      {botStates.clean_master ? 'تعليق الاتصال (إيقاف رد الأيجنت مؤقتاً)' : 'استئناف رد الأيجنت 24/7'}
-                    </button>
-
-                    {/* Stats: Live Handled Messages + 100% Platform Health */}
-                    <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono">
-                      <div 
-                        onClick={() => setIsCrmModalOpen(true)}
-                        className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between cursor-pointer hover:border-cyan-400/50 transition"
-                      >
-                        <span className="text-white/70">صندوق المحادثات</span>
-                        <span className="font-bold text-cyan-400">{realStats.totalHandledMessages || 0} 💬</span>
-                      </div>
-                      <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
-                        <span className="text-white/70">فحص المنصات</span>
-                        <span className="font-bold text-cyan-400">100% 🛡️</span>
-                      </div>
-                    </div>
-
-                    {/* WhatsApp Connection Status */}
-                    <div className="p-1.5 rounded-lg bg-black/60 border border-cyan-500/20 flex items-center justify-between text-[8.5px] font-mono">
-                      <span className="text-white/60">واتساب: +201013372674</span>
-                      <span className="text-cyan-400 font-bold">متصل وفعال</span>
-                    </div>
-
-                    {/* Secondary Buttons Row */}
-                    <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[10px]">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setIsCrmModalOpen(true)} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white" title="المحادثات">
-                          <MessageSquare className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => handleSendLiveCommand("اتصل بكلين ماستر وافحص الحجوزات")} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-cyan-400" title="اتصال مباشر">
-                          <PhoneCall className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => setIsMetaReadinessOpen(true)} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-purple-400" title="قنوات ميتا">
-                          <Globe className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => toast.success("تم فتح إعدادات البوت والتدريب")} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70" title="الإعدادات">
-                          <Sliders className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <span className="text-[8px] text-amber-300 font-bold">👑 باقة المدير العام</span>
-                    </div>
-                  </div>
-
-                  {/* 2. SALE GATES EGYPT */}
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#0b172a] to-[#040813] border border-cyan-500/40 flex flex-col gap-2 relative shadow-lg shadow-cyan-950/40">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-white text-xs">Sale Gates Egypt</span>
-                        </div>
-                        <span className="text-[9px] font-mono text-white/40 block">ID: besho</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.besho ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'}`}>
-                        {botStates.besho ? 'شغال' : 'متوقف'}
-                      </span>
-                    </div>
-
-                    <div className="text-[9px] font-mono text-cyan-300">حالة الاشتراك: VIP غير محدود ∞</div>
-
-                    <button
-                      onClick={() => {
-                        const newState = !botStates.besho;
-                        setBotStates(prev => ({ ...prev, besho: newState }));
-                        playShadowVoice(newState ? 'تم تفعيل رد سيل جيت العقارية!' : 'تم إيقاف رد سيل جيت مؤقتاً!', 'male');
-                      }}
-                      className={`w-full py-1.5 rounded-xl text-[10px] font-bold transition flex items-center justify-center gap-1.5 border ${
-                        botStates.besho
-                          ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
-                          : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40 font-black'
-                      }`}
-                    >
-                      {botStates.besho ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                      {botStates.besho ? 'تعليق الاتصال (إيقاف رد الأيجنت مؤقتاً)' : 'استئناف رد الأيجنت'}
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono">
-                      <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
-                        <span className="text-white/70">صندوق المحادثات</span>
-                        <span className="font-bold text-cyan-400">{realStats.saleGatesMessages ?? (realStats.totalHandledMessages ? Math.floor(realStats.totalHandledMessages * 0.2) : 0)} 💬</span>
-                      </div>
-                      <div className="p-1.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
-                        <span className="text-white/70">فحص المنصات</span>
-                        <span className="font-bold text-cyan-400">100% 🛡️</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[10px]">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setIsCrmModalOpen(true)} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70">
-                          <MessageSquare className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => setIsMetaReadinessOpen(true)} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-purple-400">
-                          <Globe className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <span className="text-[8px] text-cyan-300 font-bold">عقارات واستشارات VIP</span>
-                    </div>
-                  </div>
-
-                  {/* 3. ALKHEDR CAR RENTAL */}
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#1c1306] to-[#0a0601] border border-amber-500/30 flex flex-col gap-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="font-bold text-white text-xs">شركة الخضر لتأجير السيارات</span>
-                        <span className="text-[9px] font-mono text-white/40 block">ID: alkhedr_car_rental</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${botStates.alkhedr_car_rental ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/10 text-white/60'}`}>
-                        {botStates.alkhedr_car_rental ? 'شغال' : 'متوقف'}
-                      </span>
-                    </div>
-                    <div className="text-[9px] font-mono text-amber-300">VIP غير محدود ∞ • محادثات: 0</div>
-                    <button
-                      onClick={() => {
-                        const newState = !botStates.alkhedr_car_rental;
-                        setBotStates(prev => ({ ...prev, alkhedr_car_rental: newState }));
-                        playShadowVoice(newState ? 'تم استئناف أيجنت الخضر للسيارات 24 ساعة!' : 'تم إيقاف أيجنت الخضر مؤقتاً!', 'male');
-                      }}
-                      className="w-full py-1.5 rounded-xl text-[10px] font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition flex items-center justify-center gap-1.5"
-                    >
-                      <Play className="w-3 h-3" />
-                      تفعيل الاتصال واستئناف رد الأيجنت
-                    </button>
-                  </div>
-
-                  {/* 4. BATTAH SPARE PARTS */}
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#140b22] to-[#06020c] border border-purple-500/30 flex flex-col gap-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="font-bold text-white text-xs">متجر بطاح لقطع غيار السيارات</span>
-                        <span className="text-[9px] font-mono text-white/40 block">ID: battah_system</span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-white/60 border border-white/20">
-                        متوقف
-                      </span>
-                    </div>
-                    <div className="text-[9px] font-mono text-purple-300">VIP غير محدود ∞ • كماليات وقطع غيار</div>
-                    <button
-                      onClick={() => toast.success("تم إرسال أمر التفعيل لبوت متجر بطاح")}
-                      className="w-full py-1.5 rounded-xl text-[10px] font-bold bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 transition flex items-center justify-center gap-1.5"
-                    >
-                      <Play className="w-3 h-3" />
-                      تفعيل الاتصال
-                    </button>
-                  </div>
-
-                  {/* 5. BARAKA MOTORS */}
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-black/60 to-black/90 border border-white/10 flex flex-col gap-1.5">
-                    <div className="flex items-start justify-between">
-                      <span className="font-bold text-white text-xs">بركة موتورز</span>
-                      <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">تجربة 7 أيام</span>
-                    </div>
-                    <span className="text-[8px] text-white/50">ID: baraka_motors • متبقي في التجربة 7 أيام</span>
-                  </div>
-
-                  {/* 6. T2 DIGITAL */}
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-black/60 to-black/90 border border-white/10 flex flex-col gap-1.5">
-                    <div className="flex items-start justify-between">
-                      <span className="font-bold text-white text-xs">T2 Digital</span>
-                      <span className="text-[8px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded">تجربة 7 أيام</span>
-                    </div>
-                    <span className="text-[8px] text-white/50">ID: t2-digital • منصة الحلول الرقمية</span>
-                  </div>
-
-                </div>
-              </div>
+              <JarvisAgentFleetDeck
+                botStates={botStates}
+                setBotStates={setBotStates}
+                realStats={realStats}
+                setIsOnboardingOpen={setIsOnboardingOpen}
+                setIsCrmModalOpen={setIsCrmModalOpen}
+                setIsMetaReadinessOpen={setIsMetaReadinessOpen}
+                handleSendLiveCommand={handleSendLiveCommand}
+              />
             )}
 
             {/* TAB 4: APP CLONER & STOREFRONT FACTORY */}
@@ -3542,81 +2891,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </>
             )}
 
-            {/* TWO-WAY LIVE CONVERSATION & AUDIO DOCK */}
-            <div className="w-full max-w-md flex flex-col items-center gap-2.5">
-              
-              {/* Living Holographic Voice Ribbon (Framer Motion Spring Physics) */}
-              <AnimatePresence>
-                {transcript && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 15, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                    className="w-full px-5 py-2.5 rounded-2xl bg-black/80 border border-cyan-400/40 text-center text-xs text-cyan-200 font-bold shadow-[0_0_30px_rgba(0,240,255,0.25)] backdrop-blur-xl"
-                  >
-                    {isThinking ? (
-                      <span className="flex items-center justify-center gap-2 text-cyan-300">
-                        <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-spin" />
-                        🧠 جاري التفكير ومعالجة طلبك يا ماستر...
-                      </span>
-                    ) : (
-                      <span className="leading-relaxed">🗣️ "${transcript}"</span>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* 16-Bar Audio Spectrum Visualizer */}
-              <div className="flex items-end justify-center gap-1.5 h-6 w-full px-4">
-                {[...Array(16)].map((_, i) => {
-                  const height = isPlayingVoice || isListening
-                    ? Math.max(4, Math.min(24, Math.round(Math.sin((i + Date.now() / 200) * 0.8) * 12 + audioLevel * 20 + 8)))
-                    : 4;
-                  return (
-                    <div
-                      key={i}
-                      className="w-1.5 bg-gradient-to-t from-cyan-600 via-cyan-400 to-white rounded-full transition-all duration-75"
-                      style={{ height: `${height}px` }}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Dual Action Buttons: Mic Voice Chat & Speak Greeting */}
-              <div className="w-full grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleToggleListening}
-                  className={`py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-black transition-all shadow-xl select-none cursor-pointer ${
-                    isListening
-                      ? 'bg-gradient-to-r from-rose-600 to-red-500 text-white shadow-[0_0_25px_rgba(244,63,94,0.7)] animate-pulse border border-rose-400'
-                      : 'bg-gradient-to-r from-cyan-400 via-cyan-400 to-cyan-400 hover:from-cyan-300 hover:to-cyan-300 text-black shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-cyan-200'
-                  }`}
-                >
-                  {isListening ? <MicOff className="w-4 h-4 animate-bounce" /> : <Mic className="w-4 h-4 animate-pulse" />}
-                  <span>{isListening ? '🔴 أنا سامعك يا ماستر.. اتكلم (اضغط للإنهاء)' : '🎙️ تحدث صوتياً الآن (Full-Duplex Live)'}</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (isPlayingVoice) {
-                      stopVoice();
-                      setIsPlayingVoice(false);
-                    } else {
-                      handlePlayPersonaGreeting(persona);
-                    }
-                  }}
-                  className={`py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-black transition-all ${
-                    isPlayingVoice
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.4)]'
-                      : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black shadow-[0_0_20px_rgba(6,182,212,0.4)]'
-                  }`}
-                >
-                  {isPlayingVoice ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-                  {isPlayingVoice ? 'إيقاف نطق جارفيس' : '🔊 استمع لنطق جارفيس'}
-                </button>
-              </div>
-            </div>
+            {/* TWO-WAY LIVE CONVERSATION & AUDIO DOCK (Modular Component) */}
+            <JarvisMasterVoiceDock
+              transcript={transcript}
+              isThinking={isThinking}
+              isListening={isListening}
+              isPlayingVoice={isPlayingVoice}
+              audioLevel={audioLevel}
+              persona={persona}
+              handleToggleListening={handleToggleListening}
+              handlePlayPersonaGreeting={handlePlayPersonaGreeting}
+              setIsPlayingVoice={setIsPlayingVoice}
+            />
 
           </div>
 
