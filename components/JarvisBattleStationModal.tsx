@@ -164,7 +164,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isSavingCatalog, setIsSavingCatalog] = useState<boolean>(false);
   
   // Selected Brand for Active Deep Interaction across all 3 Apps
-  const [selectedBrandId, setSelectedBrandId] = useState<string>('clean_master');
+  const [selectedBrandId, setSelectedBrandId] = useState<string>('');
   const [allBrandsList, setAllBrandsList] = useState<any[]>([]);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [isPublishingPost, setIsPublishingPost] = useState<boolean>(false);
@@ -593,7 +593,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   if (!isOpen) return null;
 
-  const currentSelectedBrand = allBrandsList.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) || allBrandsList[0] || {
+  const selectedBrand = selectedBrandId ? (allBrandsList.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) || null) : null;
+  const currentSelectedBrand = selectedBrand || allBrandsList[0] || {
     id: 'clean_master',
     name: 'كلين ماستر لخدمات النظافة والتعقيم',
     businessType: 'خدمات نظافة وتعقيم',
@@ -973,87 +974,34 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     });
   };
 
-  // Two-Way Live Speech Recognition Trigger (Full-Duplex Audio Socket & Barge-in)
+  // Two-Way Sovereign Voice Controller (Direct Native Speech Recognition + Human 24kHz Gemini Voice)
   const handleToggleListening = async () => {
     // 1. Immediately unlock browser audio context on user gesture
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
-        if (ctx.state === 'suspended') ctx.resume();
+        if (ctx.state === 'suspended') await ctx.resume();
       }
     } catch {}
 
-    if (isListening || jarvisVoiceSocket.active) {
-      jarvisVoiceSocket.disconnect();
+    if (isListening) {
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
+        recognitionRef.current = null;
       }
       setIsListening(false);
       stopVoice();
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
       setTranscript('');
-    } else {
-      stopVoice();
-      setIsPlayingVoice(false);
-      isPlayingVoiceRef.current = false;
-      setTranscript('جاري الاتصال بالسوكيت المباشر (Full-Duplex Stream)...');
-
-      // Setup Real-Time Callbacks for the Socket Engine
-      jarvisVoiceSocket.setCallbacks({
-        onStateChange: (state) => {
-          setVoiceSocketState(state);
-          if (state === 'listening') {
-            setIsListening(true);
-            setIsPlayingVoice(false);
-            isPlayingVoiceRef.current = false;
-            setTranscript('أنا سامعك يا ماستر.. اتفضل اتكلم');
-          } else if (state === 'speaking') {
-            setIsPlayingVoice(true);
-            isPlayingVoiceRef.current = true;
-          } else if (state === 'disconnected' || state === 'error') {
-            setIsListening(false);
-            setIsPlayingVoice(false);
-            isPlayingVoiceRef.current = false;
-          }
-        },
-        onInputTranscript: (userText) => {
-          if (userText) {
-            setTranscript(userText);
-            transcriptRef.current = userText;
-            appendLiveLog(`[USER_VOICE]: ${userText}`);
-          }
-        },
-        onOutputTranscript: (jarvisText) => {
-          if (jarvisText) {
-            setTranscript(jarvisText);
-            appendLiveLog(`[JARVIS_VOICE]: ${jarvisText}`);
-          }
-        },
-        onVolumeChange: (vol) => {
-          setAudioLevel(vol);
-        },
-        onError: (err) => {
-          console.warn('[Jarvis Voice Socket Warning]:', err);
-          // Fall back gracefully to browser recognition if WebSocket is interrupted
-          startListeningLoop();
-        }
-      });
-
-      const success = await jarvisVoiceSocket.connect(
-        persona === 'tito' ? 'ماستر تيتو' : currentSelectedBrand.name,
-        'male'
-      );
-
-      if (!success) {
-        // Fall back seamlessly to browser recognition
-        startListeningLoop();
-      } else {
-        setIsListening(true);
-        setHasMicPermission(true);
-      }
+      return;
     }
+
+    stopVoice();
+    setIsPlayingVoice(false);
+    isPlayingVoiceRef.current = false;
+    startListeningLoop();
   };
 
   // Autonomous Marketing Agency Operator: 1-Month Plan (4 Weeks / 12 Posts) + Firestore Sync + First Post Spotlight
@@ -1530,11 +1478,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         </div>
 
         {/* MAIN HUD INTERACTION VIEWPORT (3 Sci-Fi Columns With Mobile-First Spatial Hierarchy) */}
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-between p-4 md:p-6 overflow-y-auto w-full max-w-4xl mx-auto">
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-between p-2 md:p-4 overflow-y-auto w-full max-w-[96vw] xl:max-w-[1780px] mx-auto">
 
           {/* CENTER HERO: THE HOLOGRAPHIC ARC REACTOR CORE (6 Cols)    */}
           {/* ========================================================= */}
-          <div className="w-full max-w-3xl flex flex-col items-center justify-between gap-4 py-1 mx-auto font-['Cairo']">
+          <div className="w-full flex flex-col items-center justify-between gap-3 py-1 mx-auto font-['Cairo']">
             
             {/* Triage Persona Switcher (Top of Center) - Protected for Master Admin */}
             {isMasterAdmin ? (
@@ -1608,19 +1556,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <div className="flex items-center justify-center gap-1.5 p-1.5 bg-[#020617]/80 rounded-2xl border border-cyan-500/25 backdrop-blur-xl text-[10px] md:text-[11px] font-bold select-none font-['Cairo'] shadow-[0_0_20px_rgba(0,240,255,0.15)] flex-wrap">
                 <button
                   onClick={() => setActiveDeckTab('obsidian_graph')}
-                  className={`py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-3.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     activeDeckTab === 'obsidian_graph'
                       ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-black shadow-[0_0_20px_rgba(6,182,212,0.6)]'
                       : 'text-cyan-200/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>🌐 الشبكة العصبية 3D</span>
+                  <span>🌐 الشبكة العصبية الهولوجرامية 3D</span>
                 </button>
 
                 <button
                   onClick={() => setActiveDeckTab('studio_calendar')}
-                  className={`py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-3.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     activeDeckTab === 'studio_calendar'
                       ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black font-black shadow-[0_0_20px_rgba(0,240,255,0.6)]'
                       : 'text-cyan-200/80 hover:text-white hover:bg-white/5'
@@ -1632,7 +1580,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                 <button
                   onClick={() => setActiveDeckTab('agent_fleet')}
-                  className={`py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-3.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     activeDeckTab === 'agent_fleet'
                       ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black shadow-[0_0_20px_rgba(168,85,247,0.6)]'
                       : 'text-purple-200/80 hover:text-white hover:bg-white/5'
@@ -1641,20 +1589,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <MessageSquare className="w-3.5 h-3.5" />
                   <span>💬 أسطول واتساب تيتو أجنت</span>
                 </button>
-
-                {persona === 'tito' && (
-                  <button
-                    onClick={() => setActiveDeckTab('autonomous_agency')}
-                    className={`py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      activeDeckTab === 'autonomous_agency'
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-[0_0_20px_rgba(245,158,11,0.6)]'
-                        : 'text-amber-300/80 hover:text-amber-200 hover:bg-amber-500/10'
-                    }`}
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>⚡ التسويق الآلي</span>
-                  </button>
-                )}
               </div>
             ) : (
               <div className="w-full max-w-lg py-2 px-3 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-xs font-bold font-['Cairo']">
@@ -1814,7 +1748,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             {/* TAB 0A: 2026 SOVEREIGN 3D HOLOGRAPHIC NEURAL CONSTELLATION (HERO THEATER) */}
             {activeDeckTab === 'obsidian_graph' && (
-              <div className="w-full max-w-4xl rounded-3xl bg-[#01030b]/85 border border-cyan-500/40 shadow-[0_0_60px_rgba(0,240,255,0.25)] p-3 md:p-5 flex flex-col gap-3 backdrop-blur-2xl animate-in fade-in duration-200 font-['Cairo'] text-right">
+              <div className="w-full rounded-3xl bg-[#01030b]/80 border border-cyan-500/35 shadow-[0_0_80px_rgba(0,240,255,0.2)] p-3 md:p-5 flex flex-col gap-3 backdrop-blur-2xl animate-in fade-in duration-200 font-['Cairo'] text-right">
                 
                 {/* 3D Constellation Header & Controls */}
                 <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20 flex-wrap gap-2">
@@ -1896,7 +1830,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </div>
 
                 {/* THE LIVING 3D HOLOGRAPHIC CONSTELLATION CANVAS */}
-                <div className="w-full rounded-2xl overflow-hidden border border-cyan-500/30 shadow-[inset_0_0_40px_rgba(0,240,255,0.15)] bg-[#020514]/90 relative min-h-[480px] md:min-h-[520px]">
+                <div className="w-full rounded-2xl overflow-hidden border border-cyan-500/30 shadow-[inset_0_0_60px_rgba(0,240,255,0.2)] bg-[#010412]/95 relative h-[58vh] min-h-[520px]">
                   <ObsidianHolographicConstellation
                     brands={allBrandsList.map((b) => ({
                       id: b.id,
@@ -1920,55 +1854,57 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </div>
 
                 {/* 2026 SPATIAL BRAND HUD INSPECTOR (SLEEK FLOATING DOCK — ZERO CLUTTER) */}
-                <div className="w-full p-3 rounded-2xl bg-black/75 border border-cyan-400/35 backdrop-blur-2xl flex items-center justify-between flex-wrap gap-2.5 shadow-[0_0_25px_rgba(0,240,255,0.18)]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center font-black text-black shadow-md text-sm">
-                      {currentSelectedBrand.name.slice(0, 1)}
+                {selectedBrand && (
+                  <div className="w-full p-3 rounded-2xl bg-black/85 border border-cyan-400/40 backdrop-blur-2xl flex items-center justify-between flex-wrap gap-2.5 shadow-[0_0_30px_rgba(0,240,255,0.2)] animate-in fade-in slide-in-from-bottom-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center font-black text-black shadow-md text-sm">
+                        {selectedBrand.name.slice(0, 1)}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white flex items-center gap-2">
+                          {selectedBrand.name}
+                          <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
+                            {selectedBrand.businessType || 'نشاط تجاري'}
+                          </span>
+                        </h4>
+                        <p className="text-[10px] text-white/60">
+                          واتساب: {selectedBrand.phone || '01030956097'} • خطة ستوديو: {(selectedBrand.weekContentPlan || []).length || 7} منشورات
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white flex items-center gap-2">
-                        {currentSelectedBrand.name}
-                        <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
-                          {currentSelectedBrand.businessType || 'نشاط تجاري'}
-                        </span>
-                      </h4>
-                      <p className="text-[10px] text-white/60">
-                        واتساب: {currentSelectedBrand.phone || '01030956097'} • خطة ستوديو: {(currentSelectedBrand.weekContentPlan || []).length || 7} منشورات
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      onClick={() => setActiveDeckTab('studio_calendar')}
-                      className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 text-[10px] font-bold flex items-center gap-1 transition shadow-[0_0_10px_rgba(0,240,255,0.25)] cursor-pointer"
-                    >
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>تقويم ستوديو</span>
-                    </button>
-                    <button
-                      onClick={() => setActiveDeckTab('agent_fleet')}
-                      className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/50 text-purple-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>وكيل واتساب</span>
-                    </button>
-                    <button
-                      onClick={() => window.open(`/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`, '_blank')}
-                      className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/50 text-blue-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>متجر PWA</span>
-                    </button>
-                    <button
-                      onClick={() => handleExecuteAutonomousAgency()}
-                      className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <Zap className="w-3.5 h-3.5" />
-                      <span>دورة التسويق</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => setActiveDeckTab('studio_calendar')}
+                        className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 text-[10px] font-bold flex items-center gap-1 transition shadow-[0_0_10px_rgba(0,240,255,0.25)] cursor-pointer"
+                      >
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>تقويم ستوديو</span>
+                      </button>
+                      <button
+                        onClick={() => setActiveDeckTab('agent_fleet')}
+                        className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/50 text-purple-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>وكيل واتساب</span>
+                      </button>
+                      <button
+                        onClick={() => window.open(`/store/${selectedBrand.slug || selectedBrand.id}`, '_blank')}
+                        className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/50 text-blue-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>متجر PWA</span>
+                      </button>
+                      <button
+                        onClick={() => setSelectedBrandId('')}
+                        className="p-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/50 hover:text-rose-300 border border-white/10 transition cursor-pointer"
+                        title="إلغاء التحديد"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
             )}
