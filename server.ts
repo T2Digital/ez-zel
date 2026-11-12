@@ -45,6 +45,7 @@ import { readTurboFlowQueue, enqueueTurboFlowVideoJob, completeTurboFlowVideoJob
 import { PAYMOB_PLANS, PAYMOB_TIERS, createPaymobCheckoutSession, verifyPaymobWebhookHmac, readPaymobSubscriptions, savePaymobSubscriptionRecord } from "./services/paymobService";
 import { readBookings, broadcastGatewayEvent } from "./services/microservicesGateway";
 import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./services/brandingForgeService";
+import { syncBrandToAllEcosystems, reconcileAllBrands } from "./services/universalBrandSync";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -2615,78 +2616,26 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           const adBudget = Math.round(totalAmount * Number(adBudgetRatio || 0.5));
           const techShare = totalAmount - adBudget;
 
-          // 1. Write to D:/ez-zel-/data/tenants.json
-          const tenantsPath = path.join(process.cwd(), 'data', 'tenants.json');
-          let tenantsList: any[] = [];
-          try {
-              if (fs.existsSync(tenantsPath)) {
-                  tenantsList = JSON.parse(fs.readFileSync(tenantsPath, 'utf8'));
-              }
-          } catch {}
-
-          const newTenant = {
-              id: `tenant_${brandId}`,
-              brandId: brandId,
-              clientName: name.trim(),
-              businessName: name.trim(),
-              category: category || 'أعمال تجارية عامة',
+          // Universal Sync across Ez-Zel, T2 Agent & Tito Studio Firestore simultaneously
+          const syncResult = await syncBrandToAllEcosystems({
+              id: brandId,
+              name: name.trim(),
+              businessType: category || 'أعمال تجارية عامة',
               phone: phone || cleanPhone,
-              whatsappBot: cleanPhone,
-              status: 'active',
-              conversationsCount: 0,
-              plan: `باقة ${totalAmount.toLocaleString('en-US')} ج.م (${adBudget.toLocaleString('en-US')} ج إعلانات + ${techShare.toLocaleString('en-US')} ج اشتراك)`,
-              adBudgetEgp: adBudget,
-              techShareEgp: techShare,
-              liveUrl: websiteUrl || `https://${brandId}.t2-client.vercel.app`,
-              hasConfirmedBookings: false,
-              deployedAt: new Date().toISOString().split('T')[0]
-          };
+              whatsapp: cleanPhone,
+              planType: totalAmount,
+              adBudgetRatio: Number(adBudgetRatio || 0.5),
+              websiteUrl
+          });
 
-          tenantsList.unshift(newTenant);
-          fs.writeFileSync(tenantsPath, JSON.stringify(tenantsList, null, 2), 'utf8');
-
-          // 2. Write to D:/new new/t2-agent-nov-1-2026-5-06-22-pm/data/brands.json
-          const agentBrandsPath = path.join('D:', 'new new', 't2-agent-nov-1-2026-5-06-22-pm', 'data', 'brands.json');
-          try {
-              if (fs.existsSync(agentBrandsPath)) {
-                  const agentBrands = JSON.parse(fs.readFileSync(agentBrandsPath, 'utf8'));
-                  agentBrands[brandId] = {
-                      id: brandId,
-                      name: name.trim(),
-                      ownerEmail: "ahm.atya@gmail.com",
-                      businessType: category || 'عام',
-                      dialect: "مصرية احترافية وسريعة",
-                      websiteUrl: newTenant.liveUrl,
-                      conversationsCount: 0,
-                      status: 'active',
-                      subscriptionStatus: 'PRO',
-                      isUnlimited: true,
-                      adBudgetEgp: adBudget,
-                      systemPrompt: `أنت المساعد الذكي الرسمي لـ ${name}. تستقبل العملاء باحترافية وتجيب عن الاستفسارات وتؤكد الحجوزات والطلبات.`,
-                      productsCatalog: [
-                          {
-                              id: `${brandId}_svc1`,
-                              name: `الخدمة والمنتج الرئيسي لـ ${name}`,
-                              price: "حسب المعاينة والاستشارة",
-                              category: "general"
-                          }
-                      ],
-                      createdAt: new Date().toISOString()
-                  };
-                  fs.writeFileSync(agentBrandsPath, JSON.stringify(agentBrands, null, 2), 'utf8');
-              }
-          } catch (agentErr: any) {
-              console.warn('[Sync to Agent Warning]:', agentErr.message);
-          }
-
-          console.log(`✅ [Universal Onboarding]: Successfully registered ${name} across Ecosystem. (Total: ${tenantsList.length} tenants).`);
+          console.log(`✅ [Universal Onboarding]: Successfully registered ${name} across Ez-Zel, T2 Agent & Tito Studio.`);
 
           res.json({
               success: true,
               message: `تم تأسيس براند ${name} بنجاح وربطه بالستوديو والأجنت وباقة الإعلانات!`,
               brandId,
-              tenant: newTenant,
-              totalTenantsCount: tenantsList.length,
+              syncMatrix: syncResult.syncMatrix,
+              tenant: syncResult.brand,
               economics: {
                   totalAmount,
                   adBudget,
@@ -2696,6 +2645,47 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       } catch (err: any) {
           console.error('[Register Brand Error]:', err);
           res.status(500).json({ error: err.message });
+      }
+  });
+
+  // --- UNIVERSAL ECOSYSTEM SYNC & HEALTH CHECK ENDPOINTS ---
+  app.get("/api/ecosystem/sync-status", (_req, res) => {
+      try {
+          const ezBrandsPath = path.join(process.cwd(), 'data', 'brands.json');
+          const ezTenantsPath = path.join(process.cwd(), 'data', 'tenants.json');
+          const t2AgentBrandsPath = 'D:/new new/t2-agent-nov-1-2026-5-06-22-pm/data/brands.json';
+          const studioCache = readTitoStudioCacheSync();
+
+          const ezBrandsCount = fs.existsSync(ezBrandsPath) ? Object.keys(JSON.parse(fs.readFileSync(ezBrandsPath, 'utf8'))).length : 0;
+          const ezTenantsCount = fs.existsSync(ezTenantsPath) ? JSON.parse(fs.readFileSync(ezTenantsPath, 'utf8')).length : 0;
+          const t2AgentCount = fs.existsSync(t2AgentBrandsPath) ? Object.keys(JSON.parse(fs.readFileSync(t2AgentBrandsPath, 'utf8'))).length : 0;
+          const titoStudioCount = (studioCache.clinics || []).length;
+
+          res.json({
+              success: true,
+              timestamp: new Date().toISOString(),
+              systems: {
+                  ezZel: { name: "Ez-Zel Sovereign Hub", brands: ezBrandsCount, tenants: ezTenantsCount },
+                  t2Agent: { name: "T2 Agent WhatsApp/Voice", brands: t2AgentCount },
+                  titoStudio: { name: "Tito Content Studio", clinics: titoStudioCount, scheduledPosts: (studioCache.content || []).length }
+              },
+              isUnified: t2AgentCount > 0 && titoStudioCount > 0
+          });
+      } catch (e: any) {
+          res.status(500).json({ error: e.message });
+      }
+  });
+
+  app.post("/api/ecosystem/reconcile-all", async (_req, res) => {
+      try {
+          const report = await reconcileAllBrands();
+          res.json({
+              success: true,
+              message: "تم فحص ومزامنة وتوحيد جميع البراندات بنجاح عبر إز-ال وتيتو ستوديو وتيتو أجنت!",
+              report
+          });
+      } catch (e: any) {
+          res.status(500).json({ error: e.message });
       }
   });
 
@@ -2773,6 +2763,26 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           if (!kit || !kit.brandId) return res.status(400).json({ error: "بيانات البراند غير مكتملة" });
 
           const savedBrand = saveBrandedClientToVault(kit, { phone, whatsapp });
+          
+          // Universal Sync to T2 Agent & Tito Studio Firestore simultaneously
+          try {
+              await syncBrandToAllEcosystems({
+                  id: savedBrand.id,
+                  slug: savedBrand.slug,
+                  name: savedBrand.name,
+                  businessType: savedBrand.businessType,
+                  phone: savedBrand.phone,
+                  whatsapp: savedBrand.whatsapp,
+                  slogan: savedBrand.slogan,
+                  primaryColor: savedBrand.primaryColor,
+                  accentColor: savedBrand.accentColor,
+                  productsCatalog: savedBrand.productsCatalog,
+                  weekContentPlan: savedBrand.weekContentPlan
+              });
+          } catch (syncErr: any) {
+              console.warn('[Branding Save] Universal sync non-blocking warning:', syncErr?.message);
+          }
+
           broadcastGatewayEvent('BRAND_CREATED', {
               brandId: savedBrand.id,
               name: savedBrand.name,

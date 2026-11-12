@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Play, Pause } from 'lucide-react';
+import { Mic, MicOff, Volume2, Square } from 'lucide-react';
 import { stopVoice } from '../../services/speechService';
 
 export interface JarvisMasterVoiceDockProps {
@@ -26,8 +26,17 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
   handlePlayPersonaGreeting,
   setIsPlayingVoice
 }) => {
+  const handlePrimaryVoiceClick = () => {
+    if (isPlayingVoice) {
+      stopVoice();
+      setIsPlayingVoice(false);
+      return;
+    }
+    handleToggleListening();
+  };
+
   return (
-    <div className="w-full max-w-md flex flex-col items-center gap-2.5">
+    <div className="w-full max-w-lg flex flex-col items-center gap-3 font-['Cairo'] select-none">
       {/* Living Holographic Voice Ribbon (Framer Motion Spring Physics) */}
       <AnimatePresence>
         {transcript && (
@@ -36,12 +45,12 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            className="w-full px-5 py-2.5 rounded-2xl bg-black/80 border border-cyan-400/40 text-center text-xs text-cyan-200 font-bold shadow-[0_0_30px_rgba(0,240,255,0.25)] backdrop-blur-xl"
+            className="w-full px-5 py-2.5 rounded-2xl bg-[#030718]/90 border border-cyan-400/40 text-center text-xs text-cyan-200 font-bold shadow-[0_0_35px_rgba(0,240,255,0.25)] backdrop-blur-2xl"
           >
             {isThinking ? (
               <span className="flex items-center justify-center gap-2 text-cyan-300">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-spin" />
-                🧠 جاري التفكير ومعالجة طلبك يا ماستر...
+                🧠 جاري التفكير وتحليل طلبك يا ماستر...
               </span>
             ) : (
               <span className="leading-relaxed">🗣️ "{transcript}"</span>
@@ -50,57 +59,86 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
         )}
       </AnimatePresence>
 
-      {/* 16-Bar Audio Spectrum Visualizer */}
-      <div className="flex items-end justify-center gap-1.5 h-6 w-full px-4">
-        {[...Array(16)].map((_, i) => {
+      {/* 24-Bar High-Definition Audio Spectrum Visualizer */}
+      <div className="flex items-end justify-center gap-1 h-7 w-full px-6">
+        {[...Array(24)].map((_, i) => {
           const height = isPlayingVoice || isListening
-            ? Math.max(4, Math.min(24, Math.round(Math.sin((i + Date.now() / 200) * 0.8) * 12 + audioLevel * 20 + 8)))
-            : 4;
+            ? Math.max(4, Math.min(28, Math.round(Math.sin((i + Date.now() / 150) * 0.7) * 14 + audioLevel * 22 + 8)))
+            : 3;
           return (
             <div
               key={i}
-              className="w-1.5 bg-gradient-to-t from-cyan-600 via-cyan-400 to-white rounded-full transition-all duration-75"
+              className={`w-1 rounded-full transition-all duration-75 ${
+                isPlayingVoice
+                  ? 'bg-gradient-to-t from-purple-600 via-pink-400 to-white'
+                  : isListening
+                  ? 'bg-gradient-to-t from-rose-600 via-cyan-400 to-white'
+                  : 'bg-cyan-500/30'
+              }`}
               style={{ height: `${height}px` }}
             />
           );
         })}
       </div>
 
-      {/* Master Audio Controller: Shimmer Mic Controller & Playback Trigger */}
-      <div className="w-full grid grid-cols-2 gap-2">
-        {/* Shimmer Full-Duplex Mic Button */}
+      {/* SOVEREIGN UNIFIED MASTER VOICE CONTROLLER (SINGLE MASTER ORB - ZERO CLASH) */}
+      <div className="w-full">
         <button
-          onClick={handleToggleListening}
-          className={`relative group overflow-hidden py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-black transition-all shadow-xl select-none cursor-pointer ${
-            isListening
-              ? 'bg-gradient-to-r from-rose-600 to-red-500 text-white shadow-[0_0_25px_rgba(244,63,94,0.7)] animate-pulse border border-rose-400'
-              : 'bg-gradient-to-r from-cyan-400 via-cyan-300 to-cyan-400 hover:from-cyan-300 hover:to-cyan-200 text-black shadow-[0_0_20px_rgba(0,240,255,0.4)] border border-cyan-200'
-          }`}
-        >
-          {/* Subtle Shimmer Overlay */}
-          <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]" />
-          {isListening ? <MicOff className="w-4 h-4 animate-bounce" /> : <Mic className="w-4 h-4 animate-pulse" />}
-          <span>{isListening ? '🔴 سامعك يا ماستر.. اتكلم' : '🎙️ محادثة لايف صوتية'}</span>
-        </button>
-
-        {/* Listen / Pause Voice Synthesis */}
-        <button
-          onClick={() => {
-            if (isPlayingVoice) {
-              stopVoice();
-              setIsPlayingVoice(false);
-            } else {
-              handlePlayPersonaGreeting(persona);
-            }
-          }}
-          className={`py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-black transition-all ${
+          onClick={handlePrimaryVoiceClick}
+          className={`relative group overflow-hidden w-full py-3.5 px-6 rounded-2xl flex items-center justify-between transition-all duration-300 shadow-2xl cursor-pointer ${
             isPlayingVoice
-              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.4)]'
-              : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black shadow-[0_0_20px_rgba(0,240,255,0.4)]'
+              ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black border border-amber-300 shadow-[0_0_35px_rgba(245,158,11,0.6)] animate-pulse'
+              : isListening
+              ? 'bg-gradient-to-r from-rose-600 via-red-500 to-rose-600 text-white border border-rose-400 shadow-[0_0_35px_rgba(244,63,94,0.7)] animate-pulse'
+              : isThinking
+              ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white border border-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.5)]'
+              : 'bg-gradient-to-r from-cyan-500 via-cyan-400 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-black border border-cyan-300 shadow-[0_0_30px_rgba(0,240,255,0.45)]'
           }`}
         >
-          {isPlayingVoice ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-          {isPlayingVoice ? 'إيقاف نطق جارفيس' : '🔊 استمع لنطق جارفيس'}
+          {/* Shimmer Light Reflection Sweep */}
+          <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/35 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]" />
+
+          {/* Left Status Badge */}
+          <div className="flex items-center gap-2">
+            <span className={`w-3 h-3 rounded-full ${
+              isPlayingVoice ? 'bg-amber-950 animate-ping' :
+              isListening ? 'bg-white animate-ping' :
+              isThinking ? 'bg-cyan-300 animate-spin' : 'bg-black/80'
+            }`} />
+            <span className="text-[11px] font-mono font-black tracking-wider uppercase opacity-80">
+              {isPlayingVoice ? 'LIVE AUDIO' : isListening ? 'LISTENING 24k' : isThinking ? 'THINKING' : 'READY 24kHz'}
+            </span>
+          </div>
+
+          {/* Center Call to Action */}
+          <div className="flex items-center gap-2 text-sm font-black tracking-wide">
+            {isPlayingVoice ? (
+              <>
+                <Volume2 className="w-5 h-5 animate-bounce" />
+                <span>جارفيس يتحدث الآن.. (اضغط للإيقاف)</span>
+              </>
+            ) : isListening ? (
+              <>
+                <MicOff className="w-5 h-5 animate-bounce" />
+                <span>سامعك يا ماستر.. اتكلم الآن</span>
+              </>
+            ) : isThinking ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>جاري معالجة الأمر...</span>
+              </>
+            ) : (
+              <>
+                <Mic className="w-5 h-5 animate-pulse" />
+                <span>تحدث مع جارفيس (صوت حي 24kHz)</span>
+              </>
+            )}
+          </div>
+
+          {/* Right Action Hint */}
+          <div className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-black/20 backdrop-blur-sm">
+            {isPlayingVoice ? 'إيقاف' : isListening ? 'إنهاء' : 'بدء'}
+          </div>
         </button>
       </div>
     </div>

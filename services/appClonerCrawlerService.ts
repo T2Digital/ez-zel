@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import { broadcastGatewayEvent } from './microservicesGateway';
+import { syncBrandToAllEcosystems } from './universalBrandSync';
 
 export interface CloneBrandInput {
     name?: string;
@@ -337,6 +338,26 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
 
     // Persist into data/tenants.json for ecosystem multi-tenancy
     saveTenantToDisk(clonedBrand);
+
+    // Synchronize to T2 Agent & Tito Studio Firestore simultaneously
+    try {
+        await syncBrandToAllEcosystems({
+            id: clonedBrand.id,
+            slug: clonedBrand.slug,
+            name: clonedBrand.name,
+            businessType: clonedBrand.businessType,
+            phone: clonedBrand.phone,
+            whatsapp: clonedBrand.phone,
+            websiteUrl: clonedBrand.websiteUrl,
+            appUrl: clonedBrand.appUrl,
+            ownerEmail: clonedBrand.ownerEmail,
+            systemPrompt: clonedBrand.systemPrompt,
+            productsCatalog: clonedBrand.productsCatalog,
+            weekContentPlan: clonedBrand.weekContentPlan
+        });
+    } catch (syncErr: any) {
+        console.warn('[App Cloner] Universal sync non-blocking warning:', syncErr?.message);
+    }
 
     // Broadcast live event to open Jarvis and Dashboard instances
     broadcastGatewayEvent('BRAND_CLONED', {
