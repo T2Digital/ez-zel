@@ -320,100 +320,105 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                         </div>
                     </div>
                     
-                    <div onClick={() => setShowCapabilities(true)} className="cursor-pointer hover:scale-[1.02] transition-transform">
+                    <div onClick={() => setShowCapabilities(true)} className="cursor-pointer hover:scale-[1.01] transition-transform">
                         <TerminalEffect />
-                        <p className="text-[8px] text-white/20 text-center mt-2 font-bold uppercase">اضغط للمزيد من التفاصيل</p>
+                        <p className="text-[8px] text-white/25 text-center mt-1.5 font-bold uppercase">اضغط للمزيد من التفاصيل</p>
+                    </div>
+
+                    {/* UNIFIED PRICING TIERS, DETAILS & ACTIONS INSIDE THE CARD */}
+                    <div className="mt-4 pt-4 border-t border-white/10 space-y-2.5 text-center">
+                        {/* Tier Selector: 5 Official Tiers (2.5K - 5K - 10K - 25K - 50K) */}
+                        <div className="flex justify-center overflow-x-auto scrollbar-none py-0.5">
+                            <div className="bg-black/80 p-1 rounded-2xl border border-white/10 flex gap-1 text-[10px] font-black select-none max-w-full">
+                                {(['tier_2500', 'tier_5000', 'tier_10000', 'tier_25000', 'tier_50000'] as const).map((tierKey) => {
+                                    const isSelected = selectedTier === tierKey;
+                                    return (
+                                        <button
+                                            key={tierKey}
+                                            onClick={() => setSelectedTier(tierKey)}
+                                            className={`px-2 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                                                isSelected
+                                                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg shadow-amber-500/25 font-black'
+                                                    : 'text-white/60 hover:text-white bg-white/5 border border-white/5'
+                                            }`}
+                                        >
+                                            <span>{tierPrices[tierKey].name}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* 50% Ad Allocation Guaranteed Badge */}
+                        <div className="flex justify-center">
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-0.5 rounded-full flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 text-amber-400" />
+                                {tierPrices[selectedTier].adBadge} (50% من قيمة الباقة)
+                            </span>
+                        </div>
+
+                        {/* Price & Details */}
+                        <div className="space-y-1">
+                            {billingCycle === 'yearly' && currentPrice.discount && (
+                                <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black rounded animate-pulse border border-emerald-500/20">
+                                    {currentPrice.discount}
+                                </span>
+                            )}
+                            <div className="flex items-end justify-center gap-2 leading-none">
+                                <div className="flex items-baseline">
+                                    <span className="text-3xl font-black text-white tracking-tighter">{currentPrice.egp}</span>
+                                    <span className="text-[10px] font-bold text-white/50 mr-1">EGP</span>
+                                </div>
+                                <span className="text-white/20 text-lg font-thin">/</span>
+                                <div className="flex items-baseline">
+                                    <span className="text-xl font-bold text-white/70">{currentPrice.usd}</span>
+                                    <span className="text-[9px] font-bold text-white/30 mr-1">USD</span>
+                                </div>
+                            </div>
+                            <p className="text-[9.5px] text-white/50 font-bold px-2">{currentPrice.label}</p>
+
+                            <button
+                                onClick={onAffiliateStart}
+                                className="inline-block px-3 py-1 mt-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/40 rounded-lg cursor-pointer transition-colors"
+                            >
+                                <p className="text-[9px] font-bold text-emerald-400 flex items-center gap-1">
+                                    💡 ادعي صحابك واربح {commissionAmount}ج كاش فوري! (10% مدى الحياة) <span className="underline">التفاصيل</span>
+                                </p>
+                            </button>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2 pt-1">
+                            <button
+                                onClick={() => setShowBattleStation(true)}
+                                className="group relative w-full py-3 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 text-black rounded-[18px] font-black text-sm hover:scale-[1.01] active:scale-[0.98] transition-all shadow-[0_0_30px_rgba(16,185,129,0.28)] flex items-center justify-center gap-2 overflow-hidden cursor-pointer"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                                <Eye className="w-4 h-4 text-black" />
+                                <span>ابدأ الأسبوع المجاني مع جارفيس (7 أيام)</span>
+                            </button>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => onSelectPlan(selectedTier, billingCycle)}
+                                    className="flex-[2] py-3 bg-[#151515] hover:bg-[#1a1a1a] text-purple-400 border border-white/10 rounded-[16px] font-bold text-xs transition-all flex items-center justify-center gap-2 hover:border-purple-500/30 cursor-pointer"
+                                >
+                                    <Zap className="w-4 h-4" /> تفعيل الاشتراك المباشر
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (onLoginClick) onLoginClick();
+                                        else onSelectPlan(selectedTier, billingCycle);
+                                    }}
+                                    className="flex-1 py-3 bg-white/[0.03] hover:bg-white/[0.08] text-white/60 hover:text-white border border-white/10 rounded-[16px] font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <UserCheck className="w-4 h-4" /> دخول
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        {/* 3. FOOTER ACTIONS (Bottom) */}
-        <div className="shrink-0 w-full space-y-2 pb-6">
-             {/* Tier Selector: 5 Official Tiers (2.5K - 5K - 10K - 25K - 50K) */}
-             <div className="flex justify-center mb-1 overflow-x-auto scrollbar-none py-1">
-               <div className="bg-black/80 p-1 rounded-2xl border border-white/10 flex gap-1 text-[10.5px] font-black select-none max-w-full">
-                 {(['tier_2500', 'tier_5000', 'tier_10000', 'tier_25000', 'tier_50000'] as const).map((tierKey) => {
-                   const isSelected = selectedTier === tierKey;
-                   return (
-                     <button
-                       key={tierKey}
-                       onClick={() => setSelectedTier(tierKey)}
-                       className={`px-2.5 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1 ${
-                         isSelected
-                           ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg shadow-amber-500/25 font-black scale-105'
-                           : 'text-white/60 hover:text-white bg-white/5 border border-white/5'
-                       }`}
-                     >
-                       <span>{tierPrices[tierKey].name}</span>
-                     </button>
-                   );
-                 })}
-               </div>
-             </div>
-
-             {/* 50% Ad Allocation Guaranteed Badge */}
-             <div className="flex justify-center">
-               <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-0.5 rounded-full flex items-center gap-1">
-                 <Sparkles className="w-3 h-3 text-amber-400" />
-                 {tierPrices[selectedTier].adBadge} (50% من قيمة الباقة)
-               </span>
-             </div>
-
-             <div className="text-center space-y-1 mb-2">
-                 {billingCycle === 'yearly' && currentPrice.discount && (
-                     <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black rounded animate-pulse border border-emerald-500/20">
-                         {currentPrice.discount}
-                     </span>
-                 )}
-                 <div className="flex items-end justify-center gap-2 leading-none">
-                    <div className="flex items-baseline">
-                        <span className="text-3xl md:text-4xl font-black text-white tracking-tighter">{currentPrice.egp}</span>
-                        <span className="text-[10px] font-bold text-white/50 mr-1">EGP</span>
-                    </div>
-                    <span className="text-white/20 text-lg font-thin">/</span>
-                    <div className="flex items-baseline">
-                        <span className="text-xl font-bold text-white/70">{currentPrice.usd}</span>
-                        <span className="text-[9px] font-bold text-white/30 mr-1">USD</span>
-                    </div>
-                 </div>
-                 <p className="text-[9px] text-white/40 font-bold px-2">{currentPrice.label}</p>
-                 
-                 <button 
-                    onClick={onAffiliateStart} 
-                    className="inline-block px-3 py-1 mt-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/40 rounded-lg animate-pulse cursor-pointer transition-colors"
-                 >
-                    <p className="text-[9px] font-bold text-emerald-400 flex items-center gap-1">
-                        💡 ادعي صحابك واربح {commissionAmount}ج كاش فوري! (10% مدى الحياة) <span className="underline">التفاصيل</span>
-                    </p>
-                 </button>
-             </div>
-
-             <div className="space-y-2">
-                <button 
-                  onClick={() => setShowBattleStation(true)} 
-                  className="group relative w-full py-3.5 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 text-black rounded-[20px] font-black text-base hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_40px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 overflow-hidden"
-                >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                    <Eye className="w-5 h-5 text-black" /> 
-                    <span>ابدأ الأسبوع المجاني مع جارفيس (7 أيام)</span>
-                </button>
-                
-                <div className="flex gap-2">
-                    <button onClick={() => onSelectPlan(selectedTier, billingCycle)} className="flex-[2] py-3.5 bg-[#151515] hover:bg-[#1a1a1a] text-purple-400 border border-white/10 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2 hover:border-purple-500/30">
-                        <Zap className="w-4 h-4" /> تفعيل الاشتراك المباشر
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (onLoginClick) onLoginClick();
-                        else onSelectPlan(selectedTier, billingCycle);
-                      }} 
-                      className="flex-1 py-3.5 bg-transparent hover:bg-white/5 text-white/40 hover:text-white border border-white/5 rounded-[18px] font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                        <UserCheck className="w-4 h-4" /> دخول
-                    </button>
-                </div>
-             </div>
         </div>
 
       </div>
