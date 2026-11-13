@@ -1382,7 +1382,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   };
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center font-['Cairo'] transition-all duration-300 ${
+    <div className={`fixed inset-0 z-[9995] flex items-center justify-center font-['Cairo'] transition-all duration-300 ${
       isFullscreen ? 'p-0 bg-[#01030a]' : 'p-2 md:p-4 bg-black/80'
     }`} dir="rtl">
       
@@ -1416,60 +1416,52 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </span>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 text-[10.5px] font-mono text-cyan-300/80 border-r border-cyan-500/20 pr-3">
-              <span className="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-bold">
-                {allBrandsList.length || realStats.totalVaultBrandsCount || 0} UNIFIED BRANDS
-              </span>
-              <span className="px-2 py-0.5 rounded bg-fuchsia-500/15 border border-fuchsia-500/35 text-fuchsia-300 font-bold">
-                OBSIDIAN 2-WAY VAULT
-              </span>
-              <span className="text-cyan-300 font-bold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
-                UNIFIED BRAIN // ONLINE
+            <div className="hidden sm:flex items-center gap-2 text-[11px] font-['Cairo'] border-r border-white/10 pr-3">
+              <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/25 text-cyan-200 font-bold">
+                {allBrandsList.length || realStats.totalVaultBrandsCount || 0} براند متصل
               </span>
             </div>
           </div>
 
-          {/* Center: System Title */}
+          {/* Center: Clean Minimalist Title */}
           <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-cyan-400 animate-pulse drop-shadow-[0_0_8px_#00f0ff]" />
-            <h1 className="text-xs md:text-sm font-black tracking-widest text-white uppercase font-mono drop-shadow-[0_0_10px_rgba(0,240,255,0.5)]">
-              JARVIS SECOND BRAIN OS // FIBER-OPTIC EDITION
+            <Cpu className="w-4 h-4 text-cyan-400" />
+            <h1 className="text-xs md:text-sm font-black tracking-wider text-white/95 font-['Cairo']">
+              جارفس <span className="text-cyan-400">//</span> العقل التنفيذي الموحد
             </h1>
           </div>
 
-          {/* Right: Multi-Window Super View, Executive Actuator, Fullscreen, Mute, Close */}
-          <div className="flex items-center gap-2">
-            {/* Multi-Window Brand Super-Window Trigger */}
+          {/* Right: Sleek Unified Glass Action Buttons */}
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => {
                 handleInspectObsidianNode(currentSelectedBrand.id);
                 setIsBrandSuperWindowOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/25 via-blue-500/25 to-fuchsia-500/25 hover:from-cyan-500/40 hover:to-fuchsia-500/40 text-cyan-200 border border-cyan-400/60 font-black text-xs shadow-[0_0_18px_rgba(0,240,255,0.3)] transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-cyan-500/15 text-slate-100 border border-white/10 hover:border-cyan-400/40 font-bold text-xs transition-all cursor-pointer"
             >
               <Layers className="w-3.5 h-3.5 text-cyan-300" />
-              نافذة البراند الشاملة (4 شاشات)
+              <span>شاشة البراند</span>
             </button>
 
-            {/* Executive Browser Actuator Button */}
             <button
               onClick={() => setIsExecutiveOpen(!isExecutiveOpen)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
                 isExecutiveOpen
-                  ? 'bg-amber-500 text-black shadow-[0_0_20px_rgba(245,158,11,0.5)]'
-                  : 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
+                  ? 'bg-cyan-400 text-slate-950 border-cyan-300'
+                  : 'bg-white/[0.06] hover:bg-cyan-500/15 text-slate-100 border-white/10 hover:border-cyan-400/40'
               }`}
             >
-              <Zap className="w-3.5 h-3.5 fill-current" />
-              المتصفح التنفيذي
+              <Zap className="w-3.5 h-3.5 text-cyan-300" />
+              <span>المتصفح التنفيذي</span>
             </button>
 
             <button
               onClick={() => setIsOnboardingOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-black text-xs shadow-md transition-all"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs transition-all cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              تسجيل براند جديد
+              <span>براند جديد</span>
             </button>
 
             <button
@@ -1510,11 +1502,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         </div>
 
         {/* MAIN HUD INTERACTION VIEWPORT (3 Sci-Fi Columns With Mobile-First Spatial Hierarchy) */}
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-between p-1.5 md:p-2.5 overflow-y-auto w-full max-w-[96vw] xl:max-w-[1780px] mx-auto">
+        <div className={`relative z-10 flex-1 min-h-0 flex flex-col items-center justify-between p-1.5 md:p-2.5 w-full max-w-[96vw] xl:max-w-[1780px] mx-auto ${activeDeckTab === 'obsidian_graph' && !activeDynamicWidget ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
           {/* CENTER HERO: THE HOLOGRAPHIC ARC REACTOR CORE (6 Cols)    */}
           {/* ========================================================= */}
-          <div className="w-full flex flex-col items-center justify-between gap-1.5 py-0 mx-auto font-['Cairo']">
+          <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-between gap-1 py-0 mx-auto font-['Cairo']">
             
             {/* Triage Persona Switcher (Top of Center) - Protected for Master Admin */}
             {isMasterAdmin ? (
@@ -1774,9 +1766,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             {/* TAB 0A: 2026 SOVEREIGN 3D HOLOGRAPHIC NEURAL CONSTELLATION (OPEN SPACE HERO THEATER) */}
             {activeDeckTab === 'obsidian_graph' && (
-              <div className="w-full flex flex-col gap-3 animate-in fade-in duration-300 font-['Cairo'] text-right">
-                {/* OPEN 3D HOLOGRAPHIC SPACE — ZERO CLUNKY BOXES */}
-                <div className="w-full h-[calc(100vh-290px)] min-h-[380px] relative">
+              <div className="w-full flex-1 min-h-0 flex flex-col gap-1.5 animate-in fade-in duration-300 font-['Cairo'] text-right">
+                {/* OPEN 3D HOLOGRAPHIC SPACE — FITS 100% IN VIEWPORT WITHOUT SCROLL */}
+                <div className="w-full flex-1 min-h-[260px] relative">
                   <ObsidianHolographicConstellation
                     brands={allBrandsList.map((b) => ({
                       id: b.id,
