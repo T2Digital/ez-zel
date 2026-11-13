@@ -13,6 +13,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { synthesizeTrack } from "./services/musicSynthesizer";
 import { synthesizeEdgeSpeech, synthesizeSpeechAudio, pcmToWavBuffer } from "./services/edgeSpeechSynthesizer";
 import { BRAND_VAULT } from "./services/brandVault";
+import { getGeneratedMediaDir } from "./services/mediaStorageService";
 import {
     createMetaPage,
     getMetaAdAccounts,
@@ -390,6 +391,7 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
   app.use('/uploads', express.static(path.join(process.cwd(), 'dist', 'uploads')));
+  app.use('/media/generated', express.static(getGeneratedMediaDir()));
 
   // Mount Sovereign Microservices API Gateway (Webhooks, Realtime SSE & Service Fleet Orchestrator)
   setupMicroservicesGateway(app);
@@ -400,6 +402,98 @@ async function startServer() {
 
   app.get("/api/health", (_req, res) => {
       res.json({ ok: true, uptime: process.uptime() });
+  });
+
+  // --- JARVIS 2026: POST-TO-CAROUSEL / REEL TRANSFORMER & CLIENT PORTAL --- //
+  app.post("/api/jarvis/transform-post", async (req, res) => {
+      try {
+          const { brandId, hook, caption, mode = "carousel" } = req.body || {};
+          const { getUnifiedGrowthBrands } = await import("./services/obsidianVaultService");
+          const brands = getUnifiedGrowthBrands();
+          const brand = brands.find((b: any) => b.id === brandId || b.slug === brandId) || brands[0];
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+
+          const ai = new GoogleGenAI({ apiKey });
+          const isReel = mode === "reel";
+          const prompt = isReel
+            ? `أنت مخرج محتوى مصري محترف. حوّل البوست التالي لبراند "${brand?.name || 'تيتو ميديا'}" إلى سكريبت Reel قصير (30-45 ثانية) باللهجة المصرية + برومبت إنجليزي لـ Google Flow / Veo 3.1.
+العنوان: ${hook || ''}
+النص: ${caption || ''}
+أعد JSON فقط بهذا الشكل:
+{"title": "...", "duration": "35s", "hookLine": "...", "scenes": [{"time": "0-5s", "visual": "...", "voiceover": "..."}], "veoPrompt": "...", "cta": "..."}`
+            : `أنت مصمم سوشيال ميديا مصري محترف. حوّل البوست التالي لبراند "${brand?.name || 'تيتو ميديا'}" إلى Carousel من 5 سلايدات احترافية باللهجة المصرية.
+العنوان: ${hook || ''}
+النص: ${caption || ''}
+أعد JSON فقط بهذا الشكل:
+{"title": "...", "slides": [{"slideNumber": 1, "headline": "...", "body": "...", "visualCue": "..."}], "cta": "..."}`;
+
+          let parsed: any = null;
+          for (const model of ["gemini-3.1-flash-lite", "gemini-2.5-flash"]) {
+              try {
+                  const r = await ai.models.generateContent({
+                      model,
+                      contents: prompt,
+                      config: { responseMimeType: "application/json" }
+                  });
+                  parsed = JSON.parse((r.text || "").trim());
+                  break;
+              } catch {}
+          }
+          if (!parsed) return res.status(502).json({ error: "Failed to transform post" });
+          res.json({ ok: true, mode, brandName: brand?.name, data: parsed });
+      } catch (err: any) {
+          res.status(500).json({ error: err?.message || "Transform failed" });
+      }
+  });
+
+  app.get("/api/client-portal/:slug", async (req, res) => {
+      try {
+          const slug = String(req.params.slug || "").toLowerCase();
+          const { getUnifiedGrowthBrands } = await import("./services/obsidianVaultService");
+          const brands = getUnifiedGrowthBrands();
+          const brand = brands.find(
+              (b: any) =>
+                  String(b.slug || "").toLowerCase() === slug ||
+                  String(b.id || "").toLowerCase() === slug
+          );
+          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+          res.json({ ok: true, brand });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Portal error" });
+      }
+  });
+
+  app.post("/api/client-portal/:slug/approve-post", async (req, res) => {
+      try {
+          const slug = String(req.params.slug || "").toLowerCase();
+          const { postIndex, decision = "approved", feedback = "" } = req.body || {};
+          const { getUnifiedGrowthBrands, persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
+          const brands = getUnifiedGrowthBrands();
+          const brand: any = brands.find(
+              (b: any) =>
+                  String(b.slug || "").toLowerCase() === slug ||
+                  String(b.id || "").toLowerCase() === slug
+          );
+          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+
+          const plan = Array.isArray(brand.weekContentPlan) ? [...brand.weekContentPlan] : [];
+          const idx = Number(postIndex);
+          if (!Number.isInteger(idx) || idx < 0 || idx >= plan.length) {
+              return res.status(400).json({ ok: false, error: "Invalid postIndex" });
+          }
+          plan[idx] = {
+              ...plan[idx],
+              clientApproval: decision,
+              clientFeedback: feedback,
+              status: decision === "approved" ? "scheduled" : "revision_requested",
+              updatedAt: new Date().toISOString()
+          };
+          const updatedBrand = persistBrandUpdateAcrossEcosystem(brand.id || brand.slug, { weekContentPlan: plan }) || { ...brand, weekContentPlan: plan };
+          res.json({ ok: true, post: plan[idx], brand: updatedBrand });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Approval failed" });
+      }
   });
 
   // --- AUTOMATED APP CLONER & MARKET CRAWLER API --- //

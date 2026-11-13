@@ -23,6 +23,7 @@ import { JarvisContentPostCard } from './jarvis/JarvisContentPostCard';
 import { JarvisStudioCalendarDeck } from './jarvis/JarvisStudioCalendarDeck';
 import { JarvisAgentFleetDeck } from './jarvis/JarvisAgentFleetDeck';
 import { JarvisArcReactorCore } from './jarvis/JarvisArcReactorCore';
+import { JarvisDynamicWidgetHUD } from './jarvis/JarvisDynamicWidgetHUD';
 import { JarvisConnectionModals } from './jarvis/JarvisConnectionModals';
 import { jarvisVoiceSocket, VoiceSocketState } from '../services/jarvisVoiceSocketService';
 import { BRAND_VAULT } from '../services/brandVault';
@@ -139,6 +140,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview'>('obsidian_graph');
   const [isExecutingAutonomousAgency, setIsExecutingAutonomousAgency] = useState<boolean>(false);
   const [autonomousAgencyData, setAutonomousAgencyData] = useState<any>(null);
+  const [activeDynamicWidget, setActiveDynamicWidget] = useState<{ widgetType: string; data: any } | null>(null);
   
   // Obsidian Knowledge Graph & Agency Telemetry State
   const [obsidianSnapshot, setObsidianSnapshot] = useState<any>(null);
@@ -1234,6 +1236,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             } else if (data.action.modal === 'brand_super_window' && persona !== 'visitor') {
               setIsBrandSuperWindowOpen(true);
             }
+          } else if (data.action.type === 'DYNAMIC_WIDGET') {
+            if (data.action.brandId) handleSelectBrand(data.action.brandId);
+            setActiveDynamicWidget({ widgetType: data.action.widgetType || 'analytics_kpis', data: data.action.data || {} });
           } else if (data.action.type === 'TRIGGER_ACTION') {
             if (data.action.brandId) {
               handleSelectBrand(data.action.brandId);
@@ -1713,6 +1718,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                 )}
 
+            {activeDynamicWidget && (
+              <JarvisDynamicWidgetHUD
+                widget={activeDynamicWidget}
+                onClose={() => setActiveDynamicWidget(null)}
+                onOpenCalendar={(bId) => { setActiveDynamicWidget(null); handleSelectBrand(bId); setActiveDeckTab('studio_calendar'); }}
+              />
+            )}
+
             {/* TAB 0A: 2026 SOVEREIGN 3D HOLOGRAPHIC NEURAL CONSTELLATION (OPEN SPACE HERO THEATER) */}
             {activeDeckTab === 'obsidian_graph' && (
               <div className="w-full flex flex-col gap-3 animate-in fade-in duration-300 font-['Cairo'] text-right">
@@ -1832,6 +1845,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 handleLaunchAdForPost={handleLaunchAdForPost}
                 isLaunchingCampaign={isLaunchingCampaign}
                 onBackToCalendar={() => setActiveDeckTab('studio_calendar')}
+                onTransformResult={(widgetType, data) => setActiveDynamicWidget({ widgetType, data })}
               />
             )}
 

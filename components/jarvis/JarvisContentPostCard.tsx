@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { CheckCircle2, Sparkles, Send, TrendingUp, Calendar, Layers, Cpu } from 'lucide-react';
+import { CheckCircle2, Sparkles, Send, TrendingUp, Calendar, Layers, Cpu, Film } from 'lucide-react';
 import { toast } from './jarvisToast';
 import { playShadowVoice } from '../../services/speechService';
 
@@ -15,6 +15,7 @@ export interface JarvisContentPostCardProps {
   handleLaunchAdForPost: (post: any) => Promise<void>;
   isLaunchingCampaign: boolean;
   onBackToCalendar: () => void;
+  onTransformResult?: (widgetType: string, data: any) => void;
 }
 
 export const JarvisContentPostCard: React.FC<JarvisContentPostCardProps> = ({
@@ -27,9 +28,38 @@ export const JarvisContentPostCard: React.FC<JarvisContentPostCardProps> = ({
   isApprovingSchedule,
   handleLaunchAdForPost,
   isLaunchingCampaign,
-  onBackToCalendar
+  onBackToCalendar,
+  onTransformResult
 }) => {
   const [turboFlowVideoUrlInput, setTurboFlowVideoUrlInput] = useState('');
+  const [showWatermark, setShowWatermark] = useState(true);
+  const [isTransforming, setIsTransforming] = useState<string | null>(null);
+
+  const handleTransform = async (mode: 'carousel' | 'reel') => {
+    setIsTransforming(mode);
+    try {
+      const res = await fetch('/api/jarvis/transform-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: currentSelectedBrand?.id,
+          hook: displayHook,
+          caption: displayCaption,
+          mode,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok && onTransformResult) {
+        onTransformResult(mode === 'carousel' ? 'carousel_result' : 'reel_result', json.data);
+      } else {
+        toast.error(json.error || 'تعذر تحويل البوست');
+      }
+    } catch {
+      toast.error('فشل الاتصال بمحرك التحويل');
+    } finally {
+      setIsTransforming(null);
+    }
+  };
 
   const activePost = selectedPost || currentSelectedBrand?.weekContentPlan?.[0] || {};
   const visualSrc = activePost?.videoUrl || activePost?.visualUrl || '';
@@ -118,6 +148,17 @@ export const JarvisContentPostCard: React.FC<JarvisContentPostCardProps> = ({
             <span className="text-[10px] text-cyan-300/90 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-400/25 font-bold">
               {activePost?.contentType || 'AI Visual Ready'}
             </span>
+          </div>
+        )}
+
+        {/* Brand Identity Watermark Overlay */}
+        {showWatermark && (
+          <div className="pointer-events-none absolute top-3 right-3 px-2.5 py-1 rounded-xl bg-[#020813]/75 backdrop-blur-md border border-cyan-400/30 flex items-center gap-2 text-[10px]">
+            <span className="w-2 h-2 rounded-full bg-cyan-400" />
+            <span className="font-black text-white">{currentSelectedBrand?.name || 'تيتو ميديا'}</span>
+            {currentSelectedBrand?.phone && (
+              <span className="text-cyan-300 font-mono">{currentSelectedBrand.phone}</span>
+            )}
           </div>
         )}
 
@@ -216,6 +257,34 @@ export const JarvisContentPostCard: React.FC<JarvisContentPostCardProps> = ({
           }
           className="w-full text-xs text-slate-100 leading-relaxed bg-white/[0.04] hover:bg-white/[0.06] focus:bg-white/[0.07] p-3 rounded-2xl border border-white/10 focus:border-cyan-400/50 focus:outline-none resize-none transition"
         />
+      </div>
+
+      {/* Media Repurpose & Watermark Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[10.5px]">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => handleTransform('carousel')}
+            disabled={isTransforming !== null}
+            className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/40 text-cyan-200 font-bold flex items-center gap-1 transition cursor-pointer"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>{isTransforming === 'carousel' ? 'جاري التحويل...' : 'حوّله لكاروسيل 5 سلايدات'}</span>
+          </button>
+          <button
+            onClick={() => handleTransform('reel')}
+            disabled={isTransforming !== null}
+            className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-purple-500/20 border border-white/10 hover:border-purple-400/40 text-purple-200 font-bold flex items-center gap-1 transition cursor-pointer"
+          >
+            <Film className="w-3.5 h-3.5" />
+            <span>{isTransforming === 'reel' ? 'جاري التحويل...' : 'سكريبت Reel + Veo'}</span>
+          </button>
+        </div>
+        <button
+          onClick={() => setShowWatermark((w) => !w)}
+          className="px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 text-[10px] font-bold cursor-pointer"
+        >
+          {showWatermark ? 'إخفاء توقيع البراند' : 'إظهار توقيع البراند'}
+        </button>
       </div>
 
       {/* 2026 Spatial Action Dock */}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, Suspense, lazy } from "react";
-import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAppStore } from "../services/store";
 import { Loader2, Fingerprint, ShieldCheck, Clock, LogOut, RefreshCw } from "lucide-react";
 import { shadowDB } from "../services/dbService";
@@ -16,6 +16,12 @@ const WorkspaceExplorer = lazy(() => import("./WorkspaceExplorer"));
 const AssistantWidget = lazy(() => import("./AssistantWidget").then(m => ({ default: m.AssistantWidget })));
 const MusicStudio = lazy(() => import("./MusicStudio").then(m => ({ default: m.MusicStudio })));
 const SovereignVirtualWorld3D = lazy(() => import("./SovereignVirtualWorld3D"));
+const ClientPortalView = lazy(() => import("./ClientPortalView").then(m => ({ default: m.ClientPortalView })));
+
+const ClientPortalRoute: React.FC = () => {
+  const { slug = "" } = useParams();
+  return <ClientPortalView slug={slug} />;
+};
 
 export const AppRoutes: React.FC = () => {
   const navigate = useNavigate();
@@ -152,6 +158,7 @@ export const AppRoutes: React.FC = () => {
       </div>
     }>
       <Routes>
+      <Route path="/client/:slug" element={<ClientPortalRoute />} />
       <Route
         path="/loading"
         element={

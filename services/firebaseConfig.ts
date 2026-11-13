@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { initializeFirestore, memoryLocalCache, getFirestore } from "firebase/firestore";
+import { initializeFirestore, memoryLocalCache, getFirestore, setLogLevel } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import firebaseConfigData from '../firebase-applet-config.json';
 
@@ -12,6 +12,7 @@ try {
     if (firebaseConfigData.apiKey && firebaseConfigData.apiKey.length > 5) {
         if (!getApps().length) {
             app = initializeApp(firebaseConfigData);
+            setLogLevel('silent');
             // Initialize Firestore with memory cache to avoid IndexedDB corruption/assertion issues
             db = initializeFirestore(app, { 
                 localCache: memoryLocalCache(),

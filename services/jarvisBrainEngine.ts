@@ -3,9 +3,11 @@ import {
   executeRealJarvisEcosystemAction,
   getUnifiedGrowthBrands,
   getEzZelPersonalClients,
+  persistBrandUpdateAcrossEcosystem,
 } from "./obsidianVaultService";
 import { titoStudioApi } from "./titoStudioApiClient";
 import { syncBrandToAllEcosystems } from "./universalBrandSync";
+import { saveGeneratedMedia } from "./mediaStorageService";
 
 export interface JarvisBrainInput {
   message: string;
@@ -395,6 +397,34 @@ const jarvisBrainTools: FunctionDeclaration[] = [
       required: ["action"],
     },
   },
+  {
+    name: "show_dynamic_widget",
+    description:
+      "عرض Widget ديناميكي تفاعلي فوق الشبكة العصبية حسب طلب المستخدم: مؤشرات أداء وتحليلات حية، مقارنة بين براندين، ملف DNA البراند والطيار الآلي، أو مخطط حملة إعلانية.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        widgetType: {
+          type: Type.STRING,
+          enum: ["analytics_kpis", "brand_comparison", "brand_dna", "whatsapp_insights", "campaign_planner"],
+        },
+        brandNameOrId: { type: Type.STRING },
+        secondBrandNameOrId: { type: Type.STRING, description: "يُستخدم عند مقارنة براندين." },
+      },
+      required: ["widgetType"],
+    },
+  },
+  {
+    name: "whatsapp_to_content_loop",
+    description:
+      "تحويل أكثر أسئلة العملاء المتكررة على الواتساب إلى أفكار وبوستات حقيقية مجدولة في تقويم تيتو ستوديو للبراند.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        brandNameOrId: { type: Type.STRING },
+      },
+    },
+  },
 ];
 
 function buildPersonaSystemPrompt(
@@ -714,6 +744,15 @@ ${
             }
           }
 
+          if (visualUrl && visualUrl.startsWith("data:image/")) {
+            try {
+              const savedMedia = saveGeneratedMedia(visualUrl, targetBrand.slug || brandId);
+              visualUrl = savedMedia.publicUrl;
+            } catch (saveErr: any) {
+              console.warn("[Jarvis Studio Visual] Failed to persist media to disk, keeping data URL:", saveErr?.message);
+            }
+          }
+
           backendExecutionResult = await executeRealJarvisEcosystemAction({
             actionType: "CREATE_CUSTOM_STUDIO_POST",
             brandId,
@@ -745,6 +784,103 @@ ${
             action: publishNow ? "PUBLISH_POST" : undefined,
             brandId,
             result: backendExecutionResult,
+          };
+        }
+        break;
+      }
+
+      case "show_dynamic_widget": {
+        const widgetType = String(args.widgetType || "analytics_kpis");
+        const primaryBrand = targetBrand || unifiedBrands[0];
+        const secondQuery = String(args.secondBrandNameOrId || "").trim().toLowerCase();
+        const secondBrand = secondQuery
+          ? unifiedBrands.find((b) =>
+              String(b.id || "").toLowerCase() === secondQuery ||
+              String(b.slug || "").toLowerCase() === secondQuery ||
+              String(b.name || "").toLowerCase().includes(secondQuery)
+            )
+          : unifiedBrands.find((b) => b.id !== primaryBrand?.id) || unifiedBrands[1];
+
+        const totalPosts = unifiedBrands.reduce((sum, b) => sum + (b.weekContentPlan?.length || 0), 0);
+        const totalProducts = unifiedBrands.reduce((sum, b) => sum + (b.catalog?.length || 0), 0);
+
+        backendExecutionResult = {
+          widgetType,
+          brand: primaryBrand,
+          secondBrand,
+          portalUrl: primaryBrand ? `/client/${primaryBrand.slug || primaryBrand.id}` : "/client/tito_media",
+          summary: {
+            totalBrands: unifiedBrands.length,
+            ezzelClientsCount: ezzelClients.length,
+            totalPosts,
+            totalProducts,
+          },
+        };
+
+        executedAction = {
+          type: "DYNAMIC_WIDGET",
+          widgetType,
+          brandId: primaryBrand?.id,
+          data: backendExecutionResult,
+        };
+        break;
+      }
+
+      case "whatsapp_to_content_loop": {
+        const b: any = targetBrand || unifiedBrands[0];
+        if (b) {
+          let generatedIdeas: any[] = [];
+          const loopPrompt = `أنت مدير تسويق مصري ذكي. حلل طبيعة نشاط "${b.name}" (${b.businessType || "خدمات رقمية"}) وتوقّع أهم 3 أسئلة بيسألها العملاء على الواتساب يومياً، وحوّل كل سؤال إلى بوست تسويقي جاهز باللهجة المصرية.
+أعد JSON فقط كمصفوفة: [{"question": "...", "hook": "...", "caption": "...", "contentType": "تصميم Feed (1:1)"}]`;
+          for (const m of ["gemini-3.1-flash-lite", "gemini-2.5-flash"]) {
+            try {
+              const r = await ai.models.generateContent({
+                model: m,
+                contents: loopPrompt,
+                config: { responseMimeType: "application/json" },
+              });
+              const parsed = JSON.parse((r.text || "").trim());
+              if (Array.isArray(parsed)) {
+                generatedIdeas = parsed;
+                break;
+              }
+            } catch {}
+          }
+
+          if (generatedIdeas.length > 0) {
+            const newPosts = generatedIdeas.map((idea, idx) => ({
+              id: `wa_loop_${Date.now()}_${idx}`,
+              day: `مقترح واتساب #${idx + 1}`,
+              platform: "Instagram & Facebook (Meta Graph)",
+              contentType: idea.contentType || "تصميم Feed (1:1)",
+              hook: idea.hook,
+              caption: idea.caption,
+              sourceQuestion: idea.question,
+              status: "scheduled",
+            }));
+            const nextPlan = [...newPosts, ...(b.weekContentPlan || [])].slice(0, 14);
+            const updatedBrand = persistBrandUpdateAcrossEcosystem(b.id || b.slug, { weekContentPlan: nextPlan }) || {
+              ...b,
+              weekContentPlan: nextPlan,
+            };
+            backendExecutionResult = {
+              widgetType: "whatsapp_insights",
+              brand: updatedBrand,
+              generatedPosts: newPosts,
+            };
+          } else {
+            backendExecutionResult = {
+              widgetType: "whatsapp_insights",
+              brand: b,
+              generatedPosts: [],
+            };
+          }
+
+          executedAction = {
+            type: "DYNAMIC_WIDGET",
+            widgetType: "whatsapp_insights",
+            brandId: b.id,
+            data: backendExecutionResult,
           };
         }
         break;
