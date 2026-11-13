@@ -1250,8 +1250,8 @@ export async function executeRealJarvisEcosystemAction(input: {
             const publishNow = !!data.publishNow;
 
             const isVideo = mediaFormat === 'video';
-            const hook = `🔥 جديد وحصري من ${targetBrand.name}: ${topic}!`;
-            const caption = `${hook}\n\nاحجز الآن مباشرة واستفد من الخصم الاستثنائي للحجز المسبق وعربون 25% مع إمكانية الدفع عبر إنستاباي وفودافون كاش.\nتواصل واتساب فوراً: ${targetBrand.phone || '01013373634'}\nأو احجز من التطبيق: /store/${targetBrand.slug || targetBrand.id}`;
+            const hook = data.customHook || `🔥 جديد وحصري من ${targetBrand.name}: ${topic}!`;
+            const caption = data.customCaption || `${hook}\n\nاحجز الآن مباشرة واستفد من الخصم الاستثنائي للحجز المسبق وعربون 25% مع إمكانية الدفع عبر إنستاباي وفودافون كاش.\nتواصل واتساب فوراً: ${targetBrand.phone || '01013373634'}\nأو احجز من التطبيق: /store/${targetBrand.slug || targetBrand.id}`;
 
             const docId = `custom_post_${Date.now()}`;
             const postItem: any = {
@@ -1261,6 +1261,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 contentType: isVideo ? 'فيديو ريلز وتيك توك (9:16)' : 'تصميم Feed (1:1)',
                 hook,
                 caption,
+                visualUrl: data.visualUrl || undefined,
                 bestTime: scheduleTime,
                 status: publishNow ? 'published' : 'scheduled',
                 ctaType: 'WHATSAPP_VOICE_AGENT',

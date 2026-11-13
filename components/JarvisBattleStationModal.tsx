@@ -1205,6 +1205,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 handleSelectBrand(data.action.brandId);
                 handleInspectObsidianNode(data.action.brandId);
               }
+              if (data.action.result?.post) {
+                setSelectedPost(data.action.result.post);
+              }
             }
           } else if (data.action.type === 'VISITOR_DIAGNOSTIC_UPDATE' && data.action.visitorUpdate) {
             const upd = data.action.visitorUpdate;
@@ -1232,10 +1235,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               setIsBrandSuperWindowOpen(true);
             }
           } else if (data.action.type === 'TRIGGER_ACTION') {
+            if (data.action.brandId) {
+              handleSelectBrand(data.action.brandId);
+            }
+            if (data.action.result?.post) {
+              setSelectedPost(data.action.result.post);
+            }
             if (data.action.action === 'PUBLISH_POST') {
               handlePublishPost(data.action.brandId || selectedBrandId, 0);
             } else if (data.action.action === 'LAUNCH_CAMPAIGN') {
-              handleLaunchAdForPost(selectedPost);
+              handleLaunchAdForPost(data.action.result?.post || selectedPost);
             }
           } else if (data.action.type === 'RUN_SANDBOX') {
             setActiveDeckTab('studio_calendar');

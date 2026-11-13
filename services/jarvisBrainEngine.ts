@@ -632,18 +632,85 @@ ${
             result: backendExecutionResult,
           };
         } else {
+          // 1. Generate bespoke AI Egyptian Arabic copy tailored to the exact user prompt
+          let customHook = `🚀 ${dynamicTopic}`;
+          let customCaption = "";
+          try {
+            const copyResp = await ai.models.generateContent({
+              model: "gemini-3.1-flash-lite",
+              contents: `أنت مدير المحتوى الإبداعي في تيتو ستوديو. اكتب منشور سوشيال ميديا احترافي وجذاب باللهجة المصرية العصرية لبراند "${targetBrand.name}" (${targetBrand.businessType || "النمو الرقمي والأتمتة"}).
+الموضوع المطلوب من المستخدم: "${message}" (Topic: ${dynamicTopic}).
+رجّع النتيجة كـ JSON فقط بهذا الشكل:
+{"hook": "عنوان خاطف قوي في سطر واحد", "caption": "نص البوست الكامل باللهجة المصرية مع إيموجيز وCTA واضح للتواصل على ${targetBrand.phone || "01013373634"}", "imagePrompt": "وصف إنجليزي دقيق لصورة إعلانية فخمة بأسلوب مستقبلي 2026 بدون أي نصوص مكتوبة داخل الصورة"}`,
+              config: { responseMimeType: "application/json", temperature: 0.7 },
+            });
+            const parsedCopy = JSON.parse(copyResp?.text || "{}");
+            if (parsedCopy.hook) customHook = parsedCopy.hook;
+            if (parsedCopy.caption) customCaption = parsedCopy.caption;
+            if (parsedCopy.imagePrompt) {
+              var generatedImagePrompt = parsedCopy.imagePrompt;
+            }
+          } catch (copyErr: any) {
+            console.warn("[Jarvis Brain] AI copy generation warning:", copyErr?.message);
+          }
+
+          // 2. Generate real AI visual (Try Tito Studio Cloud API first, then local Gemini Imagen)
+          let visualUrl: string | undefined = undefined;
+          const imgPrompt =
+            (typeof generatedImagePrompt !== "undefined" && generatedImagePrompt) ||
+            `Futuristic 2026 holographic AI command center representing ${targetBrand.name} and ${dynamicTopic}, dark obsidian glass, glowing cyan and electric violet neon neural network, ultra-clean commercial photography, no text`;
+
+          try {
+            const studioImgRes = await titoStudioApi.generateGeminiImage(imgPrompt);
+            const b64 = studioImgRes?.generatedImages?.[0]?.image?.imageBytes;
+            if (b64) visualUrl = `data:image/png;base64,${b64}`;
+          } catch {
+            // Fallback to server-side Gemini image generation
+            for (const imgModel of ["gemini-3.1-flash-lite-image", "imagen-3.0-generate-002"]) {
+              try {
+                const imgRes: any = await ai.models.generateImages({
+                  model: imgModel,
+                  prompt: imgPrompt,
+                  config: { numberOfImages: 1, aspectRatio: "1:1" },
+                });
+                const bytes = imgRes?.generatedImages?.[0]?.image?.imageBytes;
+                if (bytes) {
+                  visualUrl = `data:image/png;base64,${bytes}`;
+                  break;
+                }
+              } catch {}
+            }
+          }
+
           backendExecutionResult = await executeRealJarvisEcosystemAction({
             actionType: "CREATE_CUSTOM_STUDIO_POST",
             brandId,
             data: {
               topic: dynamicTopic,
+              customHook,
+              customCaption,
+              visualUrl,
               publishNow,
             },
           });
+
+          // Mirror to Tito Studio Cloud Run if reachable
+          try {
+            await titoStudioApi.createContent({
+              clinicId: brandId,
+              title: customHook,
+              type: "image",
+              caption: customCaption || dynamicTopic,
+              visualUrl,
+              status: publishNow ? "published" : "scheduled",
+              scheduledPlatforms: ["instagram", "facebook"],
+            });
+          } catch {}
+
           executedAction = {
-            type: publishNow ? "TRIGGER_ACTION" : "SWITCH_TAB",
+            type: "SWITCH_TAB",
+            tab: "content_post_card",
             action: publishNow ? "PUBLISH_POST" : undefined,
-            tab: publishNow ? "content_post_card" : "studio_calendar",
             brandId,
             result: backendExecutionResult,
           };
