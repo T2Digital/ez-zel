@@ -1457,6 +1457,23 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             </button>
 
             <button
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/system/ecosystem-health');
+                  const json = await res.json();
+                  if (json.ok) {
+                    setActiveDynamicWidget({ widgetType: 'ecosystem_health', data: json });
+                  }
+                } catch {}
+              }}
+              title="فحص وربط المنصات الثلاث (الظل + تيتو ستوديو + تيتو أجنت)"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-emerald-500/15 text-emerald-300 border border-white/10 hover:border-emerald-400/40 font-bold text-xs transition-all cursor-pointer"
+            >
+              <Radio className="w-3.5 h-3.5 animate-pulse" />
+              <span>رادار الربط</span>
+            </button>
+
+            <button
               onClick={() => setIsOnboardingOpen(true)}
               className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs transition-all cursor-pointer"
             >

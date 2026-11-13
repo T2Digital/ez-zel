@@ -5,8 +5,9 @@ import {
   getEzZelPersonalClients,
   persistBrandUpdateAcrossEcosystem,
 } from "./obsidianVaultService";
-import { titoStudioApi } from "./titoStudioApiClient";
-import { t2AgentApi } from "./t2AgentApiClient";
+import { titoStudioApi, getTitoStudioBaseUrl } from "./titoStudioApiClient";
+import { t2AgentApi, getT2AgentBaseUrl } from "./t2AgentApiClient";
+import { runLiveEcosystemHealthProbe } from "./ecosystemConfigService";
 import { syncBrandToAllEcosystems } from "./universalBrandSync";
 import { saveGeneratedMedia } from "./mediaStorageService";
 
@@ -455,6 +456,15 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         campaignName: { type: Type.STRING },
       },
       required: ["action"],
+    },
+  },
+  {
+    name: "check_ecosystem_health",
+    description:
+      "فحص الاتصال الحي بين المنصات الثلاث (سيرفر الظل/جارفس + تيتو ستوديو + تيتو أجنت) وفتح لوحة إعداد روابطهم ومفاتيحهم.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
     },
   },
 ];
@@ -956,6 +966,20 @@ ${
             error: err?.message || "T2 Agent Enterprise API unreachable",
           };
         }
+        break;
+      }
+
+      case "check_ecosystem_health": {
+        const report = await runLiveEcosystemHealthProbe(
+          getTitoStudioBaseUrl(),
+          getT2AgentBaseUrl()
+        );
+        backendExecutionResult = report;
+        executedAction = {
+          type: "DYNAMIC_WIDGET",
+          widgetType: "ecosystem_health",
+          data: report,
+        };
         break;
       }
 

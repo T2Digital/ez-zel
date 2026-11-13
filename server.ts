@@ -15,6 +15,14 @@ import { synthesizeEdgeSpeech, synthesizeSpeechAudio, pcmToWavBuffer } from "./s
 import { BRAND_VAULT } from "./services/brandVault";
 import { getGeneratedMediaDir } from "./services/mediaStorageService";
 import {
+    applyStoredEcosystemConfigOnBoot,
+    loadEcosystemConfig,
+    saveEcosystemConfig,
+    runLiveEcosystemHealthProbe
+} from "./services/ecosystemConfigService";
+import { getTitoStudioBaseUrl } from "./services/titoStudioApiClient";
+import { getT2AgentBaseUrl } from "./services/t2AgentApiClient";
+import {
     createMetaPage,
     getMetaAdAccounts,
     createMetaAdCampaign,
@@ -385,6 +393,7 @@ function spawnWorker() {
 spawnWorker();
 
 async function startServer() {
+  applyStoredEcosystemConfigOnBoot();
   void hydrateCriticalStateOnBoot();
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
@@ -402,6 +411,44 @@ async function startServer() {
 
   app.get("/api/health", (_req, res) => {
       res.json({ ok: true, uptime: process.uptime() });
+  });
+
+  app.get("/api/system/ecosystem-health", async (_req, res) => {
+      try {
+          const report = await runLiveEcosystemHealthProbe(
+              getTitoStudioBaseUrl(),
+              getT2AgentBaseUrl()
+          );
+          const stored = loadEcosystemConfig();
+          res.json({
+              ok: true,
+              ...report,
+              hasStudioKey: Boolean(stored.titoStudioApiKey || process.env.TITO_STUDIO_API_KEY),
+              hasAgentKey: Boolean(stored.t2AgentAdminKey || process.env.T2_AGENT_ADMIN_KEY),
+          });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Health probe failed" });
+      }
+  });
+
+  app.post("/api/system/ecosystem-config", async (req, res) => {
+      try {
+          const { titoStudioUrl, titoStudioApiKey, t2AgentUrl, t2AgentAdminKey } = req.body || {};
+          const updates: Record<string, string> = {};
+          if (typeof titoStudioUrl === "string" && titoStudioUrl.trim()) updates.titoStudioUrl = titoStudioUrl.trim();
+          if (typeof titoStudioApiKey === "string" && titoStudioApiKey.trim()) updates.titoStudioApiKey = titoStudioApiKey.trim();
+          if (typeof t2AgentUrl === "string" && t2AgentUrl.trim()) updates.t2AgentUrl = t2AgentUrl.trim();
+          if (typeof t2AgentAdminKey === "string" && t2AgentAdminKey.trim()) updates.t2AgentAdminKey = t2AgentAdminKey.trim();
+
+          saveEcosystemConfig(updates);
+          const report = await runLiveEcosystemHealthProbe(
+              getTitoStudioBaseUrl(),
+              getT2AgentBaseUrl()
+          );
+          res.json({ ok: true, ...report });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed to save ecosystem config" });
+      }
   });
 
   // --- JARVIS 2026: POST-TO-CAROUSEL / REEL TRANSFORMER & CLIENT PORTAL --- //

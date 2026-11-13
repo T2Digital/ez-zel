@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { BarChart3, GitCompare, MessageSquare, Sparkles, X, ExternalLink, Film, Layers, ShieldCheck } from 'lucide-react';
+import { BarChart3, GitCompare, MessageSquare, Sparkles, X, ExternalLink, Film, Layers, ShieldCheck, Radio, RefreshCw } from 'lucide-react';
 
 export interface JarvisDynamicWidgetHUDProps {
   widget: {
@@ -17,8 +17,46 @@ export const JarvisDynamicWidgetHUD: React.FC<JarvisDynamicWidgetHUDProps> = ({
   onOpenCalendar,
 }) => {
   const { widgetType, data } = widget;
-  const brand = data?.brand;
-  const secondBrand = data?.secondBrand;
+  const [liveData, setLiveData] = useState<any>(data);
+  const [studioUrlInput, setStudioUrlInput] = useState<string>(data?.titoStudio?.baseUrl || '');
+  const [agentUrlInput, setAgentUrlInput] = useState<string>(data?.t2Agent?.baseUrl || '');
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  const brand = liveData?.brand || data?.brand;
+  const secondBrand = liveData?.secondBrand || data?.secondBrand;
+
+  const handleSaveEcosystemUrls = async () => {
+    setIsSavingConfig(true);
+    try {
+      const res = await fetch('/api/system/ecosystem-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titoStudioUrl: studioUrlInput.trim(),
+          t2AgentUrl: agentUrlInput.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) setLiveData(json);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  const handleRefreshHealth = async () => {
+    setIsSavingConfig(true);
+    try {
+      const res = await fetch('/api/system/ecosystem-health');
+      const json = await res.json();
+      if (json.ok) {
+        setLiveData(json);
+        if (json.titoStudio?.baseUrl) setStudioUrlInput(json.titoStudio.baseUrl);
+        if (json.t2Agent?.baseUrl) setAgentUrlInput(json.t2Agent.baseUrl);
+      }
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
 
   return (
     <motion.div
@@ -38,6 +76,7 @@ export const JarvisDynamicWidgetHUD: React.FC<JarvisDynamicWidgetHUDProps> = ({
           {widgetType === 'brand_dna' && <ShieldCheck className="w-4 h-4" />}
           {widgetType === 'carousel_result' && <Layers className="w-4 h-4" />}
           {widgetType === 'reel_result' && <Film className="w-4 h-4" />}
+          {widgetType === 'ecosystem_health' && <Radio className="w-4 h-4 animate-pulse" />}
           <span>
             {widgetType === 'analytics_kpis' && 'رادار المؤشرات الحية للمنظومة'}
             {widgetType === 'brand_comparison' && 'مقارنة ذكية بين البراندات'}
@@ -45,6 +84,7 @@ export const JarvisDynamicWidgetHUD: React.FC<JarvisDynamicWidgetHUDProps> = ({
             {widgetType === 'brand_dna' && `هوية البراند وبوابة العميل: ${brand?.name || ''}`}
             {widgetType === 'carousel_result' && `كاروسيل 5 سلايدات: ${data?.title || ''}`}
             {widgetType === 'reel_result' && `سكريبت Reel + برومبت Veo: ${data?.title || ''}`}
+            {widgetType === 'ecosystem_health' && 'رادار الربط الحي بين المنصات الثلاث (3-App Ecosystem)'}
           </span>
         </div>
         <button
@@ -185,6 +225,85 @@ export const JarvisDynamicWidgetHUD: React.FC<JarvisDynamicWidgetHUDProps> = ({
               Veo Prompt: {data.veoPrompt}
             </div>
           )}
+        </div>
+      )}
+
+      {widgetType === 'ecosystem_health' && (
+        <div className="flex flex-col gap-3 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            {[
+              {
+                name: 'سيرفر الظل / جارفس',
+                status: liveData?.ezZel?.status || 'CONNECTED',
+                detail: `Gemini: ${liveData?.ezZel?.geminiConfigured ? 'جاهز' : 'ناقص'} • Disk: ${liveData?.ezZel?.persistentDisk ? 'متصل' : 'محلي'}`,
+              },
+              {
+                name: 'تيتو ستوديو API',
+                status: liveData?.titoStudio?.status || 'UNREACHABLE',
+                detail: liveData?.titoStudio?.detail || 'لم يتم الفحص',
+              },
+              {
+                name: 'تيتو أجنت API',
+                status: liveData?.t2Agent?.status || 'UNREACHABLE',
+                detail: liveData?.t2Agent?.detail || 'لم يتم الفحص',
+              },
+            ].map((svc, idx) => (
+              <div key={idx} className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-white">{svc.name}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                      svc.status === 'CONNECTED'
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : svc.status === 'HTML_ONLY'
+                        ? 'bg-amber-500/20 text-amber-300'
+                        : 'bg-rose-500/20 text-rose-300'
+                    }`}
+                  >
+                    {svc.status === 'CONNECTED' ? 'متصل API' : svc.status === 'HTML_ONLY' ? 'واجهة فقط' : 'غير متصل'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed">{svc.detail}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-3 rounded-2xl bg-white/[0.03] border border-cyan-500/20 flex flex-col gap-2">
+            <div className="text-[11px] font-bold text-cyan-300">ربط روابط Render الحية مباشرة بدون إعادة تشغيل:</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2" dir="ltr">
+              <input
+                type="text"
+                value={studioUrlInput}
+                onChange={(e) => setStudioUrlInput(e.target.value)}
+                placeholder="https://tito-studio.onrender.com"
+                className="px-3 py-1.5 rounded-xl bg-black/50 border border-white/15 text-white text-[11px] focus:outline-none focus:border-cyan-400"
+              />
+              <input
+                type="text"
+                value={agentUrlInput}
+                onChange={(e) => setAgentUrlInput(e.target.value)}
+                placeholder="https://t2-agent.onrender.com"
+                className="px-3 py-1.5 rounded-xl bg-black/50 border border-white/15 text-white text-[11px] focus:outline-none focus:border-cyan-400"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={isSavingConfig}
+                onClick={handleSaveEcosystemUrls}
+                className="px-4 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-[11px] cursor-pointer transition"
+              >
+                {isSavingConfig ? 'جاري الحفظ والفحص...' : 'حفظ الروابط وفحص الاتصال'}
+              </button>
+              <button
+                disabled={isSavingConfig}
+                onClick={handleRefreshHealth}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSavingConfig ? 'animate-spin' : ''}`} />
+                <span>تحديث الفحص</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </motion.div>

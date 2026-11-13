@@ -192,7 +192,8 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const cosY = Math.cos(ry);
       const sinY = Math.sin(ry);
 
-      const fov = 620 * zoomRef.current;
+      const responsiveFovBase = Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
+      const fov = responsiveFovBase * zoomRef.current;
 
       // 3D Point Projection Helper
       const project3D = (x: number, y: number, z: number) => {
@@ -321,7 +322,8 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       });
       ctx.restore();
 
-      // 5. Draw 3D Brand Nodes (Crystal Spheres with Rim Light)
+      // 5. Draw 3D Brand Nodes (Crystal Spheres with Rim Light & Zero Label Overlap)
+      const drawnLabelBoxes: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
       projectedNodes.forEach(node => {
         const radius = (node.isSelected ? 16 : 10) * node.scale;
 
@@ -373,18 +375,29 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           ctx.stroke();
         }
 
-        // Brand Name Label
-        ctx.font = node.isSelected ? 'bold 11px Cairo, sans-serif' : '9.5px Cairo, sans-serif';
-        ctx.fillStyle = node.isSelected ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
-        ctx.textAlign = 'center';
-        ctx.shadowColor = '#000000';
-        ctx.shadowBlur = 5;
-        ctx.fillText(node.brand.name.slice(0, 18), node.px, node.py + radius + 14);
+        // Brand Name Label with Screen-Space Collision Avoidance
+        const lx1 = node.px - 48;
+        const lx2 = node.px + 48;
+        const ly1 = node.py + radius + 2;
+        const ly2 = node.py + radius + 28;
+        const overlapsExisting = !node.isSelected && drawnLabelBoxes.some(
+          (b) => lx1 < b.x2 && lx2 > b.x1 && ly1 < b.y2 && ly2 > b.y1
+        );
 
-        // Subtitle badge
-        ctx.font = '8px Cairo, sans-serif';
-        ctx.fillStyle = node.isSelected ? '#00f0ff' : '#94a3b8';
-        ctx.fillText(node.brand.businessType || 'نشاط رسمي', node.px, node.py + radius + 25);
+        if (!overlapsExisting && node.scale > 0.55) {
+          drawnLabelBoxes.push({ x1: lx1, y1: ly1, x2: lx2, y2: ly2 });
+          ctx.font = node.isSelected ? 'bold 11px Cairo, sans-serif' : '9.5px Cairo, sans-serif';
+          ctx.fillStyle = node.isSelected ? '#ffffff' : 'rgba(255, 255, 255, 0.88)';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = '#000000';
+          ctx.shadowBlur = 5;
+          ctx.fillText(node.brand.name.slice(0, 18), node.px, node.py + radius + 14);
+
+          // Subtitle badge
+          ctx.font = '8px Cairo, sans-serif';
+          ctx.fillStyle = node.isSelected ? '#00f0ff' : '#94a3b8';
+          ctx.fillText(node.brand.businessType || 'نشاط رسمي', node.px, node.py + radius + 25);
+        }
 
         ctx.restore();
       });
@@ -404,7 +417,8 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const sinX = Math.sin(rotationRef.current.x);
       const cosY = Math.cos(rotationRef.current.y);
       const sinY = Math.sin(rotationRef.current.y);
-      const fov = 620 * zoomRef.current;
+      const responsiveFovBase = Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
+      const fov = responsiveFovBase * zoomRef.current;
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
 
