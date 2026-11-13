@@ -654,31 +654,63 @@ ${
             console.warn("[Jarvis Brain] AI copy generation warning:", copyErr?.message);
           }
 
-          // 2. Generate real AI visual (Try Tito Studio Cloud API first, then local Gemini Imagen)
+          // 2. Generate real AI visual (Try Tito Studio Cloud API first, then Gemini generateContent / Imagen cascade)
           let visualUrl: string | undefined = undefined;
           const imgPrompt =
             (typeof generatedImagePrompt !== "undefined" && generatedImagePrompt) ||
             `Futuristic 2026 holographic AI command center representing ${targetBrand.name} and ${dynamicTopic}, dark obsidian glass, glowing cyan and electric violet neon neural network, ultra-clean commercial photography, no text`;
 
           try {
-            const studioImgRes = await titoStudioApi.generateGeminiImage(imgPrompt);
+            const studioImgRes: any = await titoStudioApi.generateGeminiImage(imgPrompt);
             const b64 = studioImgRes?.generatedImages?.[0]?.image?.imageBytes;
-            if (b64) visualUrl = `data:image/png;base64,${b64}`;
-          } catch {
-            // Fallback to server-side Gemini image generation
-            for (const imgModel of ["gemini-3.1-flash-lite-image", "imagen-3.0-generate-002"]) {
+            if (b64) {
+              visualUrl = `data:image/png;base64,${b64}`;
+            } else if (typeof studioImgRes?.imageUrl === "string" && studioImgRes.imageUrl) {
+              visualUrl = studioImgRes.imageUrl;
+            }
+          } catch (studioErr: any) {
+            console.warn("[Jarvis Studio Visual] Tito Studio API unavailable, using Gemini cascade:", studioErr?.message);
+          }
+
+          if (!visualUrl) {
+            for (const gcModel of ["gemini-3.1-flash-lite-image", "gemini-2.5-flash-image"]) {
+              try {
+                const gcRes: any = await ai.models.generateContent({
+                  model: gcModel,
+                  contents: imgPrompt,
+                });
+                const parts = gcRes?.candidates?.[0]?.content?.parts || [];
+                for (const part of parts) {
+                  if (part?.inlineData?.data) {
+                    const mimeType = part.inlineData.mimeType || "image/png";
+                    visualUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+                    break;
+                  }
+                }
+                if (visualUrl) break;
+              } catch (gcErr: any) {
+                console.warn(`[Jarvis Studio Visual] ${gcModel} failed:`, gcErr?.message);
+              }
+            }
+          }
+
+          if (!visualUrl) {
+            for (const imgModel of ["imagen-3.0-generate-002", "imagen-4.0-generate-001"]) {
               try {
                 const imgRes: any = await ai.models.generateImages({
                   model: imgModel,
                   prompt: imgPrompt,
                   config: { numberOfImages: 1, aspectRatio: "1:1" },
                 });
-                const bytes = imgRes?.generatedImages?.[0]?.image?.imageBytes;
+                const img = imgRes?.generatedImages?.[0];
+                const bytes = img?.image?.imageBytes;
                 if (bytes) {
-                  visualUrl = `data:image/png;base64,${bytes}`;
+                  visualUrl = `data:${img.image?.mimeType || "image/png"};base64,${bytes}`;
                   break;
                 }
-              } catch {}
+              } catch (imgErr: any) {
+                console.warn(`[Jarvis Studio Visual] ${imgModel} failed:`, imgErr?.message);
+              }
             }
           }
 
