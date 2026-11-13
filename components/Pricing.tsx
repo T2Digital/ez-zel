@@ -223,72 +223,70 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
       <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-amber-900/10 blur-[150px] rounded-full pointer-events-none"></div>
 
       {/* Main Container */}
-      <div className="flex-1 w-full max-w-md mx-auto px-6 py-4 flex flex-col justify-between relative z-10 h-full">
-        
-        {/* 1. HEADER (Top) */}
-        <div className="flex flex-col items-center justify-center pt-4 shrink-0">
-            <div className="mb-3 animate-in slide-in-from-top-8 duration-1000">
-                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-[0_0_20px_rgba(255,255,255,0.05)]">
-                    <Sparkles className="w-3 h-3 text-cyan-400 animate-pulse" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/70">الجيل القادم من المساعدين</span>
+      <div className="flex-1 w-full max-w-lg mx-auto px-4 py-4 flex flex-col justify-center relative z-10 min-h-full">
+
+        {/* SINGLE UNIFIED GLASS TERMINAL CARD (Header + Jarvis Orb + Terminal + Tiers + Actions) */}
+        <div className="flex-1 flex flex-col items-center justify-center relative py-2">
+            <div className="relative w-full glass p-5 pt-6 rounded-[32px] border border-cyan-500/20 bg-black/55 shadow-[0_24px_80px_rgba(0,0,0,0.75)] backdrop-blur-2xl group hover:border-cyan-400/35 transition-colors">
+
+                {/* 1. HEADER INSIDE TERMINAL CARD */}
+                <div className="flex flex-col items-center justify-center mb-3">
+                    <div className="mb-2">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
+                            <Sparkles className="w-3 h-3 text-cyan-400 animate-pulse" />
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/75">الجيل القادم من المساعدين</span>
+                        </div>
+                    </div>
+
+                    <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-white leading-tight text-center drop-shadow-2xl mb-2.5 whitespace-nowrap">
+                        امتلك <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-white to-cyan-400">ظلك الرقمي</span>
+                    </h1>
+
+                    <div className="flex gap-2 flex-wrap justify-center">
+                        <button
+                            onClick={() => setShowBattleStation(true)}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-blue-600/30 via-cyan-500/30 to-emerald-500/30 hover:from-blue-600/50 hover:to-cyan-400/50 border border-cyan-400/60 rounded-full transition-all backdrop-blur-md shadow-[0_0_15px_rgba(6,182,212,0.25)] cursor-pointer"
+                        >
+                            <Zap className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
+                            <span className="text-[10px] font-black text-cyan-200 hover:text-white">محطة جارفيس ⚡</span>
+                        </button>
+                        <button
+                            onClick={() => setShowCapabilities(true)}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all backdrop-blur-md cursor-pointer"
+                        >
+                            <Sparkles className="w-3 h-3 text-purple-400" />
+                            <span className="text-[9.5px] font-bold text-white/70 hover:text-white">اكتشف القدرات</span>
+                        </button>
+                        <button
+                            onClick={() => setShowWhitePaper(true)}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all backdrop-blur-md cursor-pointer"
+                        >
+                            <FileText className="w-3 h-3 text-white/50" />
+                            <span className="text-[9.5px] font-bold text-white/70 hover:text-white">ميثاق الظل</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-white leading-tight text-center drop-shadow-2xl mb-2 whitespace-nowrap">
-                امتلك <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-white to-cyan-400">ظلك الرقمي</span>
-            </h1>
-            
-            <div className="flex gap-2 flex-wrap justify-center">
-                <button 
-                    onClick={() => setShowBattleStation(true)} 
-                    className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-blue-600/30 via-cyan-500/30 to-emerald-500/30 hover:from-blue-600/50 hover:to-cyan-400/50 border border-cyan-400/60 rounded-full transition-all group backdrop-blur-md shadow-[0_0_15px_rgba(6,182,212,0.3)] cursor-pointer"
-                >
-                    <Zap className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
-                    <span className="text-[10px] font-black text-cyan-200 group-hover:text-white">محطة جارفيس ⚡</span>
-                </button>
-                <button 
-                    onClick={() => setShowCapabilities(true)} 
-                    className="flex items-center gap-2 px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all group backdrop-blur-md"
-                >
-                    <Sparkles className="w-3 h-3 text-purple-400 group-hover:text-white transition-colors" />
-                    <span className="text-[9px] font-bold text-white/60 group-hover:text-white">اكتشف القدرات</span>
-                </button>
-                <button 
-                    onClick={() => setShowWhitePaper(true)} 
-                    className="flex items-center gap-2 px-4 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all group backdrop-blur-md"
-                >
-                    <FileText className="w-3 h-3 text-white/40 group-hover:text-white transition-colors" />
-                    <span className="text-[9px] font-bold text-white/60 group-hover:text-white">ميثاق الظل</span>
-                </button>
-            </div>
-        </div>
-
-        {/* 2. CARD (Center) */}
-        <div className="flex-1 flex flex-col items-center justify-center relative py-2 gap-2">
-            {/* Jarvis Pulsing Reactor Orb Only (Voice Welcome for Visitors) */}
-            <button
-                type="button"
-                onClick={handlePlayJarvisWelcome}
-                title="اضغط لسماع ترحيب جارفس الصوتي"
-                className="group relative flex flex-col items-center justify-center cursor-pointer focus:outline-none -mb-4 z-30"
-            >
-                <div className="scale-75 hover:scale-[0.8] transition-transform duration-300">
-                    <JarvisArcReactorCore
-                        isListening={false}
-                        isPlayingVoice={isGreetingPlaying}
-                        isThinking={false}
-                        audioLevel={isGreetingPlaying ? 0.85 : 0.25}
-                    />
-                </div>
-                <span className="mt-1 px-3 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-400/35 text-[10px] font-bold text-cyan-200 backdrop-blur-md">
-                    {isGreetingPlaying ? 'جارفس يرحب بك الآن...' : 'اضغط للتحدث والترحيب الصوتي من جارفس'}
-                </span>
-            </button>
-
-            <div className="relative w-full glass p-5 pt-10 rounded-[32px] border border-white/10 bg-black/40 shadow-2xl backdrop-blur-2xl group hover:border-purple-500/20 transition-colors">
-                
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 p-3 bg-[#050505] rounded-[20px] border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-20 group-hover:scale-110 transition-transform duration-500">
-                    <Fingerprint className="w-6 h-6 text-purple-500 animate-pulse" />
+                {/* 2. JARVIS PULSING ORB INSIDE TERMINAL CARD */}
+                <div className="flex justify-center mb-2">
+                    <button
+                        type="button"
+                        onClick={handlePlayJarvisWelcome}
+                        title="اضغط لسماع ترحيب جارفس الصوتي"
+                        className="group relative flex flex-col items-center justify-center cursor-pointer focus:outline-none"
+                    >
+                        <div className="scale-75 hover:scale-[0.8] transition-transform duration-300 -my-3">
+                            <JarvisArcReactorCore
+                                isListening={false}
+                                isPlayingVoice={isGreetingPlaying}
+                                isThinking={false}
+                                audioLevel={isGreetingPlaying ? 0.85 : 0.25}
+                            />
+                        </div>
+                        <span className="mt-1 px-3 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-400/35 text-[10px] font-bold text-cyan-200 backdrop-blur-md">
+                            {isGreetingPlaying ? 'جارفس يرحب بك الآن...' : 'اضغط للتحدث والترحيب الصوتي من جارفس'}
+                        </span>
+                    </button>
                 </div>
 
                 <div className="text-center mt-1">
