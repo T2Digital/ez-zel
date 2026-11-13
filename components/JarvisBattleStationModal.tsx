@@ -1559,45 +1559,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               audioLevel={audioLevel}
             />
 
-            {/* 2026 SPATIAL STAGE NAVIGATOR */}
+            {/* DYNAMIC JARVIS STAGE: Neural Constellation is the sole default stage; dynamic views appear on demand */}
             {persona !== 'visitor' ? (
-              <div className="flex items-center justify-center gap-1.5 p-1.5 bg-[#020617]/80 rounded-2xl border border-cyan-500/25 backdrop-blur-xl text-[10px] md:text-[11px] font-bold select-none font-['Cairo'] shadow-[0_0_20px_rgba(0,240,255,0.15)] flex-wrap">
-                <button
-                  onClick={() => setActiveDeckTab('obsidian_graph')}
-                  className={`py-2 px-3.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    activeDeckTab === 'obsidian_graph'
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-black shadow-[0_0_20px_rgba(6,182,212,0.6)]'
-                      : 'text-cyan-200/80 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>🌐 الشبكة العصبية الهولوجرامية 3D</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveDeckTab('studio_calendar')}
-                  className={`py-2 px-3.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    activeDeckTab === 'studio_calendar'
-                      ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black font-black shadow-[0_0_20px_rgba(0,240,255,0.6)]'
-                      : 'text-cyan-200/80 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>📅 تقويم تيتو ستوديو</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveDeckTab('agent_fleet')}
-                  className={`py-2 px-3.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    activeDeckTab === 'agent_fleet'
-                      ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black shadow-[0_0_20px_rgba(168,85,247,0.6)]'
-                      : 'text-purple-200/80 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>💬 أسطول واتساب تيتو أجنت</span>
-                </button>
-              </div>
+              activeDeckTab !== 'obsidian_graph' ? (
+                <div className="flex items-center justify-center">
+                  <button
+                    onClick={() => setActiveDeckTab('obsidian_graph')}
+                    className="py-1.5 px-3.5 rounded-full bg-cyan-950/50 hover:bg-cyan-500/20 border border-cyan-400/35 text-cyan-200 text-[11px] font-bold flex items-center gap-1.5 transition backdrop-blur-xl cursor-pointer font-['Cairo']"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>العودة للشبكة العصبية 3D</span>
+                  </button>
+                </div>
+              ) : null
             ) : (
               <div className="w-full max-w-lg py-2 px-3 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-xs font-bold font-['Cairo']">
                 <div className="flex items-center gap-2">
@@ -1743,7 +1717,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {activeDeckTab === 'obsidian_graph' && (
               <div className="w-full flex flex-col gap-3 animate-in fade-in duration-300 font-['Cairo'] text-right">
                 {/* OPEN 3D HOLOGRAPHIC SPACE — ZERO CLUNKY BOXES */}
-                <div className="w-full h-[64vh] min-h-[540px] relative">
+                <div className="w-full h-[68vh] min-h-[560px] relative">
                   <ObsidianHolographicConstellation
                     brands={allBrandsList.map((b) => ({
                       id: b.id,
