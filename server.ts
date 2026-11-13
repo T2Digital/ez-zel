@@ -46,6 +46,7 @@ import { PAYMOB_PLANS, PAYMOB_TIERS, createPaymobCheckoutSession, verifyPaymobWe
 import { readBookings, broadcastGatewayEvent } from "./services/microservicesGateway";
 import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./services/brandingForgeService";
 import { syncBrandToAllEcosystems, reconcileAllBrands } from "./services/universalBrandSync";
+import { runJarvisBrainConversation } from "./services/jarvisBrainEngine";
 
 function getCandidateGeminiKeys(): string[] {
     const rawKeys = [
@@ -2798,278 +2799,27 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   // --- TWO-WAY LIVE VOICE CONVERSATION WITH JARVIS (SUPPORTS VISITOR, CLIENT CEO, AND MASTER TITO) ---
   app.post("/api/system/jarvis-conversation", async (req, res) => {
       try {
-          const { message, history, persona = 'tito', selectedBrandId = 'clean_master', recentChatSummary = '' } = req.body;
+          const { message, history, persona = 'tito', selectedBrandId = '', recentChatSummary = '' } = req.body;
           if (!message) return res.status(400).json({ error: "Message is required" });
 
-          const stats = getRealEcosystemStats();
-          const unifiedBrands = getUnifiedGrowthBrands();
-          const ezzelClients = getEzZelPersonalClients();
-          const activeBrand = unifiedBrands.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) || unifiedBrands[0];
-          const allBrandsBrief = unifiedBrands.slice(0, 25).map(b => `${b.name} (${b.id} - ${b.businessType || 'نشاط تجاري'})`).join(' | ');
-          const ai = getServerAI();
-
-          let personaRoleInstruction = '';
-          if (persona === 'visitor') {
-              personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط تجاري" يستكشف منظومة النمو الشامل للأعمال (T2 Unified Growth OS).
-دورك معه: أنت "جارفيس"، كبير مستشاري الأعمال والنمو الرقمي بالمنظومة. تتحدث باللهجة المصرية الطبيعية الذكية والودودة.
-قاعدة صارمة ومطلقة: ممنوع نهائياً استخدام كلمة "استنساخ" أو "مستنسخ"، واستبدلها دائماً بكلمات: "تأسيس، إطلاق، بناء، تجهيز، تخصيص، تفعيل".
-
-قواعد المحادثة الحتمية مع الزائر لمنع التكرار نهائياً:
-1. ممنوع نهائياً أن تبدأ ردك بـ "أهلاً بك" أو "مرحباً" أو تكرر التحية بعد أول رسالة! ادخل في إجابة العميل ومتابعة خطوته الحالية مباشرة دون إضاعة وقته.
-2. انظر إلى سجل المحادثة السابق (إن وجد) ولا تعد طرح أي سؤال أجاب عنه الزائر مسبقاً.
-3. خطة الحوار الاستشاري التشخيصي المتسلسلة خطوة بخطوة:
-   - الخطوة الأولى (التشخيص): إذا لم يوضح هل عنده نشاط قائم أم يبدأ من الصفر: اسأله ببساطة: "عندك بيزنس قائم وشغال، ولا فكرة جديدة بتبدأها من الصفر؟"
-   - الخطوة الثانية (المنصات والأصول): إذا قال عنده بيزنس قائم: اعرف اسم نشاطه ومجاله، واسأله مباشرة: "عندك موقع أو تطبيق حالياً؟ وهل عندك صفحات شغالة على فيسبوك وإنستجرام وتيك توك، ولا الاعتماد على الواتساب فقط؟"
-   - الخطوة الثالثة (الحل والتطمين العملي):
-     * لو عنده صفحات قائمة: طمنه فوراً بلهجة واثقة: "ممتاز جداً! مش هتبدأ من الصفر، المنظومة هتربط صفحاتك بنقرة واحدة وتتولى النشر والرد الآلي، وفوقها هنعملك نسخة تطبيق PWA مخصصة لنشاطك فوراً."
-     * لو فكرة جديدة من الصفر أو بيزنس بدون صفحات: طمنه: "محرك البراندينج هيؤسس لك الاسم والشعار والألوان وبايو الصفحات (فيسبوك، إنستجرام، وتيك توك) من الصفر، وهنجهزلك تطبيقك فوراً."
-   - الخطوة الرابعة (عرض وتفعيل أسبوع التجربة المجانية): اعرض عليه خطة الـ 7 أيام المجانية المعتمدة (3 منشورات حقيقية يوم ويوم: الأحد تصميم ستوديو، الثلاثاء فيديو ريلز وسيناريو فلو، الخميس بوست عرض خاص وحجز فوري) مع تشغيل وكيل مبيعات واتساب 24/7.
-4. إذا ذكر الزائر اسم نشاطه أو مجاله أو رقمه، أثبت له أنك سجلته واذكره باسمه في الرد.
-5. اجعل ردك مختصراً جداً ومركزاً (جملة أو جملتين بالعامية المصرية الصريحة والذكية) بدون مط أو فلسفة.`;
-          } else if (persona === 'trial' || persona === 'client') {
-              personaRoleInstruction = `المتحدث معك الآن هو "المشترك / صاحب البراند" (${activeBrand?.name || 'براند العميل'}) في وضع المدير التنفيذي (Executive Brand CEO & Smart Secretary).
-دورك معه: أنت المدير التنفيذي المخضرم والسكرتير الذكي المسؤول عن إدارة برانده (${activeBrand?.name}) بالكامل:
-- تدير له تقويم محتوى تيتو ستوديو (${(activeBrand?.weekContentPlan || []).length} منشورات مجدولة جاهزة للنشر).
-- تدير له وكيل مبيعات واتساب (${activeBrand?.phone}) وصفحة ميتا والحملات الإعلانية الممولة (Click-to-WhatsApp).
-- تتابع له الحجوزات المؤكدة والعملاء وتنفذ أي أمر يطلبه (نشر بوست، إطلاق إعلان، تعديل كتالوج، فحص محادثات واتساب).
-خاطبه باحترام كشريك نجاح ("يا فندم" أو "يا ريس") باللهجة المصرية الودودة والاحترافية.`;
-          } else {
-              personaRoleInstruction = `المتحدث معك الآن هو الماستر "تيتو" (Ahmed Attia) — المالك والمدير العام للوكالة والمنظومة بالكامل (Super Admin).
-دورك معه: أنت "جارفيس" (Jarvis)، الذراع الأيمن التنفيذي وقائد الأسطول السيادي.
-خاطبه دائماً بـ "يا ماستر تيتو" أو "يا باشا" باللهجة المصرية القاهرية الطبيعية الدافئة.
-لديك إلمام كامل بـ:
-1. عملاء تطبيق الظل (المساعد الشخصي): عددهم ${ezzelClients.length} مشتركين نشطين.
-2. عملاء وبراندات وكالة النمو الشامل: عددهم ${unifiedBrands.length} براند مربوطين بين تيتو ستوديو وتيتو أجنت ومصنع التطبيقات المطورة وخزنة أوبسيديان الحية (Obsidian Knowledge Graph).
-3. البراند المحدد حالياً على الشاشة هو: "${activeBrand?.name}" (${activeBrand?.businessType} - واتساب: ${activeBrand?.phone}).`;
-          }
-
-          // Smart Voice-to-Action Interpreter & Real Function Calling across all 3 Personas
-          let executedAction: any = null;
-          let backendExecutionResult: any = null;
-          const msg = message.toLowerCase();
-
-          // Detect brand if mentioned
-          let detectedBrand = selectedBrandId || 'tito_media';
-          if (/تيتو ميديا|tito media|تيتو ستوديو|ستوديو|tito|تيتو/i.test(msg)) detectedBrand = 'tito_media';
-          if (/سيل جيت|besho|عقارات/i.test(msg)) detectedBrand = 'besho';
-          else if (/الخضر|تأجير|سيارات/i.test(msg)) detectedBrand = 'alkhedr_car_rental';
-          else if (/بطاح|قطع غيار/i.test(msg)) detectedBrand = 'battah_system';
-          else if (/بركة/i.test(msg)) detectedBrand = 'baraka_motors';
-          else if (/كريستال|أسنان|دكتور نور|نور/i.test(msg)) detectedBrand = 'crystal_teeth';
-          else if (/سقطرى/i.test(msg)) detectedBrand = 'socotra_dental';
-          else if (/كلين ماستر|نظافة/i.test(msg)) detectedBrand = 'clean_master';
-
-          // 1. Check for Real Data-Mutating Voice Commands (Function Calling)
-          const priceMatch = message.match(/(?:بسعر|بـ|سعرها|سعره|ب)\s*(\d[\d,.]*)\s*(?:جنيه|ج\.م|ج)?/i);
-          if (/(?:ضيف|أضف|زود|عدل سعر|غير سعر)\s+(?:خدمة|منتج|عرض|باقة)?\s*([^،,]+?)(?:\s+(?:بسعر|بـ|سعرها|سعره|ب)\s*\d|$)/i.test(message)) {
-              const nameMatch = message.match(/(?:ضيف|أضف|زود|عدل سعر|غير سعر)\s+(?:خدمة|منتج|عرض|باقة)?\s*([^،,]+?)(?:\s+(?:بسعر|بـ|سعرها|سعره|ب)\s*\d|$)/i);
-              const serviceName = (nameMatch?.[1] || 'خدمة VIP جديدة').trim();
-              const servicePrice = priceMatch?.[1] ? `${priceMatch[1]} ج.م` : '650 ج.م';
-              backendExecutionResult = await executeRealJarvisEcosystemAction({
-                  actionType: 'UPDATE_STORE_CATALOG',
-                  brandId: detectedBrand,
-                  data: {
-                      addService: {
-                          name: serviceName,
-                          price: servicePrice,
-                          description: 'تمت الإضافة والتسعير بأمر صوتي مباشر من كابينة جارفيس'
-                      }
-                  }
-              });
-              executedAction = {
-                  type: 'CATALOG_MUTATED',
-                  tab: 'app_cloner',
-                  brandId: detectedBrand,
-                  result: backendExecutionResult
-              };
-          } else if (/(?:عدل|غير|حدث)\s+(?:تعليمات|توجيهات|برومبت|رد)\s+(?:البوت|الأيجنت|الوكيل)/i.test(message)) {
-              const newInstruction = message.replace(/^.*?(?:البوت|الأيجنت|الوكيل)\s*(?:خليه|إلى|بأن|:)?\s*/i, '').trim() || message;
-              backendExecutionResult = await executeRealJarvisEcosystemAction({
-                  actionType: 'UPDATE_BOT_INSTRUCTIONS',
-                  brandId: detectedBrand,
-                  data: { systemInstruction: newInstruction }
-              });
-              executedAction = {
-                  type: 'BOT_PROMPT_MUTATED',
-                  tab: 'obsidian_graph',
-                  brandId: detectedBrand,
-                  result: backendExecutionResult
-              };
-          } else if (/انشر|نزل بوست|publish|انشرها|انشره|انشر البوست/i.test(msg)) {
-              backendExecutionResult = await executeRealJarvisEcosystemAction({
-                  actionType: 'PUBLISH_STUDIO_POST',
-                  brandId: detectedBrand,
-                  data: { postIndex: 0 }
-              });
-              executedAction = { type: 'TRIGGER_ACTION', action: 'PUBLISH_POST', brandId: detectedBrand, result: backendExecutionResult };
-          } else if (/فكرة بوست|اعمل بوست|صمم بوست|تيتو ستوديو|تصميم بوست|توليد محتوى|بوست جديد/i.test(msg)) {
-              const shouldPublish = /انشر|انشرها|انشره|نشر/i.test(msg);
-              backendExecutionResult = await executeRealJarvisEcosystemAction({
-                  actionType: 'CREATE_CUSTOM_STUDIO_POST',
-                  brandId: detectedBrand,
-                  data: {
-                      topic: 'أقوى خدمات وعروض تيتو ميديا للنمو الرقمي والأتمتة',
-                      publishNow: shouldPublish
-                  }
-              });
-              executedAction = { 
-                  type: shouldPublish ? 'TRIGGER_ACTION' : 'SWITCH_TAB', 
-                  action: shouldPublish ? 'PUBLISH_POST' : undefined,
-                  tab: shouldPublish ? 'content_post_card' : 'studio_calendar', 
-                  brandId: detectedBrand, 
-                  result: backendExecutionResult 
-              };
-          } else if (/أطلق إعلان|اطلق اعلان|شغل إعلان|حملة ممولة|كامبين|واتساب إعلان/i.test(msg)) {
-              const budgetMatch = message.match(/(\d{3,6})/);
-              const budgetEgp = budgetMatch ? Number(budgetMatch[1]) : 2000;
-              backendExecutionResult = await executeRealJarvisEcosystemAction({
-                  actionType: 'LAUNCH_META_AD',
-                  brandId: detectedBrand,
-                  data: { budgetEgp }
-              });
-              executedAction = { type: 'TRIGGER_ACTION', action: 'LAUNCH_CAMPAIGN', brandId: detectedBrand, result: backendExecutionResult };
-          }
-
-          // 1. Check for Real Actions & Tab Switches (Only for Admin / Tito / Subscribed Clients, NOT Visitors)
-          if (persona !== 'visitor') {
-              if (/نافذة|شاشة البراند|تفاصيل براند|اعرض براند|افتح براند|الاربع شاشات|4 شاشات/i.test(msg)) {
-                  executedAction = { type: 'OPEN_BRAND_SUPER_WINDOW', brandId: detectedBrand };
-              } else if (/أوبسيديان|اوبسيدن|اوبسيديان|obsidian|شبكة|جراف|خريطة المعرفة/i.test(msg)) {
-                  executedAction = { type: 'SWITCH_TAB', tab: 'obsidian_graph', brandId: detectedBrand };
-              } else if (/اربط واتساب|ربط واتس|كود ربط|qr|امسح الكود/i.test(msg)) {
-                  executedAction = { type: 'OPEN_MODAL', modal: 'whatsapp_connect', brandId: detectedBrand };
-              } else if (/اربط ميتا|ربط فيسبوك|ربط انستجرام|صفحة فيس/i.test(msg)) {
-                  executedAction = { type: 'OPEN_MODAL', modal: 'meta_connect', brandId: detectedBrand };
-              } else if (/عملاء الظل|مشتركين الظل|وكالة|الأدمن|تقرير العملاء/i.test(msg)) {
-                  executedAction = { type: 'SWITCH_TAB', tab: 'agency_overview', brandId: detectedBrand };
-              } else if (/تقويم|جدول المحتوى|خطة المحتوى|أسبوع|calendar|ستوديو/i.test(msg)) {
-                  executedAction = { type: 'SWITCH_TAB', tab: 'studio_calendar', brandId: detectedBrand };
-              } else if (/بطاقة|منشور|كارت البوست|محتوى منشور|بوست فيسبوك/i.test(msg)) {
-                  executedAction = { type: 'SWITCH_TAB', tab: 'content_post_card', brandId: detectedBrand };
-              } else if (/مطور|استنسخ|متجر|pwa|تطبيق عميل|تطبيق جديد|مصنع/i.test(msg)) {
-                  executedAction = { type: 'SWITCH_TAB', tab: 'app_cloner', brandId: detectedBrand };
-              } else if (/إعلانات|كامبينات|حملات/i.test(msg)) {
-                  executedAction = { type: 'SWITCH_TAB', tab: 'ad_launcher', brandId: detectedBrand };
-              } else if (/واتساب|crm|محادثات|شات العميل|الأجنت|بوتات/i.test(msg)) {
-                  executedAction = { type: 'SWITCH_TAB', tab: 'agent_fleet', brandId: detectedBrand };
-              } else if (/حجز|حجوزات|أحمد محمود|مبيعات|أرباح|فلوس/i.test(msg)) {
-                  executedAction = { type: 'SWITCH_TAB', tab: 'vault_crm', brandId: detectedBrand };
-              } else if (/وقف بوت|علق رد|عطل بوت/i.test(msg)) {
-                  executedAction = { type: 'TOGGLE_BOT', brandId: detectedBrand, status: 'paused' };
-              }
-          } else {
-              // Intelligent Visitor Diagnostic State Extractor
-              const visitorUpdate: any = {};
-              if (/عندي|شغال|قائم|فاتح|موجود|محل|معرض|شركة|عيادة|مركز|مكتب|نشاط/i.test(msg) && !/معنديش|لسه|فكرة|جديد|صفر|مافيش/i.test(msg)) {
-                  visitorUpdate.hasExistingBusiness = true;
-              } else if (/معنديش|لسه|فكرة|جديد|من الصفر|صفر|هبدأ|مشروع جديد|مش عندي/i.test(msg)) {
-                  visitorUpdate.hasExistingBusiness = false;
-              }
-
-              if (/موقع|ويب|website|سايت|متجر|أبلكيشن|تطبيق/i.test(msg)) {
-                  if (/معنديش|مافيش|مش عندي|لا يوجد/i.test(msg)) {
-                      visitorUpdate.hasWebsite = false;
-                  } else {
-                      visitorUpdate.hasWebsite = true;
-                  }
-              }
-
-              if (/فيسبوك|فيس|انستجرام|انستا|تيك توك|سوشيال|صفحة|صفحات/i.test(msg)) {
-                  if (/معنديش|مافيش|مش عندي|لا يوجد/i.test(msg)) {
-                      visitorUpdate.hasSocialPages = false;
-                  } else {
-                      visitorUpdate.hasSocialPages = true;
-                  }
-              }
-
-              if (/سيارات|تأجير|ليموزين/i.test(msg)) visitorUpdate.industry = 'تأجير سيارات';
-              else if (/أسنان|عيادة|دكتور|طبي|مركز طبي/i.test(msg)) visitorUpdate.industry = 'عيادات وطب أسنان';
-              else if (/نظافة|تنظيف|مكافحة/i.test(msg)) visitorUpdate.industry = 'خدمات ونظافة';
-              else if (/عقارات|مقاولات|شقق|تطوير/i.test(msg)) visitorUpdate.industry = 'عقارات ومقاولات';
-              else if (/ملابس|أزياء|فاشون|متجر|شوز/i.test(msg)) visitorUpdate.industry = 'متاجر وأزياء';
-
-              // Extract phone if provided
-              const phoneMatch = message.match(/(?:01[0125]\d{8})/);
-              if (phoneMatch) visitorUpdate.phone = phoneMatch[0];
-
-              if (Object.keys(visitorUpdate).length > 0) {
-                  executedAction = {
-                      type: 'VISITOR_DIAGNOSTIC_UPDATE',
-                      visitorUpdate
-                  };
-              }
-          }
-
-          const systemPrompt = `أنت "جارفيس" (Jarvis)، العقل التنفيذي الموحد لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + App Cloner + Obsidian Knowledge Vault).
-${personaRoleInstruction}
-[قائمة الـ ${unifiedBrands.length} براند الموحدة في خزنة أوبسيديان وتيتو ستوديو]:
-${allBrandsBrief}
-${recentChatSummary ? `\n[سياق آخر محادثة في شات الظل الرئيسي (عقل موحد)]: ${recentChatSummary}` : ''}
-${backendExecutionResult ? `\n[نتيجة التنفيذ الفعلي الذي قمت به الآن في الخلفية]: ${backendExecutionResult.message || JSON.stringify(backendExecutionResult)}` : ''}
-قواعد صارمة:
-- تحدث بالعامية المصرية الطبيعية السلسة جداً (بدون تشكيل نحوي معقد وبدون فصحى روبوتية) عشان صوت Gemini البشري يطلع طبيعي وتلقائي 100%.
-- اجعل ردك مختصراً ومباشراً في جملة أو جملتين مركزتين وعمليتين تؤكد ما نفذته فعلياً أو توجه العميل لخطوته القادمة.
-- لا تكرر تقارير قديمة أو أسماء حجوزات إلا لو سألك المستخدم عنها مباشرة.`;
-
-          const formattedHistory = Array.isArray(history) && history.length > 0
-              ? history.slice(-6).map((h: any) => `${h.role === 'user' ? 'المتحدث' : 'جارفيس'}: "${h.text}"`).join('\n')
-              : '';
-
-          let chat: any = null;
-          try {
-              chat = await ai.models.generateContent({
-                  model: "gemini-2.0-flash",
-                  contents: `${systemPrompt}
-
-${formattedHistory ? `[سجل الحوار السابق بينك وبين المتحدث - اقرأه جيداً وممنوع تكرار ما تم سؤاله أو إجابته وممنوع تكرار التحية]:\n${formattedHistory}\n` : ''}
-رسالة المتحدث الحالية: "${message}"
-رد جارفيس باللهجة المصرية الطبيعية المركزة (ممنوع تكرار التحية "أهلاً بك"، وممنوع تكرار أي سؤال تم سؤاله سابقاً):`
-              });
-          } catch (modelErr: any) {
-              console.warn(`[Jarvis Conversation] gemini-2.0-flash failed (${modelErr?.message}), trying gemini-1.5-flash...`);
-              try {
-                  chat = await ai.models.generateContent({
-                      model: "gemini-1.5-flash",
-                      contents: `${systemPrompt}\n\n${formattedHistory ? `[سجل الحوار السابق]:\n${formattedHistory}\n` : ''}رسالة المتحدث: "${message}"\nرد جارفيس:`
-                  });
-              } catch (fallbackErr: any) {
-                  console.warn(`[Jarvis Conversation] Fallback error:`, fallbackErr?.message);
-              }
-          }
-
-          const replyText = chat.text?.trim() || (backendExecutionResult?.message || "أمرك يا ماستر تيتو، تم التنفيذ الفعلي في المنظومة.");
-
-          // Synthesize response in 100% Gemini Human Voice (Puck 24kHz)
-          let audioBase64 = null;
-          try {
-              const audioBuffer = await synthesizeSovereignSpeech(replyText, "Puck");
-              audioBase64 = audioBuffer.toString("base64");
-          } catch (ttsErr: any) {
-              console.warn("[Jarvis Live Voice TTS Warning]:", ttsErr?.message);
-          }
-
-          // Check if message implies executive browser action
-          const shouldTriggerBrowser = /احجز|افحص|ادخل|شغل البراوزر|دوس على|افتح الموقع|سيلينيوم/i.test(message);
-
-          const isWav = audioBase64 && Buffer.from(audioBase64, "base64").toString("ascii", 0, 4) === "RIFF";
-          res.json({
-              success: true,
-              replyText,
-              audioBase64,
-              audioFormat: isWav ? "audio/wav" : "audio/mp3",
-              action: executedAction,
-              executionResult: backendExecutionResult,
-              shouldTriggerBrowser,
-              suggestedScenario: /عربية|سيارة|الخضر/i.test(message) ? 'alkhedr_booking' : 
-                                 /نظافة|كلين/i.test(message) ? 'clean_master_booking' : 'admin_audit'
+          const result = await runJarvisBrainConversation({
+              message,
+              history,
+              persona,
+              selectedBrandId,
+              recentChatSummary,
+              ai: getServerAI(),
+              stats: getRealEcosystemStats(),
+              synthesizeSpeech: synthesizeSovereignSpeech
           });
 
+          res.json(result);
       } catch (e: any) {
           console.error("[Jarvis Conversation Error]:", e?.message || e);
           res.json({
               success: true,
-              replyText: `أمرك يا ماستر تيتو! تم استلام طلبك وجاري ربطه وتحديثه في تيتو ستوديو لـ صفحة تيتو ميديا.`,
-              action: { type: 'SWITCH_TAB', tab: 'studio_calendar', brandId: req.body?.selectedBrandId || 'tito_media' }
+              replyText: 'أمرك يا ماستر تيتو! تم استلام طلبك وجاري مزامنته في المنظومة.',
+              action: { type: 'SWITCH_TAB', tab: 'obsidian_graph', brandId: req.body?.selectedBrandId || '' }
           });
       }
   });

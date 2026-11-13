@@ -16,7 +16,6 @@ import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboard
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
 import SpaceCanvas from './SpaceCanvas';
 import { ObsidianHolographicConstellation } from './ObsidianHolographicConstellation';
-import { JarvisAutonomousAgencyDeck } from './jarvis/JarvisAutonomousAgencyDeck';
 import { JarvisGrowthRadarDeck } from './jarvis/JarvisGrowthRadarDeck';
 import { JarvisUnifiedCatalogModal } from './jarvis/JarvisUnifiedCatalogModal';
 import { JarvisMasterVoiceDock } from './jarvis/JarvisMasterVoiceDock';
@@ -1012,7 +1011,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     setIsExecutingAutonomousAgency(true);
     setIsThinking(true);
     isThinkingRef.current = true;
-    setActiveDeckTab('autonomous_agency');
+    setActiveDeckTab('studio_calendar');
     appendLiveLog(`[AUTONOMOUS_AGENCY]: تشغيل وكالة التسويق الآلي لـ "${targetBrand.name}"...`);
 
     try {
@@ -1731,21 +1730,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                 )}
 
-            {/* TAB 00: AUTONOMOUS MARKETING AGENCY OPERATOR (Modular Component) */}
-            {activeDeckTab === 'autonomous_agency' && (
-              <JarvisAutonomousAgencyDeck
-                currentSelectedBrand={currentSelectedBrand}
-                autonomousAgencyData={autonomousAgencyData}
-                isExecutingAutonomousAgency={isExecutingAutonomousAgency}
-                isPublishingPost={isPublishingPost}
-                onExecuteCycle={handleExecuteAutonomousAgency}
-                onPublishPost={handlePublishPost}
-                onOpenCalendar={() => setActiveDeckTab('studio_calendar')}
-                onOpenGraph={() => setActiveDeckTab('obsidian_graph')}
-                onOpenCatalog={() => setIsCatalogModalOpen(true)}
-              />
-            )}
-
             {/* TAB 0A: 2026 SOVEREIGN 3D HOLOGRAPHIC NEURAL CONSTELLATION (HERO THEATER) */}
             {activeDeckTab === 'obsidian_graph' && (
               <div className="w-full rounded-3xl bg-[#01030b]/80 border border-cyan-500/35 shadow-[0_0_80px_rgba(0,240,255,0.2)] p-3 md:p-5 flex flex-col gap-3 backdrop-blur-2xl animate-in fade-in duration-200 font-['Cairo'] text-right">
@@ -1842,7 +1826,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       postsCount: (b.weekContentPlan || []).length,
                       conversationsCount: b.conversationsCount || 0
                     }))}
-                    selectedBrandId={currentSelectedBrand.id}
+                    selectedBrandId={selectedBrandId}
                     onSelectBrand={(id) => {
                       handleSelectBrand(id);
                       handleInspectObsidianNode(id);
