@@ -125,6 +125,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isThinking, setIsThinking] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'model'; text: string }>>([]);
   const recognitionRef = useRef<any>(null);
+  const autoLoopEnabledRef = useRef<boolean>(true);
+  const isOpenRef = useRef<boolean>(isOpen);
+  useEffect(() => { isOpenRef.current = isOpen; if (!isOpen) { autoLoopEnabledRef.current = false; try { recognitionRef.current?.abort(); } catch {} } else { autoLoopEnabledRef.current = true; } }, [isOpen]);
 
   // Autonomous Executive Browser Actuator State
   const [isExecutiveOpen, setIsExecutiveOpen] = useState(false);
@@ -972,6 +975,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     playShadowVoice(text, 'male', undefined, () => {
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
+      if (isOpenRef.current && autoLoopEnabledRef.current) {
+        setTimeout(() => {
+          if (isOpenRef.current && !isPlayingVoiceRef.current && autoLoopEnabledRef.current) {
+            startListeningLoop();
+          }
+        }, 250);
+      }
     });
   };
 
@@ -987,6 +997,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     } catch {}
 
     if (isListening) {
+      autoLoopEnabledRef.current = false;
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
         recognitionRef.current = null;
@@ -999,6 +1010,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       return;
     }
 
+    autoLoopEnabledRef.current = true;
     stopVoice();
     setIsPlayingVoice(false);
     isPlayingVoiceRef.current = false;
@@ -1171,6 +1183,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         const onSpeechEnd = () => {
           setIsPlayingVoice(false);
           isPlayingVoiceRef.current = false;
+          if (isOpenRef.current && autoLoopEnabledRef.current) {
+            setTimeout(() => {
+              if (isOpenRef.current && !isPlayingVoiceRef.current && autoLoopEnabledRef.current) {
+                startListeningLoop();
+              }
+            }, 250);
+          }
         };
 
         // Play authentic Egyptian Gemini Human voice reply
