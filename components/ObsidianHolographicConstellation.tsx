@@ -164,9 +164,11 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       t += 0.02;
 
       const rect = canvas.getBoundingClientRect();
-      if (canvas.width !== rect.width || canvas.height !== rect.height) {
-        canvas.width = rect.width;
-        canvas.height = rect.height;
+      const rw = Math.round(rect.width);
+      const rh = Math.round(rect.height);
+      if (rw > 0 && rh > 0 && (canvas.width !== rw || canvas.height !== rh)) {
+        canvas.width = rw;
+        canvas.height = rh;
       }
 
       const w = canvas.width;
@@ -438,7 +440,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   }, [node3DPositions, selectedBrandId, zoomRef, autoRotate, onSelectBrand]);
 
   return (
-    <div ref={containerRef} className={`relative w-full h-84 md:h-96 rounded-3xl bg-[#01030d]/85 backdrop-blur-xl border border-cyan-500/35 overflow-hidden shadow-[0_0_50px_rgba(0,240,255,0.15)] flex flex-col ${className}`}>
+    <div ref={containerRef} className={`relative w-full h-full min-h-[480px] rounded-3xl bg-[#01030d]/85 backdrop-blur-xl border border-cyan-500/35 overflow-hidden shadow-[0_0_50px_rgba(0,240,255,0.15)] flex flex-col ${className}`}>
       {/* Top Filter and Controls Bar */}
       <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-cyan-500/20 bg-black/40 backdrop-blur-md">
         <div className="flex items-center gap-2">

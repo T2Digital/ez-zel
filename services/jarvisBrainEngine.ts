@@ -499,37 +499,53 @@ ${
     : ""
 }رسالة المتحدث الحالية: "${message}"`;
 
-  // Visitor persona only uses record_visitor_diagnostic; admin/client get all tools
   const activeTools =
     persona === "visitor"
       ? jarvisBrainTools.filter((t) => t.name === "record_visitor_diagnostic")
       : jarvisBrainTools;
 
+  const modelCascade = [
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+  ];
+
   let chat: any = null;
-  try {
-    chat = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: fullPrompt,
-      config: {
-        tools: [{ functionDeclarations: activeTools }],
-        temperature: 0.4,
-      },
-    });
-  } catch (modelErr: any) {
-    console.warn(
-      `[Jarvis Brain] gemini-2.0-flash failed (${modelErr?.message}), trying gemini-1.5-flash...`
-    );
+  let lastModelError = "";
+
+  // 1. Try with Native Function Calling tools across active models
+  for (const modelName of modelCascade) {
     try {
       chat = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: modelName,
         contents: fullPrompt,
         config: {
           tools: [{ functionDeclarations: activeTools }],
           temperature: 0.4,
         },
       });
-    } catch (fallbackErr: any) {
-      console.warn(`[Jarvis Brain] Fallback error:`, fallbackErr?.message);
+      if (chat) break;
+    } catch (err: any) {
+      lastModelError = err?.message || String(err);
+      console.warn(`[Jarvis Brain] ${modelName} (with tools) failed:`, lastModelError);
+    }
+  }
+
+  // 2. If tool-enabled call failed on all models, retry pure conversational mode without tools
+  if (!chat) {
+    for (const modelName of modelCascade) {
+      try {
+        chat = await ai.models.generateContent({
+          model: modelName,
+          contents: fullPrompt,
+          config: { temperature: 0.5 },
+        });
+        if (chat) break;
+      } catch (err: any) {
+        lastModelError = err?.message || String(err);
+        console.warn(`[Jarvis Brain] ${modelName} (no-tools fallback) failed:`, lastModelError);
+      }
     }
   }
 
@@ -982,27 +998,32 @@ ${
   // If Gemini executed a tool and didn't produce spoken text in the same turn, generate a natural Egyptian Arabic confirmation
   let replyText = chat?.text?.trim() || "";
   if (!replyText && (backendExecutionResult || executedAction)) {
-    try {
-      const followUp = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: `${systemPrompt}
+    for (const modelName of ["gemini-3.1-flash-lite", "gemini-2.5-flash"]) {
+      try {
+        const followUp = await ai.models.generateContent({
+          model: modelName,
+          contents: `${systemPrompt}
 رسالة المتحدث: "${message}"
 النتيجة الفعلية التي تم تنفيذها الآن لبراند "${targetBrand.name}": ${
-          backendExecutionResult?.message ||
-          JSON.stringify(executedAction)
-        }
+            backendExecutionResult?.message ||
+            JSON.stringify(executedAction)
+          }
 اكتب رد جارفيس المختصر بالعامية المصرية الطبيعية (جملة أو جملتين فقط) يؤكد تنفيذ الأمر فوراً:`,
-      });
-      replyText = followUp?.text?.trim() || "";
-    } catch {}
+        });
+        replyText = followUp?.text?.trim() || "";
+        if (replyText) break;
+      } catch {}
+    }
   }
 
   if (!replyText) {
     replyText =
       backendExecutionResult?.message ||
-      (persona === "tito"
-        ? `أمرك يا ماستر تيتو، تم التنفيذ الفعلي لـ ${targetBrand.name} في المنظومة.`
-        : `تحت أمرك يا فندم، تم التحديث بنجاح لـ ${targetBrand.name}.`);
+      (lastModelError
+        ? `يا ماستر تيتو، حصل ضغط لحظي على موديل الذكاء الاصطناعي (${lastModelError.slice(0, 80)}). جرب تسألني تاني حالاً.`
+        : persona === "tito"
+        ? `سامعك يا ماستر تيتو! تحب ننفذ إيه لـ ${targetBrand.name} دلوقتي؟`
+        : `تحت أمرك يا فندم، وضحلي طلبك لـ ${targetBrand.name} وهنفذه فوراً.`);
   }
 
   // Synthesize response in 100% Gemini Human Voice (Puck 24kHz)
