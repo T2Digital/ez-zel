@@ -1510,11 +1510,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         </div>
 
         {/* MAIN HUD INTERACTION VIEWPORT (3 Sci-Fi Columns With Mobile-First Spatial Hierarchy) */}
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-between p-2 md:p-4 overflow-y-auto w-full max-w-[96vw] xl:max-w-[1780px] mx-auto">
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-between p-1.5 md:p-2.5 overflow-y-auto w-full max-w-[96vw] xl:max-w-[1780px] mx-auto">
 
           {/* CENTER HERO: THE HOLOGRAPHIC ARC REACTOR CORE (6 Cols)    */}
           {/* ========================================================= */}
-          <div className="w-full flex flex-col items-center justify-between gap-3 py-1 mx-auto font-['Cairo']">
+          <div className="w-full flex flex-col items-center justify-between gap-1.5 py-0 mx-auto font-['Cairo']">
             
             {/* Triage Persona Switcher (Top of Center) - Protected for Master Admin */}
             {isMasterAdmin ? (
@@ -1587,7 +1587,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 }
               }}
               title="اضغط على الكرة المضيئة للتحدث مع جارفس"
-              className="cursor-pointer focus:outline-none hover:scale-[1.03] active:scale-[0.98] transition-transform"
+              className="cursor-pointer focus:outline-none hover:scale-[1.03] active:scale-[0.98] transition-transform scale-[0.72] -my-5"
             >
               <JarvisArcReactorCore
                 isListening={isListening}
@@ -1776,7 +1776,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {activeDeckTab === 'obsidian_graph' && (
               <div className="w-full flex flex-col gap-3 animate-in fade-in duration-300 font-['Cairo'] text-right">
                 {/* OPEN 3D HOLOGRAPHIC SPACE — ZERO CLUNKY BOXES */}
-                <div className="w-full h-[68vh] min-h-[560px] relative">
+                <div className="w-full h-[calc(100vh-290px)] min-h-[380px] relative">
                   <ObsidianHolographicConstellation
                     brands={allBrandsList.map((b) => ({
                       id: b.id,
