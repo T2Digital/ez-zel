@@ -1730,91 +1730,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                 )}
 
-            {/* TAB 0A: 2026 SOVEREIGN 3D HOLOGRAPHIC NEURAL CONSTELLATION (HERO THEATER) */}
+            {/* TAB 0A: 2026 SOVEREIGN 3D HOLOGRAPHIC NEURAL CONSTELLATION (OPEN SPACE HERO THEATER) */}
             {activeDeckTab === 'obsidian_graph' && (
-              <div className="w-full rounded-3xl bg-[#01030b]/80 border border-cyan-500/35 shadow-[0_0_80px_rgba(0,240,255,0.2)] p-3 md:p-5 flex flex-col gap-3 backdrop-blur-2xl animate-in fade-in duration-200 font-['Cairo'] text-right">
-                
-                {/* 3D Constellation Header & Controls */}
-                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20 flex-wrap gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping shadow-[0_0_12px_#00f0ff]" />
-                    <div>
-                      <h4 className="text-xs md:text-sm font-black text-white flex items-center gap-2">
-                        🧠 الشبكة العصبية الهولوجرامية السيادية • Fiber-Optic Neural Constellation
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
-                          {allBrandsList.length || realStats.totalVaultBrandsCount || 25} عقدة حية
-                        </span>
-                      </h4>
-                      <p className="text-[10.5px] text-cyan-200/60">
-                        الشبكة الفضائية التفاعلية ثلاثية الأبعاد: تحكم لحظي بالماوس واللمس وحلقات الطاقة الكوانتية لجميع البراندات
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        handleInspectObsidianNode(currentSelectedBrand.id);
-                        setIsBrandSuperWindowOpen(true);
-                      }}
-                      className="px-3 py-1 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-[10px] font-black flex items-center gap-1 shadow-[0_0_15px_rgba(0,240,255,0.4)] transition cursor-pointer"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                      <span>نافذة البراند الشاملة</span>
-                    </button>
-                    <button
-                      onClick={fetchObsidianVault}
-                      className="px-2.5 py-1 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>تحديث الشبكة</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Filter and Zoom Controls */}
-                <div className="flex items-center justify-between gap-2 flex-wrap text-[10px]">
-                  <div className="flex items-center gap-1.5">
-                    {[
-                      { id: 'all', label: `كافة العقد (${allBrandsList.length || 25})` },
-                      { id: 'studio', label: 'تيتو ستوديو' },
-                      { id: 'agent', label: 'وكلاء واتساب' },
-                      { id: 'ezzel', label: 'مشتركو الظل' }
-                    ].map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => setGraphFilter(f.id as any)}
-                        className={`px-2.5 py-1 rounded-xl border font-bold transition cursor-pointer ${
-                          graphFilter === f.id
-                            ? 'bg-cyan-500/30 border-cyan-400 text-cyan-100 shadow-[0_0_15px_rgba(0,240,255,0.35)]'
-                            : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 font-mono text-[10px]">
-                    <span className="text-white/50 text-[9px]">التقريب:</span>
-                    <button
-                      onClick={() => setGraphZoom(z => Math.max(0.75, +(z - 0.15).toFixed(2)))}
-                      className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 text-cyan-300 border border-white/10 flex items-center justify-center font-bold"
-                    >
-                      -
-                    </button>
-                    <span className="text-white/70 px-1">{Math.round(graphZoom * 100)}%</span>
-                    <button
-                      onClick={() => setGraphZoom(z => Math.min(1.45, +(z + 0.15).toFixed(2)))}
-                      className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 text-cyan-300 border border-white/10 flex items-center justify-center font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* THE LIVING 3D HOLOGRAPHIC CONSTELLATION CANVAS */}
-                <div className="w-full rounded-2xl overflow-hidden border border-cyan-500/30 shadow-[inset_0_0_60px_rgba(0,240,255,0.2)] bg-[#010412]/95 relative h-[58vh] min-h-[520px]">
+              <div className="w-full flex flex-col gap-3 animate-in fade-in duration-300 font-['Cairo'] text-right">
+                {/* OPEN 3D HOLOGRAPHIC SPACE — ZERO CLUNKY BOXES */}
+                <div className="w-full h-[64vh] min-h-[540px] relative">
                   <ObsidianHolographicConstellation
                     brands={allBrandsList.map((b) => ({
                       id: b.id,
@@ -1834,6 +1754,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     onOpenStore={(slug) => window.open('/store/' + slug, '_blank')}
                     onOpenChat={() => handleOpenWhatsAppConnectModal()}
                     onOpenStudio={() => window.open('https://t2-studio.vercel.app', '_blank')}
+                    className="!bg-transparent !border-cyan-400/15 !shadow-none"
                   />
                 </div>
 

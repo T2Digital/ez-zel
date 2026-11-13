@@ -440,9 +440,15 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   }, [node3DPositions, selectedBrandId, zoomRef, autoRotate, onSelectBrand]);
 
   return (
-    <div ref={containerRef} className={`relative w-full h-full min-h-[480px] rounded-3xl bg-[#01030d]/85 backdrop-blur-xl border border-cyan-500/35 overflow-hidden shadow-[0_0_50px_rgba(0,240,255,0.15)] flex flex-col ${className}`}>
+    <div ref={containerRef} className={`relative w-full h-full min-h-[480px] rounded-3xl bg-[#01030d]/35 backdrop-blur-md border border-cyan-500/20 overflow-hidden shadow-[0_0_60px_rgba(0,240,255,0.08)] flex flex-col ${className}`}>
+      {/* Futuristic Spatial Corner Reticles */}
+      <span className="pointer-events-none absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-cyan-400/50 rounded-tl-lg z-10" />
+      <span className="pointer-events-none absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-cyan-400/50 rounded-tr-lg z-10" />
+      <span className="pointer-events-none absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-cyan-400/50 rounded-bl-lg z-10" />
+      <span className="pointer-events-none absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-cyan-400/50 rounded-br-lg z-10" />
+
       {/* Top Filter and Controls Bar */}
-      <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-cyan-500/20 bg-black/40 backdrop-blur-md">
+      <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-cyan-500/15 bg-black/20 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
           <span className="text-xs font-black text-cyan-300 flex items-center gap-1 font-['Cairo']">
