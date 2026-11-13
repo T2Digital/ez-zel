@@ -1556,13 +1556,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB (Modular Component) */}
-            <JarvisArcReactorCore
-              isListening={isListening}
-              isPlayingVoice={isPlayingVoice}
-              isThinking={isThinking}
-              audioLevel={audioLevel}
-            />
+            {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB (CLICK = MIC CONTROLLER) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (isPlayingVoice) {
+                  stopVoice();
+                  setIsPlayingVoice(false);
+                } else {
+                  handleToggleListening();
+                }
+              }}
+              title="اضغط على الكرة المضيئة للتحدث مع جارفس"
+              className="cursor-pointer focus:outline-none hover:scale-[1.03] active:scale-[0.98] transition-transform"
+            >
+              <JarvisArcReactorCore
+                isListening={isListening}
+                isPlayingVoice={isPlayingVoice}
+                isThinking={isThinking}
+                audioLevel={audioLevel}
+              />
+            </button>
 
             {/* TWO-WAY LIVE CONVERSATION & AUDIO DOCK (Modular Component) */}
             <JarvisMasterVoiceDock

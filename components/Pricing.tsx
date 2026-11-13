@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Zap, UserCheck, Eye, Fingerprint, Sparkles, BrainCircuit, Shield, Mic, HardDrive, ArrowLeft, Calendar, Check, FileText, Terminal } from 'lucide-react';
 import CapabilitiesGuide from './CapabilitiesGuide';
 import WhitePaper from './WhitePaper';
@@ -104,16 +104,39 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   const [showBattleStation, setShowBattleStation] = useState(false);
   const [isGreetingPlaying, setIsGreetingPlaying] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const hasAutoGreetedRef = useRef(false);
 
   const handlePlayJarvisWelcome = () => {
     setIsGreetingPlaying(true);
     playShadowVoice(
-      'أهلاً بيك في منظومة الظل وجارفس! أنا عقلك التاني اللي هيدير تسويقك ومبيعاتك ومحتواك أوتوماتيك. اضغط على الأسبوع المجاني أو ادخل محطة جارفس دلوقتي وشوف السحر بنفسك!',
+      'أهلاً بيك في منظومة الظل وجارفس! أنا عقلك التاني اللي هيدير تسويقك، يصمم محتواك بالذكاء الاصطناعي في تيتو ستوديو، ويرد على عملاءك في الواتساب ويقفّل مبيعات أوتوماتيك 24 ساعة. اضغط على الأسبوع المجاني أو ادخل محطة جارفس دلوقتي وشوف كل برانداتك شغالة قدامك لايف!',
       'male',
       undefined,
       () => setIsGreetingPlaying(false)
     );
   };
+
+  useEffect(() => {
+    if (hasAutoGreetedRef.current) return;
+    const triggerAutoGreeting = () => {
+      if (hasAutoGreetedRef.current) return;
+      hasAutoGreetedRef.current = true;
+      handlePlayJarvisWelcome();
+    };
+    const timer = setTimeout(triggerAutoGreeting, 900);
+    const onFirstInteraction = () => {
+      triggerAutoGreeting();
+      window.removeEventListener('pointerdown', onFirstInteraction);
+      window.removeEventListener('keydown', onFirstInteraction);
+    };
+    window.addEventListener('pointerdown', onFirstInteraction, { once: true });
+    window.addEventListener('keydown', onFirstInteraction, { once: true });
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('pointerdown', onFirstInteraction);
+      window.removeEventListener('keydown', onFirstInteraction);
+    };
+  }, []);
   const [selectedTier, setSelectedTier] = useState<'tier_2500' | 'tier_5000' | 'tier_10000' | 'tier_25000' | 'tier_50000'>('tier_5000');
 
   const tierPrices = {
