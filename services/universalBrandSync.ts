@@ -3,6 +3,7 @@ import * as path from 'path';
 import { BRAND_VAULT } from './brandVault';
 import { broadcastGatewayEvent } from './microservicesGateway';
 import { upsertBrandToTitoStudioFirestore, readTitoStudioCacheSync, syncWeekPlanToTitoStudioFirestore } from './titoStudioFirestoreBridge';
+import { titoStudioApi } from './titoStudioApiClient';
 
 const EZ_ZEL_DATA_DIR = path.join(process.cwd(), 'data');
 const EZ_ZEL_BRANDS_FILE = path.join(EZ_ZEL_DATA_DIR, 'brands.json');
@@ -250,6 +251,31 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
         // If weekContentPlan is provided, push it directly to Tito Studio /content
         if (Array.isArray(payload.weekContentPlan) && payload.weekContentPlan.length > 0) {
             await syncWeekPlanToTitoStudioFirestore({ id: brandId, name }, payload.weekContentPlan as any);
+        }
+
+        // Also mirror to Tito Studio Enterprise Cloud Run API v3.0
+        try {
+            await titoStudioApi.updateBrand(brandId, {
+                name,
+                industry: payload.category || businessType,
+                primaryColor: payload.primaryColor || '#06b6d4',
+                phone: cleanPhone,
+            });
+            titoStudioOk = true;
+        } catch {
+            try {
+                await titoStudioApi.createBrand({
+                    name,
+                    industry: payload.category || businessType,
+                    dialect: 'egyptian',
+                    primaryColor: payload.primaryColor || '#06b6d4',
+                    phone: cleanPhone,
+                    description: payload.slogan || `نشاط ${businessType} متكامل`,
+                });
+                titoStudioOk = true;
+            } catch (apiErr: any) {
+                console.warn('[Universal Sync] Tito Studio Cloud API mirror warning:', apiErr?.message);
+            }
         }
     } catch (e: any) {
         console.error('[Universal Sync] Error updating Tito Studio Firestore:', e?.message);

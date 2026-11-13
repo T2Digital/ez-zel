@@ -4,6 +4,8 @@ import {
   getUnifiedGrowthBrands,
   getEzZelPersonalClients,
 } from "./obsidianVaultService";
+import { titoStudioApi } from "./titoStudioApiClient";
+import { syncBrandToAllEcosystems } from "./universalBrandSync";
 
 export interface JarvisBrainInput {
   message: string;
@@ -239,6 +241,158 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         businessName: { type: Type.STRING },
         phone: { type: Type.STRING },
       },
+    },
+  },
+  {
+    name: "tito_studio_brand_manager",
+    description:
+      "إدارة البراندات في تيتو ستوديو السحابي: جلب البراندات، إنشاء براند جديد ومزامنته، تحديث بياناته، توليد ميثاق الهوية (Brand Kit: الرسالة والرؤية والألوان)، أو استخلاص بيانات موقع منافس/عميل من رابط URL.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ["list_brands", "create_brand", "update_brand", "generate_brand_kit", "scrape_url"],
+        },
+        brandNameOrId: { type: Type.STRING },
+        industry: { type: Type.STRING },
+        phone: { type: Type.STRING },
+        primaryColor: { type: Type.STRING },
+        description: { type: Type.STRING },
+        url: { type: Type.STRING },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "tito_studio_content_and_recycle",
+    description:
+      "إدارة التقويم والمحتوى في تيتو ستوديو: استعراض المنشورات، إعادة تدوير منشور بعد 30 يوم بهوك ذكي جديد، حذف منشور، أو فحص طابور المنشورات المستحقة للنشر.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ["list_content", "recycle_30_days", "delete_content", "check_due_queue"],
+        },
+        brandNameOrId: { type: Type.STRING },
+        contentId: { type: Type.STRING },
+        daysAhead: { type: Type.NUMBER },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "tito_studio_ideas_and_appointments",
+    description:
+      "إدارة بنك الأفكار التسويقية وحجوزات ومواعيد العملاء في تيتو ستوديو: إضافة أو عرض الأفكار، استعراض الحجوزات، تسجيل حجز عميل جديد، أو تأكيد/إلغاء حجز.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ["list_ideas", "create_idea", "list_appointments", "create_appointment", "update_appointment"],
+        },
+        brandNameOrId: { type: Type.STRING },
+        title: { type: Type.STRING },
+        description: { type: Type.STRING },
+        patientName: { type: Type.STRING },
+        phone: { type: Type.STRING },
+        service: { type: Type.STRING },
+        date: { type: Type.STRING },
+        time: { type: Type.STRING },
+        appointmentId: { type: Type.STRING },
+        status: { type: Type.STRING, enum: ["pending", "confirmed", "cancelled", "completed"] },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "tito_studio_autopilot_and_trends",
+    description:
+      "تشغيل الأوتوبايلوت في تيتو ستوديو لتوليد مسودة تلقائية أو التصفح السحابي الافتراضي لاقتناص تريندات السوق وتحويلها لمحتوى جاهز.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ["run_autopilot", "virtual_browse_trends"],
+        },
+        brandNameOrId: { type: Type.STRING },
+        queryFocus: { type: Type.STRING, description: "موضوع التريند أو البحث المطلوب اقتناصه." },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "tito_studio_omnichannel_publish",
+    description:
+      "النشر الفوري على تيك توك، يوتيوب شورتس، سناب شات، منصة إكس (X)، فيسبوك وإنستجرام، أو جلب والرد على تعليقات العملاء.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ["publish_tiktok", "publish_youtube", "publish_snapchat", "publish_x", "list_comments", "reply_comment"],
+        },
+        brandNameOrId: { type: Type.STRING },
+        caption: { type: Type.STRING },
+        title: { type: Type.STRING },
+        mediaUrl: { type: Type.STRING },
+        commentId: { type: Type.STRING },
+        pageId: { type: Type.STRING },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "tito_studio_ads_and_sales_radar",
+    description:
+      "رادار المبيعات والحملات في تيتو ستوديو: استعراض العملاء المحتملين (Hot Leads)، تحليل تعليق عميل وصياغة عرض DM، توليد حملة إعلانية، عرض/إيقاف/تشغيل الحملات، جلب تحليلات ROAS، إرسال واتساب أو تنبيه تيليجرام.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: [
+            "list_leads",
+            "analyze_lead_comment",
+            "generate_ai_ad",
+            "list_campaigns",
+            "toggle_campaign",
+            "get_insights",
+            "send_whatsapp",
+            "test_alert",
+          ],
+        },
+        brandNameOrId: { type: Type.STRING },
+        comment: { type: Type.STRING },
+        campaignName: { type: Type.STRING },
+        dailyBudget: { type: Type.NUMBER },
+        campaignId: { type: Type.STRING },
+        campaignStatus: { type: Type.STRING, enum: ["ACTIVE", "PAUSED"] },
+        phone: { type: Type.STRING },
+        message: { type: Type.STRING },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "tito_studio_media_studio",
+    description:
+      "استوديو الميديا بالذكاء الاصطناعي في تيتو ستوديو: توليد صورة إعلانية فائقة الدقة، بدء توليد فيديو سينمائي 3D عبر Veo، أو استشارة المساعد التنفيذي زين.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ["generate_image", "start_veo_video", "check_veo_video", "zain_copilot"],
+        },
+        brandNameOrId: { type: Type.STRING },
+        prompt: { type: Type.STRING },
+        operationName: { type: Type.STRING },
+      },
+      required: ["action"],
     },
   },
 ];
@@ -543,6 +697,282 @@ ${
               visitorUpdate,
             };
           }
+        }
+        break;
+      }
+
+      case "tito_studio_brand_manager": {
+        try {
+          if (args.action === "list_brands") {
+            backendExecutionResult = await titoStudioApi.listBrands();
+          } else if (args.action === "create_brand") {
+            const name = args.brandNameOrId || "براند جديد";
+            backendExecutionResult = await titoStudioApi.createBrand({
+              name,
+              industry: args.industry || "general",
+              dialect: "egyptian",
+              primaryColor: args.primaryColor || "#00f0ff",
+              phone: args.phone || "01030956097",
+              description: args.description || `نشاط ${name} المتكامل`,
+            });
+            await syncBrandToAllEcosystems({
+              id: backendExecutionResult?.id,
+              name,
+              businessType: args.industry || "نشاط تجاري",
+              phone: args.phone || "01030956097",
+              primaryColor: args.primaryColor || "#00f0ff",
+              source: "Jarvis_TitoStudio_Create",
+            });
+          } else if (args.action === "update_brand") {
+            backendExecutionResult = await titoStudioApi.updateBrand(brandId, {
+              ...(args.primaryColor ? { primaryColor: args.primaryColor } : {}),
+              ...(args.phone ? { phone: args.phone } : {}),
+            });
+          } else if (args.action === "generate_brand_kit") {
+            backendExecutionResult = await titoStudioApi.generateBrandKit({
+              brandName: targetBrand.name,
+              industry: args.industry || targetBrand.businessType || "خدمات",
+              currentDescription: args.description || targetBrand.name,
+              dialect: "egyptian",
+            });
+          } else if (args.action === "scrape_url" && args.url) {
+            backendExecutionResult = await titoStudioApi.scrapeUrlToBrand(args.url, brandId);
+          }
+          executedAction = {
+            type: "TITO_STUDIO_ACTION",
+            module: "brands",
+            brandId,
+            result: backendExecutionResult,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `تعذر تنفيذ أمر البراند في ستوديو: ${err?.message}` };
+        }
+        break;
+      }
+
+      case "tito_studio_content_and_recycle": {
+        try {
+          if (args.action === "list_content") {
+            backendExecutionResult = await titoStudioApi.listContent(brandId);
+          } else if (args.action === "recycle_30_days") {
+            let targetContentId = args.contentId;
+            if (!targetContentId) {
+              const list = await titoStudioApi.listContent(brandId);
+              targetContentId = list?.items?.[0]?.id;
+            }
+            if (targetContentId) {
+              backendExecutionResult = await titoStudioApi.recycleContent(
+                targetContentId,
+                Number(args.daysAhead) || 30
+              );
+            } else {
+              backendExecutionResult = { success: false, message: `لا توجد منشورات سابقة لبراند ${targetBrand.name} لإعادة تدويرها.` };
+            }
+          } else if (args.action === "delete_content" && args.contentId) {
+            backendExecutionResult = await titoStudioApi.deleteContent(args.contentId);
+          } else if (args.action === "check_due_queue") {
+            backendExecutionResult = await titoStudioApi.processScheduledPosts();
+          }
+          executedAction = {
+            type: "SWITCH_TAB",
+            tab: "studio_calendar",
+            brandId,
+            result: backendExecutionResult,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `خطأ في إدارة محتوى ستوديو: ${err?.message}` };
+        }
+        break;
+      }
+
+      case "tito_studio_ideas_and_appointments": {
+        try {
+          if (args.action === "list_ideas") {
+            backendExecutionResult = await titoStudioApi.listIdeas(brandId);
+          } else if (args.action === "create_idea") {
+            backendExecutionResult = await titoStudioApi.createIdea({
+              clinicId: brandId,
+              title: args.title || `فكرة تسويقية لـ ${targetBrand.name}`,
+              description: args.description || message,
+              type: "video",
+            });
+          } else if (args.action === "list_appointments") {
+            backendExecutionResult = await titoStudioApi.listAppointments(brandId);
+          } else if (args.action === "create_appointment") {
+            backendExecutionResult = await titoStudioApi.createAppointment({
+              clinicId: brandId,
+              patientName: args.patientName || "عميل جديد",
+              phone: args.phone || "01000000000",
+              service: args.service || "استشارة وحجز",
+              date: args.date,
+              time: args.time,
+              status: args.status || "pending",
+            });
+          } else if (args.action === "update_appointment" && args.appointmentId) {
+            backendExecutionResult = await titoStudioApi.updateAppointment(args.appointmentId, {
+              status: args.status || "confirmed",
+            });
+          }
+          executedAction = {
+            type: "TITO_STUDIO_ACTION",
+            module: "ideas_appointments",
+            brandId,
+            result: backendExecutionResult,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `خطأ في بنك الأفكار/الحجوزات: ${err?.message}` };
+        }
+        break;
+      }
+
+      case "tito_studio_autopilot_and_trends": {
+        try {
+          if (args.action === "run_autopilot") {
+            backendExecutionResult = await titoStudioApi.runAutopilot(brandId);
+          } else if (args.action === "virtual_browse_trends") {
+            backendExecutionResult = await titoStudioApi.runVirtualBrowse(
+              brandId,
+              args.queryFocus || `${targetBrand.name} ${targetBrand.businessType || ""} 2026`
+            );
+          }
+          executedAction = {
+            type: "SWITCH_TAB",
+            tab: "studio_calendar",
+            brandId,
+            result: backendExecutionResult,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `خطأ في تشغيل الأوتوبايلوت: ${err?.message}` };
+        }
+        break;
+      }
+
+      case "tito_studio_omnichannel_publish": {
+        try {
+          if (args.action === "publish_tiktok") {
+            backendExecutionResult = await titoStudioApi.publishTikTok({
+              clinicId: brandId,
+              videoUrl: args.mediaUrl || "https://cdn.mybrand.com/media/reel.mp4",
+              title: args.title || targetBrand.name,
+              caption: args.caption || message,
+            });
+          } else if (args.action === "publish_youtube") {
+            backendExecutionResult = await titoStudioApi.publishYouTube({
+              clinicId: brandId,
+              videoUrl: args.mediaUrl || "https://cdn.mybrand.com/media/short.mp4",
+              title: args.title || targetBrand.name,
+              description: args.caption || message,
+            });
+          } else if (args.action === "publish_snapchat") {
+            backendExecutionResult = await titoStudioApi.publishSnapchat({
+              clinicId: brandId,
+              mediaUrl: args.mediaUrl || "https://cdn.mybrand.com/media/snap.mp4",
+              caption: args.caption || message,
+            });
+          } else if (args.action === "publish_x") {
+            backendExecutionResult = await titoStudioApi.publishX({
+              clinicId: brandId,
+              caption: args.caption || message,
+            });
+          } else if (args.action === "list_comments" && args.pageId) {
+            backendExecutionResult = await titoStudioApi.getMetaComments(args.pageId);
+          } else if (args.action === "reply_comment" && args.commentId) {
+            backendExecutionResult = await titoStudioApi.replyMetaComment({
+              commentId: args.commentId,
+              message: args.caption || "أهلاً بحضرتك! تم إرسال التفاصيل على الخاص.",
+            });
+          }
+          executedAction = {
+            type: "TITO_STUDIO_ACTION",
+            module: "omnichannel_publish",
+            brandId,
+            result: backendExecutionResult,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `خطأ في النشر متعدد المنصات: ${err?.message}` };
+        }
+        break;
+      }
+
+      case "tito_studio_ads_and_sales_radar": {
+        try {
+          if (args.action === "list_leads") {
+            backendExecutionResult = await titoStudioApi.listLeads(brandId);
+          } else if (args.action === "analyze_lead_comment") {
+            backendExecutionResult = await titoStudioApi.analyzeLeadComment({
+              comment: args.comment || message,
+              clinic: {
+                id: brandId,
+                name: targetBrand.name,
+                industry: targetBrand.businessType,
+                whatsappNumber: targetBrand.phone,
+              },
+            });
+          } else if (args.action === "generate_ai_ad") {
+            backendExecutionResult = await titoStudioApi.generateMetaAdCampaign({
+              campaignName: args.campaignName || `حملة ${targetBrand.name}`,
+              dailyBudget: Number(args.dailyBudget) || 500,
+              clinicId: brandId,
+              dialect: "egyptian",
+            });
+          } else if (args.action === "list_campaigns") {
+            backendExecutionResult = await titoStudioApi.listMetaCampaigns(brandId);
+          } else if (args.action === "toggle_campaign" && args.campaignId) {
+            backendExecutionResult = await titoStudioApi.setMetaCampaignStatus({
+              metaCampaignId: args.campaignId,
+              status: args.campaignStatus || "ACTIVE",
+            });
+          } else if (args.action === "get_insights" && args.campaignId) {
+            backendExecutionResult = await titoStudioApi.getMetaInsights(args.campaignId);
+          } else if (args.action === "send_whatsapp" && args.phone) {
+            backendExecutionResult = await titoStudioApi.sendStudioWhatsApp(
+              args.phone,
+              args.message || `أهلاً بحضرتك من ${targetBrand.name}!`
+            );
+          } else if (args.action === "test_alert") {
+            backendExecutionResult = await titoStudioApi.sendAlertTest(
+              brandId,
+              args.message || `اختبار تنبيه فوري من جارفيس لبراند ${targetBrand.name}`
+            );
+          }
+          executedAction = {
+            type: "TITO_STUDIO_ACTION",
+            module: "ads_sales_radar",
+            brandId,
+            result: backendExecutionResult,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `خطأ في رادار المبيعات أو الإعلانات: ${err?.message}` };
+        }
+        break;
+      }
+
+      case "tito_studio_media_studio": {
+        try {
+          if (args.action === "generate_image") {
+            backendExecutionResult = await titoStudioApi.generateGeminiImage(
+              args.prompt || `Commercial advertising visual for ${targetBrand.name}, luxury lighting`
+            );
+          } else if (args.action === "start_veo_video") {
+            backendExecutionResult = await titoStudioApi.startVeoVideo(
+              args.prompt || `Cinematic 9:16 vertical reel for ${targetBrand.name}`
+            );
+          } else if (args.action === "check_veo_video" && args.operationName) {
+            backendExecutionResult = await titoStudioApi.checkVeoOperation(args.operationName);
+          } else if (args.action === "zain_copilot") {
+            backendExecutionResult = await titoStudioApi.zainCopilotChat(
+              args.prompt || message,
+              { name: targetBrand.name, industry: targetBrand.businessType }
+            );
+          }
+          executedAction = {
+            type: "TITO_STUDIO_ACTION",
+            module: "media_studio",
+            brandId,
+            result: backendExecutionResult,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `خطأ في استوديو الميديا 3D: ${err?.message}` };
         }
         break;
       }

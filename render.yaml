@@ -13,6 +13,8 @@ services:
     envVars:
       - key: PERSISTENT_DATA_DIR
         value: /var/data
+      - key: TITO_STUDIO_API_URL
+        value: https://ais-dev-igm22i3xu3wcsk2bcajmfa-532986182743.europe-west2.run.app
       - key: NODE_ENV
         value: production
       - key: PORT
