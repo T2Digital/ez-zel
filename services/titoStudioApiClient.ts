@@ -246,7 +246,7 @@ export const titoStudioApi = {
     studioRequest("POST", "/api/whatsapp/send", {
       phone,
       message,
-      providerSettings: providerSettings || { provider: "simulation" },
+      providerSettings: providerSettings || { provider: "t2_agent_baileys" },
     }),
 
   // --- 9. Cloud Storage & Scraper ---
