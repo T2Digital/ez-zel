@@ -6,6 +6,7 @@ import {
   persistBrandUpdateAcrossEcosystem,
 } from "./obsidianVaultService";
 import { titoStudioApi } from "./titoStudioApiClient";
+import { t2AgentApi } from "./t2AgentApiClient";
 import { syncBrandToAllEcosystems } from "./universalBrandSync";
 import { saveGeneratedMedia } from "./mediaStorageService";
 
@@ -423,6 +424,37 @@ const jarvisBrainTools: FunctionDeclaration[] = [
       properties: {
         brandNameOrId: { type: Type.STRING },
       },
+    },
+  },
+  {
+    name: "t2_agent_enterprise_control",
+    description:
+      "التحكم الكامل في منصة T2 AI Agent Enterprise (واتساب Baileys، الحجوزات، الحملات الجماعية، استعادة المبيعات المفقودة Re-engagement، روابط الدفع الفوري، والـ CRM الموحد).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: [
+            "health_summary",
+            "pair_whatsapp",
+            "toggle_pause",
+            "send_reply",
+            "trigger_reengagement",
+            "generate_payment_link",
+            "start_broadcast",
+            "list_bookings",
+          ],
+        },
+        brandNameOrId: { type: Type.STRING },
+        phone: { type: Type.STRING },
+        message: { type: Type.STRING },
+        customerName: { type: Type.STRING },
+        serviceName: { type: Type.STRING },
+        amount: { type: Type.NUMBER },
+        campaignName: { type: Type.STRING },
+      },
+      required: ["action"],
     },
   },
 ];
@@ -881,6 +913,47 @@ ${
             widgetType: "whatsapp_insights",
             brandId: b.id,
             data: backendExecutionResult,
+          };
+        }
+        break;
+      }
+
+      case "t2_agent_enterprise_control": {
+        const t2Action = String(args.action || "health_summary");
+        const targetId = brandId || targetBrand?.id || "tito_media";
+        try {
+          if (t2Action === "pair_whatsapp" && args.phone) {
+            backendExecutionResult = await t2AgentApi.requestPairingCode(targetId, String(args.phone));
+          } else if (t2Action === "toggle_pause") {
+            backendExecutionResult = await t2AgentApi.togglePauseBot(targetId);
+          } else if (t2Action === "send_reply" && args.phone && args.message) {
+            backendExecutionResult = await t2AgentApi.sendManualReply(targetId, String(args.phone), String(args.message));
+          } else if (t2Action === "trigger_reengagement") {
+            backendExecutionResult = await t2AgentApi.triggerReEngagement(targetId, String(args.phone || "all"), args.message);
+          } else if (t2Action === "generate_payment_link" && args.phone) {
+            backendExecutionResult = await t2AgentApi.generatePaymentLink(targetId, {
+              customerPhone: String(args.phone),
+              customerName: args.customerName,
+              serviceName: String(args.serviceName || "باقة خدمات"),
+              amount: Number(args.amount) || 1000,
+            });
+          } else if (t2Action === "start_broadcast" && args.message) {
+            backendExecutionResult = await t2AgentApi.startWhatsAppBroadcast(targetId, {
+              campaignName: String(args.campaignName || "حملة جارفس الذكية"),
+              templateMessage: String(args.message),
+              targetFilter: "all",
+              enableAiParaphrase: true,
+            });
+          } else if (t2Action === "list_bookings") {
+            backendExecutionResult = await t2AgentApi.getBookings(targetId);
+          } else {
+            backendExecutionResult = await t2AgentApi.getSystemHealth();
+          }
+        } catch (err: any) {
+          backendExecutionResult = {
+            ok: false,
+            fallbackUsed: true,
+            error: err?.message || "T2 Agent Enterprise API unreachable",
           };
         }
         break;
