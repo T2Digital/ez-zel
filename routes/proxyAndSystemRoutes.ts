@@ -9,13 +9,14 @@ import { GoogleGenAI } from "@google/genai";
 export interface ProxySystemDeps {
   getServerAI: () => GoogleGenAI;
   synthesizeSovereignSpeech: (text: string, voice?: string) => Promise<Buffer>;
+  getCleanServerGeminiKey: () => string;
 }
 
 export function registerProxyAndSystemRoutes(
   app: Express,
   deps: ProxySystemDeps
 ): void {
-  const { getServerAI, synthesizeSovereignSpeech } = deps;
+  const { getServerAI, synthesizeSovereignSpeech, getCleanServerGeminiKey } = deps;
   // --- BINANCE & DASHSCOPE PROXY ROUTERS (Anti-CORS & Secure Key Management) ---
   app.get("/api/binance/ticker/price", async (req, res) => {
       try {

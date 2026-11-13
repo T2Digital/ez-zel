@@ -1091,7 +1091,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   // --- CLIENT LIVE INTERACTIVE STOREFRONT VIEW (Branded PWA + Live Booking Cart -> CRM) --- //
   app.get(["/store/:slug", "/app/:slug"], (req, res) => {
-      const slug = req.params.slug;
+      const slug = String(req.params.slug || "");
       const unified = getUnifiedGrowthBrands();
       const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
       if (!brand) {
@@ -2709,7 +2709,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
-  registerProxyAndSystemRoutes(app, { getServerAI, synthesizeSovereignSpeech });
+  registerProxyAndSystemRoutes(app, { getServerAI, synthesizeSovereignSpeech, getCleanServerGeminiKey });
 
     registerCommunicationsRoutes(app, autonomousQueue);
 
@@ -2803,11 +2803,12 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           }
       });
 
+      const reqUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+      const voiceParam = reqUrl.searchParams.get("voice") || "male";
+      const userName = reqUrl.searchParams.get("user") || "";
+      const voiceName = voiceParam === "female" ? "Kore" : "Puck";
+
       try {
-          const reqUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
-          const voiceParam = reqUrl.searchParams.get("voice") || "male";
-          const userName = reqUrl.searchParams.get("user") || "";
-          const voiceName = voiceParam === "female" ? "Kore" : "Puck";
 
           const ai = getServerAI();
           const liveConfig = {

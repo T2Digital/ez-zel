@@ -18,19 +18,18 @@ import {
   toggleT2AgentBotStatus,
 } from "../services/titoAgentBridgeService";
 import {
-  getMetaAuthUrl,
-  handleMetaCallback,
-  getMetaPages,
-  generateCloudStrategy,
-  generateNanoBananaImage,
+  createMetaPage,
+  getMetaAdAccounts,
+  createMetaAdCampaign,
+  getMetaAdsInsights,
+  uploadMediaPayload,
+  testStorageBucket,
+  sendAlertTest,
+  generateBrandKit,
   generateVeoVideo,
   downloadVeoVideo,
   publishMetaPost,
   processScheduledPosts,
-  getCloudStorageFiles,
-  getMetaPosts,
-  getScheduledPosts,
-  scheduleMetaPost,
 } from "../services/metaAndCloudSuiteService";
 
 export function registerMetaAndAgencyRoutes(app: Express): void {

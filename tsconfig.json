@@ -32,6 +32,8 @@
   "include": [
     "src",
     "services",
+    "routes",
+    "server.ts",
     "components",
     "lib",
     "utils",

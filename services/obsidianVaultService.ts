@@ -835,12 +835,14 @@ export function saveCustomBrandOverride(brand: any) {
 }
 export const loadEzZelClients = getEzZelPersonalClients;
 
-export async function executeRealJarvisEcosystemAction(payload: {
+export async function executeRealJarvisEcosystemAction(input: {
     actionType: string;
     brandId?: string;
     data?: any;
+    payload?: any;
 }): Promise<any> {
-    const { actionType, brandId = 'clean_master', data = {} } = payload;
+    const { actionType, brandId = 'clean_master' } = input;
+    const data = input.data ?? input.payload ?? {};
 
     switch (actionType) {
         case 'CONNECT_WHATSAPP_PAIRING': {

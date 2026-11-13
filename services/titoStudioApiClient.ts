@@ -41,6 +41,14 @@ async function studioRequest<T = any>(
   });
 
   const text = await res.text();
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("text/html") || /^\s*<!doctype html/i.test(text)) {
+    throw new Error(
+      `Tito Studio API returned an HTML page instead of JSON for ${method} ${endpoint}. ` +
+        `The URL (${baseUrl}) is likely an AI Studio dev preview behind a Google login/cookie check. ` +
+        `Deploy Tito Studio to a public Cloud Run URL and set TITO_STUDIO_API_URL.`
+    );
+  }
   let data: any = {};
   try {
     data = text ? JSON.parse(text) : {};
