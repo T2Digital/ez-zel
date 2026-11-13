@@ -8,7 +8,6 @@ import InstallPrompt from "./components/InstallPrompt";
 import { FloatingShadowAvatar } from "./components/FloatingShadowAvatar";
 import SpaceCanvas from "./components/SpaceCanvas";
 import { ProactiveNotification } from "./components/ProactiveNotification";
-import { VoiceCommandListener } from "./components/VoiceCommandListener";
 import { ZeroMistakeGuardrailModal } from "./components/ZeroMistakeGuardrailModal";
 import { useAppStore } from "./services/store";
 import { shadowDB } from "./services/dbService";
@@ -95,7 +94,6 @@ const App: React.FC = () => {
         hide={view === 'chat' || location.pathname === '/chat' || location.pathname.startsWith('/chat/')} 
       />
       <ProactiveNotification />
-      <VoiceCommandListener />
       <ZeroMistakeGuardrailModal />
     </>
   );
