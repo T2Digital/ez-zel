@@ -19,7 +19,8 @@ export default defineConfig(() => {
           registerType: 'prompt',
           includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
           workbox: {
-            maximumFileSizeToCacheInBytes: 15000000
+            maximumFileSizeToCacheInBytes: 5000000,
+            globIgnores: ['**/vendor-web-llm*', '**/vendor-ai*', '**/vendor-ffmpeg*', '**/*.map']
           },
           manifest: {
             name: 'Ez-Zel Shadow',

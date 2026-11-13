@@ -27,8 +27,6 @@
     "@kapso/cli": "^0.16.0",
     "@kapso/whatsapp-cloud-api": "^0.2.1",
     "@mlc-ai/web-llm": "^0.2.83",
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.6.1",
     "@supabase/supabase-js": "^2.90.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/express": "^5.0.6",
