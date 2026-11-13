@@ -1472,39 +1472,6 @@ ${textContent.substring(0, 10000)}`;
         </div>
       )}
 
-      <div className="z-10 shrink-0 bg-black/80 backdrop-blur-md px-3 mt-2 md:px-6 md:mt-4">
-        <SensoryHUD lastMessage={messages.length > 0 ? messages[messages.length - 1].text : ''} isThinking={appStatus === 'thinking'} />
-      </div>
-
-      {/* Prominent Quick-Action Floating Bar for 3D Metaverse, Human Voice Tone & Music Studio */}
-      <div className="z-10 shrink-0 px-3 py-1.5 flex items-center justify-center gap-2 flex-wrap bg-[#060b14]/90 border-b border-cyan-500/20">
-        <button 
-          onClick={() => setShowVirtualWorld(true)}
-          className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-cyan-600/30 via-blue-600/30 to-purple-600/30 hover:from-cyan-500/50 hover:to-purple-500/50 border border-cyan-400 text-cyan-200 text-xs font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-all cursor-pointer hover:scale-105 active:scale-95"
-        >
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span>🌐 العالم الافتراضي 3D</span>
-        </button>
-
-        <button
-          onClick={() => setShowHumanVoiceModal(true)}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-600/30 via-teal-600/30 to-cyan-600/30 hover:from-emerald-500/50 hover:to-cyan-500/50 border border-emerald-400 text-emerald-200 text-xs font-black shadow-[0_0_15px_rgba(16,185,129,0.35)] transition-all cursor-pointer hover:scale-105 active:scale-95"
-        >
-          <Waves className="w-3.5 h-3.5 text-emerald-300" />
-          <span>🎙️ نبرة صوت الظل البشري ({humanVoiceBadge})</span>
-        </button>
-
-        {onNavigateTo && (
-          <button 
-            onClick={() => onNavigateTo('music')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold transition-all cursor-pointer hover:scale-105 active:scale-95"
-          >
-            <Music className="w-3.5 h-3.5 text-purple-400" />
-            <span>ستوديو الأغاني 🎵</span>
-          </button>
-        )}
-      </div>
-
       {showBigFace && (
           <div className="absolute inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in" onClick={() => setShowBigFace(false)}>
               <div className="relative pointer-events-auto" onClick={(e) => e.stopPropagation()}>
