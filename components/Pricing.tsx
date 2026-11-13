@@ -3,6 +3,8 @@ import { Zap, UserCheck, Eye, Fingerprint, Sparkles, BrainCircuit, Shield, Mic, 
 import CapabilitiesGuide from './CapabilitiesGuide';
 import WhitePaper from './WhitePaper';
 import { JarvisBattleStationModal } from './JarvisBattleStationModal';
+import { JarvisArcReactorCore } from './jarvis/JarvisArcReactorCore';
+import { playShadowVoice } from '../services/speechService';
 
 const TerminalEffect = () => {
     const lines = [
@@ -100,7 +102,18 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [showWhitePaper, setShowWhitePaper] = useState(false);
   const [showBattleStation, setShowBattleStation] = useState(false);
+  const [isGreetingPlaying, setIsGreetingPlaying] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+
+  const handlePlayJarvisWelcome = () => {
+    setIsGreetingPlaying(true);
+    playShadowVoice(
+      'أهلاً بيك في منظومة الظل وجارفس! أنا عقلك التاني اللي هيدير تسويقك ومبيعاتك ومحتواك أوتوماتيك. اضغط على الأسبوع المجاني أو ادخل محطة جارفس دلوقتي وشوف السحر بنفسك!',
+      'male',
+      undefined,
+      () => setIsGreetingPlaying(false)
+    );
+  };
   const [selectedTier, setSelectedTier] = useState<'tier_2500' | 'tier_5000' | 'tier_10000' | 'tier_25000' | 'tier_50000'>('tier_5000');
 
   const tierPrices = {
@@ -228,7 +241,27 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
         </div>
 
         {/* 2. CARD (Center) */}
-        <div className="flex-1 flex items-center justify-center relative py-2">
+        <div className="flex-1 flex flex-col items-center justify-center relative py-2 gap-2">
+            {/* Jarvis Pulsing Reactor Orb Only (Voice Welcome for Visitors) */}
+            <button
+                type="button"
+                onClick={handlePlayJarvisWelcome}
+                title="اضغط لسماع ترحيب جارفس الصوتي"
+                className="group relative flex flex-col items-center justify-center cursor-pointer focus:outline-none -mb-4 z-30"
+            >
+                <div className="scale-75 hover:scale-[0.8] transition-transform duration-300">
+                    <JarvisArcReactorCore
+                        isListening={false}
+                        isPlayingVoice={isGreetingPlaying}
+                        isThinking={false}
+                        audioLevel={isGreetingPlaying ? 0.85 : 0.25}
+                    />
+                </div>
+                <span className="mt-1 px-3 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-400/35 text-[10px] font-bold text-cyan-200 backdrop-blur-md">
+                    {isGreetingPlaying ? 'جارفس يرحب بك الآن...' : 'اضغط للتحدث والترحيب الصوتي من جارفس'}
+                </span>
+            </button>
+
             <div className="relative w-full glass p-5 pt-10 rounded-[32px] border border-white/10 bg-black/40 shadow-2xl backdrop-blur-2xl group hover:border-purple-500/20 transition-colors">
                 
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 p-3 bg-[#050505] rounded-[20px] border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-20 group-hover:scale-110 transition-transform duration-500">

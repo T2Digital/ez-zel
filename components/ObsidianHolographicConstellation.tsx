@@ -77,12 +77,12 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const phi = Math.acos(1 - 2 * (idx + 0.5) / Math.max(total, 1));
       const theta = Math.PI * (1 + Math.sqrt(5)) * idx;
 
-      // Distribute in two primary energy shells (radius 180 to 260)
+      // Distribute in two spacious energy shells (radius 250 to 365)
       const isInner = idx % 2 === 0;
-      const radius = isInner ? 190 : 255;
+      const radius = isInner ? 250 : 365;
 
       const x = radius * Math.sin(phi) * Math.cos(theta);
-      const y = (radius * 0.58) * Math.cos(phi); // flatten slightly for galactic disc effect
+      const y = (radius * 0.78) * Math.cos(phi);
       const z = radius * Math.sin(phi) * Math.sin(theta);
 
       return {
@@ -192,7 +192,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const cosY = Math.cos(ry);
       const sinY = Math.sin(ry);
 
-      const fov = 420 * zoomRef.current;
+      const fov = 620 * zoomRef.current;
 
       // 3D Point Projection Helper
       const project3D = (x: number, y: number, z: number) => {
@@ -204,7 +204,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         const y2 = y * cosX - z1 * sinX;
         const z2 = z1 * cosX + y * sinX;
 
-        const distance = 580;
+        const distance = 520;
         const scale = fov / (distance + z2);
         const px = cx + x1 * scale;
         const py = cy + y2 * scale;
@@ -404,7 +404,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const sinX = Math.sin(rotationRef.current.x);
       const cosY = Math.cos(rotationRef.current.y);
       const sinY = Math.sin(rotationRef.current.y);
-      const fov = 420 * zoomRef.current;
+      const fov = 620 * zoomRef.current;
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
 
@@ -413,7 +413,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         const z1 = item.z * cosY + item.x * sinY;
         const y2 = item.y * cosX - z1 * sinX;
         const z2 = z1 * cosX + item.y * sinX;
-        const scale = fov / (580 + z2);
+        const scale = fov / (520 + z2);
         const px = cx + x1 * scale;
         const py = cy + y2 * scale;
         const r = 24 * scale;

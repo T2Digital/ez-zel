@@ -1564,6 +1564,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               audioLevel={audioLevel}
             />
 
+            {/* TWO-WAY LIVE CONVERSATION & AUDIO DOCK (Modular Component) */}
+            <JarvisMasterVoiceDock
+              transcript={transcript}
+              isThinking={isThinking}
+              isListening={isListening}
+              isPlayingVoice={isPlayingVoice}
+              audioLevel={audioLevel}
+              persona={persona}
+              handleToggleListening={handleToggleListening}
+              handlePlayPersonaGreeting={handlePlayPersonaGreeting}
+              setIsPlayingVoice={setIsPlayingVoice}
+            />
+
             {/* DYNAMIC JARVIS STAGE: Neural Constellation is the sole default stage; dynamic views appear on demand */}
             {persona !== 'visitor' ? (
               activeDeckTab !== 'obsidian_graph' ? (
@@ -2293,18 +2306,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </>
             )}
 
-            {/* TWO-WAY LIVE CONVERSATION & AUDIO DOCK (Modular Component) */}
-            <JarvisMasterVoiceDock
-              transcript={transcript}
-              isThinking={isThinking}
-              isListening={isListening}
-              isPlayingVoice={isPlayingVoice}
-              audioLevel={audioLevel}
-              persona={persona}
-              handleToggleListening={handleToggleListening}
-              handlePlayPersonaGreeting={handlePlayPersonaGreeting}
-              setIsPlayingVoice={setIsPlayingVoice}
-            />
+
 
           </div>
 
