@@ -3,8 +3,7 @@
  * Connects Ez-Zel / Jarvis Brain directly to Tito Studio Cloud Run API.
  */
 
-const DEFAULT_TITO_STUDIO_URL =
-  "https://ais-dev-igm22i3xu3wcsk2bcajmfa-532986182743.europe-west2.run.app";
+const DEFAULT_TITO_STUDIO_URL = "https://t2-studio.vercel.app";
 
 export function getTitoStudioBaseUrl(): string {
   return (
@@ -45,8 +44,8 @@ async function studioRequest<T = any>(
   if (contentType.includes("text/html") || /^\s*<!doctype html/i.test(text)) {
     throw new Error(
       `Tito Studio API returned an HTML page instead of JSON for ${method} ${endpoint}. ` +
-        `The URL (${baseUrl}) is likely an AI Studio dev preview behind a Google login/cookie check. ` +
-        `Deploy Tito Studio to a public Cloud Run URL and set TITO_STUDIO_API_URL.`
+        `The URL (${baseUrl}) is either a static SPA frontend without /api routes or behind a login check. ` +
+        `Ensure Tito Studio backend API is deployed and TITO_STUDIO_API_URL points to it.`
     );
   }
   let data: any = {};
