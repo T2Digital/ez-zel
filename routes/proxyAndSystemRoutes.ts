@@ -4,6 +4,7 @@ import path from "path";
 import crypto from "crypto";
 import { exec } from "child_process";
 import { GoogleGenAI } from "@google/genai";
+import { getTitoStudioBaseUrl } from "../services/titoStudioApiClient";
 
 async function loadOptionalPuppeteer(): Promise<any | null> {
   try {
@@ -602,5 +603,82 @@ export function registerProxyAndSystemRoutes(
       }
   });
 
+  // --- CLOSED-LOOP TITO STUDIO BRIDGE (Market Strategy, Content Plan, Owner Approval & Publish) ---
+  const callTitoStudio = async (endpoint: string, method: "GET" | "POST" | "PATCH" = "GET", body?: any) => {
+      const base = getTitoStudioBaseUrl().replace(/\/+$/, "");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.TITO_STUDIO_API_KEY) {
+          headers["x-api-key"] = process.env.TITO_STUDIO_API_KEY;
+      }
+      const resp = await fetch(`${base}${endpoint}`, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await resp.text();
+      let data: any;
+      try {
+          data = JSON.parse(text);
+      } catch {
+          throw new Error(`Tito Studio returned non-JSON (${resp.status}). Ensure Tito Studio backend is deployed on Render.`);
+      }
+      if (!resp.ok || data?.success === false) {
+          throw new Error(data?.error || `Tito Studio error (${resp.status})`);
+      }
+      return data;
+  };
+
+  app.get("/api/studio/live/content", async (req, res) => {
+      try {
+          const clinicId = String(req.query.clinicId || "");
+          const qs = clinicId ? `?clinicId=${encodeURIComponent(clinicId)}` : "";
+          const data = await callTitoStudio(`/api/content${qs}`, "GET");
+          res.json(data);
+      } catch (e: any) {
+          res.status(502).json({ success: false, error: e.message, content: [] });
+      }
+  });
+
+  app.post("/api/studio/live/strategy", async (req, res) => {
+      try {
+          const data = await callTitoStudio("/api/studio/strategy", "POST", req.body || {});
+          res.json(data);
+      } catch (e: any) {
+          res.status(502).json({ success: false, error: e.message });
+      }
+  });
+
+  app.post("/api/studio/live/content-plan", async (req, res) => {
+      try {
+          const data = await callTitoStudio("/api/studio/content-plan", "POST", req.body || {});
+          res.json(data);
+      } catch (e: any) {
+          res.status(502).json({ success: false, error: e.message });
+      }
+  });
+
+  app.post("/api/studio/live/approve-publish", async (req, res) => {
+      try {
+          const { contentId, clinicId, caption, platform = "facebook", publishNow = false } = req.body || {};
+          if (!contentId) {
+              return res.status(400).json({ success: false, error: "contentId is required" });
+          }
+          await callTitoStudio(`/api/content/${encodeURIComponent(contentId)}`, "PATCH", {
+              status: publishNow ? "published" : "approved",
+              approvedAt: new Date().toISOString(),
+          });
+          let publishResult: any = null;
+          if (publishNow && caption) {
+              publishResult = await callTitoStudio("/api/meta/publish", "POST", {
+                  clinicId,
+                  caption,
+                  platform,
+              });
+          }
+          res.json({ success: true, publishResult });
+      } catch (e: any) {
+          res.status(502).json({ success: false, error: e.message });
+      }
+  });
 
 }

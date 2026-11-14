@@ -63,6 +63,11 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
   const [agentUrlInput, setAgentUrlInput] = useState("");
   const [agentKeyInput, setAgentKeyInput] = useState("");
 
+  // Tito Studio Closed-Loop State
+  const [studioStrategy, setStudioStrategy] = useState<any>(null);
+  const [studioContent, setStudioContent] = useState<any[]>([]);
+  const [studioBusy, setStudioBusy] = useState(false);
+
   const notify = (msg: string) => {
     setActionToast(msg);
     setTimeout(() => setActionToast(null), 4000);
@@ -105,7 +110,97 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
       if (stRes.status === "fulfilled") setBrandStatus(stRes.value);
       if (bkRes.status === "fulfilled") setBookings(Array.isArray(bkRes.value?.bookings) ? bkRes.value.bookings : []);
       if (cvRes.status === "fulfilled") setConversations(Array.isArray(cvRes.value?.conversations) ? cvRes.value.conversations : []);
+      fetch(`/api/studio/live/content?clinicId=${encodeURIComponent(brandId)}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (Array.isArray(d?.content)) setStudioContent(d.content);
+        })
+        .catch(() => {});
     } catch {}
+  };
+
+  const handleGenerateStudioStrategy = async () => {
+    setStudioBusy(true);
+    try {
+      const currentBrand = brands.find((b) => b.id === selectedBrandId);
+      const res = await fetch("/api/studio/live/strategy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clinicId: selectedBrandId,
+          brandName: currentBrand?.name || selectedBrandId,
+          industry: currentBrand?.industry || currentBrand?.specialty || "Services",
+          dialect: "egyptian",
+        }),
+      }).then((r) => r.json());
+      if (res?.success && res?.strategy) {
+        setStudioStrategy(res.strategy);
+        notify("تم إعداد دراسة السوق والمنافسين والاستراتيجية بنجاح!");
+      } else {
+        notify(res?.error || "تعذر الاتصال بباك إند Tito Studio");
+      }
+    } catch (e: any) {
+      notify(e?.message || "تعذر توليد الاستراتيجية");
+    } finally {
+      setStudioBusy(false);
+    }
+  };
+
+  const handleGenerateContentPlan = async () => {
+    setStudioBusy(true);
+    try {
+      const currentBrand = brands.find((b) => b.id === selectedBrandId);
+      const res = await fetch("/api/studio/live/content-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clinicId: selectedBrandId,
+          brandName: currentBrand?.name || selectedBrandId,
+          days: 7,
+          platforms: ["facebook", "instagram"],
+          saveToCalendar: true,
+        }),
+      }).then((r) => r.json());
+      if (res?.success && Array.isArray(res?.posts)) {
+        setStudioContent((prev) => [...res.posts, ...prev]);
+        notify(`تم إنشاء خطة محتوى (${res.posts.length} منشور) بانتظار اعتمادك!`);
+      } else {
+        notify(res?.error || "تعذر إنشاء خطة المحتوى");
+      }
+    } catch (e: any) {
+      notify(e?.message || "تعذر إنشاء خطة المحتوى");
+    } finally {
+      setStudioBusy(false);
+    }
+  };
+
+  const handleApproveStudioPost = async (item: any, publishNow: boolean) => {
+    setStudioBusy(true);
+    try {
+      const res = await fetch("/api/studio/live/approve-publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentId: item.id,
+          clinicId: selectedBrandId,
+          caption: item.caption,
+          platform: item.scheduledPlatforms?.[0] || "facebook",
+          publishNow,
+        }),
+      }).then((r) => r.json());
+      if (res?.success) {
+        setStudioContent((prev) =>
+          prev.map((c) => (c.id === item.id ? { ...c, status: publishNow ? "published" : "approved" } : c))
+        );
+        notify(publishNow ? "تم الاعتماد والنشر الفوري على المنصة!" : "تم اعتماد المنشور في الجدول!");
+      } else {
+        notify(res?.error || "فشل الاعتماد/النشر");
+      }
+    } catch (e: any) {
+      notify(e?.message || "فشل الاعتماد/النشر");
+    } finally {
+      setStudioBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -483,6 +578,93 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                     ))
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Tito Studio Closed-Loop: Strategy, Content Plan & Owner Approval */}
+            <div className="bg-slate-900/70 border border-purple-500/25 rounded-2xl p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs md:text-sm font-black text-purple-300 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    Tito Studio — الدائرة المغلقة (السوق، الاستراتيجية، والموافقة على النشر)
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    دراسة السوق والمنافسين ← خطة المحتوى ← موافقتك ← النشر والربط مع T2 Agent
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    disabled={studioBusy}
+                    onClick={handleGenerateStudioStrategy}
+                    className="px-3 py-1.5 rounded-xl bg-purple-600/80 hover:bg-purple-500 disabled:opacity-50 text-xs font-bold cursor-pointer"
+                  >
+                    {studioBusy ? "جاري التنفيذ..." : "1. دراسة السوق والاستراتيجية"}
+                  </button>
+                  <button
+                    disabled={studioBusy}
+                    onClick={handleGenerateContentPlan}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-600/80 hover:bg-cyan-500 disabled:opacity-50 text-xs font-bold cursor-pointer"
+                  >
+                    {studioBusy ? "جاري التنفيذ..." : "2. توليد خطة محتوى 7 أيام"}
+                  </button>
+                </div>
+              </div>
+
+              {studioStrategy && (
+                <div className="p-3.5 rounded-xl bg-black/40 border border-purple-500/20 text-xs space-y-2">
+                  <p className="font-black text-purple-200">التموضع التنافسي: {studioStrategy.positioning}</p>
+                  <p className="text-slate-300">{studioStrategy.marketAnalysis}</p>
+                  {Array.isArray(studioStrategy.competitorGaps) && (
+                    <div className="text-[11px] text-amber-200">
+                      ثغرات المنافسين: {studioStrategy.competitorGaps.join(" • ")}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {studioContent.length === 0 ? (
+                  <p className="text-xs text-slate-400">
+                    لا يوجد محتوى محمّل من Tito Studio حالياً. تأكد من ربط سيرفر Tito Studio واضغط "توليد خطة محتوى 7 أيام".
+                  </p>
+                ) : (
+                  studioContent.slice(0, 12).map((item: any, idx: number) => (
+                    <div
+                      key={item.id || idx}
+                      className="p-3 rounded-xl bg-black/30 border border-white/10 text-xs flex flex-col md:flex-row md:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-white">{item.title}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/10 text-slate-300">
+                            {item.status || "draft"}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{item.date}</span>
+                        </div>
+                        <p className="text-slate-300 line-clamp-2">{item.caption}</p>
+                      </div>
+                      {item.status !== "published" && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            disabled={studioBusy}
+                            onClick={() => handleApproveStudioPost(item, false)}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 text-emerald-200 font-bold cursor-pointer"
+                          >
+                            اعتماد فقط
+                          </button>
+                          <button
+                            disabled={studioBusy}
+                            onClick={() => handleApproveStudioPost(item, true)}
+                            className="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold cursor-pointer"
+                          >
+                            اعتماد ونشر فوري
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
