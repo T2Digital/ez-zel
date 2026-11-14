@@ -2195,13 +2195,20 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
-  // --- ECOSYSTEM STATUS & TRI-BRIDGE TELEMETRY (Ez-Zel + Tito Studio + T2 Agent) ---
-  app.get("/api/system/ecosystem-status", (req, res) => {
+  // --- ECOSYSTEM STATUS & TRI-BRIDGE TELEMETRY (Cloud-Native Live Probe: Ez-Zel + Tito Studio + T2 Agent) ---
+  app.get("/api/system/ecosystem-status", async (_req, res) => {
       const tenants = getPersistedTenants();
       const totalMRR = tenants.reduce((acc, t) => acc + (t.monthlyRevenue || 0), 0);
+      const studioUrl = getTitoStudioBaseUrl();
+      const agentUrl = getT2AgentBaseUrl();
 
-      const t2StudioExists = fs.existsSync("D:\\t2-studio");
-      const t2AgentExists = fs.existsSync("D:\\new new\\t2-agent-nov-1-2026-5-06-22-pm");
+      let probe: any = null;
+      try {
+          probe = await runLiveEcosystemHealthProbe(studioUrl, agentUrl);
+      } catch {}
+
+      const studioOnline = Boolean(probe?.titoStudio?.reachable);
+      const agentOnline = Boolean(probe?.t2Agent?.reachable);
 
       res.json({
           success: true,
@@ -2209,17 +2216,17 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           ecosystem: {
               ezZelCore: {
                   name: "منظومة الظل السيادية (Ez-Zel Sovereign OS)",
-                  path: "D:\\ez-zel-",
+                  url: process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com",
                   status: "operational",
-                  port: 3000,
                   activeTenants: tenants.length,
                   totalMRR,
                   ttsEngine: "Google Gemini TTS & Neural Egyptian Hybrid"
               },
               titoStudio: {
                   name: "تيتو ستوديو (T2 Studio - Content & Media Engine)",
-                  path: "D:\\t2-studio",
-                  status: t2StudioExists ? "ready" : "offline",
+                  url: studioUrl,
+                  status: studioOnline ? "ready" : "offline",
+                  latencyMs: probe?.titoStudio?.latencyMs ?? null,
                   capabilities: [
                       "Zain Copilot (كاتب الإعلانات والسيناريو الذكي)",
                       "AI Video & Script Studio (توليد المحتوى الإعلاني)",
@@ -2230,8 +2237,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               },
               t2Agent: {
                   name: "منصة الأجنت الذاتي (T2 Agent - WhatsApp & Meta Platform)",
-                  path: "D:\\new new\\t2-agent-nov-1-2026-5-06-22-pm",
-                  status: t2AgentExists ? "ready" : "offline",
+                  url: agentUrl,
+                  status: agentOnline ? "ready" : "offline",
+                  latencyMs: probe?.t2Agent?.latencyMs ?? null,
                   capabilities: [
                       "Baileys WhatsApp Bot (شات بوت الواتساب التفاعلي المستمر 24/7)",
                       "Facebook & Instagram Broadcast Engine (حملات المراسلة الشاملة)",
@@ -2242,10 +2250,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               }
           },
           triBridgeStatus: {
-              connected: t2StudioExists && t2AgentExists,
+              connected: studioOnline && agentOnline,
               dataPipeline: "Ez-Zel Core ➔ Tito Studio (Content) ➔ T2 Agent (Execution & Broadcast)",
-              activeSessions: 1420,
-              broadcastQueued: 34
+              probe
           }
       });
   });
@@ -2551,16 +2558,20 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   });
 
   // --- UNIVERSAL ECOSYSTEM SYNC & HEALTH CHECK ENDPOINTS ---
-  app.get("/api/ecosystem/sync-status", (_req, res) => {
+  app.get("/api/ecosystem/sync-status", async (_req, res) => {
       try {
           const ezBrandsPath = path.join(process.cwd(), 'data', 'brands.json');
           const ezTenantsPath = path.join(process.cwd(), 'data', 'tenants.json');
-          const t2AgentBrandsPath = 'D:/new new/t2-agent-nov-1-2026-5-06-22-pm/data/brands.json';
           const studioCache = readTitoStudioCacheSync();
 
           const ezBrandsCount = fs.existsSync(ezBrandsPath) ? Object.keys(JSON.parse(fs.readFileSync(ezBrandsPath, 'utf8'))).length : 0;
           const ezTenantsCount = fs.existsSync(ezTenantsPath) ? JSON.parse(fs.readFileSync(ezTenantsPath, 'utf8')).length : 0;
-          const t2AgentCount = fs.existsSync(t2AgentBrandsPath) ? Object.keys(JSON.parse(fs.readFileSync(t2AgentBrandsPath, 'utf8'))).length : 0;
+          let t2AgentCount = 0;
+          try {
+              const { t2AgentApi } = await import("./services/t2AgentApiClient");
+              const healthRes = await t2AgentApi.getAllBrandsHealth();
+              if (Array.isArray(healthRes?.brands)) t2AgentCount = healthRes.brands.length;
+          } catch {}
           const titoStudioCount = (studioCache.clinics || []).length;
 
           res.json({

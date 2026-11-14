@@ -853,12 +853,12 @@ export async function executeRealJarvisEcosystemAction(input: {
             persistBrandUpdateAcrossEcosystem(brandId, { phone: rawPhone });
 
             // 2. Attempt live Baileys Pairing Code & QR retrieval from T2-Agent server
+            const { getT2AgentBaseUrl } = await import('./t2AgentApiClient');
             const candidateAgentUrls = [
+                getT2AgentBaseUrl(),
                 process.env.T2_AGENT_URL,
-                'http://localhost:3002',
-                'http://localhost:4000',
                 'https://khedr-bot-agent.onrender.com'
-            ].filter(Boolean) as string[];
+            ].filter((u, i, arr): u is string => Boolean(u) && arr.indexOf(u) === i);
 
             let livePairingCode: string | null = null;
             let liveQrDataUrl: string | null = null;

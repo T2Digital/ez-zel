@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { getT2AgentBaseUrl } from './t2AgentApiClient';
 
 interface SSEClient {
     id: string;
@@ -181,7 +182,7 @@ export function setupMicroservicesGateway(app: express.Express) {
 
     // 3. Microservices Health & Status Fleet Monitor
     app.get('/api/gateway/services/status', async (_req: Request, res: Response) => {
-        const t2AgentUrl = process.env.T2_AGENT_URL || 'http://localhost:3000';
+        const t2AgentUrl = getT2AgentBaseUrl();
         const metaServiceUrl = process.env.META_SERVICE_URL || 'https://graph.facebook.com';
 
         let t2Status = { online: false, latencyMs: 0, url: t2AgentUrl };
@@ -255,7 +256,7 @@ export function setupMicroservicesGateway(app: express.Express) {
 
     // 5. Remote Microservice Dispatcher (Send command to T2 Agent without source coupling)
     app.post('/api/gateway/t2-agent/dispatch', async (req: Request, res: Response) => {
-        const t2AgentUrl = process.env.T2_AGENT_URL || 'http://localhost:3000';
+        const t2AgentUrl = getT2AgentBaseUrl();
         const { endpoint, method = 'POST', payload } = req.body;
 
         try {

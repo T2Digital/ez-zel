@@ -12,6 +12,7 @@ const AdminDashboard = lazy(() => import("./AdminDashboard"));
 const SecurityGate = lazy(() => import("./SecurityGate"));
 const AffiliateDashboard = lazy(() => import("./AffiliateDashboard"));
 const Dashboard = lazy(() => import("./Dashboard"));
+const CommandCenter = lazy(() => import("./CommandCenter"));
 const WorkspaceExplorer = lazy(() => import("./WorkspaceExplorer"));
 const AssistantWidget = lazy(() => import("./AssistantWidget").then(m => ({ default: m.AssistantWidget })));
 const ClientPortalView = lazy(() => import("./ClientPortalView").then(m => ({ default: m.ClientPortalView })));
@@ -176,6 +177,32 @@ export const AppRoutes: React.FC = () => {
 
       <Route
         path="/"
+        element={
+          user ? (
+            isAppLocked ? (
+              <SecurityGate
+                user={user}
+                onUnlock={() => setIsAppLocked(false)}
+                onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
+              />
+            ) : (
+              <CommandCenter
+                user={user}
+                onOpenChat={() => navigateToView("chat")}
+                onOpenAdmin={() => navigateToView("admin")}
+                onOpenWorkspace={() => navigateToView("workspace")}
+                onUpgrade={handleUpgradeRequest}
+                onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
+              />
+            )
+          ) : (
+            <Navigate to="/pricing" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/orbital"
         element={
           user ? (
             isAppLocked ? (
