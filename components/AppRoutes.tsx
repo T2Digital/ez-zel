@@ -186,32 +186,6 @@ export const AppRoutes: React.FC = () => {
                 onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
               />
             ) : (
-              <CommandCenter
-                user={user}
-                onOpenChat={() => navigateToView("chat")}
-                onOpenAdmin={() => navigateToView("admin")}
-                onOpenWorkspace={() => navigateToView("workspace")}
-                onUpgrade={handleUpgradeRequest}
-                onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
-              />
-            )
-          ) : (
-            <Navigate to="/pricing" replace />
-          )
-        }
-      />
-
-      <Route
-        path="/orbital"
-        element={
-          user ? (
-            isAppLocked ? (
-              <SecurityGate
-                user={user}
-                onUnlock={() => setIsAppLocked(false)}
-                onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
-              />
-            ) : (
               <Dashboard
                 user={user}
                 initialAction={dashboardAction}
@@ -222,6 +196,32 @@ export const AppRoutes: React.FC = () => {
                 onUpgrade={handleUpgradeRequest}
                 onStartAffiliate={handleStartAffiliate}
                 onOpenWorkspace={() => navigateToView("workspace")}
+              />
+            )
+          ) : (
+            <Navigate to="/pricing" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/command-center"
+        element={
+          user ? (
+            isAppLocked ? (
+              <SecurityGate
+                user={user}
+                onUnlock={() => setIsAppLocked(false)}
+                onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
+              />
+            ) : (
+              <CommandCenter
+                user={user}
+                onOpenChat={() => navigateToView("chat")}
+                onOpenAdmin={() => navigateToView("admin")}
+                onOpenWorkspace={() => navigateToView("workspace")}
+                onUpgrade={handleUpgradeRequest}
+                onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
               />
             )
           ) : (
