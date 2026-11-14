@@ -164,6 +164,14 @@ If the user mentions an interest (e.g. food, tech), suggest relevant options bas
     
     ${longTermMemoryStr}
     
+    CRITICAL CLIENT & VISITOR SEQUENCE + MEMORY RULE:
+    - راجع سجل المحادثة بالكامل قبل الرد: أي معلومة ذكرها المستخدم (اسمه، نوع نشاطه التجاري، هل لديه صفحات سوشيال ميديا أم لا، أو الباقة المناسبة) تُحفظ في ذهنك فوراً وممنوع تماماً سؤاله عنها مرة أخرى!
+    - عند التحدث مع زائر (GUEST) أو عميل (USER_ROLE !== 'SUPREME_CREATOR_TITO') التزم بالسيكوانس بالترتيب:
+      1) الترحيب ومعرفة اسمه ونشاطه التجاري (هل المشروع قائم ويعمل أم فكرة جديدة من الصفر؟).
+      2) معرفة هل لديه صفحات فيسبوك/إنستجرام/تيك توك أم يحتاج تأسيساً كاملاً، وشرح الباقات بوضوح (2500، 5000، 10000، 25000، 50000 ج.م — نصفها للإعلانات الممولة) مع خيار أسبوع التجربة المجانية.
+      3) بمجرد وضوح النشاط، استدعِ الأداة المناسبة فوراً ('brand_social_launch_kit' لتأسيس الهوية والخطة، أو 'open_onboarding_wizard' للتجهيز، أو 'paymob_subscription_checkout' للاشتراك والدفع).
+      4) مع الماستر تيتو (SUPREME_CREATOR_TITO): إذا طلب تقارير أو متابعة البراندات أو T2 Studio أو حالة السيرفرات، استدعِ 'open_live_window' لعرض النافذة الحية بالبيانات الحقيقية فوراً.
+    
     ${advancedPersonality}
     
     ${systemInfo}
@@ -551,7 +559,7 @@ ${ezzelSubs}
 
         if (systemKeys?.openAIBaseUrl && systemKeys?.openAIApiKey && systemKeys?.openAIModelName) {
             try {
-                const openAIAcc = [...cleanHistory.slice(-6).map(m => ({ 
+                const openAIAcc = [...cleanHistory.slice(-24).map(m => ({ 
                     role: m.role === 'model' ? 'assistant' : 'user', 
                     content: m.parts[0].text 
                 })), { role: 'user', content: finalUserMessage }];
@@ -600,7 +608,7 @@ ${ezzelSubs}
                 
                 const generatePromise = getAI().models.generateContent({
                     model: model,
-                    contents: [...cleanHistory.slice(-6), { role: 'user', parts: userParts }],
+                    contents: [...cleanHistory.slice(-24), { role: 'user', parts: userParts }],
                     config: {
                         systemInstruction: { parts: [{ text: systemInstruction }] },
                         ...(tools.length > 0 ? { tools, toolConfig: { includeServerSideToolInvocations: true } } : {}),
@@ -625,7 +633,7 @@ ${ezzelSubs}
                     try {
                         response = await getAI().models.generateContent({
                             model: 'gemini-3.1-flash-lite',
-                            contents: [...cleanHistory.slice(-6), { role: 'user', parts: userParts }],
+                            contents: [...cleanHistory.slice(-24), { role: 'user', parts: userParts }],
                             config: {
                                 systemInstruction: { parts: [{ text: systemInstruction }] },
                                 temperature: 0.7
@@ -645,7 +653,7 @@ ${ezzelSubs}
                 console.log("[getShadowResponse] Falling back to DashScope Qwen 3.7 Plus proxy...");
                 const formattedMessages = [
                     { role: "system", content: systemInstruction },
-                    ...cleanHistory.slice(-6).map(m => ({
+                    ...cleanHistory.slice(-24).map(m => ({
                         role: m.role === 'model' ? 'assistant' : 'user',
                         content: typeof m.parts[0]?.text === 'string' ? m.parts[0].text : JSON.stringify(m.parts[0])
                     })),

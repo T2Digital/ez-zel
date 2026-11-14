@@ -108,15 +108,17 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                         </div>
                     )}
                     
-                    {isAdmin && onNavigateTo && (
+                    {(isAdmin || isTito) && onNavigateTo && (
                         <button onClick={() => onNavigateTo('admin')} className="p-2 shrink-0 rounded-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 transition-all" title="لوحة القيادة">
                             <Crown className="w-4 h-4" />
                         </button>
                     )}
                     
-                    <button onClick={toggleSentinelMode} className={`p-2 shrink-0 rounded-full border transition-all flex items-center justify-center ${isSentinelMode ? 'bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-white/30 hover:text-white hover:border-white/20'}`} title={isSentinelMode ? 'الحارس نشط' : 'الحارس (للخلفية)'}>
-                        <Ear className={`w-4 h-4 ${isSentinelMode ? 'animate-pulse' : ''}`} />
-                    </button>
+                    {(isAdmin || isTito) && (
+                        <button onClick={toggleSentinelMode} className={`p-2 shrink-0 rounded-full border transition-all flex items-center justify-center ${isSentinelMode ? 'bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-white/30 hover:text-white hover:border-white/20'}`} title={isSentinelMode ? 'الحارس نشط' : 'الحارس (للخلفية)'}>
+                            <Ear className={`w-4 h-4 ${isSentinelMode ? 'animate-pulse' : ''}`} />
+                        </button>
+                    )}
                     
                     {onOpenBattleStation && (
                         <button 
@@ -129,7 +131,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                         </button>
                     )}
 
-                    {setShowAutonomousManager && (
+                    {(isAdmin || isTito) && setShowAutonomousManager && (
                         <button onClick={() => setShowAutonomousManager(true)} className={`relative p-2 shrink-0 rounded-full border transition-all flex items-center justify-center ${runningTasks > 0 ? 'bg-fuchsia-600/20 text-fuchsia-400 border-fuchsia-500/50 shadow-[0_0_10px_rgba(217,70,239,0.2)]' : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:border-white/20'}`} title="المهام الآلية المستقلة">
                             <Bot className={`w-4 h-4 ${runningTasks > 0 ? 'animate-pulse' : ''}`} />
                             {runningTasks > 0 && <span className="absolute -top-1 -right-1 bg-fuchsia-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{runningTasks}</span>}
@@ -137,45 +139,34 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                     )}
                     
                     {onOpenAffiliate && !isRestrictedMode && (
-                        <button onClick={onOpenAffiliate} className="p-2 shrink-0 bg-emerald-900/20 border border-emerald-500/20 rounded-full text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all">
+                        <button onClick={onOpenAffiliate} className="p-2 shrink-0 bg-emerald-900/20 border border-emerald-500/20 rounded-full text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all" title="التسويق بالعمولة">
                             <DollarSign className="w-4 h-4" />
                         </button>
                     )}
 
-                    {setShowAutonomousManager && (
-                        <button 
-                            onClick={() => setShowAutonomousManager(true)} 
-                            className="p-2 shrink-0 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 hover:from-cyan-500/30 hover:to-emerald-500/30 border border-cyan-500/40 text-cyan-300 rounded-full transition-all select-none shadow-lg shadow-cyan-500/10 flex items-center gap-1.5 px-3" 
-                            title="الهاتف والمكالمات والحجوزات الفائقة (Super-Agent Hub)"
-                        >
-                            <Phone className="w-4 h-4 text-cyan-400" />
-                            <span className="text-[10px] font-black hidden md:inline">هاتف الظل والحجوزات</span>
-                        </button>
-                    )}
-
-                    {onNavigateTo && (
-                        <button onClick={() => onNavigateTo('music')} className="p-2 shrink-0 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-400 rounded-full transition-all select-none" title="استوديو إنتاج وتلحين الأغاني">
-                            <Music className="w-4 h-4" />
-                        </button>
-                    )}
-                    
-                    <button onClick={() => setIsSearchActive(true)} className="p-2 shrink-0 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all">
+                    <button onClick={() => setIsSearchActive(true)} className="p-2 shrink-0 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all" title="بحث في المحادثة">
                         <Search className="w-4 h-4" />
                     </button>
                     
-                    <button onClick={() => setShowVoiceBiometricsManager(true)} className={`p-2 shrink-0 rounded-full border transition-all ${hasVoiceSignature ? 'bg-purple-500/10 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`} title="البصمة الصوتية">
-                        <Shield className="w-4 h-4" />
-                    </button>
+                    {(isAdmin || isTito) && (
+                        <button onClick={() => setShowVoiceBiometricsManager(true)} className={`p-2 shrink-0 rounded-full border transition-all ${hasVoiceSignature ? 'bg-purple-500/10 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`} title="البصمة الصوتية">
+                            <Shield className="w-4 h-4" />
+                        </button>
+                    )}
                     
-                    <button onClick={() => setShowLiveAPIMode(true)} className="p-2 shrink-0 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 transition-all select-none" title="المحادثة الحية الفورية (Live Voice & Vision)">
-                        <Waves className="w-4 h-4" />
-                    </button>
+                    {(!isRestrictedMode || isAdmin || isTito) && (
+                        <button onClick={() => setShowLiveAPIMode(true)} className="p-2 shrink-0 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 transition-all select-none" title="المحادثة الحية الفورية (Live Voice & Vision)">
+                            <Waves className="w-4 h-4" />
+                        </button>
+                    )}
                     
-                    <button onClick={() => setShowMemoryVault(true)} className="p-2 shrink-0 rounded-full bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/20 text-fuchsia-400 transition-all select-none" title="الذاكرة المعرفية">
-                        <Brain className="w-4 h-4" />
-                    </button>
+                    {(!isRestrictedMode || isAdmin || isTito) && (
+                        <button onClick={() => setShowMemoryVault(true)} className="p-2 shrink-0 rounded-full bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border border-fuchsia-500/20 text-fuchsia-400 transition-all select-none" title="الذاكرة المعرفية">
+                            <Brain className="w-4 h-4" />
+                        </button>
+                    )}
 
-                    {setShowArchitectureHub && (
+                    {(isAdmin || isTito) && setShowArchitectureHub && (
                         <button 
                             onClick={() => setShowArchitectureHub(true)} 
                             className="p-2 shrink-0 rounded-full bg-gradient-to-r from-cyan-500/15 via-purple-500/15 to-emerald-500/15 hover:from-cyan-500/25 hover:to-emerald-500/25 border border-cyan-500/40 text-cyan-300 transition-all select-none shadow-[0_0_12px_rgba(6,182,212,0.15)] flex items-center gap-1.5 px-2.5" 
@@ -185,17 +176,6 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                             <span className="text-[10px] font-black hidden lg:inline">معمارية AGI</span>
                         </button>
                     )}
-
-                    {setShowVirtualWorld && (
-                        <button 
-                            onClick={() => setShowVirtualWorld(true)} 
-                            className="p-2 shrink-0 rounded-full bg-gradient-to-r from-cyan-600/40 via-blue-600/40 to-purple-600/40 hover:from-cyan-500/60 hover:to-purple-500/60 border-2 border-cyan-400 text-cyan-200 transition-all select-none shadow-[0_0_20px_rgba(6,182,212,0.5)] flex items-center gap-1.5 px-3 cursor-pointer" 
-                            title="عالم الظل الافتراضي ثلاثي الأبعاد (The Sovereign 3D Metaverse)"
-                        >
-                            <Globe className="w-4 h-4 text-cyan-300 animate-spin" style={{ animationDuration: '10s' }} />
-                            <span className="text-[11px] font-black text-cyan-200 whitespace-nowrap">عالم 3D</span>
-                        </button>
-                    )}
                     
                     {setShowLocalDeepDive && (
                         <button onClick={() => setShowLocalDeepDive(true)} className="p-2 shrink-0 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 transition-all select-none" title="الوضع المحلي الأوفلاين">
@@ -203,7 +183,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                         </button>
                     )}
                     
-                    {setShowShadowMesh && (
+                    {(isAdmin || isTito) && setShowShadowMesh && (
                         <button onClick={() => setShowShadowMesh(true)} className="p-2 shrink-0 rounded-full bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 transition-all select-none" title="الترابط الشبكي بين الظلال">
                             <span className="flex items-center justify-center">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="9" y="2" width="6" height="6" rx="1"></rect><path d="M5 16v-3a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v3"></path><path d="M12 12V8"></path></svg>
@@ -211,15 +191,17 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({
                         </button>
                     )}
 
-                    {isAdmin && (
+                    {(isAdmin || isTito) && (
                         <button onClick={() => setShowPersonalKeys(true)} className="p-2 shrink-0 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white transition-all select-none" title="مفاتيحي الخاصة">
                             <Key className="w-4 h-4" />
                         </button>
                     )}
                     
-                    <button onClick={() => setShowNativeSettings(true)} className="p-2 shrink-0 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 transition-all select-none" title="إعدادات النظام العميق">
-                        <Smartphone className="w-4 h-4" />
-                    </button>
+                    {(isAdmin || isTito) && (
+                        <button onClick={() => setShowNativeSettings(true)} className="p-2 shrink-0 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 transition-all select-none" title="إعدادات النظام العميق">
+                            <Smartphone className="w-4 h-4" />
+                        </button>
+                    )}
                     
                     {onOpenHumanVoice && (
                         <button

@@ -343,9 +343,18 @@ export const playShadowVoice = async (
     stopVoice();
 
     try {
-        // Fetch human audio from Google Gemini Human TTS (with memory cache for instant replay)
+        // Fetch human audio from memory cache, persistent IndexedDB cache, or Gemini TTS
         const cacheKey = `${voice}_${text.trim()}`;
-        let base64 = existing || audioCache.get(cacheKey) || await getShadowVoice(text, voice);
+        let base64 = existing || audioCache.get(cacheKey);
+        if (!base64) {
+            base64 = await shadowDB.getAudioSegment(cacheKey) || undefined;
+        }
+        if (!base64) {
+            base64 = await getShadowVoice(text, voice);
+            if (base64) {
+                shadowDB.saveAudioSegment(cacheKey, base64).catch(() => {});
+            }
+        }
         if (base64) {
             audioCache.set(cacheKey, base64);
             onVoiceLoaded?.(base64);
