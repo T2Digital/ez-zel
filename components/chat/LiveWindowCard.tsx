@@ -30,6 +30,7 @@ export const LiveWindowCard: React.FC<{ card: any }> = ({ card }) => {
   const [financials, setFinancials] = useState<any>(null);
 
   const [brands, setBrands] = useState<any[]>([]);
+  const [studioBrands, setStudioBrands] = useState<any[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState<string>(
     card?.data?.brand_id || card?.data?.brandId || ""
   );
@@ -52,18 +53,26 @@ export const LiveWindowCard: React.FC<{ card: any }> = ({ card }) => {
   const loadLiveData = async () => {
     setLoading(true);
     try {
-      const [hRes, fRes, brRes] = await Promise.allSettled([
+      const [hRes, fRes, brRes, stBrRes] = await Promise.allSettled([
         fetch("/api/system/ecosystem-health").then((r) => r.json()),
         fetch("/api/system/real-financials").then((r) => r.json()),
         fetch("/api/t2-agent/brands").then((r) => r.json()),
+        fetch("/api/studio/live/brands").then((r) => r.json()),
       ]);
       if (hRes.status === "fulfilled") setHealth(hRes.value);
       if (fRes.status === "fulfilled") setFinancials(fRes.value);
       if (brRes.status === "fulfilled" && Array.isArray(brRes.value?.brands)) {
         setBrands(brRes.value.brands);
-        if (!selectedBrandId && brRes.value.brands.length > 0) {
-          setSelectedBrandId(brRes.value.brands[0].id);
-        }
+      }
+      if (stBrRes.status === "fulfilled" && Array.isArray(stBrRes.value?.brands)) {
+        setStudioBrands(stBrRes.value.brands);
+      }
+      const fallbackList =
+        (stBrRes.status === "fulfilled" && Array.isArray(stBrRes.value?.brands) && stBrRes.value.brands) ||
+        (brRes.status === "fulfilled" && Array.isArray(brRes.value?.brands) && brRes.value.brands) ||
+        [];
+      if (!selectedBrandId && fallbackList.length > 0) {
+        setSelectedBrandId(fallbackList[0].id);
       }
     } catch {}
     setLoading(false);
@@ -361,10 +370,10 @@ export const LiveWindowCard: React.FC<{ card: any }> = ({ card }) => {
                   onChange={(e) => setSelectedBrandId(e.target.value)}
                   className="bg-slate-900 border border-white/15 rounded-lg px-2.5 py-1.5 text-white font-bold"
                 >
-                  {brands.length === 0 ? (
+                  {(windowType === "studio_closed_loop" && studioBrands.length > 0 ? studioBrands : brands).length === 0 ? (
                     <option value="">جاري تحميل البراندات من السيرفر...</option>
                   ) : (
-                    brands.map((b) => (
+                    (windowType === "studio_closed_loop" && studioBrands.length > 0 ? studioBrands : brands).map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name} ({b.id})
                       </option>

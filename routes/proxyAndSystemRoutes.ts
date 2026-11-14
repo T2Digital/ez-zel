@@ -628,6 +628,15 @@ export function registerProxyAndSystemRoutes(
       return data;
   };
 
+  app.get("/api/studio/live/brands", async (_req, res) => {
+      try {
+          const data = await callTitoStudio("/api/brands", "GET");
+          res.json(data);
+      } catch (e: any) {
+          res.status(502).json({ success: false, error: e.message, brands: [] });
+      }
+  });
+
   app.get("/api/studio/live/content", async (req, res) => {
       try {
           const clinicId = String(req.query.clinicId || "");
