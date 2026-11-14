@@ -690,4 +690,252 @@ export function registerProxyAndSystemRoutes(
       }
   });
 
+  app.post("/api/agent/live/action", async (req, res) => {
+      try {
+          const { t2AgentApi } = await import("../services/t2AgentApiClient");
+          const {
+              action,
+              brandId,
+              phoneNumber,
+              targetUrl,
+              message,
+              serviceName,
+              amount,
+              customerName,
+              audience,
+          } = req.body || {};
+
+          if (!action) {
+              return res.status(400).json({ success: false, error: "action is required" });
+          }
+
+          let result: any;
+          switch (action) {
+              case "system_health":
+                  result = await t2AgentApi.getAllBrandsHealth();
+                  break;
+              case "brand_status":
+                  if (!brandId) return res.status(400).json({ success: false, error: "brandId is required" });
+                  result = await t2AgentApi.getBrandStatus(brandId);
+                  break;
+              case "pair_whatsapp":
+                  if (!brandId || !phoneNumber) {
+                      return res.status(400).json({ success: false, error: "brandId and phoneNumber are required" });
+                  }
+                  result = await t2AgentApi.requestPairingCode(brandId, phoneNumber);
+                  break;
+              case "toggle_pause":
+                  if (!brandId) return res.status(400).json({ success: false, error: "brandId is required" });
+                  result = await t2AgentApi.togglePauseBot(brandId);
+                  break;
+              case "get_bookings":
+                  if (!brandId) return res.status(400).json({ success: false, error: "brandId is required" });
+                  result = await t2AgentApi.getBookings(brandId);
+                  break;
+              case "get_customers":
+                  if (!brandId) return res.status(400).json({ success: false, error: "brandId is required" });
+                  result = await t2AgentApi.getCustomers(brandId);
+                  break;
+              case "get_financials":
+                  if (!brandId) return res.status(400).json({ success: false, error: "brandId is required" });
+                  result = await t2AgentApi.getBrandFinancials(brandId);
+                  break;
+              case "send_broadcast":
+                  if (!brandId || !message) {
+                      return res.status(400).json({ success: false, error: "brandId and message are required" });
+                  }
+                  result = await t2AgentApi.startWhatsAppBroadcast(brandId, {
+                      message,
+                      audience: audience || "all",
+                  });
+                  break;
+              case "trigger_reengagement":
+                  if (!brandId) return res.status(400).json({ success: false, error: "brandId is required" });
+                  result = await t2AgentApi.triggerReEngagement(brandId, phoneNumber || "all", message);
+                  break;
+              case "generate_payment_link":
+                  if (!brandId || !phoneNumber || !serviceName || !amount) {
+                      return res.status(400).json({
+                          success: false,
+                          error: "brandId, phoneNumber, serviceName, and amount are required",
+                      });
+                  }
+                  result = await t2AgentApi.generatePaymentLink(brandId, {
+                      customerPhone: phoneNumber,
+                      customerName,
+                      serviceName,
+                      amount: Number(amount),
+                  });
+                  break;
+              case "virtual_crawler":
+                  if (!brandId || !targetUrl) {
+                      return res.status(400).json({ success: false, error: "brandId and targetUrl are required" });
+                  }
+                  result = await t2AgentApi.startVirtualCrawler(brandId, targetUrl, true);
+                  break;
+              default:
+                  return res.status(400).json({ success: false, error: `Unknown agent action: ${action}` });
+          }
+
+          res.json({ success: true, action, result });
+      } catch (e: any) {
+          res.status(502).json({ success: false, error: e?.message || "T2 Agent action failed" });
+      }
+  });
+
+  app.post("/api/studio/live/media-ads", async (req, res) => {
+      try {
+          const { titoStudioApi } = await import("../services/titoStudioApiClient");
+          const {
+              action,
+              clinicId,
+              prompt,
+              aspectRatio = "9:16",
+              durationSeconds = 5,
+              operationName,
+              videoUri,
+              campaignName,
+              dailyBudget,
+              targetAudience,
+              offerDetails,
+              campaignId,
+              platforms,
+              caption,
+              mediaUrl,
+              mediaType = "IMAGE",
+              title,
+          } = req.body || {};
+
+          if (!action) {
+              return res.status(400).json({ success: false, error: "action is required" });
+          }
+
+          let result: any;
+          switch (action) {
+              case "generate_video":
+                  if (!prompt) return res.status(400).json({ success: false, error: "prompt is required" });
+                  result = await titoStudioApi.startVeoVideo(prompt, aspectRatio, Number(durationSeconds) || 5);
+                  break;
+              case "check_video":
+                  if (!operationName) return res.status(400).json({ success: false, error: "operationName is required" });
+                  result = await titoStudioApi.checkVeoOperation(operationName);
+                  break;
+              case "download_video":
+                  if (!videoUri) return res.status(400).json({ success: false, error: "videoUri is required" });
+                  result = await titoStudioApi.downloadVeoVideo(videoUri);
+                  break;
+              case "list_meta_pages":
+                  result = await titoStudioApi.getMetaPages();
+                  break;
+              case "list_ad_campaigns":
+                  if (!clinicId) return res.status(400).json({ success: false, error: "clinicId is required" });
+                  result = await titoStudioApi.listMetaCampaigns(clinicId);
+                  break;
+              case "create_ad_campaign":
+                  if (!campaignName) return res.status(400).json({ success: false, error: "campaignName is required" });
+                  result = await titoStudioApi.generateMetaAdCampaign({
+                      campaignName,
+                      dailyBudget: dailyBudget ? Number(dailyBudget) : 300,
+                      targetAudience,
+                      offerDetails,
+                      clinicId,
+                  });
+                  break;
+              case "get_ad_insights":
+                  if (!campaignId) return res.status(400).json({ success: false, error: "campaignId is required" });
+                  result = await titoStudioApi.getMetaInsights(campaignId);
+                  break;
+              case "publish_multi_platform": {
+                  if (!caption) return res.status(400).json({ success: false, error: "caption is required" });
+                  const targets: string[] = Array.isArray(platforms) && platforms.length > 0 ? platforms : ["facebook"];
+                  const outcomes: Record<string, any> = {};
+                  for (const p of targets) {
+                      try {
+                          if (p === "facebook" || p === "instagram" || p === "both") {
+                              outcomes[p] = await titoStudioApi.publishMeta({
+                                  caption,
+                                  mediaUrl,
+                                  mediaType: mediaType === "VIDEO" ? "VIDEO" : "IMAGE",
+                                  platform: p as "facebook" | "instagram" | "both",
+                              });
+                          } else if (p === "tiktok") {
+                              outcomes.tiktok = await titoStudioApi.publishTikTok({
+                                  clinicId: clinicId || "default",
+                                  videoUrl: mediaUrl || "",
+                                  title: title || caption.slice(0, 80),
+                                  caption,
+                              });
+                          } else if (p === "youtube") {
+                              outcomes.youtube = await titoStudioApi.publishYouTube({
+                                  clinicId: clinicId || "default",
+                                  videoUrl: mediaUrl || "",
+                                  title: title || caption.slice(0, 80),
+                                  description: caption,
+                              });
+                          } else if (p === "snapchat") {
+                              outcomes.snapchat = await titoStudioApi.publishSnapchat({
+                                  clinicId: clinicId || "default",
+                                  mediaUrl: mediaUrl || "",
+                                  caption,
+                              });
+                          } else if (p === "x") {
+                              outcomes.x = await titoStudioApi.publishX({
+                                  clinicId: clinicId || "default",
+                                  caption,
+                              });
+                          }
+                      } catch (err: any) {
+                          outcomes[p] = { success: false, error: err?.message };
+                      }
+                  }
+                  result = { published: outcomes };
+                  break;
+              }
+              default:
+                  return res.status(400).json({ success: false, error: `Unknown studio media/ads action: ${action}` });
+          }
+
+          res.json({ success: true, action, result });
+      } catch (e: any) {
+          res.status(502).json({ success: false, error: e?.message || "T2 Studio media/ads action failed" });
+      }
+  });
+
+  app.post("/api/developer/deploy-app", async (req, res) => {
+      try {
+          const { cloneOrSynthesizeBrand } = await import("../services/appClonerCrawlerService");
+          const {
+              businessName,
+              template = "custom",
+              websiteUrl,
+              phone,
+              ownerEmail,
+          } = req.body || {};
+
+          if (!businessName) {
+              return res.status(400).json({ success: false, error: "businessName is required" });
+          }
+
+          const brand = await cloneOrSynthesizeBrand({
+              name: businessName,
+              industry: template,
+              websiteUrl,
+              phone,
+              ownerEmail,
+          });
+
+          res.json({
+              success: true,
+              template,
+              appUrl: brand.appUrl,
+              slug: brand.slug,
+              brandId: brand.id,
+              productsCount: brand.productsCatalog?.length || 0,
+              brand,
+          });
+      } catch (e: any) {
+          res.status(500).json({ success: false, error: e?.message || "Client web app deployment failed" });
+      }
+  });
+
 }

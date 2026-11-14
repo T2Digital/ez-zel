@@ -34,6 +34,9 @@ export const PAYMOB_PLANS: Record<string, {
     adBudgetEgp: number;
     offerCondition: string;
     yearlyDiscountedTotal: number;
+    videosPerMonth: number;
+    designsPerMonth: number;
+    platforms: string[];
     features: string[];
 }> = {
     tier_2500: {
@@ -45,11 +48,15 @@ export const PAYMOB_PLANS: Record<string, {
         adBudgetEgp: 1250,
         offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
         yearlyDiscountedTotal: 30000,
+        videosPerMonth: 2,
+        designsPerMonth: 4,
+        platforms: ['whatsapp', 'facebook', 'instagram'],
         features: [
             '🎯 1,250 ج.م ميزانية إعلانات ممولة مباشرة لنشاطك (نصف قيمة الباقة إعلانات!)',
+            '🎬 2 فيديو ريلز احترافي شهرياً (مضاعف) + 4 تصميمات سوشيال عبر تيتو ستوديو',
+            '📲 المنصات المشمولة: WhatsApp + Meta (Facebook & Instagram)',
             '📱 نسخة تطبيق ويب وموبايل PWA مخصصة لنشاطك مع كتالوج وحجوزات',
-            '🤖 وكيل واتساب وميتا الذكي للرد الفوري 24/7 بصوت بشري فائق النقاء',
-            '🎨 إدارة وجدولة محتوى تيتو ستوديو الأسبوعي والشهري'
+            '🤖 وكيل واتساب وميتا الذكي للرد الفوري 24/7'
         ]
     },
     tier_5000: {
@@ -61,12 +68,15 @@ export const PAYMOB_PLANS: Record<string, {
         adBudgetEgp: 2500,
         offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
         yearlyDiscountedTotal: 60000,
+        videosPerMonth: 4,
+        designsPerMonth: 8,
+        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok'],
         features: [
             '🎯 2,500 ج.م ميزانية إعلانات ممولة مباشرة (Meta & TikTok) لنصف القيمة',
+            '🎬 4 فيديوهات ريلز احترافية شهرياً (مضاعف) + 8 تصميمات عبر Turbo Flow & Veo',
+            '📲 المنصات المشمولة: WhatsApp + Meta (Facebook & Instagram) + TikTok',
             '📱 نسخة تطبيق وموقع PWA متكامل مخصص حسب مجال نشاطك التجاري',
-            '🎬 إنتاج فيديوهات ريلز وسيناريوهات فلو عبر Turbo Flow & Veo',
-            '🤖 وكيل مبيعات واتساب تفاوضي لتأكيد وإغلاق الحجوزات آلياً',
-            '☀️🌙 تقارير يومية صباحية ومسائية عن الأداء والمبيعات عبر واتساب'
+            '🤖 وكيل مبيعات واتساب تفاوضي لتأكيد وإغلاق الحجوزات آلياً + تقارير يومية'
         ]
     },
     tier_10000: {
@@ -78,11 +88,14 @@ export const PAYMOB_PLANS: Record<string, {
         adBudgetEgp: 5000,
         offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
         yearlyDiscountedTotal: 120000,
+        videosPerMonth: 8,
+        designsPerMonth: 16,
+        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube'],
         features: [
             '🎯 5,000 ج.م ميزانية إعلانات ممولة مستهدفة لحصد المبيعات (نصف القيمة إعلانات!)',
+            '🎬 8 فيديوهات احترافية شهرياً (Veo & Flow) + 16 تصميم سوشيال متكامل',
+            '📲 جميع المنصات الأساسية: WhatsApp + Meta (FB & IG) + TikTok + YouTube',
             '📱 تطبيق PWA متقدم مع لوحة تحكم وإدارة مخزون وحجوزات و CRM متكامل',
-            '🚀 أتمتة تسويقية كاملة عبر تيتو ستوديو + نشر فوري على ميتا وجوجل فلو',
-            '🎙️ وكيل مبيعات صوتي متعدد القنوات (واتساب + ماسنجر + إنستجرام)',
             '💳 بوابة دفع إلكتروني Paymob لتأكيد الحجوزات بالعربون فوراً'
         ]
     },
@@ -95,11 +108,14 @@ export const PAYMOB_PLANS: Record<string, {
         adBudgetEgp: 12500,
         offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
         yearlyDiscountedTotal: 300000,
+        videosPerMonth: 16,
+        designsPerMonth: 30,
+        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube', 'snapchat'],
         features: [
             '🎯 12,500 ج.م ميزانية إعلانات ممولة قوية للسيطرة على السوق (نصف القيمة إعلانات!)',
-            '🏢 تطبيق ومنظومة متكاملة متعددة الفروع ونقاط البيع',
-            '🎥 إنتاج مكثف للفيديوهات والتصاميم وإدارة الحملات اليومية',
-            '🧠 تخصيص كامل لعقل الذكاء الاصطناعي ونبرة الصوت والردود السيادية',
+            '🎥 16 فيديو احترافي شهرياً + 30 تصميم يومي وإدارة الحملات الإعلانية اليومية',
+            '📲 كل المنصات + Snapchat: WhatsApp + Meta + TikTok + YouTube + Snapchat',
+            '🏢 تطبيق ومنظومة متكاملة متعددة الفروع ونقاط البيع + تخصيص كامل للذكاء الاصطناعي',
             '👑 دعم تنفيذي مباشر 24/7 مع مدير حساب ذكي وخبير نمو مخصص'
         ]
     },
@@ -112,12 +128,15 @@ export const PAYMOB_PLANS: Record<string, {
         adBudgetEgp: 25000,
         offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
         yearlyDiscountedTotal: 600000,
+        videosPerMonth: 32,
+        designsPerMonth: 60,
+        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube', 'snapchat', 'x'],
         features: [
             '🎯 25,000 ج.م ميزانية حملات إعلانية ضخمة عبر كافة المنصات (نصف القيمة إعلانات!)',
-            '🌐 بناء وتخصيص أنظمة وتطبيقات متكاملة (Enterprise PWA Suite)',
-            '⚡ أتمتة تسويقية وسيادية غير محدودة في تيتو ستوديو وتيتو أجنت',
-            '📊 تحليل تنبؤي ومراقبة سلوك الزوار وتحسين معدلات التحويل',
-            '🛡️ سيرفرات مخصصة وأولوية قصوى لكافة عمليات الأتمتة'
+            '🎥 32 فيديو احترافي شهرياً + 60 تصميم شهرياً بأولوية إنتاج قصوى',
+            '📲 تغطية شاملة لكل المنصات: WhatsApp + Meta + TikTok + YouTube + Snapchat + X',
+            '🌐 بناء وتخصيص أنظمة وتطبيقات متكاملة (Enterprise PWA Suite) وسيرفرات مخصصة',
+            '📊 تحليل تنبؤي ومراقبة سلوك الزوار وتحسين معدلات التحويل 24/7'
         ]
     }
 };

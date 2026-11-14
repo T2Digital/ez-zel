@@ -29,12 +29,12 @@ export const getAvailableTools = async (userProfile?: UserProfile, activePersona
     // Dynamic Tool Loading: Filter tools based on active persona if specified
     if (activePersona) {
         const personaToolsMap: Record<string, string[]> = {
-            'client': ['brand_social_launch_kit', 'brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator'],
-            'growth': ['brand_social_launch_kit', 'brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator', 'content_machine_orchestrator', 'marketer_shadow', 'trend_hunter_ai', 'lead_generator_hunter'],
+            'client': ['brand_social_launch_kit', 'brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator', 'open_live_window', 'agent_manage_brand', 'studio_media_and_ads', 'deploy_client_web_app'],
+            'growth': ['brand_social_launch_kit', 'brand_account_manager', 'tito_studio_workflow', 'paymob_subscription_checkout', 'social_messaging_bridge', 'agent_omnichannel_dispatch', 'open_jarvis_battlestation', 'open_onboarding_wizard', 'design_generator', 'open_live_window', 'agent_manage_brand', 'studio_media_and_ads', 'deploy_client_web_app', 'content_machine_orchestrator', 'marketer_shadow', 'trend_hunter_ai', 'lead_generator_hunter'],
             'trader': ['crypto_trader', 'live_trader_chart', 'data_analyst', 'run_autonomous_agent'],
-            'developer': ['auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin', 'run_autonomous_agent', 'zip_project_manager', 'live_app_integrator', 'external_webhook', 'read_system_source_code'],
+            'developer': ['deploy_client_web_app', 'auto_deployer', 'system_terminal', 'workspace_manager', 'create_dynamic_plugin', 'run_autonomous_agent', 'zip_project_manager', 'live_app_integrator', 'external_webhook', 'read_system_source_code'],
             'manager': ['project_manager', 'activate_user_account', 'workspace_manager', 'run_autonomous_agent'],
-            'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator', 'run_autonomous_agent', 'brand_vault_manager', 'generate_video', 'publish_social'],
+            'social': ['social_poster', 'social_messaging_bridge', 'video_generator', 'design_generator', 'run_autonomous_agent', 'brand_vault_manager', 'generate_video', 'publish_social', 'studio_media_and_ads'],
             'educator': ['interactive_educator', 'data_analyst', 'memory_archivist', 'link_reader', 'run_autonomous_agent'],
             'assistant': ['schedule_reminder', 'app_control', 'process_ecommerce_order', 'run_autonomous_agent', 'agent_dashboard_monitor'],
             'researcher': ['link_reader', 'data_analyst', 'vision_analyzer', 'run_autonomous_agent'],
@@ -144,8 +144,13 @@ If the user mentions an interest (e.g. food, tech), suggest relevant options bas
 
     const systemInfo = `
     [SYSTEM FACTUAL KNOWLEDGE & COMMERCE]
-    - باقات الاشتراك: 1000 جنيه شهرياً أو 10000 جنيه سنوياً لباقة السيادة (Sovereign).
-    - التفعيل والدفع: الدفع حالياً يتم بشكل ذاتي ويدوي عبر (InstaPay) ومحافظ الموبايل للشبكات الأربعة (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay). لا يوجد دفع آلي، التفعيل والاشتراك بيتم بمراجعة التحويلات ثم التفعيل اليدوي للماستر أو الأدمن عبر أداة (activate_user_account).
+    - باقات الاشتراك الرسمية (مع مضاعفة الفيديوهات ونصف القيمة ميزانية إعلانات ممولة):
+      1) باقة الانطلاق الفضي (2,500 ج.م/شهر): 2 فيديو + 4 تصميمات + WhatsApp + Meta (FB & IG) + تطبيق PWA أساسي (إعلانات: 1,250 ج.م).
+      2) باقة النمو الذهبي (5,000 ج.م/شهر): 4 فيديوهات + 8 تصميمات + WhatsApp + Meta + TikTok + تطبيق PWA متكامل (إعلانات: 2,500 ج.م).
+      3) باقة التوسع البلاتيني (10,000 ج.م/شهر): 8 فيديوهات + 16 تصميم + جميع المنصات الأساسية (WhatsApp + Meta + TikTok + YouTube) + تطبيق PWA + Paymob (إعلانات: 5,000 ج.م).
+      4) باقة الهيمنة السوقية VIP (25,000 ج.م/شهر): 16 فيديو + 30 تصميم + كل المنصات + Snapchat + فروع متعددة (إعلانات: 12,500 ج.م).
+      5) باقة الشركات الكبرى (50,000 ج.م/شهر): 32 فيديو + 60 تصميم + كل المنصات (WhatsApp + Meta + TikTok + YouTube + Snapchat + X) + Enterprise PWA Suite (إعلانات: 25,000 ج.م).
+    - التفعيل والدفع: الدفع الآلي متاح عبر بوابة Paymob (باستخدام أداة paymob_subscription_checkout) أو عبر التحويلات المحلية (InstaPay / محافظ الموبايل) بمراجعة وتفعيل الماستر تيتو.
     - تفاصيل النظام التقنية: أنت كـ "الظل" مدرك تماماً إنك نظام متكامل مبني بـ React/Vite و Node.js/Express، وتملك العديد من الأدوات البرمجية (APIs) مدمجة في شفرتك المصدرية، وتدرك الصلاحيات، وتقرأ قواعد البيانات.
     - قدراتك المعمارية المحدثة: أنت تمتلك معمارية مزدوجة! لديك "واجهة المحادثة الحية" (وهي ما تتحدث به الآن)، ولديك "عميل مستقل في الخلفية" (Autonomous Worker) قادر على العمل 24/7 دون تدخل بشري، ويمكنه البحث في الأكواد (RAG)، وعمل (Rollback) وتطوير الأنظمة والتجربة في بيئة معزولة (Sandbox).
     - قدراتك الحالية المثبتة وتشمل (وهي حقيقية وتعمل 100%): القدرة على تفعيل حسابات المشتركين عبر أدواتك، جلسات لايف تفاعلية (Live Session) مرئية وصوتية، محافظ سرب وروبوتات مضاربة (Flash Loan Arbitrage)، وخزنة براندات (Brand Vaults)، استرجاع مرجعيتك وهويتك من الذاكرة العميقة، التحكم في المحفظة، إجراء مكالمات Twilio، التداول عبر Binance، وإنشاء الإعلانات والتصميمات الاحترافية ونشرها.

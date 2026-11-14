@@ -1645,6 +1645,121 @@ export const processToolActions = async (
                       });
                   }
               }
+              else if (t.name === 'agent_manage_brand') {
+                  const args = (t.args || {}) as any;
+                  try {
+                      const res = await fetch('/api/agent/live/action', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                              action: args.action,
+                              brandId: args.brand_id,
+                              phoneNumber: args.phone_number,
+                              targetUrl: args.target_url,
+                              message: args.message,
+                              serviceName: args.service_name,
+                              amount: args.amount,
+                          }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok || data?.success === false) {
+                          throw new Error(data?.error || 'فشل تنفيذ العملية في T2 Agent');
+                      }
+                      const summaryStr = JSON.stringify(data.result, null, 2).slice(0, 1200);
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: `🤖 T2 Agent (${args.action})${args.brand_id ? ` — ${args.brand_id}` : ''}`,
+                          description: summaryStr,
+                      });
+                      const hiddenPrompt = `[T2_AGENT_API_RESULT: ${args.action}]\n${summaryStr}\n\n[INSTRUCTION]: اشرح النتيجة الحقيقية للعميل أو الماستر تيتو بوضوح باللهجة المصرية وبدون اختلاق أرقام.`;
+                      setTimeout(() => handleSend(hiddenPrompt, undefined, undefined, true), 100);
+                  } catch (err: any) {
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: '⚠️ تعذر الاتصال بخادم T2 Agent',
+                          description: err?.message || 'حدث خطأ أثناء تنفيذ العملية',
+                      });
+                  }
+              }
+              else if (t.name === 'studio_media_and_ads') {
+                  const args = (t.args || {}) as any;
+                  try {
+                      const res = await fetch('/api/studio/live/media-ads', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                              action: args.action,
+                              clinicId: args.clinic_id,
+                              prompt: args.prompt,
+                              aspectRatio: args.aspect_ratio,
+                              durationSeconds: args.duration_seconds,
+                              operationName: args.operation_name,
+                              videoUri: args.video_uri,
+                              campaignName: args.campaign_name,
+                              dailyBudget: args.daily_budget,
+                              targetAudience: args.target_audience,
+                              offerDetails: args.offer_details,
+                              campaignId: args.campaign_id,
+                              platforms: args.platforms,
+                              caption: args.caption,
+                              mediaUrl: args.media_url,
+                              mediaType: args.media_type,
+                              title: args.title,
+                          }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok || data?.success === false) {
+                          throw new Error(data?.error || 'فشل تنفيذ العملية في T2 Studio');
+                      }
+                      const summaryStr = JSON.stringify(data.result, null, 2).slice(0, 1200);
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: `🎬 T2 Studio (${args.action})`,
+                          description: summaryStr,
+                      });
+                      const hiddenPrompt = `[T2_STUDIO_MEDIA_ADS_RESULT: ${args.action}]\n${summaryStr}\n\n[INSTRUCTION]: اعرض النتيجة الحقيقية للمستخدم بوضوح (مثل معرف عملية الفيديو أو تفاصيل الحملة أو حالة النشر لكل منصة).`;
+                      setTimeout(() => handleSend(hiddenPrompt, undefined, undefined, true), 100);
+                  } catch (err: any) {
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: '⚠️ تنبيه T2 Studio Media & Ads',
+                          description: err?.message || 'حدث خطأ أثناء تنفيذ العملية',
+                      });
+                  }
+              }
+              else if (t.name === 'deploy_client_web_app') {
+                  const args = (t.args || {}) as any;
+                  try {
+                      const res = await fetch('/api/developer/deploy-app', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                              businessName: args.business_name,
+                              template: args.template || 'custom',
+                              websiteUrl: args.website_url,
+                              phone: args.phone,
+                              ownerEmail: args.owner_email,
+                          }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok || data?.success === false) {
+                          throw new Error(data?.error || 'فشل إطلاق نسخة التطبيق');
+                      }
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: `🚀 تم إطلاق تطبيق الويب للعميل: ${args.business_name}`,
+                          description: `القالب: ${data.template}\nرابط التطبيق: ${data.appUrl}\nمعرف البراند: ${data.brandId}\nالكتالوج المُنشأ: ${data.productsCount} خدمة/منتج\nتمت المزامنة مع T2 Studio و T2 Agent بنجاح!`,
+                      });
+                      const hiddenPrompt = `[DEVELOPER_AGENT_APP_DEPLOYED]\n${JSON.stringify({ appUrl: data.appUrl, slug: data.slug, brandId: data.brandId, template: data.template, productsCount: data.productsCount }, null, 2)}\n\n[INSTRUCTION]: بارك للعميل/الماستر تيتو بإطلاق التطبيق، واعرض رابط التطبيق والخطوة التالية (ربط الواتساب عبر agent_manage_brand أو فتح نافذة التشغيل).`;
+                      setTimeout(() => handleSend(hiddenPrompt, undefined, undefined, true), 100);
+                  } catch (err: any) {
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: '⚠️ تعذر إطلاق نسخة التطبيق',
+                          description: err?.message || 'حدث خطأ في وكيل التطوير',
+                      });
+                  }
+              }
               else {
                   const dynamicPlugins = await shadowDB.getPluginsByUserId(currentUser.email || 'GUEST');
                   const activePlugin = dynamicPlugins.find(p => p.name === t.name || `dyn_plugin_${p.id}` === t.name);
