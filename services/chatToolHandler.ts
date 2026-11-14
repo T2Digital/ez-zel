@@ -801,6 +801,13 @@ export const processToolActions = async (
                       timestamp: Date.now()
                   });
               }
+              else if (t.name === 'open_live_window') {
+                  uiCards.push({
+                      cardType: 'live_window',
+                      data: t.args,
+                      timestamp: Date.now()
+                  });
+              }
               else if (t.name === 'memory_constellation') {
                   uiCards.push({
                       cardType: 'memory_constellation',
