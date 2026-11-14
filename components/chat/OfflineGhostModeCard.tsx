@@ -1,53 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { WifiOff, Cpu, DatabaseZap, LockKeyhole } from 'lucide-react';
-import { CreateMLCEngine } from "@mlc-ai/web-llm";
 
 export const OfflineGhostModeCard = ({ card }: { card: any }) => {
-    const [status, setStatus] = useState('Initializing WebGPU Models...');
-    const [progress, setProgress] = useState(0);
-    const [active, setActive] = useState(false);
+    const [status, setStatus] = useState('Local Cache & IndexedDB Mode Ready');
+    const [progress, setProgress] = useState(100);
+    const [active, setActive] = useState(true);
 
     useEffect(() => {
-        let mounted = true;
-        const initLocalLLM = async () => {
-            try {
-                // Using a very small model for fast load
-                const engine = await CreateMLCEngine(
-                    "TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC",
-                    { 
-                        initProgressCallback: (p) => {
-                            if (!mounted) return;
-                            const pct = Math.floor(p.progress * 100);
-                            setProgress(pct);
-                            if (pct > 0 && pct < 100) {
-                                setStatus("Downloading Weights (" + pct + "%)");
-                            }
-                        }
-                    }
-                );
-                if (!mounted) return;
-                
-                // Expose globally for the chat component to use horizontally if needed
-                (window as any).localEngine = engine;
-                
-                setStatus('Local LLM Ready. Ghost Mode Active.');
-                setActive(true);
-            } catch (err: any) {
-                if (mounted) {
-                    setStatus('WebGPU not supported or error: ' + err.message);
-                }
-            }
-        };
-
-        if (!(window as any).localEngine) {
-            initLocalLLM();
-        } else {
-            setProgress(100);
-            setStatus('Local LLM Ready. Ghost Mode Active.');
-            setActive(true);
-        }
-
-        return () => { mounted = false; };
+        setStatus('Cloud AI Primary + Local Cache Active');
+        setProgress(100);
+        setActive(true);
     }, []);
 
     return (

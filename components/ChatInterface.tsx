@@ -30,11 +30,9 @@ const PredictiveAnalyticsBoard = React.lazy(() => import('./chat/PredictiveAnaly
 import { useAppStore } from '../services/store';
 import { useChatStore } from '../services/chatStore';
 const AutonomousManager = React.lazy(() => import('./AutonomousManager').then(m => ({ default: m.AutonomousManager })));
-const LiveTradingBoard = React.lazy(() => import('./LiveTradingBoard').then(m => ({ default: m.LiveTradingBoard })));
 const LocalDeepDive = React.lazy(() => import('./LocalDeepDive').then(m => ({ default: m.LocalDeepDive })));
 const ShadowMeshSync = React.lazy(() => import('./ShadowMeshSync').then(m => ({ default: m.ShadowMeshSync })));
 import { SovereignOSArchitectureHub } from './SovereignOSArchitectureHub';
-const SovereignVirtualWorld3D = React.lazy(() => import('./SovereignVirtualWorld3D'));
 import { HumanVoiceToneModal } from './chat/HumanVoiceToneModal';
 import { JarvisBattleStationModal } from './JarvisBattleStationModal';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
@@ -923,10 +921,7 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
     if (!isHiddenAction && !reuseExistingUserMsg) { setInput(''); setPendingMedia(null); setLiveTranscript(''); }
     abortControllerRef.current = new AbortController();
 
-    if (/عالم افتراضي|العالم الافتراضي|metaverse|العالم الـ 3D|ابنى عالم|عالم 3d|3d world/i.test(displayText)) {
-        setTimeout(() => setShowVirtualWorld(true), 600);
-    }
-    if (/نبرة صوت الظل|نبرة الصوت البشري|غير نبرة الصوت|تغيير نبرة الصوت|فين نبرة صوت/i.test(displayText)) {
+      if (/نبرة صوت الظل|نبرة الصوت البشري|غير نبرة الصوت|تغيير نبرة الصوت|فين نبرة صوت/i.test(displayText)) {
         setTimeout(() => setShowHumanVoiceModal(true), 400);
     }
 
@@ -1444,7 +1439,7 @@ ${textContent.substring(0, 10000)}`;
         setShowAutonomousManager={setShowAutonomousManager}
         setShowShadowMesh={setShowShadowMesh}
         setShowArchitectureHub={setShowArchitectureHub}
-        setShowVirtualWorld={setShowVirtualWorld}
+        setShowVirtualWorld={() => {}}
         runningTasks={useAppStore(s => s.runningTasks)}
         isMuted={isMuted}
         setIsMuted={setIsMuted}
@@ -1598,17 +1593,11 @@ ${textContent.substring(0, 10000)}`;
       {showNativeSettings && (
           <NativeSettings onClose={() => setShowNativeSettings(false)} />
       )}
-      {showTradingBoard && (
-          <LiveTradingBoard onClose={() => setShowTradingBoard(false)} apiKey={currentUser.personalKeys?.binanceApiKey} apiSecret={currentUser.personalKeys?.binanceSecretKey} />
-      )}
       {showPersonalKeys && (
           <PersonalKeysManager onClose={() => setShowPersonalKeys(false)} currentUser={currentUser} />
       )}
       {showArchitectureHub && (
           <SovereignOSArchitectureHub isOpen={showArchitectureHub} onClose={() => setShowArchitectureHub(false)} />
-      )}
-      {showVirtualWorld && (
-          <SovereignVirtualWorld3D isOpen={showVirtualWorld} onClose={() => setShowVirtualWorld(false)} />
       )}
       {showHumanVoiceModal && (
           <HumanVoiceToneModal

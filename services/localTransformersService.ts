@@ -1,7 +1,7 @@
-import { pipeline, env } from '@xenova/transformers';
-
-// Skip local model checks so we fetch from HF hub and cache in IDB
-env.allowLocalModels = false;
+const env: any = { allowLocalModels: false };
+async function pipeline(_task: string, _model?: string): Promise<any> {
+    throw new Error('In-browser ONNX Transformers are disabled in lightweight mode. Using Server Gemini API.');
+}
 
 class LocalTransformersService {
     private visionPipeline: any = null;

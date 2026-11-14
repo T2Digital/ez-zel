@@ -19,10 +19,8 @@ import { ContactsManagerModal } from './dashboard/ContactsManagerModal';
 import { TafraDashboard } from './TafraDashboard';
 import { Network, ActivitySquare, Share2, Orbit, Users, Phone } from 'lucide-react';
 import { ResearchCenterModal, AdvisoryBoardModal, HologramModal } from './dashboard/MissingFeaturesModals';
-import { MusicVaultModal } from './dashboard/MusicVaultModal';
 import { AutonomousManager } from './AutonomousManager';
 import { HumanVoiceToneModal } from './chat/HumanVoiceToneModal';
-const SovereignVirtualWorld3D = React.lazy(() => import('./SovereignVirtualWorld3D'));
 
 // --- ORBITAL UI COMPONENTS ---
 const OrbitalStyles = () => (
@@ -131,8 +129,6 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const [showAdvisory, setShowAdvisory] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
   const [showTafraDashboard, setShowTafraDashboard] = useState(false);
-  const [showMusicVault, setShowMusicVault] = useState(false);
-  const [showVirtualWorld, setShowVirtualWorld] = useState(false);
   const [showHumanVoiceModal, setShowHumanVoiceModal] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
@@ -315,8 +311,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
           const modal = customEvent.detail?.modal;
           if (modal) {
               console.log(`[Dashboard Sync] Direct modal navigation: ${modal}`);
-              if (modal === 'music_vault') setShowMusicVault(true);
-              else if (modal === 'tasks') setShowTasksModal(true);
+              if (modal === 'tasks') setShowTasksModal(true);
               else if (modal === 'memory') setShowMemoryModal(true);
               else if (modal === 'contacts') setShowContacts(true);
               else if (modal === 'brands') setShowBrandsModal(true);
@@ -397,26 +392,17 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
           { id: 'memory', icon: Database, label: "الذاكرة والأسرار", value: memory.length, colorClass: "text-purple-500", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowMemoryModal(true) },
           { id: 'contacts', icon: Phone, label: "جهات الاتصال (كاسبو)", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowContacts(true) },
           { id: 'brands', icon: Briefcase, label: "إدارة البراندات", value: undefined, colorClass: "text-pink-500", bgClass: "bg-pink-500/10", borderClass: "border-pink-500/30", onClick: () => setShowBrandsModal(true) },
-          { id: 'wallet', icon: Wallet, label: "محفظة السرب ₿", value: "ETH", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowWalletModal(true) },
           { id: 'live', icon: Mic, label: "الجلسة الحية المتصلة 🎙️", colorClass: "text-blue-500", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowLiveModal(true) },
           { id: 'social', icon: Share2, label: "الشبكة العنكبوتية (Social Matrix)", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowSocialModal(true) },
           { id: 'vault', icon: Shield, label: "مفاتيح API", colorClass: "text-red-500", bgClass: "bg-red-500/10", borderClass: "border-red-500/30", onClick: () => setShowApiVault(true) },
-          { id: 'music_vault', icon: Music, label: "ألبوم الأغاني 🎵", colorClass: "text-fuchsia-400", bgClass: "bg-fuchsia-500/10", borderClass: "border-fuchsia-500/30", onClick: () => setShowMusicVault(true) },
           { id: 'sync', icon: Activity, label: "تزامن النظام", value: liveSync + '%', colorClass: "text-cyan-500", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30" },
           { id: 'tafra', icon: Cpu, label: "تحديث الطفرة ⚡", colorClass: "text-purple-400 animate-pulse", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowTafraDashboard(true) },
       ] : []),
-      { id: 'virtual_world', icon: Globe, label: "العالم الافتراضي 3D (Metaverse)", colorClass: "text-cyan-300 animate-pulse", bgClass: "bg-cyan-500/25", borderClass: "border-cyan-400/60 shadow-[0_0_30px_rgba(6,182,212,0.5)]", onClick: () => setShowVirtualWorld(true) },
-      { id: 'hologram', icon: Orbit, label: "غرفة الهولوجرام", colorClass: "text-purple-400", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowHologram(true) },
-      { id: 'research', icon: BookOpen, label: "مركز أبحاث الظل", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowResearch(true) },
-      { id: 'advisory', icon: Users, label: "مجلس استشاري الظل", colorClass: "text-amber-400", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: () => setShowAdvisory(true) },
       { id: 'identity', icon: identity.icon, label: identity.label, colorClass: identity.color, bgClass: identity.bg, borderClass: identity.border, onClick: () => setShowVault(true) },
       { id: 'affiliate', icon: user.phone === 'GUEST' ? Megaphone : DollarSign, label: user.phone === 'GUEST' ? "سوق للظل واربح" : "بيزنس العيلة (تسويق)", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: user.phone === 'GUEST' ? onStartAffiliate : onOpenAffiliate },
       ...((user.tier === 'sovereign' || user.phone === 'TITO') ? [
-          { id: 'nexus', icon: Cpu, label: "نكسوس (التحكم المنزلي IoT)", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setPendingSecureAction('nexus') },
           { id: 'brains', icon: Network, label: "محرك العقول الشامل", colorClass: "text-indigo-400", bgClass: "bg-indigo-500/10", borderClass: "border-indigo-500/30", onClick: () => setShowBrainRouter(true) },
           { id: 'reports', icon: ActivitySquare, label: "الوعي الزمني (التقارير)", colorClass: "text-green-400", bgClass: "bg-green-500/10", borderClass: "border-green-500/30", onClick: () => setShowProactiveReports(true) },
-          { id: 'contentMachine', icon: Play, label: "ماكينة المحتوى الذكية", colorClass: "text-red-400", bgClass: "bg-red-500/10", borderClass: "border-red-500/30" },
-          { id: 'podcast', icon: Mic, label: "بودكاست الظل و آدم", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30" }
       ] : [
           { id: 'upgrade', icon: Crown, label: "انضم للنخبة (ترقية)", colorClass: "text-white", bgClass: "bg-white/10", borderClass: "border-white/30", onClick: onUpgrade }
       ]),
@@ -499,13 +485,6 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
                 >
                     <Cpu className="w-5 h-5 text-cyan-300 animate-pulse" />
                     <span>⚡ كابينة جارفيس (العقل التاني الشامل)</span>
-                </button>
-                <button 
-                    onClick={() => setShowVirtualWorld(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-gradient-to-r from-cyan-600/40 via-blue-600/40 to-purple-600/40 hover:from-cyan-500/60 hover:to-purple-500/60 border-2 border-cyan-400 text-cyan-200 text-xs md:text-sm font-black shadow-[0_0_25px_rgba(6,182,212,0.5)] transition-all cursor-pointer hover:scale-105 active:scale-95"
-                >
-                    <Globe className="w-5 h-5 text-cyan-300 animate-spin" style={{ animationDuration: '10s' }} />
-                    <span>🌐 دخول العالم الافتراضي 3D</span>
                 </button>
                 <button 
                     onClick={() => setShowHumanVoiceModal(true)}
@@ -708,18 +687,8 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
             <TafraDashboard onClose={() => setShowTafraDashboard(false)} />
         )}
 
-        {showMusicVault && (
-            <MusicVaultModal user={user} onClose={() => setShowMusicVault(false)} />
-        )}
-
         {showAutonomousManager && (
             <AutonomousManager onClose={() => setShowAutonomousManager(false)} />
-        )}
-
-        {showVirtualWorld && (
-            <React.Suspense fallback={null}>
-                <SovereignVirtualWorld3D isOpen={showVirtualWorld} onClose={() => setShowVirtualWorld(false)} />
-            </React.Suspense>
         )}
 
         {showHumanVoiceModal && (

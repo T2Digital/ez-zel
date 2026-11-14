@@ -1,6 +1,11 @@
-import { CreateMLCEngine, MLCEngine, InitProgressReport } from '@mlc-ai/web-llm';
 import { shadowDB } from './dbService';
 import { processOfflineCommand } from './offlineEdgeService';
+
+type MLCEngine = any;
+type InitProgressReport = { progress: number; text: string };
+async function CreateMLCEngine(_modelId: string, _opts?: any): Promise<any> {
+    throw new Error('In-browser WebGPU LLM weights are disabled in lightweight cloud mode. Using Cloud Gemini / Edge Offline rules.');
+}
 
 export interface LocalModelOption {
     id: string;

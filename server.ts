@@ -8,8 +8,22 @@ import crypto from "crypto";
 import { Queue } from "bullmq";
 import Redis from "ioredis";
 import { spawn, exec } from "child_process";
-import puppeteer from "puppeteer";
 import { GoogleGenAI, Modality } from "@google/genai";
+import {
+  securityHeadersMiddleware,
+  createRateLimiter,
+  requireSovereignApiAccess,
+} from "./middleware/securityMiddleware";
+
+async function loadOptionalPuppeteer(): Promise<any | null> {
+  try {
+    const modName = "puppeteer";
+    const mod = await import(/* @vite-ignore */ modName);
+    return mod?.default || mod;
+  } catch {
+    return null;
+  }
+}
 import { synthesizeTrack } from "./services/musicSynthesizer";
 import { synthesizeEdgeSpeech, synthesizeSpeechAudio, pcmToWavBuffer } from "./services/edgeSpeechSynthesizer";
 import { BRAND_VAULT } from "./services/brandVault";
@@ -398,7 +412,11 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
+  app.use(securityHeadersMiddleware);
   app.use(express.json({ limit: '50mb' }));
+  app.use("/api/", createRateLimiter(120, 60 * 1000, "api"));
+  app.use("/api/gemini/", createRateLimiter(35, 60 * 1000, "gemini"));
+  app.use(requireSovereignApiAccess);
   app.use('/uploads', express.static(path.join(process.cwd(), 'dist', 'uploads')));
   app.use('/media/generated', express.static(getGeneratedMediaDir()));
 
@@ -2590,30 +2608,62 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       });
   }
 
-  // --- EXECUTIVE DAILY BRIEFING (FOR TELEGRAM / WHATSAPP DISPATCH) ---
+  // --- EXECUTIVE DAILY BRIEFING (LIVE ECOSYSTEM PROBE + T2 AGENT + FINANCIALS) ---
   app.get("/api/system/daily-executive-briefing", async (req, res) => {
       try {
           const stats = getRealEcosystemStats();
+          let liveAgentHealth: any = null;
+          let liveFinancials: any = null;
+          let ecosystemProbe: any = null;
+
+          try {
+              const { t2AgentApi } = await import("./services/t2AgentApiClient");
+              const [healthRes, finRes, probeRes] = await Promise.allSettled([
+                  t2AgentApi.getAllBrandsHealth(),
+                  t2AgentApi.getFinancialsSummary(),
+                  runLiveEcosystemHealthProbe(getTitoStudioBaseUrl(), getT2AgentBaseUrl()),
+              ]);
+              if (healthRes.status === "fulfilled") liveAgentHealth = healthRes.value;
+              if (finRes.status === "fulfilled") liveFinancials = finRes.value;
+              if (probeRes.status === "fulfilled") ecosystemProbe = probeRes.value;
+          } catch {}
+
+          const liveBrandsCount = Array.isArray(liveAgentHealth?.brands)
+              ? liveAgentHealth.brands.length
+              : stats.totalVaultBrandsCount;
+          const liveBookingsCount = liveFinancials?.totalBookings ?? stats.confirmedBookingsCount;
+          const liveRevenueEgp = liveFinancials?.totalRevenue ?? liveFinancials?.confirmedRevenue ?? stats.realConfirmedRevenueEgp;
+          const studioStatus = ecosystemProbe?.titoStudio?.reachable ? "متصل ✅" : "غير متصل ⚠️";
+          const agentStatus = ecosystemProbe?.t2Agent?.reachable ? "متصل ✅" : "غير متصل ⚠️";
+
           const briefingText = `📢 تقرير القيادة التنفيذي اليومي لمنظومة T2 السيادية:
 ━━━━━━━━━━━━━━━━━━━━
-🏢 البراندات المتزامنة: ${stats.totalVaultBrandsCount} براند تحت إدارتك.
-💬 إجمالي المحادثات المعالجة: ${stats.totalHandledMessages} محادثة ذكية.
-💰 الحجوزات المؤكدة بالـ CRM: ${stats.confirmedBookingsCount} حجز بإجمالي ${stats.realConfirmedRevenueEgp} ج.م.
-🤖 حالة الأسطول: ${stats.totalHandledMessages || 0} رسالة تم معالجتها ومتابعتها بكفاءة بدون انقطاع.
+🏢 البراندات النشطة: ${liveBrandsCount} براند تحت إدارتك.
+🌐 حالة الربط الحي: T2 Agent (${agentStatus}) | Tito Studio (${studioStatus})
+💬 إجمالي المحادثات المعالجة: ${stats.totalHandledMessages} محادثة.
+💰 الحجوزات المؤكدة: ${liveBookingsCount} حجز بإجمالي ${liveRevenueEgp} ج.م.
 ━━━━━━━━━━━━━━━━━━━━
-النظام السيادي مستقر 100% وجاهز لأي أوامر تنفيذية يا ماستر تيتو.`;
+المنظومة السيادية جاهزة لأي أوامر تنفيذية يا ماستر تيتو.`;
 
           let audioBase64 = null;
-          try {
-              const audioBuffer = await synthesizeSovereignSpeech(briefingText, "Puck");
-              audioBase64 = audioBuffer.toString("base64");
-          } catch {}
+          if (req.query.audio !== "false") {
+              try {
+                  const audioBuffer = await synthesizeSovereignSpeech(briefingText, "Puck");
+                  audioBase64 = audioBuffer.toString("base64");
+              } catch {}
+          }
 
           res.json({
               success: true,
               text: briefingText,
               audioBase64,
-              metrics: stats
+              metrics: {
+                  ...stats,
+                  liveBrandsCount,
+                  liveBookingsCount,
+                  liveRevenueEgp,
+                  ecosystemProbe,
+              }
           });
       } catch (e: any) {
           res.status(500).json({ error: e.message });
@@ -2713,6 +2763,13 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           const { scenario, targetUrl, goal } = req.body;
           console.log(`[EXECUTIVE ACTUATOR] Launching scenario: ${scenario || 'custom'} on ${targetUrl || 'default'}`);
 
+          const puppeteer = await loadOptionalPuppeteer();
+          if (!puppeteer) {
+              return res.status(503).json({
+                  success: false,
+                  error: "Headless browser engine (puppeteer) is disabled in lightweight cloud mode."
+              });
+          }
           const chromePath = getBrowserExecutablePath();
           const browser = await puppeteer.launch({
               headless: true,

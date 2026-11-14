@@ -3,8 +3,17 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { exec } from "child_process";
-import puppeteer from "puppeteer";
 import { GoogleGenAI } from "@google/genai";
+
+async function loadOptionalPuppeteer(): Promise<any | null> {
+  try {
+    const modName = "puppeteer";
+    const mod = await import(/* @vite-ignore */ modName);
+    return mod?.default || mod;
+  } catch {
+    return null;
+  }
+}
 
 export interface ProxySystemDeps {
   getServerAI: () => GoogleGenAI;
@@ -261,6 +270,13 @@ export function registerProxyAndSystemRoutes(
 
           // Real Puppeteer Navigation and Content Extraction
           if (action === "navigate_and_extract" && url) {
+              const puppeteer = await loadOptionalPuppeteer();
+              if (!puppeteer) {
+                  const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+                  const html = await resp.text();
+                  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 3000);
+                  return res.json({ success: true, title: url, contentSummary: text, screenshotBase64: "", url });
+              }
               const browser = await puppeteer.launch({
                   headless: true,
                   args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
@@ -292,6 +308,10 @@ export function registerProxyAndSystemRoutes(
 
           // Real Puppeteer Web Search & Deal Hunter
           if (action === "search_web_live" && query) {
+              const puppeteer = await loadOptionalPuppeteer();
+              if (!puppeteer) {
+                  return res.json({ success: true, results: [], fallbackUsed: true, message: "Lightweight mode: use web_search Gemini tool." });
+              }
               const browser = await puppeteer.launch({
                   headless: true,
                   args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]

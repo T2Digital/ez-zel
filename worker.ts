@@ -1,8 +1,17 @@
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import IORedisMock from 'ioredis-mock';
-import puppeteer from 'puppeteer';
 import * as fs from 'fs';
+
+async function loadOptionalPuppeteer(): Promise<any | null> {
+  try {
+    const modName = "puppeteer";
+    const mod = await import(/* @vite-ignore */ modName);
+    return mod?.default || mod;
+  } catch {
+    return null;
+  }
+}
 import * as path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import * as dotenv from 'dotenv';
@@ -405,16 +414,23 @@ export async function processAgentTask(job: Job) {
                      } catch(e: any) { toolResult = `Error: ${e.message}`; }
                  } else if (call.name === 'adk_perform_rpa') {
                      const targetUrl = (call.args as any).url;
-                     const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
-                     const page = await browser.newPage();
-                     try {
-                         await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-                         const textContent = await page.evaluate(() => document.body.innerText.substring(0, 5000));
-                         toolResult = `محتوى الويب لـ ${targetUrl}:\n${textContent}`;
-                     } catch(e: any) {
-                         toolResult = "RPA Error: " + e.message;
-                     } finally {
-                         await browser.close();
+                     const puppeteer = await loadOptionalPuppeteer();
+                     if (!puppeteer) {
+                         const resp = await fetch(targetUrl);
+                         const html = await resp.text();
+                         toolResult = `محتوى الويب لـ ${targetUrl}:\n${html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 5000)}`;
+                     } else {
+                         const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+                         const page = await browser.newPage();
+                         try {
+                             await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+                             const textContent = await page.evaluate(() => document.body.innerText.substring(0, 5000));
+                             toolResult = `محتوى الويب لـ ${targetUrl}:\n${textContent}`;
+                         } catch(e: any) {
+                             toolResult = "RPA Error: " + e.message;
+                         } finally {
+                             await browser.close();
+                         }
                      }
                  } else if (call.name === 'adk_http_request') {
                      const { url, method, headers, body } = call.args as any;
@@ -504,18 +520,24 @@ export async function processAgentTask(job: Job) {
                          }
                      } catch(e: any) { toolResult = `Commit Error: ${e.message}`; }
                  } else if (call.name === 'adk_browse_web') {
-                     // Same logic as rpa
                      const targetUrl = (call.args as any).url;
-                     const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
-                     const page = await browser.newPage();
-                     try {
-                         await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-                         const textContent = await page.evaluate(() => document.body.innerText.substring(0, 5000));
-                         toolResult = `محتوى الويب لـ ${targetUrl}:\n${textContent}`;
-                     } catch(e: any) {
-                         toolResult = "Browser Error: " + e.message;
-                     } finally {
-                         await browser.close();
+                     const puppeteer = await loadOptionalPuppeteer();
+                     if (!puppeteer) {
+                         const resp = await fetch(targetUrl);
+                         const html = await resp.text();
+                         toolResult = `محتوى الويب لـ ${targetUrl}:\n${html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 5000)}`;
+                     } else {
+                         const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+                         const page = await browser.newPage();
+                         try {
+                             await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+                             const textContent = await page.evaluate(() => document.body.innerText.substring(0, 5000));
+                             toolResult = `محتوى الويب لـ ${targetUrl}:\n${textContent}`;
+                         } catch(e: any) {
+                             toolResult = "Browser Error: " + e.message;
+                         } finally {
+                             await browser.close();
+                         }
                      }
                  } else if (call.name === 'adk_github_commit') {
                      const { commit_message } = call.args as any;

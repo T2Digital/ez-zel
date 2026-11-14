@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 export interface AgentWallet {
     address: string;
     privateKey: string;
@@ -15,70 +13,29 @@ export class WalletService {
         if (stored) {
             return JSON.parse(stored);
         }
-
-        // Generate a new random Ethereum wallet for the swarm
-        const wallet = ethers.Wallet.createRandom();
-        
         const newWallet: AgentWallet = {
-            address: wallet.address,
-            privateKey: wallet.privateKey,
+            address: "0x0000000000000000000000000000000000000000",
+            privateKey: "",
             balance: "0.00",
-            network: "Ethereum Mainnet (Simulation)",
+            network: "Disabled (Fiat/Paymob Primary)",
         };
-
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newWallet));
         return newWallet;
     }
 
-    static async getRealBalance(address: string): Promise<string> {
-        try {
-            const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
-            const balance = await provider.getBalance(address);
-            return ethers.formatEther(balance);
-        } catch (error) {
-            return "0.00";
-        }
+    static async getRealBalance(_address: string): Promise<string> {
+        return "0.00";
     }
 
-    static async approveTradeAllowance(amount: number): Promise<boolean> {
-        // Simulate smart contract approval for the Economic Swarm
-        console.log(`[Swarm Contract] Approved ${amount} ETH for autonomic trading.`);
-        return true;
+    static async approveTradeAllowance(_amount: number): Promise<boolean> {
+        return false;
     }
 
-    static async sendTransaction(privateKey: string, to: string, amount: string): Promise<string> {
-        try {
-            const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
-            const wallet = new ethers.Wallet(privateKey, provider);
-            const value = ethers.parseEther(amount);
-            
-            const tx = await wallet.sendTransaction({
-                to: to,
-                value: value
-            });
-            
-            return tx.hash;
-        } catch (error: any) {
-            throw new Error(error.shortMessage || "Failed to send transaction");
-        }
+    static async sendTransaction(_privateKey: string, _to: string, _amount: string): Promise<string> {
+        throw new Error("Crypto wallet disabled in T2 Sovereign OS; use Paymob gateway.");
     }
 
-    static async callContractWithdraw(privateKey: string, contractAddress: string): Promise<string> {
-        try {
-            const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
-            const wallet = new ethers.Wallet(privateKey, provider);
-            
-            const abi = [
-                "function withdrawNative() public onlyOwner"
-            ];
-            
-            const contract = new ethers.Contract(contractAddress, abi, wallet);
-            const tx = await contract.withdrawNative();
-            
-            return tx.hash;
-        } catch (error: any) {
-            console.error("Withdraw Error:", error);
-            throw new Error(error.shortMessage || error.message || "Failed to call withdrawNative");
-        }
+    static async callContractWithdraw(_privateKey: string, _contractAddress: string): Promise<string> {
+        throw new Error("Smart contract execution disabled in T2 Sovereign OS.");
     }
 }

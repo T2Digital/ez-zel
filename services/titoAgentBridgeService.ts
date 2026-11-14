@@ -1,218 +1,200 @@
-import fs from 'fs';
-import path from 'path';
 import { BRAND_VAULT } from './brandVault';
 import { broadcastGatewayEvent } from './microservicesGateway';
-
-const T2_AGENT_DIR = 'D:/new new/t2-agent-nov-1-2026-5-06-22-pm';
-const T2_AGENT_DATA_DIR = path.join(T2_AGENT_DIR, 'data');
-const T2_AGENT_BRANDS_FILE = path.join(T2_AGENT_DATA_DIR, 'brands.json');
-const T2_AGENT_BOOKINGS_FILE = path.join(T2_AGENT_DATA_DIR, 'bookings.json');
-const T2_AGENT_MESSAGES_FILE = path.join(T2_AGENT_DATA_DIR, 'messages.json');
-
-function getT2AgentBrandsMap(): Record<string, any> {
-    const brands: Record<string, any> = { ...BRAND_VAULT };
-    try {
-        if (fs.existsSync(T2_AGENT_BRANDS_FILE)) {
-            const diskBrands = JSON.parse(fs.readFileSync(T2_AGENT_BRANDS_FILE, 'utf8'));
-            Object.assign(brands, diskBrands);
-        }
-    } catch (e: any) {
-        console.warn('[T2 Agent Bridge] Warning reading brands:', e?.message);
-    }
-    return brands;
-}
-
-function saveT2AgentBrand(brandId: string, updates: any) {
-    try {
-        const brands = getT2AgentBrandsMap();
-        brands[brandId] = { ...(brands[brandId] || {}), ...updates, updatedAt: new Date().toISOString() };
-        if (fs.existsSync(T2_AGENT_DATA_DIR)) {
-            fs.writeFileSync(T2_AGENT_BRANDS_FILE, JSON.stringify(brands, null, 2), 'utf8');
-        }
-    } catch (e: any) {
-        console.warn('[T2 Agent Bridge] Warning saving brand update:', e?.message);
-    }
-}
+import { t2AgentApi } from './t2AgentApiClient';
 
 /**
- * 1. GET /api/t2-agent/brands - Lists all brands with live WhatsApp/Bot status
+ * Unified Live-First Bridge for T2 AI Agent Enterprise (Render Cloud + Local Vault Fallback)
+ * Replaces legacy localhost-only file reads and removes all mock/simulated CRM data.
  */
+
 export async function getT2AgentBrands() {
-    const brandsMap = getT2AgentBrandsMap();
-    const brandsList = Object.values(brandsMap).map((b: any) => ({
+    try {
+        const live = await t2AgentApi.getAllBrandsHealth();
+        const rawList = Array.isArray(live?.brands) ? live.brands : Array.isArray(live) ? live : null;
+        if (rawList) {
+            return {
+                success: true,
+                source: 'live',
+                totalBrands: rawList.length,
+                brands: rawList.map((b: any) => ({
+                    id: b.id || b.brandId,
+                    name: b.name || b.brandName || b.id,
+                    category: b.category || 'خدمات وأعمال',
+                    phone: b.phone || b.whatsapp || '',
+                    status: b.status || (b.connected ? 'متصل' : 'غير متصل'),
+                    isAiActive: b.isAiActive !== false,
+                    conversationsCount: b.conversationsCount || 0,
+                    metaPageId: b.metaPageId,
+                    metaPageName: b.metaPageName,
+                })),
+            };
+        }
+    } catch (err: any) {
+        console.warn('[T2 Agent Bridge] Live getAllBrandsHealth fallback to BRAND_VAULT:', err?.message);
+    }
+
+    const brandsList = Object.values(BRAND_VAULT).map((b: any) => ({
         id: b.id,
         name: b.name || b.brandName || 'براند',
         category: b.category || 'خدمات وأعمال',
-        phone: b.phone || b.whatsapp || '01030956097',
-        status: b.status || 'متوقف',
+        phone: b.phone || b.whatsapp || '',
+        status: b.status || 'احتياطي',
         isAiActive: b.isAiActive !== false,
         conversationsCount: b.conversationsCount || 0,
         metaPageId: b.metaPageId,
-        metaPageName: b.metaPageName
+        metaPageName: b.metaPageName,
     }));
 
     return {
         success: true,
+        source: 'vault_fallback',
         totalBrands: brandsList.length,
-        brands: brandsList
+        brands: brandsList,
     };
 }
 
-/**
- * 2. GET /api/t2-agent/brands/:id/status - Real-time Bot and WhatsApp Health
- */
 export async function getT2AgentBrandStatus(brandId: string) {
-    const brandsMap = getT2AgentBrandsMap();
-    const brand = brandsMap[brandId] || Object.values(brandsMap).find((b: any) => b.id === brandId || b.slug === brandId);
+    try {
+        const live = await t2AgentApi.getBrandStatus(brandId);
+        if (live && !live.error) {
+            return {
+                success: true,
+                source: 'live',
+                brandId,
+                brandName: live.brandName || live.name || brandId,
+                phone: live.phone || '',
+                connectionStatus: live.connectionStatus || (live.connected ? 'CONNECTED' : 'DISCONNECTED'),
+                isAiActive: live.isAiActive !== false,
+                qrCodeAvailable: Boolean(live.qrCode || live.qr),
+                totalConversations: live.totalConversations || 0,
+                metaConnected: Boolean(live.metaConnected || live.metaPageId),
+                raw: live,
+            };
+        }
+    } catch (err: any) {
+        console.warn(`[T2 Agent Bridge] Live status fallback for ${brandId}:`, err?.message);
+    }
 
+    const brand = (BRAND_VAULT as Record<string, any>)[brandId];
     if (!brand) {
-        return { success: false, error: 'البراند غير مسجل في وكيل تيتو' };
+        return { success: false, error: 'تعذر الوصول لحالة البراند في تيتو أجنت حالياً' };
     }
 
     return {
         success: true,
+        source: 'vault_fallback',
         brandId: brand.id,
         brandName: brand.name,
-        phone: brand.phone || '01030956097',
-        connectionStatus: brand.connectionStatus || 'CONNECTED',
+        phone: brand.phone || '',
+        connectionStatus: brand.connectionStatus || 'UNKNOWN',
         isAiActive: brand.isAiActive !== false,
         qrCodeAvailable: false,
-        batteryLevel: 98,
-        uptime: '99.98%',
-        totalConversations: brand.conversationsCount || 142,
-        metaConnected: !!brand.metaPageId
+        totalConversations: brand.conversationsCount || 0,
+        metaConnected: Boolean(brand.metaPageId),
     };
 }
 
-/**
- * 3. GET /api/t2-agent/brands/:id/qr - WhatsApp Web Pairing QR Code
- */
 export async function getT2AgentPairingQr(brandId: string) {
+    try {
+        const live = await t2AgentApi.getBrandStatus(brandId);
+        if (live?.qrCode || live?.qr) {
+            return {
+                success: true,
+                source: 'live',
+                brandId,
+                qrCode: live.qrCode || live.qr,
+                message: 'امسح رمز الاستجابة السريعة (QR) من تطبيق واتساب لربط الوكيل الذكي فوراً',
+            };
+        }
+    } catch {}
+
     return {
-        success: true,
+        success: false,
         brandId,
-        qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=WWEBJS_SESSION_${brandId}_T2_DIGITAL_AUTONOMOUS`,
-        message: 'امسح رمز الاستجابة السريعة (QR) من تطبيق واتساب لربط الوكيل الذكي بالرقم فوراً'
+        error: 'لا يوجد QR Code نشط حالياً — تحقق من حالة الاتصال في T2 Agent',
     };
 }
 
-/**
- * 4. POST /api/t2-agent/brands/:id/instructions - Update Agent Prompt in Real-Time
- */
 export async function updateT2AgentInstructions(brandId: string, systemInstruction: string) {
-    saveT2AgentBrand(brandId, { systemInstruction });
     broadcastGatewayEvent('AGENT_PROMPT_MUTATED', { brandId, systemInstruction });
-
     return {
         success: true,
         brandId,
-        message: 'تم تحديث التوجيهات العصبية للوكيل الذكي بنجاح!'
+        message: 'تم بث تحديث التوجيهات للوكيل الذكي بنجاح.',
     };
 }
 
-/**
- * 5. POST /api/t2-agent/brands/:id/send-message - Outbound WhatsApp Message Dispatch
- */
 export async function sendT2AgentWhatsAppMessage(brandId: string, payload: { phone: string; message: string }) {
-    console.log(`[T2 Agent WhatsApp Outbound] Brand: ${brandId} -> ${payload.phone}: "${payload.message}"`);
+    const res = await t2AgentApi.sendManualReply(brandId, payload.phone, payload.message);
     broadcastGatewayEvent('WHATSAPP_MESSAGE_SENT', {
         brandId,
         recipient: payload.phone,
         text: payload.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
     });
-
     return {
         success: true,
-        messageId: `msg_${Date.now()}`,
-        status: 'DELIVERED',
-        message: `تم إرسال الرسالة إلى الرقم (${payload.phone}) بنجاح عبر وكيل تيتو الذكي!`
+        source: 'live',
+        result: res,
+        message: `تم إرسال الرسالة إلى الرقم (${payload.phone}) عبر T2 Agent اللايف بنجاح!`,
     };
 }
 
-/**
- * 6. GET /api/t2-agent/brands/:id/bookings - Confirmed CRM Bookings
- */
 export async function getT2AgentBookings(brandId: string) {
-    let bookings: any[] = [];
     try {
-        if (fs.existsSync(T2_AGENT_BOOKINGS_FILE)) {
-            const all = JSON.parse(fs.readFileSync(T2_AGENT_BOOKINGS_FILE, 'utf8'));
-            bookings = Array.isArray(all) ? all.filter((b: any) => !b.brandId || b.brandId === brandId) : [];
-        }
-    } catch {}
-
-    if (bookings.length === 0) {
-        bookings = [
-            {
-                id: 'bk_1',
-                brandId,
-                customerName: 'أحمد محمود',
-                phone: '01012345678',
-                service: 'جلسة استشارية وتصميم هوية كاملة',
-                depositPaid: '500 ج.م',
-                status: 'CONFIRMED',
-                date: 'غداً 4:00 مساءً'
-            },
-            {
-                id: 'bk_2',
-                brandId,
-                customerName: 'د. سارة فؤاد',
-                phone: '01123456789',
-                service: 'باقة التجربة المجانية 7 أيام + متجر PWA',
-                depositPaid: 'عربون مؤكد',
-                status: 'CONFIRMED',
-                date: 'الخميس 7:00 مساءً'
-            }
-        ];
+        const live = await t2AgentApi.getBookings(brandId);
+        const bookings = Array.isArray(live?.bookings) ? live.bookings : Array.isArray(live) ? live : [];
+        return {
+            success: true,
+            source: 'live',
+            brandId,
+            totalBookings: bookings.length,
+            bookings,
+        };
+    } catch (err: any) {
+        console.warn(`[T2 Agent Bridge] Live bookings error for ${brandId}:`, err?.message);
+        return {
+            success: false,
+            source: 'live_error',
+            brandId,
+            totalBookings: 0,
+            bookings: [],
+            error: err?.message || 'تعذر جلب الحجوزات الحية من T2 Agent',
+        };
     }
-
-    return {
-        success: true,
-        brandId,
-        totalBookings: bookings.length,
-        bookings
-    };
 }
 
-/**
- * 7. GET /api/t2-agent/brands/:id/conversations - Recent WhatsApp Conversations
- */
 export async function getT2AgentConversations(brandId: string) {
-    return {
-        success: true,
-        brandId,
-        conversations: [
-            {
-                phone: '01013373634',
-                customerName: 'محمد إبراهيم',
-                lastMessage: 'تمام يا فندم، أنا جاهز لتحويل العربون على إنستاباي',
-                unreadCount: 0,
-                updatedAt: 'منذ 5 دقائق'
-            },
-            {
-                phone: '01152751755',
-                customerName: 'كريم عادل',
-                lastMessage: 'ممكن تفاصيل باقات التسويق الرقمي وتوليد الريلز؟',
-                unreadCount: 1,
-                updatedAt: 'منذ 18 دقيقة'
-            }
-        ]
-    };
+    try {
+        const live = await t2AgentApi.getConversations(brandId);
+        const conversations = Array.isArray(live?.conversations) ? live.conversations : Array.isArray(live) ? live : [];
+        return {
+            success: true,
+            source: 'live',
+            brandId,
+            conversations,
+        };
+    } catch (err: any) {
+        console.warn(`[T2 Agent Bridge] Live conversations error for ${brandId}:`, err?.message);
+        return {
+            success: false,
+            source: 'live_error',
+            brandId,
+            conversations: [],
+            error: err?.message || 'تعذر جلب المحادثات الحية من T2 Agent',
+        };
+    }
 }
 
-/**
- * 8. POST /api/t2-agent/brands/:id/toggle-bot - Pause/Resume AI Auto-Reply
- */
-export async function toggleT2AgentBotStatus(brandId: string, status?: 'active' | 'paused') {
-    const newStatus = status || 'active';
-    saveT2AgentBrand(brandId, { isAiActive: newStatus === 'active' });
-    broadcastGatewayEvent('BOT_STATUS_CHANGED', { brandId, isAiActive: newStatus === 'active' });
-
+export async function toggleT2AgentBotStatus(brandId: string, _status?: 'active' | 'paused') {
+    const res = await t2AgentApi.togglePauseBot(brandId);
+    const isAiActive = res?.isAiActive !== undefined ? Boolean(res.isAiActive) : !Boolean(res?.paused);
+    broadcastGatewayEvent('BOT_STATUS_CHANGED', { brandId, isAiActive });
     return {
         success: true,
+        source: 'live',
         brandId,
-        isAiActive: newStatus === 'active',
-        message: newStatus === 'active' ? 'تم استئناف الرد الآلي للوكيل الذكي بنجاح' : 'تم إيقاف الرد الآلي للوكيل مؤقتاً'
+        isAiActive,
+        message: isAiActive ? 'تم استئناف الرد الآلي للوكيل الذكي بنجاح' : 'تم إيقاف الرد الآلي للوكيل مؤقتاً',
     };
 }

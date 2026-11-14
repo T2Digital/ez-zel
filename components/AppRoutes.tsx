@@ -14,8 +14,6 @@ const AffiliateDashboard = lazy(() => import("./AffiliateDashboard"));
 const Dashboard = lazy(() => import("./Dashboard"));
 const WorkspaceExplorer = lazy(() => import("./WorkspaceExplorer"));
 const AssistantWidget = lazy(() => import("./AssistantWidget").then(m => ({ default: m.AssistantWidget })));
-const MusicStudio = lazy(() => import("./MusicStudio").then(m => ({ default: m.MusicStudio })));
-const SovereignVirtualWorld3D = lazy(() => import("./SovereignVirtualWorld3D"));
 const ClientPortalView = lazy(() => import("./ClientPortalView").then(m => ({ default: m.ClientPortalView })));
 
 const ClientPortalRoute: React.FC = () => {
@@ -352,36 +350,9 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
-      <Route
-        path="/music"
-        element={
-          user ? (
-            <div className="h-full w-full overflow-y-auto p-4 md:p-8 relative z-50">
-              <div className="absolute top-4 right-4 z-50 flex gap-2">
-                <button 
-                  onClick={() => navigateToView("dashboard")}
-                  className="bg-gray-800 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-700 transition"
-                >
-                  العودة للوحة القيادة
-                </button>
-              </div>
-              <MusicStudio />
-            </div>
-          ) : (
-            <Navigate to="/pricing" replace />
-          )
-        }
-      />
-
-      <Route
-        path="/world"
-        element={<SovereignVirtualWorld3D isOpen={true} onClose={() => navigateToView("chat")} />}
-      />
-
-      <Route
-        path="/metaverse"
-        element={<SovereignVirtualWorld3D isOpen={true} onClose={() => navigateToView("chat")} />}
-      />
+      <Route path="/music" element={<Navigate to="/" replace />} />
+      <Route path="/world" element={<Navigate to="/" replace />} />
+      <Route path="/metaverse" element={<Navigate to="/" replace />} />
 
       <Route
         path="/pending"
