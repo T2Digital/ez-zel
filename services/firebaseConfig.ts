@@ -12,7 +12,7 @@ try {
     if (firebaseConfigData.apiKey && firebaseConfigData.apiKey.length > 5) {
         if (!getApps().length) {
             app = initializeApp(firebaseConfigData);
-            setLogLevel('silent');
+            setLogLevel('error');
             // Initialize Firestore with memory cache to avoid IndexedDB corruption/assertion issues
             db = initializeFirestore(app, { 
                 localCache: memoryLocalCache(),
