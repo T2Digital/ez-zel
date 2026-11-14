@@ -1388,7 +1388,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       
       {/* Deep Blue-Black Fiber-Optic Second Brain OS Container with Dominant Space Canvas */}
       <div className={`relative w-full bg-[#01030b]/80 backdrop-blur-2xl border border-cyan-500/40 shadow-[0_0_120px_rgba(0,240,255,0.28)] flex flex-col overflow-hidden transition-all duration-300 ${
-        isFullscreen ? 'h-screen rounded-none border-0' : 'max-w-[1560px] h-[95vh] rounded-[36px]'
+        isFullscreen ? 'h-[100dvh] rounded-none border-0' : 'max-w-[1560px] h-[95dvh] rounded-[36px]'
       }`}>
 
         {/* 3D Cosmos Space Canvas Background (The Sovereign Hero Cosmos with Earth & Stars) */}
@@ -1519,11 +1519,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         </div>
 
         {/* MAIN HUD INTERACTION VIEWPORT (3 Sci-Fi Columns With Mobile-First Spatial Hierarchy) */}
-        <div className={`relative z-10 flex-1 min-h-0 flex flex-col items-center justify-between p-1.5 md:p-2.5 w-full max-w-[96vw] xl:max-w-[1780px] mx-auto ${activeDeckTab === 'obsidian_graph' && !activeDynamicWidget ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <div className={`relative z-10 flex-1 min-h-0 flex flex-col items-center p-1.5 md:p-2.5 w-full max-w-[96vw] xl:max-w-[1780px] mx-auto ${activeDeckTab === 'obsidian_graph' && !activeDynamicWidget ? 'justify-between overflow-hidden' : 'justify-start overflow-y-auto overscroll-contain pb-12'}`}>
 
           {/* CENTER HERO: THE HOLOGRAPHIC ARC REACTOR CORE (6 Cols)    */}
           {/* ========================================================= */}
-          <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-between gap-1 py-0 mx-auto font-['Cairo']">
+          <div className={`w-full flex flex-col items-center gap-1.5 py-0 mx-auto font-['Cairo'] ${activeDeckTab === 'obsidian_graph' && !activeDynamicWidget ? 'flex-1 min-h-0 justify-between' : 'shrink-0 justify-start'}`}>
             
             {/* Triage Persona Switcher (Top of Center) - Protected for Master Admin */}
             {isMasterAdmin ? (
