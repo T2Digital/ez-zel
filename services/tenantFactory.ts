@@ -70,7 +70,7 @@ export const FLAGSHIP_TEMPLATES: Record<'battah' | 'clean_master', FlagshipTempl
     archetype: 'services_bookings_crm',
     name: 'منظومة Clean Master الشاملة (حجز خدمات + تقويم الحجوزات + الماليات + CRM)',
     repoUrl: 'https://github.com/T2Digital/clean-master-egy.git',
-    referenceLiveUrl: 'https://cleanmaster-lac.vercel.app',
+    referenceLiveUrl: 'https://clean-master.vercel.app',
     modulesEnabled: [
       'Service Booking Engine (حجز الخدمات والباقات أونلاين)',
       'Bookings Calendar (لوحة تحكم بتقويم الحجوزات والمواعيد والفرق)',

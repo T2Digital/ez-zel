@@ -634,7 +634,7 @@ export const BRAND_VAULT: Record<string, BrandConfig> = {
     "accentColor": "#38bdf8",
     "logoUrl": "https://i.ibb.co/Kc8C6fkx/image.png",
     "address": "المهندسين الجيزة",
-    "locationUrl": "https://cleanmaster-lac.vercel.app/",
+    "locationUrl": "https://clean-master.vercel.app/",
     "metaPageId": "355285914324865",
     "metaPageName": "كلين ماستر clean master",
     "metaToken": "EAAaEIxaL5OsBRDqt5YIdeWEbZCuU3oNoc1AnXAkiFKa8iLbQ5rUKi8TzrNXgbW5TIQwUZB3svnKiwm77XFZCM78ccb9RFRb3Ig7wzNANZAB61heN7Q8hX2Iznyxh4KyZCOuUmxZCjbuQAmSZAkZC5csct7LxelHMEL9tA73ToUGWqEO5fcb7tzo0jPa0pc0Co2YYOnjBZBKpD2DFNIl0ZAguHGnewAgEN2sXNXI9YxmWahdVQ4boWA7KPZC8rrjGXxfj3MZB91BjOp4IAz2sQhliDgEXuLA4GG1HG2m7pOAZC",

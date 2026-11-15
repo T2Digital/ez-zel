@@ -1169,7 +1169,7 @@ export async function executeRealJarvisEcosystemAction(input: {
             const storeSlug = cloned.slug || cloned.id;
             const flagshipBaseUrl = resolvedTemplate === 'products_erp'
                 ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
-                : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
+                : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://clean-master.vercel.app');
             const flagshipUrl = `${flagshipBaseUrl.replace(/\/$/, '')}/?brandId=${encodeURIComponent(storeSlug)}`;
 
             return {

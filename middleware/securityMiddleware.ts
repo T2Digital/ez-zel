@@ -38,6 +38,8 @@ export function securityHeadersMiddleware(_req: Request, res: Response, next: Ne
 
 const PUBLIC_API_PREFIXES = [
   "/api/health",
+  "/api/public/",
+  "/api/auth/meta/",
   "/api/system/ecosystem-health",
   "/api/client-portal/",
   "/api/payments/paymob/plans",
