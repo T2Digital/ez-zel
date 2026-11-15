@@ -17,7 +17,7 @@ export interface BrandingForgeInput {
 }
 
 export interface SocialPageKit {
-    platform: 'facebook' | 'instagram' | 'tiktok';
+    platform: 'facebook' | 'instagram' | 'tiktok' | 'snapchat' | 'google_business';
     title: string;
     category: string;
     bio: string;
@@ -37,11 +37,19 @@ export interface TrialPlanPost {
     callToAction: string;
 }
 
+export interface SuggestedBrandNameOption {
+    arabic: string;
+    english: string;
+    rationale: string;
+}
+
 export interface BrandingKitResult {
     brandId: string;
     brandName: string;
     englishName: string;
     category: string;
+    suggestedNames: SuggestedBrandNameOption[];
+    suggestedSlogans: string[];
     slogan: string;
     essence: string;
     colors: {
@@ -51,10 +59,13 @@ export interface BrandingKitResult {
         background: string;
     };
     logoPrompt: string;
+    logoUrl: string;
     socialKits: {
         facebook: SocialPageKit;
         instagram: SocialPageKit;
         tiktok: SocialPageKit;
+        snapchat?: SocialPageKit;
+        google_business?: SocialPageKit;
     };
     trialContentPlan: TrialPlanPost[];
     recommendedNextStep: string;
@@ -75,6 +86,53 @@ function getGeminiClient(): GoogleGenAI {
     });
 }
 
+async function generateLogoImageAsset(ai: GoogleGenAI | null, brandId: string, logoPrompt: string): Promise<string> {
+    const cleanPrompt = `${logoPrompt}, flat minimalist vector emblem, clean centered icon on pure solid dark obsidian background, corporate luxury brand identity, no mockups, no watermarks`;
+
+    if (ai) {
+        for (const modelName of ['gemini-2.5-flash-image', 'gemini-2.0-flash-exp-image-generation']) {
+            try {
+                const res: any = await ai.models.generateContent({
+                    model: modelName,
+                    contents: cleanPrompt,
+                    config: { responseModalities: ['IMAGE', 'TEXT'] } as any,
+                });
+                const part = (res?.candidates?.[0]?.content?.parts || []).find((p: any) => p?.inlineData?.data);
+                if (part?.inlineData?.data) {
+                    const mime = part.inlineData.mimeType || 'image/png';
+                    const ext = mime.includes('jpeg') ? 'jpg' : 'png';
+                    const outDir = path.join(process.cwd(), 'public', 'generated-media');
+                    fs.mkdirSync(outDir, { recursive: true });
+                    const fileName = `logo_${brandId}_${Date.now()}.${ext}`;
+                    fs.writeFileSync(path.join(outDir, fileName), Buffer.from(part.inlineData.data, 'base64'));
+                    return `/generated-media/${fileName}`;
+                }
+            } catch {}
+        }
+
+        for (const imgModel of ['imagen-3.0-generate-002', 'imagen-4.0-generate-001']) {
+            try {
+                const res: any = await (ai.models as any).generateImages({
+                    model: imgModel,
+                    prompt: cleanPrompt,
+                    config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' },
+                });
+                const bytes = res?.generatedImages?.[0]?.image?.imageBytes;
+                if (bytes) {
+                    const outDir = path.join(process.cwd(), 'public', 'generated-media');
+                    fs.mkdirSync(outDir, { recursive: true });
+                    const fileName = `logo_${brandId}_${Date.now()}.png`;
+                    fs.writeFileSync(path.join(outDir, fileName), Buffer.from(bytes, 'base64'));
+                    return `/generated-media/${fileName}`;
+                }
+            } catch {}
+        }
+    }
+
+    const seed = Math.abs(brandId.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0)) % 99999;
+    return `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&nologo=true&model=flux&seed=${seed}`;
+}
+
 export async function generateBrandingAndSocialKit(input: BrandingForgeInput): Promise<BrandingKitResult> {
     const brandName = input.brandName?.trim() || 'براند جديد';
     const category = input.category || 'نشاط تجاري وخدمات';
@@ -88,19 +146,29 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
         .replace(/^_+|_+$/g, '') || `brand_${Date.now()}`;
 
     let aiPrompt = `أنت خبير بناء البراندات والاستراتيجيات التسويقية الأول في العالم العربي ومصر.
-المطلوب تأسيس "حقيبة براندينج وتجهيز صفحات فيسبوك وإنستجرام وتيك توك" كاملة وفائقة الاحترافية للمشروع التالي:
-- اسم المشروع: "${brandName}"
+المطلوب تأسيس "حقيبة براندينج وتجهيز صفحات فيسبوك وإنستجرام وتيك توك وسناب شات وجوجل بزنس وخرائط جوجل" كاملة وفائقة الاحترافية للمشروع التالي:
+- اسم المشروع المبدئي/المطلوب: "${brandName}"
 - تصنيف النشاط: "${category}"
 - الجمهور المستهدف: "${targetAudience}"
 - رقم التواصل والواتساب: "${phone}"
-- حالة المشروع: ${isNew ? 'مشروع جديد ينطلق من الصفر' : 'بيزنس قائم ويحتاج تطوير هوية وزيادة مبيعات'}
+- حالة المشروع: ${isNew ? 'مشروع جديد ينطلق من الصفر (مطلوب اقتراح 3 أسماء براندات مميزة ليختار منها العميل + 3 سلوجانات رنانة)' : 'بيزنس قائم ويحتاج تطوير هوية (قدم 3 خيارات أسماء تطويرية/فرعية + 3 سلوجانات بيعية)'}
 
 المطلوب إخراج النتيجة بتنسيق JSON نظيف وصارم بدون أي نصوص قبل أو بعد:
 {
   "brandName": "${brandName}",
   "englishName": "الاسم بالإنجليزية بحروف أنيقة",
   "category": "${category}",
-  "slogan": "شعار لفظي بيعي رنان وجذاب لا يتجاوز 6 كلمات",
+  "suggestedNames": [
+    { "arabic": "الاسم المقترح الأول", "english": "First Name", "rationale": "سبب التسمية وقوتها التسويقية في المجال" },
+    { "arabic": "الاسم المقترح الثاني", "english": "Second Name", "rationale": "سبب التسمية وقوتها التسويقية في المجال" },
+    { "arabic": "الاسم المقترح الثالث", "english": "Third Name", "rationale": "سبب التسمية وقوتها التسويقية في المجال" }
+  ],
+  "suggestedSlogans": [
+    "السلوجان الأول (جذاب ومختصر لا يتجاوز 6 كلمات)",
+    "السلوجان الثاني (يركز على السرعة والثقة أو الضمان)",
+    "السلوجان الثالث (يركز على النتيجة والقيمة للعميل)"
+  ],
+  "slogan": "أقوى سلوجان مختار من الثلاثة",
   "essence": "رسالة البراند والقيمة الفريدة في سطرين",
   "colors": {
     "primary": "#كود_لون_رئيسي_Hex",
@@ -108,7 +176,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
     "accent": "#كود_لون_تأكيدي_Hex",
     "background": "#020617"
   },
-  "logoPrompt": "برومبت إنجليزي فائق الدقة لتوليد لوجو حديث ومينيمال على Flux / Gemini",
+  "logoPrompt": "Detailed English prompt for a sleek luxury minimalist icon logo representing the brand name and industry on a clean background",
   "socialKits": {
     "facebook": {
       "platform": "facebook",
@@ -136,6 +204,24 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
       "callToAction": "رابط الواتساب بالبايو",
       "visualDirection": "ستايل الفيديوهات السريعة والـ Hook البصري أول 3 ثواني",
       "hashtags": ["#تيك_توك", "#تريند"]
+    },
+    "snapchat": {
+      "platform": "snapchat",
+      "title": "اسم ملف سناب شات العام (Public Profile)",
+      "category": "تصنيف سناب شات",
+      "bio": "وصف قصير لملف سناب شات للقصص والأضواء (Spotlight & Stories)",
+      "callToAction": "أضفنا وتواصل على واتساب",
+      "visualDirection": "فيديوهات عمودية سريعة 9:16",
+      "hashtags": ["#سناب_شات", "#أضواء"]
+    },
+    "google_business": {
+      "platform": "google_business",
+      "title": "اسم النشاط على خرائط جوجل (Google Business Profile)",
+      "category": "الفئة الرئيسية على خرائط جوجل",
+      "bio": "وصف احترافي غني بالكلمات المفتاحية للظهور في بحث خرائط جوجل + رقم الهاتف ${phone}",
+      "callToAction": "حجز موعد / اتصال مباشر",
+      "visualDirection": "صور عالية الدقة للمقر والخدمات + بوستات عروض أسبوعية",
+      "hashtags": ["#خرائط_جوجل", "#تقييمات_العملاء"]
     }
   },
   "trialContentPlan": [
@@ -170,13 +256,14 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
       "callToAction": "احجز مكانك اليوم قبل اكتمال المواعيد"
     }
   ],
-  "recommendedNextStep": "خطوة واضحة للمستخدم: إما توليد اللوجو، أو اعتماد جدولة الـ 3 منشورات، أو ربط صفحات ميتا"
+  "recommendedNextStep": "اختيار الاسم والسلوجان المفضل من المقترحات الـ 3 وتصميم الشعار ثم ربط واتساب وباقي المنصات"
 }`;
 
+    let ai: GoogleGenAI | null = null;
     try {
-        const ai = getGeminiClient();
+        ai = getGeminiClient();
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.1-flash-lite',
             contents: aiPrompt,
             config: {
                 responseMimeType: 'application/json'
@@ -185,19 +272,48 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
 
         const rawText = response.text || '';
         const parsed = JSON.parse(rawText);
+        const logoPrompt = parsed.logoPrompt || `A modern minimalist luxury emblem logo for "${brandName}" (${category}), metallic cyan and gold vector design`;
+        const logoUrl = await generateLogoImageAsset(ai, brandId, logoPrompt);
         return {
             brandId,
-            ...parsed
+            suggestedNames: Array.isArray(parsed.suggestedNames) && parsed.suggestedNames.length > 0
+                ? parsed.suggestedNames
+                : [
+                    { arabic: `${brandName} برو`, english: `${brandName} Pro`, rationale: 'اسم عصري يوحي بالاحترافية والسرعة' },
+                    { arabic: `توب ${brandName}`, english: `Top ${brandName}`, rationale: 'يعزز الريادة والثقة لدى العملاء في مصر' },
+                    { arabic: `${brandName} بلس`, english: `${brandName} Plus`, rationale: 'اسم مرن يناسب التوسع والفروع' }
+                  ],
+            suggestedSlogans: Array.isArray(parsed.suggestedSlogans) && parsed.suggestedSlogans.length > 0
+                ? parsed.suggestedSlogans
+                : [
+                    parsed.slogan || `اختيارك الأول لخدمات ${category} في مصر`,
+                    `جودة تليق بك.. وسرعة تسبق توقعاتك`,
+                    `مع ${brandName}.. كل تفاصيل شغلك مضمونة 100%`
+                  ],
+            ...parsed,
+            logoPrompt,
+            logoUrl
         };
     } catch (err: any) {
         console.warn("[Branding Forge] Fallback to deterministic template due to:", err?.message);
-        // Fallback robust template if Gemini key is busy or offline
+        const defaultLogoPrompt = `A modern minimalist luxury emblem logo for "${brandName}" in ${category}, clean vector icon design, cyan and royal blue metallic accents on dark obsidian background, corporate identity`;
+        const logoUrl = await generateLogoImageAsset(ai, brandId, defaultLogoPrompt);
         return {
             brandId,
             brandName,
             englishName: brandName,
             category,
-            slogan: `اختيارك الأفضل لخدمات ${category} في مصر`,
+            suggestedNames: [
+                { arabic: `${brandName} برو`, english: `${brandName} Pro`, rationale: 'اسم احترافي يعكس الجودة الفائقة والسرعة في التنفيذ' },
+                { arabic: `ماستر ${brandName}`, english: `Master ${brandName}`, rationale: 'يعطي ثقة وريادة قوية في السوق المصري والخليجي' },
+                { arabic: `${brandName} هب`, english: `${brandName} Hub`, rationale: 'اسم حديث يجمع كل خدمات أو منتجات النشاط في منصة واحدة' }
+            ],
+            suggestedSlogans: [
+                `اختيارك الأفضل لـ ${category} في مصر بأعلى ضمان`,
+                `جودة احترافية.. وسرعة تنفيذ تسبق توقعاتك`,
+                `ثقتك أمانة.. وخدمتك بأعلى معايير التميز 24/7`
+            ],
+            slogan: `اختيارك الأفضل لـ ${category} في مصر بأعلى ضمان`,
             essence: `${brandName} تقدم أعلى معايير الجودة والسرعة مع ضمان رضا العملاء ودعم فوري 24/7.`,
             colors: {
                 primary: "#06b6d4",
@@ -205,7 +321,8 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
                 accent: "#f59e0b",
                 background: "#020617"
             },
-            logoPrompt: `A modern minimalist luxury logo for "${brandName}" in ${category}, clean vector design, cyan and royal blue colors, professional corporate identity.`,
+            logoPrompt: defaultLogoPrompt,
+            logoUrl,
             socialKits: {
                 facebook: {
                     platform: "facebook",
@@ -213,7 +330,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
                     category,
                     bio: `الصفحة الرسمية لـ ${brandName}. نقدم أرقى حلول ${category} في مصر. للحجز والاستفسار تواصل معنا عبر واتساب: ${phone}`,
                     callToAction: "إرسال رسالة واتساب",
-                    visualDirection: "صورة غلاف عصرية تعرض أهم المنتجات مع شعار البراند والألوان الرسمية.",
+                    visualDirection: "صورة غلاف عصرية تعرض أهم المنتجات/الخدمات مع شعار البراند والألوان الرسمية.",
                     hashtags: ["#مصر", `#${category.replace(/\s+/g, '_')}`]
                 },
                 instagram: {
@@ -233,6 +350,24 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
                     callToAction: "رابط الواتساب بالبايو",
                     visualDirection: "فيديوهات ريلز سريعة وعفوية تبرز النتيجة قبل وبعد والآراء الحقيقية.",
                     hashtags: ["#fyp", "#viral", "#foryou"]
+                },
+                snapchat: {
+                    platform: "snapchat",
+                    title: `${brandName} Official`,
+                    category,
+                    bio: `تابع يوميات وعروض ${brandName} الحصرية في ${category} 👻 واتساب: ${phone}`,
+                    callToAction: "أضف الحساب الآن",
+                    visualDirection: "سنابات سريعة وعفوية 9:16 لأضواء Spotlight والقصص اليومية.",
+                    hashtags: ["#سناب_شات", "#عروض_مصر"]
+                },
+                google_business: {
+                    platform: "google_business",
+                    title: `${brandName} - ${category}`,
+                    category,
+                    bio: `${brandName}: المركز والمنصة المعتمدة لـ ${category}. احجز موعدك أو اطلب فوراً على رقم ${phone} مع ضمان الجودة وسرعة الخدمة.`,
+                    callToAction: "اتصل الآن / حجز فوري",
+                    visualDirection: "تحديث أسبوعي للعروض والصور على خرائط جوجل والرد الذكي على تقييمات العملاء.",
+                    hashtags: ["#GoogleMaps", "#خرائط_جوجل"]
                 }
             },
             trialContentPlan: [
@@ -267,7 +402,7 @@ export async function generateBrandingAndSocialKit(input: BrandingForgeInput): P
                     callToAction: "اضغط وتواصل مع خدمة العملاء"
                 }
             ],
-            recommendedNextStep: "توليد تصميمات الخطة واعتماد نشر منشور يوم الأحد"
+            recommendedNextStep: "اختيار الاسم والسلوجان المفضل، اعتماد الشعار، وربط واتساب وباقي المنصات"
         };
     }
 }
@@ -287,10 +422,13 @@ export function saveBrandedClientToVault(kit: BrandingKitResult, clientData: { p
         name: kit.brandName,
         englishName: kit.englishName,
         businessType: kit.category,
+        suggestedNames: kit.suggestedNames || [],
+        suggestedSlogans: kit.suggestedSlogans || [],
         slogan: kit.slogan,
         essence: kit.essence,
         primaryColor: kit.colors.primary,
         accentColor: kit.colors.accent,
+        logoUrl: kit.logoUrl || '',
         phone: clientData.phone || '01013372674',
         whatsapp: clientData.whatsapp || clientData.phone || '01013372674',
         status: 'شغال',

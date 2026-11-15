@@ -3,6 +3,7 @@ import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import { broadcastGatewayEvent } from './microservicesGateway';
 import { syncBrandToAllEcosystems } from './universalBrandSync';
+import { resolveFlagshipTemplate, FlagshipTemplateSpec } from './tenantFactory';
 
 export interface CloneBrandInput {
     name?: string;
@@ -27,6 +28,7 @@ export interface ClonedBrandOutput {
     directKnowledge: string;
     knowledgeText: string;
     systemPrompt: string;
+    flagshipTemplate?: FlagshipTemplateSpec;
     productsCatalog: Array<{
         id: string;
         name: string;
@@ -297,6 +299,7 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
     }
 
     const appUrl = `https://${slug}.t2-client.vercel.app`;
+    const flagshipTemplate = resolveFlagshipTemplate(`${industry} ${name}`);
 
     const clonedBrand: ClonedBrandOutput = {
         id: brandId,
@@ -308,6 +311,7 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
         appUrl,
         phone,
         ownerEmail,
+        flagshipTemplate,
         directKnowledge: parsed.summary || `${name} لخدمات ${industry} بأعلى معايير الجودة في مصر.`,
         knowledgeText: parsed.knowledgeText || '',
         systemPrompt: parsed.systemPrompt || '',

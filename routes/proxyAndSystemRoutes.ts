@@ -883,6 +883,13 @@ export function registerProxyAndSystemRoutes(
                                   clinicId: clinicId || "default",
                                   caption,
                               });
+                          } else if (p === "google_business") {
+                              outcomes.google_business = await titoStudioApi.publishGoogleBusiness({
+                                  clinicId: clinicId || "default",
+                                  caption,
+                                  mediaUrl: mediaUrl || undefined,
+                                  topicType: "STANDARD",
+                              });
                           }
                       } catch (err: any) {
                           outcomes[p] = { success: false, error: err?.message };
@@ -891,6 +898,32 @@ export function registerProxyAndSystemRoutes(
                   result = { published: outcomes };
                   break;
               }
+              case "list_google_reviews":
+                  if (!clinicId) return res.status(400).json({ success: false, error: "clinicId is required" });
+                  result = await titoStudioApi.listGoogleBusinessReviews(clinicId);
+                  break;
+              case "reply_google_review":
+                  if (!req.body?.reviewId) return res.status(400).json({ success: false, error: "reviewId is required" });
+                  result = await titoStudioApi.replyGoogleBusinessReview({
+                      clinicId: clinicId || "default",
+                      reviewId: req.body.reviewId,
+                      comment: req.body.comment,
+                      reviewerName: req.body.reviewerName,
+                      starRating: req.body.starRating,
+                      replyText: req.body.replyText,
+                      autoGenerateAiReply: req.body.autoGenerateAiReply !== false,
+                  });
+                  break;
+              case "reply_snapchat_comment":
+                  result = await titoStudioApi.replySnapchatComment({
+                      clinicId: clinicId || "default",
+                      commentId: req.body?.commentId,
+                      senderName: req.body?.senderName,
+                      commentText: req.body?.commentText || caption || "",
+                      replyText: req.body?.replyText,
+                      autoGenerateAiReply: req.body?.autoGenerateAiReply !== false,
+                  });
+                  break;
               default:
                   return res.status(400).json({ success: false, error: `Unknown studio media/ads action: ${action}` });
           }
@@ -904,6 +937,7 @@ export function registerProxyAndSystemRoutes(
   app.post("/api/developer/deploy-app", async (req, res) => {
       try {
           const { cloneOrSynthesizeBrand } = await import("../services/appClonerCrawlerService");
+          const { resolveFlagshipTemplate } = await import("../services/tenantFactory");
           const {
               businessName,
               template = "custom",
@@ -916,9 +950,10 @@ export function registerProxyAndSystemRoutes(
               return res.status(400).json({ success: false, error: "businessName is required" });
           }
 
+          const flagshipTemplate = resolveFlagshipTemplate(`${template} ${businessName}`);
           const brand = await cloneOrSynthesizeBrand({
               name: businessName,
-              industry: template,
+              industry: template === "custom" ? flagshipTemplate.name : template,
               websiteUrl,
               phone,
               ownerEmail,
@@ -926,7 +961,10 @@ export function registerProxyAndSystemRoutes(
 
           res.json({
               success: true,
-              template,
+              template: flagshipTemplate.templateKey,
+              flagshipTemplate,
+              repoUrl: flagshipTemplate.repoUrl,
+              referenceLiveUrl: flagshipTemplate.referenceLiveUrl,
               appUrl: brand.appUrl,
               slug: brand.slug,
               brandId: brand.id,

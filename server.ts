@@ -2134,6 +2134,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               return res.status(400).json({ error: "Client and Business names are required" });
           }
 
+          const { resolveFlagshipTemplate } = await import("./services/tenantFactory");
+          const flagship = resolveFlagshipTemplate(`${templateId || ''} ${businessName} ${pricingNotes || ''}`);
           const rawSlug = (subdomain || businessName).toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
           const slug = rawSlug && rawSlug.length > 2 ? rawSlug : `app-${Date.now().toString(36)}`;
           const tenantId = `tenant_${Date.now()}`;
@@ -2146,13 +2148,18 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               slug,
               clientName,
               businessName,
-              templateId: templateId || "ecommerce_store",
-              templateName: templateId === "car_rental" ? "تأجير السيارات الذكي" :
-                            templateId === "real_estate" ? "العقارات ومستشارك الذكي" :
-                            templateId === "clean_master" ? "خدمات عامة وحجوزات" :
-                            templateId === "ecommerce_store" ? "متجر إلكتروني متكامل" :
-                            templateId === "shipping_logistics" ? "شحن ولوجستيات" : 
-                            templateId === "medical_clinic" ? "عيادات ومراكز طبية" : "منظومة ذكية متكاملة",
+              templateId: templateId || flagship.templateKey,
+              archetype: flagship.archetype,
+              flagshipRepo: flagship.repoUrl,
+              referenceLiveUrl: flagship.referenceLiveUrl,
+              modulesEnabled: flagship.modulesEnabled,
+              templateName: templateId === "battah" || flagship.templateKey === "battah" ? flagship.name :
+                            templateId === "clean_master" || flagship.templateKey === "clean_master" ? flagship.name :
+                            templateId === "car_rental" ? "تأجير السيارات الذكي (Clean Master Core)" :
+                            templateId === "real_estate" ? "العقارات ومستشارك الذكي (Clean Master Core)" :
+                            templateId === "ecommerce_store" ? "متجر إلكتروني + ERP + CRM + POS (Battah Core)" :
+                            templateId === "shipping_logistics" ? "شحن وتوزيع + ERP (Battah Core)" : 
+                            templateId === "medical_clinic" ? "عيادات وتقويم حجوزات (Clean Master Core)" : flagship.name,
               liveUrl,
               githubUrl,
               whatsappBot: whatsapp || phone || "01013373634",
@@ -2685,10 +2692,10 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.post("/api/branding/forge", async (req, res) => {
       try {
           const { brandName, category, targetAudience, phone, isNewBusiness, currentAssets } = req.body;
-          if (!brandName) return res.status(400).json({ error: "اسم البراند أو المشروع مطلوب" });
+          if (!brandName && !category) return res.status(400).json({ error: "اسم البراند أو مجال المشروع مطلوب" });
 
           const kit = await generateBrandingAndSocialKit({
-              brandName,
+              brandName: brandName || category || "براند جديد",
               category,
               targetAudience,
               phone,

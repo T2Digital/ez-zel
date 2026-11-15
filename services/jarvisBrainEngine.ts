@@ -10,6 +10,8 @@ import { t2AgentApi, getT2AgentBaseUrl } from "./t2AgentApiClient";
 import { runLiveEcosystemHealthProbe } from "./ecosystemConfigService";
 import { syncBrandToAllEcosystems } from "./universalBrandSync";
 import { saveGeneratedMedia } from "./mediaStorageService";
+import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./brandingForgeService";
+import { resolveFlagshipTemplate, FLAGSHIP_TEMPLATES } from "./tenantFactory";
 
 export interface JarvisBrainInput {
   message: string;
@@ -331,13 +333,24 @@ const jarvisBrainTools: FunctionDeclaration[] = [
   {
     name: "tito_studio_omnichannel_publish",
     description:
-      "النشر الفوري على تيك توك، يوتيوب شورتس، سناب شات، منصة إكس (X)، فيسبوك وإنستجرام، أو جلب والرد على تعليقات العملاء.",
+      "النشر الفوري على جميع المنصات المفعلة (فيسبوك، إنستجرام، تيك توك، يوتيوب شورتس، سناب شات، جوجل بزنس وخرائط جوجل Google Business & Maps، منصة X) أو جلب والرد الذكي على تعليقات ميتا وسناب شات وتقييمات خرائط جوجل.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         action: {
           type: Type.STRING,
-          enum: ["publish_tiktok", "publish_youtube", "publish_snapchat", "publish_x", "list_comments", "reply_comment"],
+          enum: [
+            "publish_tiktok",
+            "publish_youtube",
+            "publish_snapchat",
+            "publish_x",
+            "publish_google_business",
+            "list_comments",
+            "reply_comment",
+            "reply_snapchat_comment",
+            "list_google_reviews",
+            "reply_google_review",
+          ],
         },
         brandNameOrId: { type: Type.STRING },
         caption: { type: Type.STRING },
@@ -345,8 +358,27 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         mediaUrl: { type: Type.STRING },
         commentId: { type: Type.STRING },
         pageId: { type: Type.STRING },
+        reviewId: { type: Type.STRING },
+        reviewerName: { type: Type.STRING },
+        commentText: { type: Type.STRING },
       },
       required: ["action"],
+    },
+  },
+  {
+    name: "onboard_new_client_brand",
+    description:
+      "أداة تأسيس العميل والبراند الجديد من الصفر: تقترح على العميل 3 أسماء براند مميزة ليختار منها + 3 سلوجانات بيعية رنانة + تصمم له شعاراً حقيقياً بالذكاء الاصطناعي (AI Logo) + ترشح له تطبيق الويب المناسب (Battah للمنتجات أو Clean Master للخدمات) + تجهز خطوة ربط واتساب وباقي المنصات المفعلة.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        businessIdeaOrName: { type: Type.STRING, description: "فكرة النشاط أو الاسم المبدئي أو مجال العمل" },
+        category: { type: Type.STRING, description: "نوع النشاط (بيع منتجات أم حجز خدمات، ومجاله التخصصي)" },
+        phone: { type: Type.STRING, description: "رقم واتساب/هاتف العميل إن وجد" },
+        isNewBusiness: { type: Type.BOOLEAN, description: "true إذا كان بيزنس جديد من الصفر" },
+        provisionWebApp: { type: Type.BOOLEAN, description: "true إذا طلب العميل إطلاق تطبيق الويب فوراً" },
+      },
+      required: ["category"],
     },
   },
   {
@@ -482,18 +514,38 @@ function buildPersonaSystemPrompt(
     .join(" | ");
 
   let personaRoleInstruction = "";
+  const activatedPlatformsKnowledge = `
+[المنصات والقنوات المفعلة حالياً في المنظومة (T2 Studio + T2 Agent)]:
+1. واتساب (WhatsApp عبر T2 Agent Baileys QR & Pairing Code للرد الذكي وحجز المواعيد واستعادة المبيعات).
+2. ميتا: فيسبوك وإنستجرام (Facebook & Instagram: نشر Feed و Reels، سحب التعليقات، وردود ذكية تلقائية).
+3. تيك توك (TikTok Creator API: النشر المباشر للفيديوهات + سحب تعليقات ورسائل العملاء للرد عليها عبر T2 Agent).
+4. يوتيوب (YouTube Shorts: رفع ونشر الفيديوهات القصيرة والطويلة مع العناوين والوصف).
+5. سناب شات (Snapchat Public Profile & Spotlight: نشر القصص والأضواء + جسر الرد الذكي على تعليقات ورسائل سناب عبر T2 Agent).
+6. جوجل بزنس وخرائط جوجل (Google Business Profile & Maps): نشر البوستات والعروض على خرائط جوجل + سحب تقييمات العملاء والرد الذكي التلقائي عليها.
+7. منصة إكس (X / Twitter).
+
+[أهم تطبيقي ويب أساسيين للعملاء (Flagship Templates) — مع تغيير الهوية والواجهة وإعدادات العمل الداخلية لأي مجال]:
+1. قالب بيع المنتجات الشامل (${FLAGSHIP_TEMPLATES.battah.repoUrl} — Live: ${FLAGSHIP_TEMPLATES.battah.referenceLiveUrl}):
+   يدمج متجر إلكتروني + ERP + CRM + POS (نقطة بيع ومخازن) مع تخصيص كامل للهوية والواجهة وإعدادات الأدمن الداخلية حسب المجال (مناسب لأي نشاط بيع منتجات: متاجر، قطع غيار، ملابس، سوبر ماركت، مطاعم، صيدليات).
+2. قالب حجز الخدمات الشامل (${FLAGSHIP_TEMPLATES.clean_master.repoUrl} — Live: ${FLAGSHIP_TEMPLATES.clean_master.referenceLiveUrl}):
+   تطبيق خدمات ولوحة تحكم تضم تقويم الحجوزات + الماليات + CRM + شات بوت ذكي (مناسب لأي نشاط حجز خدمات: صيانة وتنظيف، عيادات ومراكز طبية، تأجير سيارات، عقارات، صالونات، سياحة).`;
+
   if (persona === "visitor") {
     personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط تجاري" يستكشف منظومة النمو الشامل للأعمال (T2 Unified Growth OS).
 دورك معه: أنت "جارفيس"، كبير مستشاري الأعمال والنمو الرقمي بالمنظومة. تتحدث باللهجة المصرية الطبيعية الذكية والودودة.
 قاعدة صارمة ومطلقة: ممنوع نهائياً استخدام كلمة "استنساخ" أو "مستنسخ"، واستبدلها دائماً بكلمات: "تأسيس، إطلاق، بناء، تجهيز، تخصيص، تفعيل".
 استخدم الأداة record_visitor_diagnostic تلقائياً كلما ذكر الزائر أي معلومة عن نشاطه أو صفحاته أو رقمه.
+مسار تأسيس العميل الجديد بالترتيب الذكي (استدعِ أداة onboard_new_client_brand بمجرد معرفة مجال نشاطه):
+1. اقترح عليه فوراً 3 أسماء براند مميزة ليختار منها + 3 سلوجانات بيعية رنانة تناسب مجاله.
+2. بناءً على اختياره، صمّم له الشعار الحقيقي بالذكاء الاصطناعي (AI Logo) وجهّز هويته وألوانه.
+3. حدّد له تطبيق الويب الأنسب لنشاطه (تطبيق Battah لو بيبيع منتجات: متجر + ERP + CRM + POS، أو تطبيق Clean Master لو بيحجز خدمات: تطبيق خدمات + تقويم الحجوزات والماليات).
+4. كمّل معاه خطوة ربط الواتساب (كود الاقتران / QR) وربط باقي المنصات المفعلة (فيسبوك، إنستجرام، تيك توك، يوتيوب، سناب شات، وخرائط جوجل Google Business) وعرض أسبوع التجربة المجانية 7 أيام.
 قواعد الحوار:
-1. ممنوع تكرار التحية ("أهلاً بك" أو "مرحباً") بعد أول رسالة، وممنوع تكرار أي سؤال أجاب عنه مسبقاً.
-2. تدرج معه بذكاء: (نشاط قائم أم من الصفر؟ -> الموقع والصفحات -> التطمين العملي -> عرض أسبوع التجربة المجانية 7 أيام).
-3. اجعل ردك مختصراً جداً ومركزاً (جملة أو جملتين بالعامية المصرية الذكية).`;
+- ممنوع تكرار التحية ("أهلاً بك" أو "مرحباً") بعد أول رسالة، وممنوع تكرار أي سؤال أجاب عنه مسبقاً.
+- اجعل ردك واضحاً ومنظماً بالعامية المصرية الذكية (وإذا استدعيت onboard_new_client_brand اعرض الـ 3 أسماء والـ 3 سلوجانات بوضوح).`;
   } else if (persona === "trial" || persona === "client") {
     personaRoleInstruction = `المتحدث معك الآن هو "المشترك / صاحب البراند" (${activeBrand?.name || "براند العميل"}) في وضع المدير التنفيذي.
-دورك معه: أنت المدير التنفيذي والسكرتير الذكي المسؤول عن إدارة برانده (${activeBrand?.name || "البراند"}): تقويم تيتو ستوديو، وكيل واتساب، الحملات الممولة، والكتالوج.
+دورك معه: أنت المدير التنفيذي والسكرتير الذكي المسؤول عن إدارة برانده (${activeBrand?.name || "البراند"}): تقويم تيتو ستوديو، وكيل واتساب، جوجل بزنس وخرائط جوجل، سناب شات وتيك توك وميتا، الحملات الممولة، وتطبيق الويب (Battah أو Clean Master).
 خاطبه باحترام كشريك نجاح ("يا فندم" أو "يا ريس") باللهجة المصرية الودودة والاحترافية.`;
   } else {
     personaRoleInstruction = `المتحدث معك الآن هو الماستر "تيتو" (Ahmed Attia) — المالك والمدير العام للوكالة والمنظومة بالكامل (Super Admin).
@@ -503,11 +555,12 @@ function buildPersonaSystemPrompt(
 1. عملاء تطبيق الظل (المساعد الشخصي): عددهم ${ezzelClients.length} مشتركين نشطين.
 2. عملاء وبراندات وكالة النمو الشامل الموحدة: عددهم ${unifiedBrands.length} براند.
 3. البراند المحدد حالياً على الشاشة: ${activeBrand ? `"${activeBrand.name}" (${activeBrand.businessType} - واتساب: ${activeBrand.phone})` : "لا يوجد براند محدد حالياً (العرض العام للمنظومة)"}.
-عند طلب أي أمر تنفيذي أو ملاحي أو تعديل في أي براند، استدعِ الأداة المناسبة فوراً بدقة.`;
+عند طلب أي أمر تنفيذي أو نشر على أي منصة (بما فيها Google Business & Maps و Snapchat و TikTok و Meta و YouTube) أو تأسيس براند/تطبيق من قوالب Battah / Clean Master، استدعِ الأداة المناسبة فوراً بدقة.`;
   }
 
-  return `أنت "جارفيس" (Jarvis)، العقل التنفيذي الموحد لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + App Cloner + Obsidian Knowledge Vault).
+  return `أنت "جارفيس" (Jarvis)، العقل التنفيذي الموحد لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + Flagship Apps + Obsidian Knowledge Vault).
 ${personaRoleInstruction}
+${activatedPlatformsKnowledge}
 
 [قائمة الـ ${unifiedBrands.length} براند الموحدة الحية في المنظومة]:
 ${allBrandsBrief}
@@ -573,7 +626,12 @@ ${
 
   const activeTools =
     persona === "visitor"
-      ? jarvisBrainTools.filter((t) => t.name === "record_visitor_diagnostic")
+      ? jarvisBrainTools.filter(
+          (t) =>
+            t.name === "record_visitor_diagnostic" ||
+            t.name === "onboard_new_client_brand" ||
+            t.name === "t2_agent_enterprise_control"
+        )
       : jarvisBrainTools;
 
   const modelCascade = [
@@ -1195,6 +1253,71 @@ ${
         break;
       }
 
+      case "onboard_new_client_brand": {
+        try {
+          const category = String(args.category || "نشاط تجاري وخدمات").trim();
+          const initialName = String(args.businessIdeaOrName || category).trim();
+          const phone = String(args.phone || "").trim();
+          const kit = await generateBrandingAndSocialKit({
+            brandName: initialName,
+            category,
+            phone: phone || "01013372674",
+            isNewBusiness: args.isNewBusiness !== false,
+          });
+          const flagshipApp = resolveFlagshipTemplate(`${category} ${initialName}`);
+          const savedBrand = saveBrandedClientToVault(kit, { phone, whatsapp: phone });
+          try {
+            await syncBrandToAllEcosystems({
+              id: savedBrand.id,
+              slug: savedBrand.slug,
+              name: savedBrand.name,
+              businessType: savedBrand.businessType,
+              phone: savedBrand.phone,
+              whatsapp: savedBrand.whatsapp,
+              slogan: savedBrand.slogan,
+              primaryColor: savedBrand.primaryColor,
+              accentColor: savedBrand.accentColor,
+              weekContentPlan: savedBrand.weekContentPlan,
+            });
+          } catch {}
+
+          backendExecutionResult = {
+            success: true,
+            suggestedNames: kit.suggestedNames,
+            suggestedSlogans: kit.suggestedSlogans,
+            selectedBrandName: kit.brandName,
+            slogan: kit.slogan,
+            logoUrl: kit.logoUrl,
+            logoPrompt: kit.logoPrompt,
+            colors: kit.colors,
+            flagshipWebApp: {
+              templateKey: flagshipApp.templateKey,
+              name: flagshipApp.name,
+              repoUrl: flagshipApp.repoUrl,
+              referenceLiveUrl: flagshipApp.referenceLiveUrl,
+              modulesEnabled: flagshipApp.modulesEnabled,
+              descriptionAr: flagshipApp.adminCustomization.descriptionAr,
+            },
+            socialKits: kit.socialKits,
+            nextSteps: [
+              "اختيار الاسم والسلوجان المفضل من المقترحات الـ 3",
+              "اعتماد الشعار المصمم وتطبيق الويب (Battah للمنتجات أو Clean Master للخدمات)",
+              "ربط رقم الواتساب (QR / Pairing Code) وتوصيل صفحات Meta و TikTok و YouTube و Snapchat و Google Business & Maps",
+            ],
+            brand: savedBrand,
+          };
+          executedAction = {
+            type: "DYNAMIC_WIDGET",
+            widgetType: "brand_dna",
+            brandId: savedBrand.id,
+            data: backendExecutionResult,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, error: err?.message || "Failed to onboard client brand" };
+        }
+        break;
+      }
+
       case "tito_studio_omnichannel_publish": {
         try {
           if (args.action === "publish_tiktok") {
@@ -1221,6 +1344,33 @@ ${
             backendExecutionResult = await titoStudioApi.publishX({
               clinicId: brandId,
               caption: args.caption || message,
+            });
+          } else if (args.action === "publish_google_business") {
+            backendExecutionResult = await titoStudioApi.publishGoogleBusiness({
+              clinicId: brandId,
+              caption: args.caption || message,
+              mediaUrl: args.mediaUrl || undefined,
+              topicType: "STANDARD",
+            });
+          } else if (args.action === "list_google_reviews") {
+            backendExecutionResult = await titoStudioApi.listGoogleBusinessReviews(brandId);
+          } else if (args.action === "reply_google_review" && args.reviewId) {
+            backendExecutionResult = await titoStudioApi.replyGoogleBusinessReview({
+              clinicId: brandId,
+              reviewId: args.reviewId,
+              comment: args.commentText,
+              reviewerName: args.reviewerName,
+              replyText: args.caption,
+              autoGenerateAiReply: !args.caption,
+            });
+          } else if (args.action === "reply_snapchat_comment") {
+            backendExecutionResult = await titoStudioApi.replySnapchatComment({
+              clinicId: brandId,
+              commentId: args.commentId,
+              senderName: args.reviewerName,
+              commentText: args.commentText || message,
+              replyText: args.caption,
+              autoGenerateAiReply: !args.caption,
             });
           } else if (args.action === "list_comments" && args.pageId) {
             backendExecutionResult = await titoStudioApi.getMetaComments(args.pageId);

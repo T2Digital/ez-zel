@@ -1626,13 +1626,21 @@ export const processToolActions = async (
                               body: JSON.stringify({ kit, phone: args.phone, whatsapp: args.phone })
                           });
 
+                          const namesText = Array.isArray(kit.suggestedNames) && kit.suggestedNames.length > 0
+                              ? `\n🏷️ 3 أسماء مقترحة للبراند:\n` + kit.suggestedNames.map((n: any, idx: number) => `${idx + 1}) ${n.arabic} (${n.english})`).join('\n')
+                              : '';
+                          const slogansText = Array.isArray(kit.suggestedSlogans) && kit.suggestedSlogans.length > 0
+                              ? `\n💡 3 سلوجانات مقترحة:\n` + kit.suggestedSlogans.map((s: string, idx: number) => `${idx + 1}) "${s}"`).join('\n')
+                              : `\nالشعار المختار: "${kit.slogan}"`;
+
                           uiCards.push({
                               cardType: 'task_success',
-                              title: `✨ تم تأسيس حقيبة البراند وتجهيز الصفحات: ${kit.brandName}`,
-                              description: `الشعار: "${kit.slogan}"\nالألوان: ${kit.colors?.primary} / ${kit.colors?.accent}\n\n📘 فيسبوك: ${kit.socialKits?.facebook?.title}\n📸 إنستجرام: ${kit.socialKits?.instagram?.title}\n🎵 تيك توك: ${kit.socialKits?.tiktok?.title}\n\n📅 أسبوع التجربة المجانية (3 منشورات: الأحد تصميم، الثلاثاء فيديو، الخميس عرض خاص) جاهزة في التقويم!`
+                              title: `✨ حقيبة تأسيس البراند والشعار والمنصات: ${kit.brandName}`,
+                              imageUrl: kit.logoUrl || undefined,
+                              description: `${namesText}${slogansText}\n\n🎨 الألوان: ${kit.colors?.primary} / ${kit.colors?.accent}${kit.logoUrl ? `\n🖼️ تم تصميم اللوجو بالذكاء الاصطناعي: ${kit.logoUrl}` : ''}\n\n📘 فيسبوك: ${kit.socialKits?.facebook?.title}\n📸 إنستجرام: ${kit.socialKits?.instagram?.title}\n🎵 تيك توك: ${kit.socialKits?.tiktok?.title}${kit.socialKits?.snapchat ? `\n👻 سناب شات: ${kit.socialKits.snapchat.title}` : ''}${kit.socialKits?.google_business ? `\n📍 خرائط جوجل (Google Business): ${kit.socialKits.google_business.title}` : ''}\n\n📅 أسبوع التجربة المجانية (3 منشورات جاهزة في التقويم) — الخطوة التالية: ربط واتساب + المنصات + تفعيل تطبيق الويب (Battah للمنتجات أو Clean Master للخدمات)!`
                           });
 
-                          const hiddenPrompt = `[BRAND_SOCIAL_LAUNCH_KIT_GENERATED]\n${JSON.stringify(kit, null, 2)}\n\n[INSTRUCTION]: بارك للعميل بأسلوب راقٍ ومحفز باللهجة المصرية، واعرض عليه تفاصيل الهوية والبايو لكل منصة (فيسبوك، إنستجرام، وتيك توك) وخطة المنشورات الـ 3 المجانية، وشجعه على بدء توليد أول تصميم في تيتو ستوديو أو ربط الواتساب فوراً.`;
+                          const hiddenPrompt = `[BRAND_SOCIAL_LAUNCH_KIT_GENERATED]\n${JSON.stringify(kit, null, 2)}\n\n[INSTRUCTION]: اعرض على العميل باللهجة المصرية الـ 3 أسماء المقترحة والـ 3 سلوجانات ليختار منهم بوضوح، وعرّفه إننا صممنا له اللوجو وجهزنا ملفات فيسبوك وإنستجرام وتيك توك وسناب شات وخرائط جوجل (Google Business)، واطلب منه اختيار الاسم/السلوجان المفضل وتجهيز رقمه لربط الواتساب وتحديد هل نشاطه بيع منتجات (تطبيق Battah Store+ERP+CRM+POS) أم حجز خدمات (تطبيق Clean Master Bookings+Calendar+Financials).`;
                           setTimeout(() => handleSend(hiddenPrompt, undefined, undefined, true), 100);
                       } else {
                           throw new Error(data.error || 'تعذر توليد حقيبة البراند');
@@ -1747,10 +1755,10 @@ export const processToolActions = async (
                       }
                       uiCards.push({
                           cardType: 'task_success',
-                          title: `🚀 تم إطلاق تطبيق الويب للعميل: ${args.business_name}`,
-                          description: `القالب: ${data.template}\nرابط التطبيق: ${data.appUrl}\nمعرف البراند: ${data.brandId}\nالكتالوج المُنشأ: ${data.productsCount} خدمة/منتج\nتمت المزامنة مع T2 Studio و T2 Agent بنجاح!`,
+                          title: `🚀 تم تأسيس تطبيق الويب للعميل: ${args.business_name}`,
+                          description: `القالب المعتمد: ${data.flagshipTemplate?.name || data.template}\nالمستودع المصدري: ${data.repoUrl || 'https://github.com/T2Digital/battah.git'}\nرابط التطبيق: ${data.appUrl}\nمعرف البراند: ${data.brandId}\nالكتالوج المُنشأ: ${data.productsCount} خدمة/منتج\nتم تخصيص الهوية وإعدادات الأدمن الداخلية والمزامنة مع T2 Studio و T2 Agent بنجاح!`,
                       });
-                      const hiddenPrompt = `[DEVELOPER_AGENT_APP_DEPLOYED]\n${JSON.stringify({ appUrl: data.appUrl, slug: data.slug, brandId: data.brandId, template: data.template, productsCount: data.productsCount }, null, 2)}\n\n[INSTRUCTION]: بارك للعميل/الماستر تيتو بإطلاق التطبيق، واعرض رابط التطبيق والخطوة التالية (ربط الواتساب عبر agent_manage_brand أو فتح نافذة التشغيل).`;
+                      const hiddenPrompt = `[DEVELOPER_AGENT_APP_DEPLOYED]\n${JSON.stringify({ appUrl: data.appUrl, slug: data.slug, brandId: data.brandId, template: data.template, repoUrl: data.repoUrl, referenceLiveUrl: data.referenceLiveUrl, productsCount: data.productsCount }, null, 2)}\n\n[INSTRUCTION]: بارك للعميل/الماستر تيتو بتأسيس التطبيق انطلاقاً من القالب المعتمد (Battah للمنتجات أو Clean Master للخدمات)، واعرض رابط التطبيق والمستودع والخطوة التالية (ربط الواتساب عبر agent_manage_brand وتوصيل باقي المنصات).`;
                       setTimeout(() => handleSend(hiddenPrompt, undefined, undefined, true), 100);
                   } catch (err: any) {
                       uiCards.push({

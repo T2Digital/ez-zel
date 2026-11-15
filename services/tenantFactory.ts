@@ -17,12 +17,150 @@ export interface TenantTemplate {
 }
 
 export type TemplateIdType = 
+  | 'battah'
+  | 'clean_master'
+  | 'products_erp_pos'
+  | 'services_bookings_crm'
   | 'car_rental' 
   | 'real_estate' 
-  | 'clean_master' 
   | 'ecommerce_store'
   | 'shipping_logistics'
   | 'medical_clinic';
+
+export interface FlagshipTemplateSpec {
+  templateKey: 'battah' | 'clean_master';
+  archetype: 'products_erp_pos' | 'services_bookings_crm';
+  name: string;
+  repoUrl: string;
+  referenceLiveUrl: string;
+  modulesEnabled: string[];
+  adminCustomization: {
+    customizableIdentity: boolean;
+    customizableUiTheme: boolean;
+    customizableInternalSettings: boolean;
+    supportedRoles: string[];
+    descriptionAr: string;
+  };
+}
+
+export const FLAGSHIP_TEMPLATES: Record<'battah' | 'clean_master', FlagshipTemplateSpec> = {
+  battah: {
+    templateKey: 'battah',
+    archetype: 'products_erp_pos',
+    name: 'منظومة Battah الشاملة (متجر إلكتروني + ERP + CRM + POS)',
+    repoUrl: 'https://github.com/T2Digital/battah.git',
+    referenceLiveUrl: 'https://battah.vercel.app',
+    modulesEnabled: [
+      'Storefront (متجر إلكتروني وسلة طلبات)',
+      'ERP (إدارة الموارد والمشتريات والمخازن)',
+      'CRM (إدارة العملاء والولاء والفواتير)',
+      'POS (نقطة بيع كاشير وباركود)',
+      'Role-Based Admin Dashboard (صلاحيات وإعدادات عمل داخلية قابلة للتخصيص حسب المجال)'
+    ],
+    adminCustomization: {
+      customizableIdentity: true,
+      customizableUiTheme: true,
+      customizableInternalSettings: true,
+      supportedRoles: ['Super Admin', 'Store Manager', 'Cashier (POS)', 'Inventory', 'Accountant'],
+      descriptionAr: 'مناسب لأي نشاط بيع منتجات (متاجر، قطع غيار، ملابس، سوبر ماركت، إلكترونيات، صيدليات، مطاعم) مع تغيير كامل للهوية والواجهة وإعدادات العمل الداخلية.'
+    }
+  },
+  clean_master: {
+    templateKey: 'clean_master',
+    archetype: 'services_bookings_crm',
+    name: 'منظومة Clean Master الشاملة (حجز خدمات + تقويم الحجوزات + الماليات + CRM)',
+    repoUrl: 'https://github.com/T2Digital/clean-master-egy.git',
+    referenceLiveUrl: 'https://cleanmaster-lac.vercel.app',
+    modulesEnabled: [
+      'Service Booking Engine (حجز الخدمات والباقات أونلاين)',
+      'Bookings Calendar (لوحة تحكم بتقويم الحجوزات والمواعيد والفرق)',
+      'Financials & Accounting (إدارة الماليات، الإيرادات، العربون والفواتير)',
+      'CRM & Customer Follow-up (إدارة العملاء وإعادة الاستهداف)',
+      'Multi-Model AI Chatbot (بوت ذكي لحجز المواعيد والرد الفوري)'
+    ],
+    adminCustomization: {
+      customizableIdentity: true,
+      customizableUiTheme: true,
+      customizableInternalSettings: true,
+      supportedRoles: ['Super Admin', 'Operations Manager', 'Booking Coordinator', 'Technician/Doctor', 'Accountant'],
+      descriptionAr: 'مناسب لأي نشاط حجز خدمات (صيانة وتنظيف، عيادات ومراكز طبية، تأجير سيارات، سياحة، عقارات، صالونات تجميل، استشارات) مع تخصيص كامل للهوية وتقويم الحجوزات والماليات.'
+    }
+  }
+};
+
+/**
+ * Classifies any commercial business activity or template choice into one of T2 Digital's 2 flagship repositories:
+ * 1) https://github.com/T2Digital/battah.git -> Product Sales + ERP + CRM + POS
+ * 2) https://github.com/T2Digital/clean-master-egy.git -> Service Bookings + Bookings Calendar + Financials
+ */
+export function resolveFlagshipTemplate(industryOrTemplate?: string): FlagshipTemplateSpec {
+  const q = String(industryOrTemplate || '').toLowerCase();
+  const isProductBusiness =
+    q.includes('battah') ||
+    q.includes('products_erp_pos') ||
+    q.includes('ecommerce') ||
+    q.includes('store') ||
+    q.includes('retail') ||
+    q.includes('pos') ||
+    q.includes('erp') ||
+    q.includes('restaurant') ||
+    q.includes('clothing') ||
+    q.includes('shop') ||
+    q.includes('منتج') ||
+    q.includes('متجر') ||
+    q.includes('بيع') ||
+    q.includes('مبيعات') ||
+    q.includes('تجزئة') ||
+    q.includes('ملابس') ||
+    q.includes('أزياء') ||
+    q.includes('سوبر ماركت') ||
+    q.includes('سوبرماركت') ||
+    q.includes('قطع غيار') ||
+    q.includes('مطعم') ||
+    q.includes('كافيه') ||
+    q.includes('صيدلي') ||
+    q.includes('موبايل') ||
+    q.includes('إلكترون') ||
+    q.includes('أثاث') ||
+    q.includes('عطو') ||
+    q.includes('مخبز');
+
+  if (isProductBusiness) {
+    return FLAGSHIP_TEMPLATES.battah;
+  }
+
+  // Default to Service Bookings & Calendar & Financials flagship unless clearly product/ERP/POS
+  if (
+    q.includes('clean') ||
+    q.includes('service') ||
+    q.includes('clinic') ||
+    q.includes('medical') ||
+    q.includes('dental') ||
+    q.includes('real_estate') ||
+    q.includes('car_rental') ||
+    q.includes('booking') ||
+    q.includes('خدم') ||
+    q.includes('حجز') ||
+    q.includes('تنظيف') ||
+    q.includes('صيان') ||
+    q.includes('عياد') ||
+    q.includes('طب') ||
+    q.includes('أسنان') ||
+    q.includes('عقار') ||
+    q.includes('سيار') ||
+    q.includes('تأجير') ||
+    q.includes('سياح') ||
+    q.includes('جميل') ||
+    q.includes('صالون') ||
+    q.includes('جيم') ||
+    q.includes('محاما') ||
+    q.includes('تدريب')
+  ) {
+    return FLAGSHIP_TEMPLATES.clean_master;
+  }
+
+  return FLAGSHIP_TEMPLATES.clean_master;
+}
 
 export interface TenantProvisionConfig {
   clientName: string;
@@ -44,6 +182,8 @@ export interface DeployedTenant {
   clientName: string;
   businessName: string;
   templateName: string;
+  flagshipRepo?: string;
+  archetype?: 'products_erp_pos' | 'services_bookings_crm';
   liveUrl: string;
   githubUrl: string;
   whatsappBot: string;
@@ -54,64 +194,74 @@ export interface DeployedTenant {
 
 export const TENANT_TEMPLATES: TenantTemplate[] = [
   {
-    id: 'car_rental',
-    name: 'تطبيق تأجير السيارات الذكي',
-    category: 'سيارات ونقل VIP',
-    description: 'أسطول السيارات، الحجز باليوم والأسبوع، عقود تأجير إلكترونية، وتأكيد فوري عبر واتساب.',
-    icon: 'Car',
-    defaultPort: 3001,
-    features: ['كتالوج أسطول السيارات', 'حساب تكلفة المدة تلقائياً', 'دفع العربون الإلكتروني', 'تأكيد الحجز التلقائي'],
-    sourceRepo: 'https://github.com/T2Digital/khedr-bot'
-  },
-  {
-    id: 'real_estate',
-    name: 'تطبيق العقارات ووكيل "مستشارك الذكي"',
-    category: 'ريل إستيت واستثمار',
-    description: 'معاينة الوحدات، مستشار عقاري ذكي بيكلم العميل، حجز مواعيد المعاينات، وخرائط المشاريع.',
-    icon: 'Building2',
-    defaultPort: 3002,
-    features: ['مستشارك العقاري الذكي 24/7', 'حجز معاينات الفلل والشقق', 'حاسبة الأقساط والتمويل', 'معرض الصور والمخططات'],
-    sourceRepo: 'https://github.com/T2Digital/sales-gate'
+    id: 'battah',
+    name: 'منظومة Battah (بيع منتجات + متجر + ERP + CRM + POS)',
+    category: 'بيع منتجات وتجارة متكاملة',
+    description: 'القالب الرئيسي لبيع المنتجات: متجر إلكتروني + ERP + CRM + نقطة بيع POS + إدارة مخازن وصلاحيات وإعدادات عمل داخلية قابلة للتخصيص لأي مجال.',
+    icon: 'ShoppingBag',
+    defaultPort: 3004,
+    features: ['متجر إلكتروني احترافي بهوية العميل', 'نظام ERP و CRM ونقطة بيع POS ومخازن', 'تخصيص الواجهة وإعدادات الأدمن الداخلية حسب المجال', 'بوابات الدفع وإشعارات Push والربط بـ T2 Agent'],
+    sourceRepo: 'https://github.com/T2Digital/battah.git'
   },
   {
     id: 'clean_master',
-    name: 'تطبيق خدمات عامة وحجوزات',
-    category: 'خدمات منزلية وتجارية',
-    description: 'تسعير بالمتر المربع أو القطعة، حجز المواعيد والمعاينات، ودفع العربون التلقائي.',
+    name: 'منظومة Clean Master (حجز خدمات + تقويم الحجوزات + الماليات)',
+    category: 'حجز خدمات وشركات ومراكز',
+    description: 'القالب الرئيسي لحجز الخدمات: تطبيق عملاء ذكي + لوحة تحكم بتقويم الحجوزات والماليات والـ CRM وشات بوت ذكي متعدد النماذج قابل للتخصيص لأي نشاط خدمي.',
     icon: 'Sparkles',
     defaultPort: 3003,
-    features: ['حساب تكلفة الخدمة والمساحة', 'خصومات الحجز الإلكتروني', 'جدولة فرق العمل والمواعيد', 'فواتير رقمية معتمدة'],
-    sourceRepo: 'https://github.com/T2Digital/cleanmaster-app'
+    features: ['تطبيق حجز خدمات ومعاينات ومواعيد فوري', 'لوحة تحكم شاملة بتقويم الحجوزات والماليات', 'شات بوت ذكي متعدد النماذج + ربط T2 Agent', 'تخصيص كامل للهوية والخدمات والإعدادات الداخلية'],
+    sourceRepo: 'https://github.com/T2Digital/clean-master-egy.git'
   },
   {
     id: 'ecommerce_store',
-    name: 'متجر إلكتروني وتجارة رقمية',
+    name: 'متجر إلكتروني وتجارة رقمية (مبني على Battah ERP/POS)',
     category: 'متاجر وتجارة تجزئة',
-    description: 'متجر بيع منتجات متكامل، سلة مشتريات، تتبع الشحنات، وإدارة بوابات الدفع وخصم الدفع المسبق.',
+    description: 'متجر بيع منتجات متكامل مع ERP و CRM و POS وسلة مشتريات وتخصيص كامل للهوية وإعدادات العمل الداخلية.',
     icon: 'ShoppingBag',
     defaultPort: 3004,
-    features: ['إدارة المنتجات والمخزون', 'بوابات الدفع الإلكتروني', 'حساب تكلفة الشحن للمحافظات', 'خصم الدفع المسبق التلقائي'],
-    sourceRepo: 'https://github.com/T2Digital/battah-system-final'
+    features: ['إدارة المنتجات والمخزون ونقاط البيع POS', 'نظام ERP و CRM متكامل وصلاحيات أدمن', 'تخصيص الهوية والواجهة وإعدادات العمل حسب المجال', 'ربط مباشر مع واتساب وتيتو ستوديو'],
+    sourceRepo: 'https://github.com/T2Digital/battah.git'
   },
   {
-    id: 'shipping_logistics',
-    name: 'تطبيق الشحن واللوجستيات والتتبع',
-    category: 'شحن ونقل بضائع',
-    description: 'إصدار بوالص الشحن، تتبع مسار الطرود لحظياً، حساب تكلفة الأوزان، وإشعارات التسليم.',
-    icon: 'Truck',
-    defaultPort: 3005,
-    features: ['تتبع أرقام البوالص لايف', 'حاسبة أسعار الشحن للمحافظات', 'إدارة المناديب وتأكيد الاستلام', 'لوحة تحكم التجار'],
-    sourceRepo: 'https://github.com/T2Digital/vision-shipping'
+    id: 'car_rental',
+    name: 'تطبيق تأجير السيارات والسياحة (مبني على Clean Master)',
+    category: 'سيارات ونقل VIP',
+    description: 'حجز الأسطول بتقويم الحجوزات والماليات وتخصيص الهوية وإعدادات العمل + تأكيد فوري عبر واتساب.',
+    icon: 'Car',
+    defaultPort: 3001,
+    features: ['كتالوج أسطول السيارات', 'تقويم الحجوزات اليومي والشهري والماليات', 'دفع العربون الإلكتروني', 'تأكيد الحجز التلقائي عبر T2 Agent'],
+    sourceRepo: 'https://github.com/T2Digital/clean-master-egy.git'
+  },
+  {
+    id: 'real_estate',
+    name: 'تطبيق العقارات وحجز المعاينات (مبني على Clean Master)',
+    category: 'ريل إستيت واستثمار',
+    description: 'معاينة الوحدات، تقويم مواعيد المعاينات، الماليات والـ CRM، ومستشار عقاري ذكي بيكلم العميل 24/7.',
+    icon: 'Building2',
+    defaultPort: 3002,
+    features: ['مستشارك العقاري الذكي 24/7', 'تقويم حجز معاينات الفلل والشقق', 'حاسبة الأقساط والماليات', 'تخصيص كامل للهوية واللوحة'],
+    sourceRepo: 'https://github.com/T2Digital/clean-master-egy.git'
   },
   {
     id: 'medical_clinic',
-    name: 'تطبيق العيادات والمراكز الطبية',
+    name: 'تطبيق العيادات والمراكز الطبية (مبني على Clean Master)',
     category: 'رعاية صحية وأسنان',
-    description: 'حجز الكشوفات والاستشارات الطبية، مواعيد الأطباء، ملفات المرضى، وعروض التقسيط والعلاجات.',
+    description: 'حجز الكشوفات بتقويم الأطباء والماليات، ملفات المرضى CRM، وتذكير آلي عبر واتساب.',
     icon: 'HeartPulse',
     defaultPort: 3006,
-    features: ['حجز مواعيد الأطباء أونلاين', 'عرض باقات الزراعة والتجميل', 'تذكير بمواعيد الكشف عبر واتساب', 'إدارة فروع العيادة'],
-    sourceRepo: 'https://github.com/T2Digital/rivoli-dental-center'
+    features: ['تقويم حجز مواعيد الأطباء أونلاين', 'لوحة ماليات وإيرادات العيادة', 'تذكير بمواعيد الكشف عبر واتساب', 'تخصيص كامل للهوية والإعدادات'],
+    sourceRepo: 'https://github.com/T2Digital/clean-master-egy.git'
+  },
+  {
+    id: 'shipping_logistics',
+    name: 'تطبيق التجارة والتوزيع والشحن (مبني على Battah ERP)',
+    category: 'شحن وتوزيع وبضائع',
+    description: 'إدارة طلبات التجار، الفواتير والماليات، نقطة البيع والـ ERP وتخصيص إعدادات العمل.',
+    icon: 'Truck',
+    defaultPort: 3005,
+    features: ['نظام ERP و CRM للتجار والمناديب', 'تتبع الطلبات والفواتير', 'صلاحيات وإعدادات عمل مخصصة', 'لوحة تحكم شاملة'],
+    sourceRepo: 'https://github.com/T2Digital/battah.git'
   }
 ];
 

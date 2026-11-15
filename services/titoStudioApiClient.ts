@@ -195,10 +195,37 @@ export const titoStudioApi = {
     title: string;
     description?: string;
   }) => studioRequest("POST", "/api/youtube/publish", payload),
-  publishSnapchat: (payload: { clinicId: string; mediaUrl: string; caption?: string }) =>
+  publishSnapchat: (payload: { clinicId: string; mediaUrl: string; caption?: string; destination?: "story" | "spotlight" }) =>
     studioRequest("POST", "/api/snapchat/publish", payload),
+  replySnapchatComment: (payload: {
+    clinicId: string;
+    commentId?: string;
+    senderName?: string;
+    commentText: string;
+    replyText?: string;
+    autoGenerateAiReply?: boolean;
+  }) => studioRequest("POST", "/api/snapchat/comments/reply", payload),
   publishX: (payload: { clinicId: string; caption: string }) =>
     studioRequest("POST", "/api/x/publish", payload),
+  publishGoogleBusiness: (payload: {
+    clinicId: string;
+    caption: string;
+    mediaUrl?: string;
+    topicType?: "STANDARD" | "OFFER" | "EVENT";
+    ctaType?: string;
+    ctaUrl?: string;
+  }) => studioRequest("POST", "/api/google-business/publish", payload),
+  listGoogleBusinessReviews: (clinicId: string) =>
+    studioRequest("GET", "/api/google-business/reviews", undefined, { clinicId }),
+  replyGoogleBusinessReview: (payload: {
+    clinicId: string;
+    reviewId: string;
+    comment?: string;
+    reviewerName?: string;
+    starRating?: number;
+    replyText?: string;
+    autoGenerateAiReply?: boolean;
+  }) => studioRequest("POST", "/api/google-business/reviews/reply", payload),
 
   // --- 6. AI, Images, Veo 3D Video, TTS & Zain Copilot ---
   generateGeminiText: (contents: string, model = "gemini-3.1-flash-lite") =>

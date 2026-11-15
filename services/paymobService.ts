@@ -50,13 +50,13 @@ export const PAYMOB_PLANS: Record<string, {
         yearlyDiscountedTotal: 30000,
         videosPerMonth: 2,
         designsPerMonth: 4,
-        platforms: ['whatsapp', 'facebook', 'instagram'],
+        platforms: ['whatsapp', 'facebook', 'instagram', 'google_business'],
         features: [
             '🎯 1,250 ج.م ميزانية إعلانات ممولة مباشرة لنشاطك (نصف قيمة الباقة إعلانات!)',
             '🎬 2 فيديو ريلز احترافي شهرياً (مضاعف) + 4 تصميمات سوشيال عبر تيتو ستوديو',
-            '📲 المنصات المشمولة: WhatsApp + Meta (Facebook & Instagram)',
-            '📱 نسخة تطبيق ويب وموبايل PWA مخصصة لنشاطك مع كتالوج وحجوزات',
-            '🤖 وكيل واتساب وميتا الذكي للرد الفوري 24/7'
+            '📲 المنصات المشمولة: WhatsApp + Meta (Facebook & Instagram) + Google Business & Maps',
+            '📱 نسخة تطبيق ويب وموبايل PWA مخصصة لنشاطك (متجر Battah أو حجوزات Clean Master)',
+            '🤖 وكيل واتساب وميتا وخرائط جوجل الذكي للرد الفوري على الرسائل والتقييمات 24/7'
         ]
     },
     tier_5000: {
@@ -70,13 +70,13 @@ export const PAYMOB_PLANS: Record<string, {
         yearlyDiscountedTotal: 60000,
         videosPerMonth: 4,
         designsPerMonth: 8,
-        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok'],
+        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'google_business'],
         features: [
             '🎯 2,500 ج.م ميزانية إعلانات ممولة مباشرة (Meta & TikTok) لنصف القيمة',
             '🎬 4 فيديوهات ريلز احترافية شهرياً (مضاعف) + 8 تصميمات عبر Turbo Flow & Veo',
-            '📲 المنصات المشمولة: WhatsApp + Meta (Facebook & Instagram) + TikTok',
-            '📱 نسخة تطبيق وموقع PWA متكامل مخصص حسب مجال نشاطك التجاري',
-            '🤖 وكيل مبيعات واتساب تفاوضي لتأكيد وإغلاق الحجوزات آلياً + تقارير يومية'
+            '📲 المنصات المشمولة: WhatsApp + Meta (Facebook & Instagram) + TikTok + Google Business & Maps',
+            '📱 نسخة تطبيق وموقع PWA متكامل (Battah Store+ERP+POS أو Clean Master Bookings+Calendar)',
+            '🤖 وكيل مبيعات واتساب تفاوضي لتأكيد وإغلاق الحجوزات آلياً + رد ذكي على تقييمات جوجل'
         ]
     },
     tier_10000: {
@@ -90,13 +90,13 @@ export const PAYMOB_PLANS: Record<string, {
         yearlyDiscountedTotal: 120000,
         videosPerMonth: 8,
         designsPerMonth: 16,
-        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube'],
+        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube', 'google_business'],
         features: [
             '🎯 5,000 ج.م ميزانية إعلانات ممولة مستهدفة لحصد المبيعات (نصف القيمة إعلانات!)',
             '🎬 8 فيديوهات احترافية شهرياً (Veo & Flow) + 16 تصميم سوشيال متكامل',
-            '📲 جميع المنصات الأساسية: WhatsApp + Meta (FB & IG) + TikTok + YouTube',
-            '📱 تطبيق PWA متقدم مع لوحة تحكم وإدارة مخزون وحجوزات و CRM متكامل',
-            '💳 بوابة دفع إلكتروني Paymob لتأكيد الحجوزات بالعربون فوراً'
+            '📲 جميع المنصات الأساسية: WhatsApp + Meta (FB & IG) + TikTok + YouTube + Google Business & Maps',
+            '📱 تطبيق PWA متقدم (Battah ERP/CRM/POS أو Clean Master Calendar/Financials) مخصص لنشاطك',
+            '💳 بوابة دفع إلكتروني Paymob لتأكيد الحجوزات والطلبات فوراً'
         ]
     },
     tier_25000: {
@@ -110,11 +110,11 @@ export const PAYMOB_PLANS: Record<string, {
         yearlyDiscountedTotal: 300000,
         videosPerMonth: 16,
         designsPerMonth: 30,
-        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube', 'snapchat'],
+        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube', 'snapchat', 'google_business'],
         features: [
             '🎯 12,500 ج.م ميزانية إعلانات ممولة قوية للسيطرة على السوق (نصف القيمة إعلانات!)',
             '🎥 16 فيديو احترافي شهرياً + 30 تصميم يومي وإدارة الحملات الإعلانية اليومية',
-            '📲 كل المنصات + Snapchat: WhatsApp + Meta + TikTok + YouTube + Snapchat',
+            '📲 كل المنصات + Snapchat & Google Maps: WhatsApp + Meta + TikTok + YouTube + Snapchat + Google Business',
             '🏢 تطبيق ومنظومة متكاملة متعددة الفروع ونقاط البيع + تخصيص كامل للذكاء الاصطناعي',
             '👑 دعم تنفيذي مباشر 24/7 مع مدير حساب ذكي وخبير نمو مخصص'
         ]
@@ -130,12 +130,12 @@ export const PAYMOB_PLANS: Record<string, {
         yearlyDiscountedTotal: 600000,
         videosPerMonth: 32,
         designsPerMonth: 60,
-        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube', 'snapchat', 'x'],
+        platforms: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'youtube', 'snapchat', 'google_business', 'x'],
         features: [
             '🎯 25,000 ج.م ميزانية حملات إعلانية ضخمة عبر كافة المنصات (نصف القيمة إعلانات!)',
             '🎥 32 فيديو احترافي شهرياً + 60 تصميم شهرياً بأولوية إنتاج قصوى',
-            '📲 تغطية شاملة لكل المنصات: WhatsApp + Meta + TikTok + YouTube + Snapchat + X',
-            '🌐 بناء وتخصيص أنظمة وتطبيقات متكاملة (Enterprise PWA Suite) وسيرفرات مخصصة',
+            '📲 تغطية شاملة لكل المنصات: WhatsApp + Meta + TikTok + YouTube + Snapchat + Google Business & Maps + X',
+            '🌐 بناء وتخصيص أنظمة وتطبيقات متكاملة (Battah Enterprise ERP/POS & Clean Master Suite) وسيرفرات مخصصة',
             '📊 تحليل تنبؤي ومراقبة سلوك الزوار وتحسين معدلات التحويل 24/7'
         ]
     }
