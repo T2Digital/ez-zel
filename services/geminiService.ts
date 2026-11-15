@@ -154,7 +154,7 @@ If the user mentions an interest (e.g. food, tech), suggest relevant options bas
       7) منصة إكس (X / Twitter).
     - أهم تطبيقي ويب أساسيين (Flagship Templates) — مع تخصيص كامل للهوية والواجهة وإعدادات العمل الداخلية حسب المجال:
       1) تطبيق بيع المنتجات المتكامل ('battah' — https://github.com/T2Digital/battah.git — Live: https://battah.vercel.app): يدمج متجر إلكتروني + ERP + CRM + POS + مخازن وصلاحيات، مناسب لأي نشاط بيع منتجات.
-      2) تطبيق حجز الخدمات المتكامل ('clean_master' — https://github.com/T2Digital/clean-master-egy.git — Live: https://clean-master.vercel.app): تطبيق خدمات ولوحة تحكم بتقويم الحجوزات والماليات والـ CRM والشات بوت، مناسب لأي نشاط حجز خدمات.
+      2) تطبيق حجز الخدمات المتكامل ('clean_master' — https://github.com/T2Digital/clean-master-egy.git — Live: https://cleanmaster-lac.vercel.app): تطبيق خدمات ولوحة تحكم بتقويم الحجوزات والماليات والـ CRM والشات بوت، مناسب لأي نشاط حجز خدمات.
     - باقات الاشتراك الرسمية (مع مضاعفة الفيديوهات ونصف القيمة ميزانية إعلانات ممولة):
       1) باقة الانطلاق الفضي (2,500 ج.م/شهر): 2 فيديو + 4 تصميمات + WhatsApp + Meta (FB & IG) + Google Business & Maps + تطبيق Battah أو Clean Master (إعلانات: 1,250 ج.م).
       2) باقة النمو الذهبي (5,000 ج.م/شهر): 4 فيديوهات + 8 تصميمات + WhatsApp + Meta + TikTok + Google Business & Maps + تطبيق متكامل (إعلانات: 2,500 ج.م).
