@@ -154,8 +154,8 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
       const data = await res.json();
       if (data.success && data.brand) {
         setGeneratedBrand(data.brand);
-        const storeUrl = `${window.location.origin}/store/${data.brand.slug || data.brand.id}`;
-        setGeneratedAppUrl(storeUrl);
+        const fallbackAppUrl = `${window.location.origin}/app/${data.brand.slug || data.brand.id}`;
+        setGeneratedAppUrl(data.flagshipUrl || fallbackAppUrl);
         if (Array.isArray(data.brand.weekContentPlan)) {
           setWeekPlan(data.brand.weekContentPlan);
         }

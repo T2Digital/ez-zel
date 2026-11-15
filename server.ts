@@ -1289,6 +1289,36 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   }, 45000);
 
   // --- CLIENT LIVE INTERACTIVE STOREFRONT VIEW (Branded PWA + Live Booking Cart -> CRM) --- //
+  // --- PUBLIC MULTI-TENANT BRAND CONFIG ENDPOINT (FOR BATTAH & CLEAN-MASTER) --- //
+  app.get("/api/public/brand/:slug", (req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      const slug = String(req.params.slug || "");
+      const unified = getUnifiedGrowthBrands();
+      const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
+      if (!brand) {
+          return res.status(404).json({ ok: false, error: "Brand not found" });
+      }
+      const cleanPhone = String(brand.phone || "01013373634").replace(/[^0-9]/g, "");
+      const wa = cleanPhone.startsWith("0") ? `2${cleanPhone}` : cleanPhone;
+      res.json({
+          ok: true,
+          brand: {
+              id: brand.id,
+              slug: brand.slug || brand.id,
+              name: brand.name,
+              slogan: brand.slogan || "",
+              logoUrl: brand.logoUrl || "",
+              primaryColor: brand.primaryColor || "#06b6d4",
+              phone: brand.phone || "",
+              whatsapp: wa,
+              businessType: brand.businessType || "",
+              directKnowledge: brand.directKnowledge || "",
+              appTemplate: brand.appTemplate || "services_booking",
+              productsCatalog: Array.isArray(brand.productsCatalog) ? brand.productsCatalog : []
+          }
+      });
+  });
+
   // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
   app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
       const slug = String(req.params.slug || "");

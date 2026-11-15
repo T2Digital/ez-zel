@@ -1166,13 +1166,21 @@ export async function executeRealJarvisEcosystemAction(input: {
 
             syncAndBuildObsidianVault();
 
+            const storeSlug = cloned.slug || cloned.id;
+            const flagshipBaseUrl = resolvedTemplate === 'products_erp'
+                ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
+                : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
+            const flagshipUrl = `${flagshipBaseUrl.replace(/\/$/, '')}/?brandId=${encodeURIComponent(storeSlug)}`;
+
             return {
                 success: true,
                 brand: enrichedBrand,
                 trialClient: newClient,
-                storeUrl: `/store/${cloned.slug}`,
+                storeUrl: `/app/${storeSlug}`,
+                flagshipUrl,
+                appTemplate: resolvedTemplate,
                 studioPostsCount,
-                message: `تم بناء وتجهيز متجر وتطبيق (${cloned.name})، وتسجيله في قاعدة بيانات تيتو ستوديو السحابية وتيتو أجنت، وجدولة (${studioPostsCount}) منشورات بمصفوفة الـ 3 مسارات (تطبيق + واتساب صوتي + تعليق تلقائي) لتفعيل أسبوع التجربة المجانية بالكامل!`
+                message: `تم بناء وتجهيز متجر وتطبيق (${cloned.name}) على القالب الاحترافي (${resolvedTemplate === 'products_erp' ? 'Battah Store + ERP + CRM + POS' : 'Clean Master Services + Calendar + Finance'})، وتسجيله في تيتو ستوديو وتيتو أجنت وجدولة (${studioPostsCount}) منشورات للأسبوع المجاني!`
             };
         }
 
