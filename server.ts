@@ -1289,124 +1289,214 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   }, 45000);
 
   // --- CLIENT LIVE INTERACTIVE STOREFRONT VIEW (Branded PWA + Live Booking Cart -> CRM) --- //
-  app.get(["/store/:slug", "/app/:slug"], (req, res) => {
+  // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
+  app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
       const slug = String(req.params.slug || "");
       const unified = getUnifiedGrowthBrands();
       const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
       if (!brand) {
           return res.status(404).send("<h1 style='color:#fff;background:#050505;font-family:sans-serif;text-align:center;padding:50px;'>البراند المطلوب غير مسجل في المنظومة</h1>");
       }
+      const { renderTenantAppHtml } = await import("./services/tenantAppRenderer");
+      res.send(renderTenantAppHtml(brand));
+  });
 
-      const catalog = Array.isArray(brand.productsCatalog) && brand.productsCatalog.length > 0
-          ? brand.productsCatalog
-          : [
-              { id: 'srv_1', name: `الخدمة الأساسية من ${brand.name}`, price: '650 ج.م', description: 'خدمة معتمدة بأعلى جودة وضمان شامل' },
-              { id: 'srv_2', name: `باقة VIP الشاملة من ${brand.name}`, price: '1,200 ج.م', description: 'باقة متكاملة مع متابعة دورية وأولوية تنفيذ' }
-          ];
-
-      const servicesHtml = catalog.map((p: any, idx: number) => `
-        <div class="service-card" onclick="selectService('${(p.name || '').replace(/'/g, "\\'")}', '${(p.price || '650 ج.م').replace(/'/g, "\\'")}', ${idx})" id="card-${idx}">
-          <div style="flex:1;padding-left:12px;">
-            <h3 style="margin:0 0 6px;color:#fff;font-size:16px;font-weight:800;">${p.name}</h3>
-            <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5;">${p.description || ''}</p>
-          </div>
-          <div style="text-align:left;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-            <span style="display:inline-block;background:#10b981;color:#000;font-weight:900;padding:6px 12px;border-radius:12px;font-size:13px;">${p.price}</span>
-            <span style="font-size:11px;color:#38bdf8;font-weight:700;">+ اختر للحجز الفوري</span>
-          </div>
-        </div>
-      `).join('');
-
-      const html = `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${brand.name} | تطبيق الحجز الذكي المباشر</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-      body { margin:0; padding:16px; background:#030712; color:#fff; font-family:'Cairo',sans-serif; text-align:right; }
-      .container { max-width:560px; margin:0 auto; padding-bottom:40px; }
-      .header { text-align:center; padding:24px 16px 20px; background:linear-gradient(180deg,rgba(6,182,212,0.12),rgba(16,185,129,0.03)); border:1px solid rgba(6,182,212,0.25); border-radius:24px; margin-bottom:20px; }
-      .service-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:18px; padding:16px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s; }
-      .service-card:hover, .service-card.active { border-color:#10b981; background:rgba(16,185,129,0.08); transform:translateY(-2px); }
-      .booking-box { background:rgba(15,23,42,0.9); border:1px solid rgba(56,189,248,0.3); border-radius:22px; padding:20px; margin-top:20px; }
-      .input { width:100%; box-sizing:border-box; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.15); color:#fff; padding:12px 14px; border-radius:12px; font-family:'Cairo',sans-serif; font-size:13px; margin-bottom:10px; }
-      .btn-submit { display:block; width:100%; border:none; cursor:pointer; background:linear-gradient(90deg,#10b981,#06b6d4); color:#000; font-weight:900; text-align:center; padding:14px; border-radius:14px; font-family:'Cairo',sans-serif; font-size:15px; margin-top:8px; }
-      .btn-wa { display:block; width:100%; box-sizing:border-box; background:rgba(37,211,102,0.15); border:1px solid #25D366; color:#25D366; font-weight:800; text-align:center; text-decoration:none; padding:12px; border-radius:14px; font-size:14px; margin-top:12px; }
-      .badge { display:inline-block; padding:4px 12px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#10b981; border-radius:20px; font-size:11px; font-weight:700; margin-bottom:8px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <span class="badge">⚡ تطبيق ويب PWA تفاعلي • مربوط بـ Jarvis & T2 Agent</span>
-            <h1 style="margin:8px 0;font-size:24px;font-weight:900;color:#fff;">${brand.name}</h1>
-            <p style="color:#94a3b8;font-size:13px;margin:0;">${brand.directKnowledge || brand.businessType}</p>
-        </div>
-        <div>
-            <h2 style="font-size:16px;color:#38bdf8;margin-bottom:12px;">1. اختر الخدمة المطلوبة من الكتالوج:</h2>
-            ${servicesHtml}
-        </div>
-        <div class="booking-box">
-            <h2 style="font-size:16px;color:#10b981;margin:0 0 12px;">2. تأكيد الحجز الفوري في الـ CRM وواتساب:</h2>
-            <input id="custName" class="input" placeholder="الاسم بالكامل (مثال: أ. محمد عادل)" />
-            <input id="custPhone" class="input" placeholder="رقم الموبايل / واتساب (مثال: 01012345678)" />
-            <input id="custAddress" class="input" placeholder="العنوان أو الموعد المفضل" />
-            <input id="custService" class="input" readonly value="${(catalog[0]?.name || 'خدمة أساسية').replace(/"/g, '&quot;')}" />
-            <input id="custPrice" type="hidden" value="${(catalog[0]?.price || '650 ج.م').replace(/"/g, '&quot;')}" />
-            <button class="btn-submit" onclick="submitBooking()" id="submitBtn">✅ تأكيد الحجز الآن وإرسال للـ CRM وJarvis</button>
-            <div id="bookingStatus" style="display:none;margin-top:12px;padding:12px;border-radius:12px;background:rgba(16,185,129,0.15);border:1px solid #10b981;color:#10b981;font-size:13px;font-weight:700;text-align:center;"></div>
-        </div>
-        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:16px;padding:14px;margin-top:16px;">
-            <p style="margin:0;font-size:12px;color:#f59e0b;font-weight:bold;">💡 خصم 10% فوري للدفع الإلكتروني مع سداد 25% عربون جدية حجز عبر إنستاباي أو فودافون كاش على ${brand.phone} والباقي عند التنفيذ.</p>
-        </div>
-        <a href="https://wa.me/2${(brand.phone || '01013373634').replace(/^0/, '')}?text=${encodeURIComponent(`مرحباً ${brand.name}، أود الاستفسار والحجز`)}" class="btn-wa" target="_blank">
-            💬 تحدث مباشرة مع وكيل ${brand.name} الذكي على واتساب (${brand.phone})
-        </a>
-        <p style="text-align:center;font-size:11px;color:#64748b;margin-top:24px;">Powered by T2 Unified Growth OS • Ez-Zel + Tito Studio + T2 Agent</p>
-    </div>
-    <script>
-      function selectService(name, price, idx) {
-        document.getElementById('custService').value = name + ' (' + price + ')';
-        document.getElementById('custPrice').value = price;
-        document.querySelectorAll('.service-card').forEach(el => el.classList.remove('active'));
-        const card = document.getElementById('card-' + idx);
-        if (card) card.classList.add('active');
+  app.get("/app/:slug/admin", async (req, res) => {
+      const slug = String(req.params.slug || "");
+      const unified = getUnifiedGrowthBrands();
+      const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+      if (!brand) {
+          return res.status(404).send("<h1 style='color:#fff;background:#050505;font-family:sans-serif;text-align:center;padding:50px;'>البراند المطلوب غير مسجل في المنظومة</h1>");
       }
-      async function submitBooking() {
-        const customerName = document.getElementById('custName').value.trim() || 'عميل التطبيق المطور';
-        const customerPhone = document.getElementById('custPhone').value.trim() || '01000000000';
-        const address = document.getElementById('custAddress').value.trim() || 'القاهرة';
-        const service = document.getElementById('custService').value;
-        const price = document.getElementById('custPrice').value;
-        const btn = document.getElementById('submitBtn');
-        const statusBox = document.getElementById('bookingStatus');
-        btn.disabled = true;
-        btn.innerText = '⏳ جاري تسجيل الحجز في الـ CRM وإبلاغ جارفيس...';
-        try {
-          const res = await fetch('/api/jarvis/execute-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              actionType: 'CREATE_LIVE_BOOKING',
-              brandId: '${brand.id}',
-              data: { customerName, customerPhone, address, service, price }
-            })
+      const { renderTenantAdminHtml } = await import("./services/tenantAppRenderer");
+      res.send(renderTenantAdminHtml(brand));
+  });
+
+  function readTenantRecords(): Record<string, any[]> {
+      const { getPersistentFilePath } = require("./services/persistentStorage");
+      const filePath = getPersistentFilePath("tenant_records.json");
+      try {
+          if (fs.existsSync(filePath)) return JSON.parse(fs.readFileSync(filePath, "utf8"));
+      } catch {}
+      return {};
+  }
+
+  function saveTenantRecords(all: Record<string, any[]>): void {
+      const { savePersistentJson } = require("./services/persistentStorage");
+      savePersistentJson("tenant_records", "tenant_records.json", all);
+  }
+
+  function verifyTenantPin(req: express.Request, brand: any): boolean {
+      const provided = String(req.headers["x-tenant-auth"] || "").trim();
+      if (!provided) return false;
+      const cleanProvided = provided.replace(/\D+/g, "");
+      const brandPhone = String(brand?.phone || "").replace(/\D+/g, "");
+      if (brand?.adminPin && provided === String(brand.adminPin)) return true;
+      if (brandPhone && cleanProvided && (cleanProvided === brandPhone || brandPhone.endsWith(cleanProvided))) return true;
+      const adminSecret = process.env.ADMIN_API_SECRET || process.env.ADMIN_SECRET_KEY;
+      if (adminSecret && provided === String(adminSecret)) return true;
+      return false;
+  }
+
+  app.post("/api/app/:slug/orders", async (req, res) => {
+      try {
+          const slug = String(req.params.slug || "");
+          const unified = getUnifiedGrowthBrands();
+          const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+          const { customerName, customerPhone, address, items = [] } = req.body || {};
+          const totalEgp = Array.isArray(items)
+              ? items.reduce((s: number, it: any) => s + (Number(it.price) || 0) * (Number(it.qty) || 1), 0)
+              : 0;
+          const summary = Array.isArray(items)
+              ? items.map((it: any) => `${it.name} ×${it.qty || 1}`).join("، ")
+              : "طلب متجر";
+          const order = {
+              id: `ORD_${Date.now()}`,
+              type: "order",
+              brandId: brand.id,
+              customerName: customerName || "عميل متجر",
+              customerPhone: customerPhone || "",
+              address: address || "",
+              items,
+              summary,
+              totalEgp,
+              status: "CONFIRMED",
+              createdAt: new Date().toISOString()
+          };
+          const all = readTenantRecords();
+          all[brand.id] = [order, ...(all[brand.id] || [])].slice(0, 300);
+          saveTenantRecords(all);
+          await executeRealJarvisEcosystemAction({
+              actionType: "CREATE_LIVE_BOOKING",
+              brandId: brand.id,
+              data: { customerName, customerPhone, address, service: summary, price: `${totalEgp} ج.م` }
+          }).catch(() => {});
+          res.json({ ok: true, order });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/app/:slug/bookings", async (req, res) => {
+      try {
+          const slug = String(req.params.slug || "");
+          const unified = getUnifiedGrowthBrands();
+          const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+          const { customerName, customerPhone, address, service, price, bookingDate, bookingTime } = req.body || {};
+          const totalEgp = Number(String(price || "0").replace(/[^0-9.]/g, "")) || 0;
+          const booking = {
+              id: `BK_${Date.now()}`,
+              type: "booking",
+              brandId: brand.id,
+              customerName: customerName || "عميل حجز",
+              customerPhone: customerPhone || "",
+              address: address || "",
+              service: service || "خدمة",
+              summary: service || "خدمة",
+              bookingDate: bookingDate || new Date().toISOString().split("T")[0],
+              bookingTime: bookingTime || "02:00 م",
+              price: totalEgp,
+              totalEgp,
+              status: "CONFIRMED",
+              createdAt: new Date().toISOString()
+          };
+          const all = readTenantRecords();
+          all[brand.id] = [booking, ...(all[brand.id] || [])].slice(0, 300);
+          saveTenantRecords(all);
+          await executeRealJarvisEcosystemAction({
+              actionType: "CREATE_LIVE_BOOKING",
+              brandId: brand.id,
+              data: { customerName, customerPhone, address, service: `${service} (${booking.bookingDate} ${booking.bookingTime})`, price }
+          }).catch(() => {});
+          res.json({ ok: true, booking });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/app/:slug/admin-data", (req, res) => {
+      const slug = String(req.params.slug || "");
+      const unified = getUnifiedGrowthBrands();
+      const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+      if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+      if (!verifyTenantPin(req, brand)) {
+          return res.status(403).json({ ok: false, error: "بيانات الدخول غير صحيحة. أدخل رقم الهاتف المسجل للبراند أو كود PIN." });
+      }
+      const all = readTenantRecords();
+      const records = all[brand.id] || [];
+      const totalRevenueEgp = records.reduce((s: number, r: any) => s + (Number(r.totalEgp || r.price || 0) || 0), 0);
+      res.json({ ok: true, records, totalRevenueEgp, catalog: brand.productsCatalog || [] });
+  });
+
+  app.post("/api/app/:slug/catalog", async (req, res) => {
+      const slug = String(req.params.slug || "");
+      const unified = getUnifiedGrowthBrands();
+      const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+      if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+      if (!verifyTenantPin(req, brand)) {
+          return res.status(403).json({ ok: false, error: "Unauthorized" });
+      }
+      const { name, price, description } = req.body || {};
+      if (!name) return res.status(400).json({ ok: false, error: "Name is required" });
+      const { persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
+      const current = Array.isArray(brand.productsCatalog) ? brand.productsCatalog : [];
+      const updatedCatalog = [{ id: `item_${Date.now()}`, name, price: price || "500 ج.م", description: description || "" }, ...current];
+      persistBrandUpdateAcrossEcosystem(brand.id, { productsCatalog: updatedCatalog });
+      res.json({ ok: true, catalog: updatedCatalog });
+  });
+
+  app.get("/api/auth/meta/login", (req, res) => {
+      const appId = process.env.META_APP_ID;
+      const brandId = String(req.query.brandId || "clean_master");
+      if (!appId) {
+          return res.status(503).send("<html dir='rtl'><body style='background:#020617;color:#fff;font-family:sans-serif;padding:40px;text-align:center;'><h2>⚠️ بوابة Meta OAuth غير مفعلة بعد</h2><p>يرجى إضافة <code>META_APP_ID</code> و<code>META_APP_SECRET</code> في إعدادات السيرفر (Render).</p></body></html>");
+      }
+      const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const host = req.headers["x-forwarded-host"] || req.get("host");
+      const redirectUri = `${proto}://${host}/api/auth/meta/callback`;
+      const scope = "pages_show_list,pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish";
+      const oauthUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(brandId)}&scope=${encodeURIComponent(scope)}`;
+      res.redirect(oauthUrl);
+  });
+
+  app.get("/api/auth/meta/callback", async (req, res) => {
+      try {
+          const code = String(req.query.code || "");
+          const brandId = String(req.query.state || "clean_master");
+          const appId = process.env.META_APP_ID;
+          const appSecret = process.env.META_APP_SECRET;
+          if (!code || !appId || !appSecret) {
+              return res.status(400).send("Missing Meta OAuth configuration or authorization code.");
+          }
+          const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+          const host = req.headers["x-forwarded-host"] || req.get("host");
+          const redirectUri = `${proto}://${host}/api/auth/meta/callback`;
+          const tokenResp = await fetch(`https://graph.facebook.com/v19.0/oauth/access_token?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(code)}`);
+          const tokenData: any = await tokenResp.json();
+          if (!tokenData?.access_token) {
+              return res.status(400).send(`Meta OAuth Error: ${tokenData?.error?.message || "Failed to obtain token"}`);
+          }
+          const pagesResp = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${encodeURIComponent(tokenData.access_token)}`);
+          const pagesData: any = await pagesResp.json();
+          const firstPage = pagesData?.data?.[0];
+          if (!firstPage?.id || !firstPage?.access_token) {
+              return res.status(400).send("لم يتم العثور على أي صفحة فيسبوك مرتبطة بهذا الحساب.");
+          }
+          const { persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
+          const igUserId = firstPage?.instagram_business_account?.id || "";
+          persistBrandUpdateAcrossEcosystem(brandId, {
+              metaToken: firstPage.access_token,
+              metaPageId: firstPage.id,
+              metaPageName: firstPage.name,
+              igUserId,
+              selectedMetaPage: firstPage
           });
-          const data = await res.json();
-          statusBox.style.display = 'block';
-          statusBox.innerText = '🎉 تم تأكيد حجزك رقم (' + (data.booking?.id || 'CONFIRMED') + ') بنجاح! تم إشعار جارفيس ووكيل واتساب فوراً.';
-          btn.innerText = '✅ تم تأكيد الحجز بنجاح';
-        } catch (e) {
-          btn.disabled = false;
-          btn.innerText = '✅ تأكيد الحجز الآن وإرسال للـ CRM وJarvis';
-        }
+          res.send(`<!DOCTYPE html><html dir="rtl"><body style="background:#020617;color:#fff;font-family:sans-serif;text-align:center;padding:50px;"><h2>✅ تم ربط صفحة (${firstPage.name}) بنجاح!</h2><p>يمكنك إغلاق هذه النافذة الآن.</p><script>if(window.opener){window.opener.postMessage({type:'META_OAUTH_SUCCESS',brandId:${JSON.stringify(brandId)},pageName:${JSON.stringify(firstPage.name)},pageId:${JSON.stringify(firstPage.id)},igUserId:${JSON.stringify(igUserId)}},'*');}setTimeout(()=>window.close(),1200);</script></body></html>`);
+      } catch (err: any) {
+          res.status(500).send(`Meta OAuth Callback Error: ${err?.message}`);
       }
-    </script>
-</body>
-</html>`;
-      res.send(html);
   });
 
   registerMetaAndAgencyRoutes(app);

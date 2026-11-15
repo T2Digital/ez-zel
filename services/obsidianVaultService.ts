@@ -1072,6 +1072,9 @@ export async function executeRealJarvisEcosystemAction(input: {
             const name = data.businessName || data.name || 'براند جديد';
             const industry = data.industry || data.category || 'خدمات وتجارة';
             const phone = data.phone || '01013373634';
+            const slogan = data.slogan || '';
+            const logoUrl = data.logoUrl || '';
+            const requestedTemplate = data.appTemplate;
             const normalizedPhone = String(phone).replace(/\D+/g, '');
             const websiteUrl = data.websiteUrl || '';
 
@@ -1118,8 +1121,20 @@ export async function executeRealJarvisEcosystemAction(input: {
                 existingPlan: cloned.weekContentPlan,
                 isTrial: true
             });
+            const { resolveBrandTemplate } = await import('./tenantAppRenderer');
+            const resolvedTemplate = resolveBrandTemplate({
+                appTemplate: requestedTemplate,
+                businessType: cloned.businessType,
+                industry,
+                name: cloned.name
+            });
+            const adminPin = normalizedPhone.slice(-6) || String(Math.floor(100000 + Math.random() * 900000));
             const enrichedBrand = persistBrandUpdateAcrossEcosystem(cloned.id, {
                 ...cloned,
+                slogan: slogan || (cloned as any).slogan || '',
+                logoUrl: logoUrl || (cloned as any).logoUrl || '',
+                appTemplate: resolvedTemplate,
+                adminPin,
                 weekContentPlan: omniPlan
             });
             await upsertBrandToTitoStudioFirestore(enrichedBrand);

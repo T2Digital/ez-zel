@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { broadcastGatewayEvent } from './microservicesGateway';
 import { BRAND_VAULT } from './brandVault';
+import { writeJsonAtomic } from './persistentStorage';
 
 export interface CampaignRequest {
     brandId: string;
@@ -60,7 +61,7 @@ export function logPublishedPost(entry: any) {
         const p = getPublishedLogsPath();
         const logs = getPublishedLogs();
         logs.unshift(entry);
-        fs.writeFileSync(p, JSON.stringify(logs.slice(0, 150), null, 2), 'utf8');
+        writeJsonAtomic(p, logs.slice(0, 150));
     } catch (e: any) {
         console.warn('[Growth Engine] Error saving published log:', e?.message);
     }
@@ -129,10 +130,48 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
             } else if (d.error?.message) {
                 metaErrorDetail = d.error.message;
             }
+
+            // Dual-publish to Instagram Business Account if connected & image URL is available
+            const igUserId = brand.igUserId || brand.selectedMetaPage?.instagram_business_account?.id;
+            if (liveMetaDispatched && igUserId && postImageUrl && String(postImageUrl).startsWith('http')) {
+                try {
+                    const igMediaRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image_url: postImageUrl,
+                            caption: fullCaption,
+                            access_token: metaToken
+                        })
+                    });
+                    const igMedia: any = await igMediaRes.json();
+                    if (igMedia?.id) {
+                        await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media_publish`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ creation_id: igMedia.id, access_token: metaToken })
+                        });
+                    }
+                } catch (igErr: any) {
+                    console.warn('[Growth Engine] Instagram dual-publish skipped:', igErr?.message);
+                }
+            }
         } catch (err: any) {
             metaErrorDetail = err?.message || 'تعذر الاتصال بـ Meta Graph API';
             console.warn('[Growth Engine] Meta Graph API direct post failed:', metaErrorDetail);
         }
+    }
+
+    if (liveMetaDispatched && Array.isArray(brand.weekContentPlan) && brand.weekContentPlan[postIndex]) {
+        try {
+            const { persistBrandUpdateAcrossEcosystem } = await import('./obsidianVaultService');
+            const updatedPlan = brand.weekContentPlan.map((item: any, idx: number) =>
+                idx === postIndex
+                    ? { ...item, status: 'PUBLISHED', publishedAt: new Date().toISOString(), metaPostId: realMetaPostId }
+                    : item
+            );
+            persistBrandUpdateAcrossEcosystem(brand.id, { weekContentPlan: updatedPlan });
+        } catch {}
     }
 
     const publishedEntry: ScheduledPost = {
@@ -266,16 +305,34 @@ export async function runSelfOptimizingLoop(brandId: string): Promise<any> {
 export function setupAutonomousAgencyCron() {
     console.log('⏰ [Growth Engine] Autonomous Agency Background Scheduler initialized.');
 
-    // Run every hour: checks algorithmic posting windows (14:00 and 20:00) for brands with active Meta tokens
+    const ARABIC_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+    // Run every hour: matches scheduled day & avoids duplicate publishing on the same day
     setInterval(() => {
-        const hour = new Date().getHours();
-        if (hour === 14 || hour === 20) {
-            const brands = Object.values(getBrandsMap()).filter((b: any) => b?.metaToken && b?.metaPageId);
-            for (const targetBrand of brands) {
-                if (targetBrand?.id) {
-                    publishBrandPost(targetBrand.id, hour === 14 ? 0 : 1).catch(() => {});
-                }
+        const now = new Date();
+        const hour = now.getHours();
+        if (hour !== 14 && hour !== 20) return;
+
+        const todayDay = ARABIC_DAYS[now.getDay()];
+        const todayDate = now.toISOString().split('T')[0];
+        const logs = getPublishedLogs();
+        const brands = Object.values(getBrandsMap()).filter((b: any) => b?.metaToken && b?.metaPageId);
+
+        for (const targetBrand of brands) {
+            if (!targetBrand?.id) continue;
+            const alreadyToday = logs.some(
+                (l: any) => l.brandId === targetBrand.id && l.status === 'PUBLISHED' && String(l.publishedAt || '').startsWith(todayDate)
+            );
+            if (alreadyToday) continue;
+
+            const plan: any[] = Array.isArray(targetBrand.weekContentPlan) ? targetBrand.weekContentPlan : [];
+            let nextIdx = plan.findIndex((p: any) => p.status !== 'PUBLISHED' && String(p.day || '').includes(todayDay));
+            if (nextIdx === -1) {
+                nextIdx = plan.findIndex((p: any) => p.status !== 'PUBLISHED');
+            }
+            if (nextIdx !== -1) {
+                publishBrandPost(targetBrand.id, nextIdx).catch(() => {});
             }
         }
-    }, 1000 * 60 * 60); // Check hourly
+    }, 1000 * 60 * 60);
 }

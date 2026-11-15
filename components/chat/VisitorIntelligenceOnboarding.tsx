@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Building2, Rocket, Globe, Smartphone, ArrowRight, 
   CheckCircle, Play, RefreshCw, Send, DollarSign, Share2, Layers, Bot, QrCode, Link2, CheckCircle2, ExternalLink
@@ -29,7 +29,23 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   const [suggestedSlogans, setSuggestedSlogans] = useState<string[]>([]);
   const [selectedSlogan, setSelectedSlogan] = useState<string>('');
   const [suggestedLogoUrl, setSuggestedLogoUrl] = useState<string>('');
+  const [appTemplate, setAppTemplate] = useState<'auto' | 'products_erp' | 'services_booking'>('auto');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    const onMsg = (ev: MessageEvent) => {
+      if (ev.data?.type === 'META_OAUTH_SUCCESS') {
+        setMetaConnectData({
+          pageName: ev.data.pageName || 'صفحة فيسبوك المتصلة',
+          pageId: ev.data.pageId || '',
+          connected: true
+        });
+        playShadowVoice(`مبروك! تم ربط صفحة ${ev.data.pageName} رسمياً عبر Meta OAuth وتفعيل النشر التلقائي!`, 'male');
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
   const [referralCode] = useState(() => 'VIP_' + Math.floor(1000 + Math.random() * 9000));
 
   // Real Provisioned Output & Live Connection Windows
@@ -128,7 +144,10 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
             businessName: targetName,
             industry: targetIndustry,
             phone: phone || '01013373634',
-            websiteUrl
+            websiteUrl,
+            slogan: selectedSlogan || undefined,
+            logoUrl: suggestedLogoUrl || undefined,
+            appTemplate: appTemplate === 'auto' ? undefined : appTemplate
           }
         })
       });
@@ -365,6 +384,27 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 </div>
               </div>
 
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: 'auto', label: '⚡ اختيار تلقائي حسب النشاط' },
+                  { id: 'products_erp', label: '🛒 قالب متجر + ERP/POS' },
+                  { id: 'services_booking', label: '📅 قالب خدمات + تقويم حجوزات' }
+                ].map((tpl: any) => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => setAppTemplate(tpl.id)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition ${
+                      appTemplate === tpl.id
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                        : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    {tpl.label}
+                  </button>
+                ))}
+              </div>
+
               <button
                 onClick={() => handleProvisionVisitorBrand()}
                 className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-black font-black text-xs shadow-lg transition flex items-center justify-center gap-2"
@@ -526,13 +566,25 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 />
               )}
 
-              <button
-                onClick={handleConnectMetaLive}
-                disabled={isConnectingMeta}
-                className="w-full py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 text-[11px] font-black transition"
-              >
-                {isConnectingMeta ? 'جاري ربط Meta Graph...' : metaConnectData ? '✅ تم ربط الصفحة بنجاح' : '🔗 ربط صفحة فيسبوك وإنستجرام الآن'}
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const bId = generatedBrand?.id || generatedBrand?.slug || 'clean_master';
+                    window.open(`/api/auth/meta/login?brandId=${encodeURIComponent(bId)}`, 'meta_oauth', 'width=600,height=700');
+                  }}
+                  className="flex-1 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/45 text-blue-200 border border-blue-400/50 text-[10px] font-black transition"
+                >
+                  🔐 ربط رسمي (Meta OAuth)
+                </button>
+                <button
+                  onClick={handleConnectMetaLive}
+                  disabled={isConnectingMeta}
+                  className="flex-1 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 text-[10px] font-black transition"
+                >
+                  {isConnectingMeta ? 'جاري الربط...' : metaConnectData ? '✅ متصل' : '🔗 ربط سريع'}
+                </button>
+              </div>
             </div>
           </div>
 
