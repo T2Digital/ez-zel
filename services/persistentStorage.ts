@@ -78,15 +78,24 @@ export async function restoreStateFromFirestore<T = any>(docKey: string): Promis
 }
 
 /**
- * Saves JSON both to persistent local disk AND asynchronously to Firestore cloud backup.
+ * Atomically writes JSON to disk via temp file + rename to prevent corruption under concurrent writes.
  */
-export function savePersistentJson(docKey: string, filename: string, payload: any): void {
-  const filePath = getPersistentFilePath(filename);
+export function writeJsonAtomic(filePath: string, payload: any): void {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf8");
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(payload, null, 2), "utf8");
+  fs.renameSync(tmpPath, filePath);
+}
+
+/**
+ * Saves JSON both to persistent local disk AND asynchronously to Firestore cloud backup.
+ */
+export function savePersistentJson(docKey: string, filename: string, payload: any): void {
+  const filePath = getPersistentFilePath(filename);
+  writeJsonAtomic(filePath, payload);
   void mirrorStateToFirestore(docKey, payload);
 }
 

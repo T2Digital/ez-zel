@@ -50,9 +50,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 }) => {
   // Master Admin verification (Strict Sovereignty Isolation)
   const isMasterAdmin = typeof window !== 'undefined' && (
-    localStorage.getItem('tito_admin_master') === 'true' ||
-    localStorage.getItem('admin_secret') === 'vdgcwb4npax7k5me92futh0jq8orzi13y6sl' ||
-    new URLSearchParams(window.location.search).get('admin_bypass') === 'vdgcwb4npax7k5me92futh0jq8orzi13y6sl'
+    localStorage.getItem('tito_admin_master') === 'true'
   );
 
   // Active Persona: Initialized to passed prop, or 'tito' for master admin, or 'visitor' for guests
@@ -76,19 +74,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   
   // Real Database Financials & Telemetry
   const [realStats, setRealStats] = useState<any>({
-    totalVaultBrandsCount: 25,
-    tenantsCount: 25,
-    studioConnectedCount: 25,
-    agentActiveCount: 6,
-    confirmedBookingsCount: 2,
-    realConfirmedRevenueEgp: 1000,
-    totalHandledMessages: 368,
-    btcPrice: 76420,
-    gold21kEgp: 5716,
-    recentBookings: [
-      { id: 'book_1', customerName: 'أحمد محمود', service: 'تنظيف منازل', price: '500 ج.م', status: 'CONFIRMED' },
-      { id: 'book_2', customerName: 'أحمد محمود', service: 'تنظيف منازل', price: '500 ج.م', status: 'CONFIRMED' }
-    ]
+    totalVaultBrandsCount: 0,
+    tenantsCount: 0,
+    studioConnectedCount: 0,
+    agentActiveCount: 0,
+    confirmedBookingsCount: 0,
+    realConfirmedRevenueEgp: 0,
+    totalHandledMessages: 0,
+    btcPrice: 0,
+    gold21kEgp: 0,
+    recentBookings: []
   });
 
   // Modals for Real CRM Details and Meta Readiness
@@ -133,7 +128,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isExecutiveOpen, setIsExecutiveOpen] = useState(false);
   const [executiveRunning, setExecutiveRunning] = useState(false);
   const [executiveScenario, setExecutiveScenario] = useState<string>('t2_studio_command');
-  const [executiveUrl, setExecutiveUrl] = useState('https://t2-studio.vercel.app');
+  const [executiveUrl, setExecutiveUrl] = useState('https://t2-studio.onrender.com');
   const [executiveLogs, setExecutiveLogs] = useState<any[]>([]);
   const [executiveScreenshot, setExecutiveScreenshot] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 });
@@ -1760,9 +1755,28 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                           🔥 متجرك، منشوراتك، ووكيل الواتساب يحققون تفاعلاً ومبيعات حية الآن!
                         </span>
                         <button
-                          onClick={() => {
-                            setPersona('client');
-                            playShadowVoice(`ألف مبروك يا فندم! تم تثبيت باقة المدير التنفيذي الشاملة لبراند ${currentSelectedBrand.name} ليستمر متجرك ووكيل الواتساب وتقويم تيتو ستوديو في مضاعفة مبيعاتك بلا توقف!`, 'male');
+                          onClick={async () => {
+                            try {
+                              playShadowVoice(`جاري تجهيز رابط الدفع الآمن من Paymob لتفعيل الباقة الدائمة لبراند ${currentSelectedBrand.name}...`, 'male');
+                              const res = await fetch('/api/payments/paymob/create-checkout', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  brandId: currentSelectedBrand.id,
+                                  brandName: currentSelectedBrand.name,
+                                  planId: 'growth_pro',
+                                  amountEgp: 2950
+                                })
+                              });
+                              const data = await res.json();
+                              if (data?.paymentUrl) {
+                                window.open(data.paymentUrl, '_blank', 'noopener,noreferrer');
+                              } else {
+                                alert(data?.error || 'تعذر إنشاء جلسة الدفع حالياً، يرجى المحاولة مرة أخرى.');
+                              }
+                            } catch (err: any) {
+                              alert(err?.message || 'حدث خطأ أثناء الاتصال ببوابة الدفع.');
+                            }
                           }}
                           className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black text-[10px] font-black shadow-lg shadow-amber-500/25 transition shrink-0"
                         >

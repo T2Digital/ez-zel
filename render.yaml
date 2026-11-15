@@ -14,7 +14,7 @@ services:
       - key: PERSISTENT_DATA_DIR
         value: /var/data
       - key: TITO_STUDIO_API_URL
-        value: https://t2-studio.vercel.app
+        value: https://t2-studio.onrender.com
       - key: T2_AGENT_API_URL
         value: https://khedr-bot-agent.onrender.com
       - key: NODE_ENV

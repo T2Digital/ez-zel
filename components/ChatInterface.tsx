@@ -344,8 +344,8 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
         if (trialStartStr) {
             const trialStart = parseInt(trialStartStr);
             const now = Date.now();
-            const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-            if (now - trialStart > threeDaysMs) setIsLimitReached(true);
+            const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+            if (now - trialStart > sevenDaysMs) setIsLimitReached(true);
             else setIsLimitReached(false);
         } else {
             setIsLimitReached(false);

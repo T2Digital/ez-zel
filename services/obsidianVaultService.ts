@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { writeJsonAtomic } from './persistentStorage';
 import { BRAND_VAULT } from './brandVault';
 import { readBookings, saveBooking, broadcastGatewayEvent } from './microservicesGateway';
 import { publishBrandPost, launchAdCampaign, getPublishedLogs } from './growthAgencyEngine';
@@ -1071,7 +1072,34 @@ export async function executeRealJarvisEcosystemAction(input: {
             const name = data.businessName || data.name || 'براند جديد';
             const industry = data.industry || data.category || 'خدمات وتجارة';
             const phone = data.phone || '01013373634';
+            const normalizedPhone = String(phone).replace(/\D+/g, '');
             const websiteUrl = data.websiteUrl || '';
+
+            // Server-side duplicate trial guard: reuse active non-expired trial for the same phone if present
+            const existingClients = getEzZelPersonalClients();
+            const todayIso = new Date().toISOString().split('T')[0];
+            const existingActiveTrial = normalizedPhone
+                ? existingClients.find((c: any) =>
+                    c.status === 'trial' &&
+                    String(c.phone || '').replace(/\D+/g, '') === normalizedPhone &&
+                    (!c.trialEndsAt || String(c.trialEndsAt) >= todayIso)
+                )
+                : null;
+
+            if (existingActiveTrial && existingActiveTrial.linkedBrandId) {
+                const existingBrand = getUnifiedGrowthBrands().find((b: any) => b.id === existingActiveTrial.linkedBrandId);
+                if (existingBrand) {
+                    return {
+                        success: true,
+                        reusedTrial: true,
+                        brand: existingBrand,
+                        trialClient: existingActiveTrial,
+                        storeUrl: `/store/${existingBrand.slug}`,
+                        studioPostsCount: Array.isArray(existingBrand.weekContentPlan) ? existingBrand.weekContentPlan.length : 0,
+                        message: `يوجد اشتراك تجربة مجانية ساري بالفعل لهذا الرقم لبراند (${existingBrand.name}) حتى تاريخ ${existingActiveTrial.trialEndsAt}. تم استعادة نفس التجربة مباشرة!`
+                    };
+                }
+            }
 
             const cloned = await cloneOrSynthesizeBrand({
                 name,
@@ -1112,12 +1140,13 @@ export async function executeRealJarvisEcosystemAction(input: {
                 monthlySubscriptionEgp: 2190,
                 affiliateEarningsEgp: 0,
                 joinedAt: new Date().toISOString().split('T')[0],
+                phone,
                 linkedBrandId: cloned.id,
                 trialEndsAt: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
             };
             clients.unshift(newClient);
             try {
-                fs.writeFileSync(EZZEL_CLIENTS_PATH, JSON.stringify(clients, null, 2), 'utf8');
+                writeJsonAtomic(EZZEL_CLIENTS_PATH, clients);
             } catch {}
 
             syncAndBuildObsidianVault();

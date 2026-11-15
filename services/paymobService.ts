@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { writeJsonAtomic } from './persistentStorage';
 
 export interface PaymobCheckoutRequest {
     brandId: string;
@@ -174,9 +175,7 @@ export function savePaymobSubscriptionRecord(record: any): void {
         } else {
             list.unshift(record);
         }
-        const dir = path.dirname(SUBSCRIPTIONS_LOG_PATH);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(SUBSCRIPTIONS_LOG_PATH, JSON.stringify(list, null, 2), 'utf8');
+        writeJsonAtomic(SUBSCRIPTIONS_LOG_PATH, list);
     } catch {}
 }
 

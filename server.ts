@@ -451,6 +451,10 @@ async function startServer() {
 
   app.post("/api/system/ecosystem-config", async (req, res) => {
       try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) {
+              return res.status(403).json({ ok: false, error: auth.error || "Forbidden: Master Admin access required" });
+          }
           const { titoStudioUrl, titoStudioApiKey, t2AgentUrl, t2AgentAdminKey } = req.body || {};
           const updates: Record<string, string> = {};
           if (typeof titoStudioUrl === "string" && titoStudioUrl.trim()) updates.titoStudioUrl = titoStudioUrl.trim();
@@ -629,8 +633,29 @@ async function startServer() {
       }
   });
 
+  const ADMIN_ONLY_JARVIS_ACTIONS = new Set([
+      'ACTIVATE_PAYMOB_SUBSCRIPTION',
+      'DELETE_BRAND',
+      'RECONCILE_ALL',
+      'SYNC_OBSIDIAN',
+      'UPDATE_BRAND_PLAN',
+      'CONFIGURE_ECOSYSTEM',
+      'ADMIN_OVERRIDE',
+      'BULK_DELETE_BRANDS'
+  ]);
+
   app.post("/api/jarvis/execute-action", async (req, res) => {
       try {
+          const actionType = String(req.body?.actionType || '').toUpperCase();
+          if (ADMIN_ONLY_JARVIS_ACTIONS.has(actionType)) {
+              const auth = await verifyAdminRequest(req);
+              if (!auth.ok) {
+                  return res.status(403).json({
+                      success: false,
+                      error: auth.error || `Forbidden: Admin privileges required for ${actionType}`
+                  });
+              }
+          }
           const result = await executeRealJarvisEcosystemAction(req.body || {});
           res.json(result);
       } catch (err: any) {
@@ -806,9 +831,24 @@ async function startServer() {
   app.get("/api/payments/paymob/plans", (_req, res) => {
       res.json({
           ok: true,
-          plans: PAYMOB_TIERS,
+          plans: PAYMOB_TIERS
+      });
+  });
+
+  app.get("/api/payments/paymob/subscriptions", async (req, res) => {
+      const auth = await verifyAdminRequest(req);
+      if (!auth.ok) {
+          return res.status(403).json({ ok: false, error: auth.error || "Forbidden: Admin access required" });
+      }
+      res.json({
+          ok: true,
           subscriptions: readPaymobSubscriptions()
       });
+  });
+
+  app.get("/api/admin/verify", async (req, res) => {
+      const auth = await verifyAdminRequest(req);
+      res.status(auth.ok ? 200 : 403).json({ ok: auth.ok, email: auth.email || null });
   });
 
   app.post("/api/payments/paymob/create-checkout", async (req, res) => {
@@ -863,7 +903,7 @@ async function startServer() {
 
   // Helper to verify Sovereign Admin Firebase ID Token or Admin Secret Header
   async function verifyAdminRequest(req: express.Request): Promise<{ ok: boolean; email?: string; error?: string }> {
-      const adminSecret = process.env.ADMIN_API_SECRET;
+      const adminSecret = process.env.ADMIN_API_SECRET || process.env.ADMIN_SECRET_KEY;
       const providedSecret = req.headers['x-admin-secret'] || req.body?.adminSecret;
       if (adminSecret && providedSecret && String(providedSecret) === String(adminSecret)) {
           return { ok: true, email: 'ahm.atya@gmail.com' };
@@ -2749,14 +2789,23 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   // --- TWO-WAY LIVE VOICE CONVERSATION WITH JARVIS (SUPPORTS VISITOR, CLIENT CEO, AND MASTER TITO) ---
   app.post("/api/system/jarvis-conversation", async (req, res) => {
+      let effectivePersona = req.body?.persona || 'visitor';
       try {
-          const { message, history, persona = 'tito', selectedBrandId = '', recentChatSummary = '' } = req.body;
+          const { message, history, persona = 'visitor', selectedBrandId = '', recentChatSummary = '' } = req.body;
           if (!message) return res.status(400).json({ error: "Message is required" });
+
+          effectivePersona = persona;
+          if (effectivePersona === 'tito') {
+              const auth = await verifyAdminRequest(req);
+              if (!auth.ok) {
+                  effectivePersona = selectedBrandId ? 'client' : 'visitor';
+              }
+          }
 
           const result = await runJarvisBrainConversation({
               message,
               history,
-              persona,
+              persona: effectivePersona,
               selectedBrandId,
               recentChatSummary,
               ai: getServerAI(),
@@ -2769,7 +2818,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           console.error("[Jarvis Conversation Error]:", e?.message || e);
           res.json({
               success: true,
-              replyText: 'أمرك يا ماستر تيتو! تم استلام طلبك وجاري مزامنته في المنظومة.',
+              replyText: effectivePersona === 'tito'
+                  ? 'أمرك يا ماستر تيتو! تم استلام طلبك وجاري مزامنته في المنظومة.'
+                  : 'أهلاً بحضرتك! تم استلام طلبك وجاري تجهيز الرد وتحديث المنظومة.',
               action: { type: 'SWITCH_TAB', tab: 'obsidian_graph', brandId: req.body?.selectedBrandId || '' }
           });
       }

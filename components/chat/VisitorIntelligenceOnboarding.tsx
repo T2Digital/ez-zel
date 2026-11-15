@@ -26,6 +26,9 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   const [phone, setPhone] = useState('01013373634');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [suggestedNames, setSuggestedNames] = useState<string[]>([]);
+  const [suggestedSlogans, setSuggestedSlogans] = useState<string[]>([]);
+  const [selectedSlogan, setSelectedSlogan] = useState<string>('');
+  const [suggestedLogoUrl, setSuggestedLogoUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [referralCode] = useState(() => 'VIP_' + Math.floor(1000 + Math.random() * 9000));
 
@@ -53,10 +56,12 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
     }
   };
 
-  // Scratch Path: Name Generation
-  const handleGenerateNames = (chosenIndustry: string) => {
+  // Scratch Path: Live AI Name, Slogan & Logo Generation via /api/branding/forge
+  const handleGenerateNames = async (chosenIndustry: string) => {
     setIndustry(chosenIndustry);
     setIsGenerating(true);
+    setSuggestedSlogans([]);
+    setSuggestedLogoUrl('');
 
     const namesMap: Record<string, string[]> = {
       'تأجير سيارات': ['إليت ليموزين VIP', 'أورينت كارز مصر', 'رويال درايف للسيارات'],
@@ -66,13 +71,44 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
       'متاجر وأزياء': ['ستايل هاب مصر', 'تريند زون فاشون', 'أوربان كوليكشن']
     };
 
-    const pool = namesMap[chosenIndustry] || ['رويال جروب', 'أفق الرقمية', 'إليت سوليوشنز'];
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/branding/forge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandName: chosenIndustry,
+          category: chosenIndustry,
+          phone: phone || '01013373634',
+          isNewBusiness: true
+        })
+      });
+      const data = await res.json();
+      const kit = data?.kit;
+      const aiNames: string[] = Array.isArray(kit?.suggestedNames)
+        ? kit.suggestedNames
+            .map((item: any) => (typeof item === 'string' ? item : item?.arabic || item?.english || ''))
+            .filter(Boolean)
+            .slice(0, 3)
+        : [];
+      const pool = aiNames.length > 0 ? aiNames : (namesMap[chosenIndustry] || ['رويال جروب', 'أفق الرقمية', 'إليت سوليوشنز']);
+      const slogans: string[] = Array.isArray(kit?.suggestedSlogans)
+        ? kit.suggestedSlogans.filter(Boolean).slice(0, 3)
+        : (kit?.slogan ? [kit.slogan] : []);
+
       setSuggestedNames(pool);
       setBrandName(pool[0]);
-      setIsGenerating(false);
+      setSuggestedSlogans(slogans);
+      if (slogans[0]) setSelectedSlogan(slogans[0]);
+      if (kit?.logoUrl) setSuggestedLogoUrl(kit.logoUrl);
+      playShadowVoice(`اقترحت عليك 3 أسماء و3 سلوجان بالذكاء الاصطناعي لمجال ${chosenIndustry} مع شعار مبدئي. اختار الأنسب ليك عشان نولد التطبيق فوراً!`, 'male');
+    } catch {
+      const pool = namesMap[chosenIndustry] || ['رويال جروب', 'أفق الرقمية', 'إليت سوليوشنز'];
+      setSuggestedNames(pool);
+      setBrandName(pool[0]);
       playShadowVoice(`اقترحت عليك 3 أسماء ليهم هيبة في السوق لمجال ${chosenIndustry}. اختار الأنسب ليك عشان نولد الهوية والتطبيق فوراً!`, 'male');
-    }, 600);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // Real Provisioning via /api/jarvis/execute-action (PROVISION_VISITOR_TRIAL)
@@ -278,6 +314,34 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   </button>
                 ))}
               </div>
+
+              {suggestedSlogans.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold text-cyan-300">✨ اختر السلوجان (الشعار اللفظي):</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                    {suggestedSlogans.map(slogan => (
+                      <button
+                        key={slogan}
+                        onClick={() => setSelectedSlogan(slogan)}
+                        className={`p-1.5 rounded-lg text-[10px] font-bold border transition text-right ${
+                          selectedSlogan === slogan
+                            ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                            : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                        }`}
+                      >
+                        {slogan}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {suggestedLogoUrl && (
+                <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/40 border border-white/10">
+                  <img src={suggestedLogoUrl} alt="AI Logo" className="w-10 h-10 rounded-lg object-cover border border-white/20" />
+                  <span className="text-[10px] text-emerald-300 font-bold">🎨 تم توليد شعار مبدئي بالذكاء الاصطناعي لهوية البراند</span>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>

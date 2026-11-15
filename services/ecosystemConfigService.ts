@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { writeJsonAtomic } from "./persistentStorage";
 
 export interface EcosystemIntegrationConfig {
   titoStudioUrl?: string;
@@ -45,7 +46,7 @@ export function saveEcosystemConfig(
   if (next.t2AgentUrl) process.env.T2_AGENT_API_URL = next.t2AgentUrl.trim();
   if (next.t2AgentAdminKey) process.env.T2_AGENT_ADMIN_KEY = next.t2AgentAdminKey.trim();
 
-  fs.writeFileSync(getConfigFilePath(), JSON.stringify(next, null, 2), "utf8");
+  writeJsonAtomic(getConfigFilePath(), next);
   return next;
 }
 
