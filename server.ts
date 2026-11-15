@@ -1293,7 +1293,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
       const slug = String(req.params.slug || "");
       const unified = getUnifiedGrowthBrands();
-      const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+      const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
       if (!brand) {
           return res.status(404).send("<h1 style='color:#fff;background:#050505;font-family:sans-serif;text-align:center;padding:50px;'>البراند المطلوب غير مسجل في المنظومة</h1>");
       }
@@ -1304,7 +1304,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.get("/app/:slug/admin", async (req, res) => {
       const slug = String(req.params.slug || "");
       const unified = getUnifiedGrowthBrands();
-      const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+      const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
       if (!brand) {
           return res.status(404).send("<h1 style='color:#fff;background:#050505;font-family:sans-serif;text-align:center;padding:50px;'>البراند المطلوب غير مسجل في المنظومة</h1>");
       }
@@ -1340,7 +1340,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       try {
           const slug = String(req.params.slug || "");
           const unified = getUnifiedGrowthBrands();
-          const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+          const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
           if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
           const { customerName, customerPhone, address, items = [] } = req.body || {};
           const totalEgp = Array.isArray(items)
@@ -1380,7 +1380,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       try {
           const slug = String(req.params.slug || "");
           const unified = getUnifiedGrowthBrands();
-          const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+          const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
           if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
           const { customerName, customerPhone, address, service, price, bookingDate, bookingTime } = req.body || {};
           const totalEgp = Number(String(price || "0").replace(/[^0-9.]/g, "")) || 0;
@@ -1417,7 +1417,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.get("/api/app/:slug/admin-data", (req, res) => {
       const slug = String(req.params.slug || "");
       const unified = getUnifiedGrowthBrands();
-      const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+      const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
       if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
       if (!verifyTenantPin(req, brand)) {
           return res.status(403).json({ ok: false, error: "بيانات الدخول غير صحيحة. أدخل رقم الهاتف المسجل للبراند أو كود PIN." });
@@ -1431,7 +1431,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.post("/api/app/:slug/catalog", async (req, res) => {
       const slug = String(req.params.slug || "");
       const unified = getUnifiedGrowthBrands();
-      const brand = getClonedBrandByIdOrSlug(slug) || unified.find(b => b.id === slug || b.slug === slug);
+      const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
       if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
       if (!verifyTenantPin(req, brand)) {
           return res.status(403).json({ ok: false, error: "Unauthorized" });
