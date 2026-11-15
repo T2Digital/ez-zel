@@ -1153,9 +1153,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       }
 
       setIsThinking(true);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const { getAuth } = await import('firebase/auth');
+        const user = getAuth().currentUser;
+        if (user) {
+          const token = await user.getIdToken();
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch {}
       const res = await fetch('/api/system/jarvis-conversation', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           message: commandText,
           history: conversationHistory,

@@ -12,6 +12,7 @@ import { syncBrandToAllEcosystems } from "./universalBrandSync";
 import { saveGeneratedMedia } from "./mediaStorageService";
 import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./brandingForgeService";
 import { resolveFlagshipTemplate, FLAGSHIP_TEMPLATES } from "./tenantFactory";
+import { readPersistentJson } from "./persistentStorage";
 
 export interface JarvisBrainInput {
   message: string;
@@ -501,6 +502,23 @@ const jarvisBrainTools: FunctionDeclaration[] = [
   },
 ];
 
+function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, any[]>): string {
+  if (!brand) return "لا يوجد براند محدد حالياً.";
+  const records = tenantRecords?.[brand.id] || [];
+  const revenueEgp = records.reduce((s: number, r: any) => s + (Number(r.totalEgp || r.price || 0) || 0), 0);
+  const plan = Array.isArray(brand.weekContentPlan) ? brand.weekContentPlan : [];
+  const publishedCount = plan.filter((p: any) => p.status === "PUBLISHED").length;
+  const waConnected = Boolean(brand.phone || brand.whatsapp);
+  const metaConnected = Boolean(brand.metaPageId || brand.metaToken);
+  return [
+    `الاسم: "${brand.name}" [id:${brand.id}] (${brand.businessType || "نشاط تجاري"})`,
+    `رابط التطبيق: /app/${brand.slug || brand.id} (قالب: ${brand.appTemplate || "تلقائي"})`,
+    `الطلبات/الحجوزات المسجلة: ${records.length} • الإيرادات المسجلة: ${revenueEgp} ج.م`,
+    `خطة المحتوى: ${plan.length} منشورات (${publishedCount} منشور فعلياً)`,
+    `واتساب: ${waConnected ? `مربوط (${brand.phone || brand.whatsapp})` : "غير مربوط"} • ميتا: ${metaConnected ? `متصل (${brand.metaPageName || brand.metaPageId})` : "غير متصل"}`
+  ].join(" | ");
+}
+
 function buildPersonaSystemPrompt(
   persona: string,
   activeBrand: any,
@@ -508,11 +526,20 @@ function buildPersonaSystemPrompt(
   ezzelClients: any[],
   recentChatSummary: string
 ): string {
+  const tenantRecords = readPersistentJson<Record<string, any[]>>("tenant_records.json", {});
+  const paymobSubs = readPersistentJson<any[]>("paymob_subscriptions.json", []);
+  const trialClients = (ezzelClients || []).filter((c: any) => c.status === "trial");
+  const paidClients = (ezzelClients || []).filter((c: any) => c.status === "active" || c.status === "paid");
+
   const allBrandsBrief = unifiedBrands
     .slice(0, 35)
-    .map((b) => `${b.name} [id:${b.id}] (${b.businessType || "نشاط تجاري"})`)
+    .map((b) => {
+      const recs = tenantRecords?.[b.id] || [];
+      return `${b.name} [id:${b.id}] (${b.businessType || "نشاط"}, طلبات:${recs.length})`;
+    })
     .join(" | ");
 
+  const activeBrandStats = buildBrandLiveStatsSummary(activeBrand, tenantRecords);
   let personaRoleInstruction = "";
   const activatedPlatformsKnowledge = `
 [المنصات والقنوات المفعلة حالياً في المنظومة (T2 Studio + T2 Agent)]:
@@ -534,6 +561,7 @@ function buildPersonaSystemPrompt(
     personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط تجاري" يستكشف منظومة النمو الشامل للأعمال (T2 Unified Growth OS).
 دورك معه: أنت "جارفيس"، كبير مستشاري الأعمال والنمو الرقمي بالمنظومة. تتحدث باللهجة المصرية الطبيعية الذكية والودودة.
 قاعدة صارمة ومطلقة: ممنوع نهائياً استخدام كلمة "استنساخ" أو "مستنسخ"، واستبدلها دائماً بكلمات: "تأسيس، إطلاق، بناء، تجهيز، تخصيص، تفعيل".
+ممنوع ذكر أي بيانات أو أرقام تخص عملاء أو براندات أخرى في المنظومة.
 استخدم الأداة record_visitor_diagnostic تلقائياً كلما ذكر الزائر أي معلومة عن نشاطه أو صفحاته أو رقمه.
 مسار تأسيس العميل الجديد بالترتيب الذكي (استدعِ أداة onboard_new_client_brand بمجرد معرفة مجال نشاطه):
 1. اقترح عليه فوراً 3 أسماء براند مميزة ليختار منها + 3 سلوجانات بيعية رنانة تناسب مجاله.
@@ -544,26 +572,37 @@ function buildPersonaSystemPrompt(
 - ممنوع تكرار التحية ("أهلاً بك" أو "مرحباً") بعد أول رسالة، وممنوع تكرار أي سؤال أجاب عنه مسبقاً.
 - اجعل ردك واضحاً ومنظماً بالعامية المصرية الذكية (وإذا استدعيت onboard_new_client_brand اعرض الـ 3 أسماء والـ 3 سلوجانات بوضوح).`;
   } else if (persona === "trial" || persona === "client") {
+    const clientSub = (ezzelClients || []).find((c: any) => c.linkedBrandId === activeBrand?.id);
+    const subStatusNote = clientSub
+      ? clientSub.status === "trial"
+        ? `في فترة التجربة المجانية (تنتهي: ${clientSub.trialEndsAt || "خلال 7 أيام"})`
+        : `مشترك دائم مفعل (${clientSub.plan || "Growth Pro"})`
+      : persona === "trial"
+        ? "في فترة التجربة المجانية 7 أيام"
+        : "حساب عميل مفعل";
     personaRoleInstruction = `المتحدث معك الآن هو "المشترك / صاحب البراند" (${activeBrand?.name || "براند العميل"}) في وضع المدير التنفيذي.
-دورك معه: أنت المدير التنفيذي والسكرتير الذكي المسؤول عن إدارة برانده (${activeBrand?.name || "البراند"}): تقويم تيتو ستوديو، وكيل واتساب، جوجل بزنس وخرائط جوجل، سناب شات وتيك توك وميتا، الحملات الممولة، وتطبيق الويب (Battah أو Clean Master).
+حالة الاشتراك: ${subStatusNote}.
+بيانات وإحصائيات براندك الحية فقط: ${activeBrandStats}
+دورك معه: أنت المدير التنفيذي والسكرتير الذكي المسؤول عن إدارة برانده فقط (${activeBrand?.name || "البراند"}): تقويم تيتو ستوديو، وكيل واتساب، جوجل بزنس وخرائط جوجل، سناب شات وتيك توك وميتا، الحملات الممولة، وتطبيق الويب (Battah أو Clean Master).
+ممنوع ذكر أي بيانات أو أرقام لبراندات أو مشتركين آخرين في المنظومة؛ ركز بالكامل على برانده فقط.
 خاطبه باحترام كشريك نجاح ("يا فندم" أو "يا ريس") باللهجة المصرية الودودة والاحترافية.`;
   } else {
+    const trialList = trialClients.slice(0, 8).map((c: any) => `${c.name} (ينتهي ${c.trialEndsAt || "-"})`).join("، ") || "لا يوجد";
+    const paidList = paidClients.slice(0, 8).map((c: any) => `${c.name} (${c.monthlySubscriptionEgp || 2190} ج.م)`).join("، ") || "لا يوجد";
+    const mrrEgp = paidClients.reduce((s: number, c: any) => s + (Number(c.monthlySubscriptionEgp) || 0), 0);
     personaRoleInstruction = `المتحدث معك الآن هو الماستر "تيتو" (Ahmed Attia) — المالك والمدير العام للوكالة والمنظومة بالكامل (Super Admin).
 دورك معه: أنت "جارفيس" (Jarvis)، الذراع الأيمن التنفيذي وقائد الأسطول السيادي.
 خاطبه دائماً بـ "يا ماستر تيتو" أو "يا باشا" باللهجة المصرية القاهرية الطبيعية الدافئة.
-لديك إلمام كامل بـ:
-1. عملاء تطبيق الظل (المساعد الشخصي): عددهم ${ezzelClients.length} مشتركين نشطين.
-2. عملاء وبراندات وكالة النمو الشامل الموحدة: عددهم ${unifiedBrands.length} براند.
-3. البراند المحدد حالياً على الشاشة: ${activeBrand ? `"${activeBrand.name}" (${activeBrand.businessType} - واتساب: ${activeBrand.phone})` : "لا يوجد براند محدد حالياً (العرض العام للمنظومة)"}.
-عند طلب أي أمر تنفيذي أو نشر على أي منصة (بما فيها Google Business & Maps و Snapchat و TikTok و Meta و YouTube) أو تأسيس براند/تطبيق من قوالب Battah / Clean Master، استدعِ الأداة المناسبة فوراً بدقة.`;
+التقرير الحي لاشتراكات المنظومة الآن:
+1. مشتركو الظل وجارفيس (${ezzelClients.length} إجمالي): نشط مدفوع (${paidClients.length} باشتراك شهري تقديري ${mrrEgp} ج.م: ${paidList}) | تجارب 7 أيام جارية (${trialClients.length}: ${trialList}) | معاملات Paymob المسجلة: ${paymobSubs.length}.
+2. البراندات المربوطة في المنظومة (${unifiedBrands.length} براند): ${allBrandsBrief}
+3. البراند المحدد حالياً على الشاشة: ${activeBrand ? activeBrandStats : "لا يوجد براند محدد حالياً (العرض العام للمنظومة)"}.
+عندما يسألك الماستر عن اشتراكات الظل وجارفيس أو عن إحصائيات أي براند مربوط، أجب فوراً بالأرقام الحية أعلاه، واستدعِ الأداة المناسبة عند طلب أي أمر تنفيذي.`;
   }
 
   return `أنت "جارفيس" (Jarvis)، العقل التنفيذي الموحد لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + Flagship Apps + Obsidian Knowledge Vault).
 ${personaRoleInstruction}
 ${activatedPlatformsKnowledge}
-
-[قائمة الـ ${unifiedBrands.length} براند الموحدة الحية في المنظومة]:
-${allBrandsBrief}
 ${recentChatSummary ? `\n[سياق آخر محادثة في شات الظل الرئيسي]: ${recentChatSummary}` : ""}
 
 قواعد صارمة:
