@@ -1068,6 +1068,36 @@ export async function executeRealJarvisEcosystemAction(input: {
             };
         }
 
+        case 'CONNECT_SOCIAL_CHANNEL': {
+            const platform = String(data.platform || '').trim().toLowerCase();
+            const handleOrUrl = String(data.handleOrUrl || data.url || '').trim();
+            if (!platform || !handleOrUrl) {
+                return { success: false, error: 'يرجى تحديد المنصة ورابط الحساب أو اسم المستخدم' };
+            }
+            const existing = getUnifiedGrowthBrands().find(b => b.id === brandId || b.slug === brandId);
+            const mergedLinks = {
+                ...((existing as any)?.socialLinks || {}),
+                [platform]: handleOrUrl
+            };
+            const updatedBrand = persistBrandUpdateAcrossEcosystem(brandId, {
+                socialLinks: mergedLinks
+            } as any);
+            await upsertBrandToTitoStudioFirestore(updatedBrand).catch(() => {});
+            syncAndBuildObsidianVault();
+            broadcastGatewayEvent('SOCIAL_CHANNEL_CONNECTED', {
+                brandId,
+                platform,
+                handleOrUrl
+            });
+            return {
+                success: true,
+                platform,
+                handleOrUrl,
+                socialLinks: mergedLinks,
+                message: `تم ربط حساب (${platform}: ${handleOrUrl}) بملف البراند وخطة النشر التلقائي بنجاح!`
+            };
+        }
+
         case 'PROVISION_VISITOR_TRIAL': {
             const name = data.businessName || data.name || 'براند جديد';
             const industry = data.industry || data.category || 'خدمات وتجارة';
@@ -1075,6 +1105,10 @@ export async function executeRealJarvisEcosystemAction(input: {
             const slogan = data.slogan || '';
             const logoUrl = data.logoUrl || '';
             const requestedTemplate = data.appTemplate;
+            const appMode = data.appMode || 'auto';
+            const hasExistingBusiness = Boolean(data.hasExistingBusiness);
+            const existingAssets = data.existingAssets || undefined;
+            const socialLinks = (data.socialLinks && typeof data.socialLinks === 'object') ? data.socialLinks : {};
             const normalizedPhone = String(phone).replace(/\D+/g, '');
             const websiteUrl = data.websiteUrl || '';
 
@@ -1092,12 +1126,21 @@ export async function executeRealJarvisEcosystemAction(input: {
             if (existingActiveTrial && existingActiveTrial.linkedBrandId) {
                 const existingBrand = getUnifiedGrowthBrands().find((b: any) => b.id === existingActiveTrial.linkedBrandId);
                 if (existingBrand) {
+                    const reusedSlug = existingBrand.slug || existingBrand.id;
+                    const reusedTpl = (existingBrand as any).appTemplate === 'products_erp' ? 'products_erp' : 'services_booking';
+                    const reusedBase = reusedTpl === 'products_erp'
+                        ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
+                        : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
+                    const reusedFlagship = (existingBrand as any).appMode === 'existing_site' && existingBrand.websiteUrl
+                        ? existingBrand.websiteUrl
+                        : `${reusedBase.replace(/\/$/, '')}/?brandId=${encodeURIComponent(reusedSlug)}`;
                     return {
                         success: true,
                         reusedTrial: true,
                         brand: existingBrand,
                         trialClient: existingActiveTrial,
                         storeUrl: `/store/${existingBrand.slug}`,
+                        flagshipUrl: reusedFlagship,
                         studioPostsCount: Array.isArray(existingBrand.weekContentPlan) ? existingBrand.weekContentPlan.length : 0,
                         message: `يوجد اشتراك تجربة مجانية ساري بالفعل لهذا الرقم لبراند (${existingBrand.name}) حتى تاريخ ${existingActiveTrial.trialEndsAt}. تم استعادة نفس التجربة مباشرة!`
                     };
@@ -1134,9 +1177,16 @@ export async function executeRealJarvisEcosystemAction(input: {
                 slogan: slogan || (cloned as any).slogan || '',
                 logoUrl: logoUrl || (cloned as any).logoUrl || '',
                 appTemplate: resolvedTemplate,
+                appMode,
+                hasExistingBusiness,
+                existingAssets,
+                socialLinks: {
+                    ...((cloned as any).socialLinks || {}),
+                    ...socialLinks
+                },
                 adminPin,
                 weekContentPlan: omniPlan
-            });
+            } as any);
             await upsertBrandToTitoStudioFirestore(enrichedBrand);
             const studioPostsCount = await syncWeekPlanToTitoStudioFirestore(enrichedBrand, omniPlan);
             await syncFromTitoStudioFirestore();
@@ -1170,7 +1220,8 @@ export async function executeRealJarvisEcosystemAction(input: {
             const flagshipBaseUrl = resolvedTemplate === 'products_erp'
                 ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
                 : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
-            const flagshipUrl = `${flagshipBaseUrl.replace(/\/$/, '')}/?brandId=${encodeURIComponent(storeSlug)}`;
+            const generatedFlagshipUrl = `${flagshipBaseUrl.replace(/\/$/, '')}/?brandId=${encodeURIComponent(storeSlug)}`;
+            const flagshipUrl = (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl;
 
             return {
                 success: true,
@@ -1178,7 +1229,9 @@ export async function executeRealJarvisEcosystemAction(input: {
                 trialClient: newClient,
                 storeUrl: `/app/${storeSlug}`,
                 flagshipUrl,
+                optionalFlagshipUrl: generatedFlagshipUrl,
                 appTemplate: resolvedTemplate,
+                appMode,
                 studioPostsCount,
                 message: `تم بناء وتجهيز متجر وتطبيق (${cloned.name}) على القالب الاحترافي (${resolvedTemplate === 'products_erp' ? 'Battah Store + ERP + CRM + POS' : 'Clean Master Services + Calendar + Finance'})، وتسجيله في تيتو ستوديو وتيتو أجنت وجدولة (${studioPostsCount}) منشورات للأسبوع المجاني!`
             };

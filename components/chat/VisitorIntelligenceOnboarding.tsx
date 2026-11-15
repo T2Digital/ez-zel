@@ -53,12 +53,82 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   const [generatedAppUrl, setGeneratedAppUrl] = useState('');
   const [weekPlan, setWeekPlan] = useState<any[]>([]);
 
+  // Existing Business Assets & Omni-Channel Social State
+  const [hasExistingLogo, setHasExistingLogo] = useState(false);
+  const [hasExistingWebsite, setHasExistingWebsite] = useState(false);
+  const [hasExistingSocial, setHasExistingSocial] = useState(false);
+  const [existingAppChoice, setExistingAppChoice] = useState<'auto' | 'products_erp' | 'services_booking' | 'existing_site'>('auto');
+  const [optionalFlagshipUrl, setOptionalFlagshipUrl] = useState('');
+  const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
+  const [activeSocialTab, setActiveSocialTab] = useState<'tiktok' | 'youtube' | 'telegram' | 'x' | 'linkedin' | 'snapchat'>('tiktok');
+  const [socialInput, setSocialInput] = useState('');
+  const [isConnectingSocial, setIsConnectingSocial] = useState(false);
+
   // Real Account Connection Windows inside Visitor Flow
   const [waPairingData, setWaPairingData] = useState<{ pairingCode: string; qrDataUrl: string; connected: boolean } | null>(null);
   const [isConnectingWa, setIsConnectingWa] = useState(false);
   const [metaConnectData, setMetaConnectData] = useState<{ pageName: string; pageId: string; connected: boolean } | null>(null);
   const [metaInputPageName, setMetaInputPageName] = useState('');
   const [isConnectingMeta, setIsConnectingMeta] = useState(false);
+
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setSuggestedLogoUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSuggestExistingIdentity = async () => {
+    const target = brandName.trim() || industry || 'نشاط تجاري';
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/branding/forge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandName: target,
+          category: industry || target,
+          phone: phone || '01013373634',
+          isNewBusiness: false
+        })
+      });
+      const data = await res.json();
+      const kit = data?.kit;
+      if (kit?.slogan && !selectedSlogan) setSelectedSlogan(kit.slogan);
+      if (kit?.logoUrl) setSuggestedLogoUrl(kit.logoUrl);
+      playShadowVoice(`جهزتلك شعار مبدئي وسلوجان احترافي لـ ${target}!`, 'male');
+    } catch {}
+    setIsGenerating(false);
+  };
+
+  const handleConnectSocialChannel = async (platformId: string, valueOverride?: string) => {
+    const val = (valueOverride ?? socialInput).trim();
+    if (!val) return;
+    setIsConnectingSocial(true);
+    try {
+      const res = await fetch('/api/jarvis/execute-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionType: 'CONNECT_SOCIAL_CHANNEL',
+          brandId: generatedBrand?.id || generatedBrand?.slug || 'clean_master',
+          data: { platform: platformId, handleOrUrl: val }
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setSocialLinks(prev => ({ ...prev, [platformId]: val }));
+        if (!valueOverride) setSocialInput('');
+        playShadowVoice(`تم ربط حساب ${platformId} بنجاح وإضافته لخطة النشر التلقائي!`, 'male');
+      }
+    } catch {}
+    setIsConnectingSocial(false);
+  };
 
   // Step 1: Initial Question (Zero-to-One vs Existing)
   const handleSelectBusinessStatus = (hasBusiness: boolean) => {
@@ -68,7 +138,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
       playShadowVoice("على بركة الله! سيب القيادة ليا وركز إنت في البيزنس. قولي يا غالي، إيه المجال أو النشاط اللي بتفكر فيه؟", 'male');
     } else {
       setStep(4);
-      playShadowVoice("نورتنا يا فندم! اكتبلي اسم نشاطك ورقم الواتساب عشان نؤسس تطبيقك ونجهز صفحات السوشيال ونفتحلك نافذة ربط الواتساب فوراً!", 'male');
+      playShadowVoice("نورتنا يا فندم! حددلي إيه اللي موجود عندك بالفعل (لوجو، موقع، صفحات سوشيال) وإيه اللي تحب نجهزهولك، وهنربط كل منصاتك في ثواني!", 'male');
     }
   };
 
@@ -135,6 +205,13 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
 
     setIsGenerating(true);
     try {
+      const effectiveTemplate = hasExistingBusiness
+        ? (existingAppChoice === 'existing_site' || existingAppChoice === 'auto' ? undefined : existingAppChoice)
+        : (appTemplate === 'auto' ? undefined : appTemplate);
+      const effectiveAppMode = hasExistingBusiness
+        ? (existingAppChoice === 'existing_site' && websiteUrl.trim() ? 'existing_site' : existingAppChoice)
+        : appTemplate;
+
       const res = await fetch('/api/jarvis/execute-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,7 +224,13 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
             websiteUrl,
             slogan: selectedSlogan || undefined,
             logoUrl: suggestedLogoUrl || undefined,
-            appTemplate: appTemplate === 'auto' ? undefined : appTemplate
+            appTemplate: effectiveTemplate,
+            appMode: effectiveAppMode,
+            hasExistingBusiness: Boolean(hasExistingBusiness),
+            existingAssets: hasExistingBusiness
+              ? { hasLogo: hasExistingLogo, hasWebsite: hasExistingWebsite, hasSocialPages: hasExistingSocial }
+              : undefined,
+            socialLinks
           }
         })
       });
@@ -156,6 +239,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
         setGeneratedBrand(data.brand);
         const fallbackAppUrl = `${window.location.origin}/app/${data.brand.slug || data.brand.id}`;
         setGeneratedAppUrl(data.flagshipUrl || fallbackAppUrl);
+        if (data.optionalFlagshipUrl) setOptionalFlagshipUrl(data.optionalFlagshipUrl);
         if (Array.isArray(data.brand.weekContentPlan)) {
           setWeekPlan(data.brand.weekContentPlan);
         }
@@ -233,12 +317,12 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           </div>
           <div>
             <h3 className="text-xs md:text-sm font-black text-white flex items-center gap-1.5">
-              محرك تأسيس وبناء وتوليد البيزنس للزائر الجديد (0→1)
+              محرك تأسيس وتطوير الأعمال الذكي (جديد أو قائم)
               <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">
-                REAL EXECUTION
+                OMNI-CHANNEL
               </span>
             </h3>
-            <p className="text-[10px] text-white/50">بناء وتوليد تطبيق PWA فعلي + ربط واتساب وميتا + تفعيل 7 أيام مجاناً</p>
+            <p className="text-[10px] text-white/50">بناء أو ربط تطبيقك وهويتك + ربط واتساب وكل منصات السوشيال + 7 أيام مجاناً</p>
           </div>
         </div>
 
@@ -417,9 +501,9 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
         </div>
       )}
 
-      {/* STAGE 4: EXISTING BUSINESS INPUT */}
+      {/* STAGE 4: EXISTING BUSINESS INPUT (ALL POSSIBILITIES: LOGO / SITE / SOCIAL / APP) */}
       {step === 4 && (
-        <div className="space-y-3 py-1 animate-in zoom-in-95">
+        <div className="space-y-2.5 py-1 animate-in zoom-in-95 max-h-[390px] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="block text-[10px] font-bold text-white/80 mb-1">اسم البراند أو الشركة الحالية:</label>
@@ -428,7 +512,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 value={brandName}
                 onChange={(e) => setBrandName(e.target.value)}
                 placeholder="مثال: عيادة دكتور حسام، معرض البركة"
-                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
               />
             </div>
             <div>
@@ -438,23 +522,136 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="01013373634"
-                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono"
                 dir="ltr"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-bold text-white/80 mb-1">رابط موقعك الحالي أو صفحة فيسبوك (اختياري لسحب الكتالوج):</label>
-            <input 
-              type="url" 
-              value={websiteUrl}
-              onChange={(e) => setWebsiteUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono"
-              dir="ltr"
-            />
+          {/* What assets does the existing business already have? */}
+          <div className="p-2.5 rounded-2xl bg-black/40 border border-cyan-500/25 space-y-2">
+            <div className="text-[10px] font-black text-cyan-300">✅ حدد إيه اللي موجود عندك حالياً (والباقي الظل هيجهزهولك تلقائياً):</div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setHasExistingLogo(v => !v)}
+                className={`p-2 rounded-xl text-[10px] font-bold border transition ${
+                  hasExistingLogo ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200' : 'bg-white/5 border-white/10 text-white/60'
+                }`}
+              >
+                {hasExistingLogo ? '✓ ' : ''}🎨 عندي لوجو جاهز
+              </button>
+              <button
+                type="button"
+                onClick={() => setHasExistingWebsite(v => !v)}
+                className={`p-2 rounded-xl text-[10px] font-bold border transition ${
+                  hasExistingWebsite ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200' : 'bg-white/5 border-white/10 text-white/60'
+                }`}
+              >
+                {hasExistingWebsite ? '✓ ' : ''}🌐 عندي موقع/متجر
+              </button>
+              <button
+                type="button"
+                onClick={() => setHasExistingSocial(v => !v)}
+                className={`p-2 rounded-xl text-[10px] font-bold border transition ${
+                  hasExistingSocial ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200' : 'bg-white/5 border-white/10 text-white/60'
+                }`}
+              >
+                {hasExistingSocial ? '✓ ' : ''}📱 عندي صفحات سوشيال
+              </button>
+            </div>
           </div>
+
+          {/* Existing Logo / Slogan OR AI Suggestion */}
+          <div className="p-2.5 rounded-xl bg-black/30 border border-white/10 space-y-2">
+            {hasExistingLogo ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[10px] font-bold text-white/80">ارفع صورة اللوجو أو الصق رابطه + السلوجان:</label>
+                  <label className="cursor-pointer px-2 py-1 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-[10px] font-bold text-cyan-200">
+                    📁 رفع لوجو
+                    <input type="file" accept="image/*" onChange={handleLogoFileUpload} className="hidden" />
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  <input
+                    type="text"
+                    value={suggestedLogoUrl.startsWith('data:') ? 'تم رفع صورة اللوجو بنجاح ✓' : suggestedLogoUrl}
+                    onChange={(e) => setSuggestedLogoUrl(e.target.value)}
+                    placeholder="رابط اللوجو (https://...)"
+                    className="w-full bg-[#141b2d] border border-white/10 rounded-lg px-2.5 py-1 text-[11px] text-white font-mono"
+                    dir="ltr"
+                  />
+                  <input
+                    type="text"
+                    value={selectedSlogan}
+                    onChange={(e) => setSelectedSlogan(e.target.value)}
+                    placeholder="السلوجان الحالي (اختياري)"
+                    className="w-full bg-[#141b2d] border border-white/10 rounded-lg px-2.5 py-1 text-[11px] text-white"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-white/70">معندكش لوجو أو حابب شعار مطوّر؟</span>
+                <button
+                  type="button"
+                  onClick={handleSuggestExistingIdentity}
+                  disabled={isGenerating}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-200 text-[10px] font-black"
+                >
+                  {isGenerating ? 'جاري التوليد...' : '✨ اقترح لي لوجو وسلوجان بالذكاء الاصطناعي'}
+                </button>
+              </div>
+            )}
+            {suggestedLogoUrl && (
+              <div className="flex items-center gap-2 pt-1">
+                <img src={suggestedLogoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-cover border border-white/20" />
+                <span className="text-[10px] text-emerald-300 font-bold">تم اعتماد اللوجو {selectedSlogan ? `— "${selectedSlogan}"` : ''}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Existing Website + App Mode Choice */}
+          <div className="space-y-1.5">
+            {hasExistingWebsite && (
+              <input 
+                type="url" 
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                placeholder="رابط موقعك أو متجرك الحالي (https://...)"
+                className="w-full bg-[#141b2d] border border-cyan-500/30 rounded-xl px-3 py-1.5 text-xs text-white font-mono"
+                dir="ltr"
+              />
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: 'auto', label: '⚡ تطبيق ذكي تلقائي لنشاطك' },
+                { id: 'products_erp', label: '🛒 نسخة متكاملة (متجر + ERP/POS)' },
+                { id: 'services_booking', label: '📅 نسخة متكاملة (خدمات + حجوزات)' },
+                ...(hasExistingWebsite ? [{ id: 'existing_site', label: '🔗 ربط موقعي الحالي فقط بدون تطبيق جديد' }] : [])
+              ].map((opt: any) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setExistingAppChoice(opt.id)}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
+                    existingAppChoice === opt.id
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                      : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {hasExistingSocial && (
+            <div className="p-2 rounded-xl bg-blue-950/20 border border-blue-500/25 text-[10px] text-blue-200">
+              💡 ممتاز! في الخطوة الجاية مباشرة هتلاقي نوافذ ربط جاهزة لصفحاتك الحالية على: <b>فيسبوك، إنستجرام، واتساب، تيك توك، يوتيوب، تيليجرام، X، لينكدإن، وسناب شات</b>.
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2 pt-1">
             {['مبيعات عبر واتساب وسوشيال', 'فرع أو عيادة وحجوزات', 'متجر إلكتروني وتوصيل', 'عقارات أو سيارات'].map(ch => (
@@ -462,7 +659,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 key={ch}
                 onClick={() => handleProvisionVisitorBrand(ch)}
                 disabled={isGenerating}
-                className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400 text-xs font-bold text-white text-right transition flex items-center justify-between"
+                className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400 text-[11px] font-bold text-white text-right transition flex items-center justify-between"
               >
                 <span>{ch}</span>
                 <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
@@ -484,15 +681,27 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 <p className="text-[10px] text-emerald-300 font-mono">{generatedAppUrl}</p>
               </div>
             </div>
-            <a 
-              href={generatedAppUrl || `/store/${generatedBrand?.slug || 'clean_master'}`}
-              target="_blank" 
-              rel="noreferrer" 
-              className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black flex items-center gap-1 shrink-0 shadow-md"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              فتح تطبيقك الحي
-            </a>
+            <div className="flex flex-col gap-1 shrink-0">
+              <a 
+                href={generatedAppUrl || `/app/${generatedBrand?.slug || 'clean_master'}`}
+                target="_blank" 
+                rel="noreferrer" 
+                className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black flex items-center gap-1 shadow-md"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                {existingAppChoice === 'existing_site' && hasExistingBusiness ? 'فتح موقعك المربوط' : 'فتح تطبيقك الحي'}
+              </a>
+              {optionalFlagshipUrl && optionalFlagshipUrl !== generatedAppUrl && (
+                <a
+                  href={optionalFlagshipUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 text-[10px] font-bold text-center"
+                >
+                  + تجربة نسخة التطبيق الذكي
+                </a>
+              )}
+            </div>
           </div>
 
           {/* 2. Real Interactive Account Connection Windows (WhatsApp & Meta) */}
@@ -585,6 +794,70 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   {isConnectingMeta ? 'جاري الربط...' : metaConnectData ? '✅ متصل' : '🔗 ربط سريع'}
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* 2.5 Omni-Channel Social Platforms Hub (TikTok, YouTube, Telegram, X, LinkedIn, Snapchat) */}
+          <div className="p-3 rounded-2xl bg-black/60 border border-purple-500/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-purple-300 flex items-center gap-1.5">
+                <Share2 className="w-3.5 h-3.5" />
+                ربط باقي منصات السوشيال ميديا والنشر المتعدد
+              </span>
+              <span className="text-[9px] font-mono bg-purple-500/15 text-purple-200 px-2 py-0.5 rounded-full">
+                {Object.keys(socialLinks).length > 0 ? `${Object.keys(socialLinks).length} منصات مربوطة 🟢` : 'اختياري / حسب قنواتك'}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: 'tiktok', label: 'TikTok' },
+                { id: 'youtube', label: 'YouTube' },
+                { id: 'telegram', label: 'Telegram' },
+                { id: 'x', label: 'X / Twitter' },
+                { id: 'linkedin', label: 'LinkedIn' },
+                { id: 'snapchat', label: 'Snapchat' }
+              ].map((p: any) => {
+                const isLinked = Boolean(socialLinks[p.id]);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveSocialTab(p.id);
+                      setSocialInput(socialLinks[p.id] || '');
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition ${
+                      activeSocialTab === p.id
+                        ? 'bg-purple-500/30 border-purple-400 text-white'
+                        : isLinked
+                          ? 'bg-emerald-500/15 border-emerald-400/50 text-emerald-300'
+                          : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    {isLinked ? '🟢 ' : ''}{p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={socialInput}
+                onChange={(e) => setSocialInput(e.target.value)}
+                placeholder={`رابط أو @يوزر حسابك على ${activeSocialTab.toUpperCase()}...`}
+                className="flex-1 bg-[#141b2d] border border-white/10 rounded-xl px-2.5 py-1.5 text-[11px] text-white font-mono"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                onClick={() => handleConnectSocialChannel(activeSocialTab)}
+                disabled={isConnectingSocial || !socialInput.trim()}
+                className="px-3 py-1.5 rounded-xl bg-purple-500/25 hover:bg-purple-500/40 disabled:opacity-40 text-purple-200 border border-purple-400/40 text-[10px] font-black shrink-0"
+              >
+                {isConnectingSocial ? 'جاري الربط...' : socialLinks[activeSocialTab] ? '🔄 تحديث' : '🔗 ربط وحفظ'}
+              </button>
             </div>
           </div>
 
