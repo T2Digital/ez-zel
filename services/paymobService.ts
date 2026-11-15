@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { writeJsonAtomic } from './persistentStorage';
+import { writeJsonAtomic, savePersistentJson } from './persistentStorage';
 
 export interface PaymobCheckoutRequest {
     brandId: string;
@@ -175,7 +175,7 @@ export function savePaymobSubscriptionRecord(record: any): void {
         } else {
             list.unshift(record);
         }
-        writeJsonAtomic(SUBSCRIPTIONS_LOG_PATH, list);
+        savePersistentJson('paymob_subscriptions', 'paymob_subscriptions.json', list);
     } catch {}
 }
 

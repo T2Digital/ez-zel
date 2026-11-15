@@ -1313,7 +1313,6 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   });
 
   function readTenantRecords(): Record<string, any[]> {
-      const { getPersistentFilePath } = require("./services/persistentStorage");
       const filePath = getPersistentFilePath("tenant_records.json");
       try {
           if (fs.existsSync(filePath)) return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -1322,7 +1321,6 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   }
 
   function saveTenantRecords(all: Record<string, any[]>): void {
-      const { savePersistentJson } = require("./services/persistentStorage");
       savePersistentJson("tenant_records", "tenant_records.json", all);
   }
 

@@ -119,6 +119,9 @@ export function readPersistentJson<T = any>(filename: string, defaultValue: T): 
 export async function hydrateCriticalStateOnBoot(): Promise<void> {
   const keys = [
     { docKey: "tenants_vault", filename: "tenants.json" },
+    { docKey: "tenant_records", filename: "tenant_records.json" },
+    { docKey: "paymob_subscriptions", filename: "paymob_subscriptions.json" },
+    { docKey: "ezzel_clients", filename: "ezzel_clients.json" },
     { docKey: "briefing_preferences", filename: "briefing_preferences.json" },
     { docKey: "dispatched_briefings", filename: "dispatched_briefings.json" },
   ];
@@ -128,7 +131,7 @@ export async function hydrateCriticalStateOnBoot(): Promise<void> {
     if (!fs.existsSync(localPath)) {
       const cloudData = await restoreStateFromFirestore(item.docKey);
       if (cloudData) {
-        fs.writeFileSync(localPath, JSON.stringify(cloudData, null, 2), "utf8");
+        writeJsonAtomic(localPath, cloudData);
         console.log(`[PersistentStorage] Hydrated ${item.filename} from Firestore cloud backup.`);
       }
     }

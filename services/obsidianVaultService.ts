@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { writeJsonAtomic } from './persistentStorage';
+import { writeJsonAtomic, savePersistentJson } from './persistentStorage';
 import { BRAND_VAULT } from './brandVault';
 import { readBookings, saveBooking, broadcastGatewayEvent } from './microservicesGateway';
 import { publishBrandPost, launchAdCampaign, getPublishedLogs } from './growthAgencyEngine';
@@ -1161,7 +1161,7 @@ export async function executeRealJarvisEcosystemAction(input: {
             };
             clients.unshift(newClient);
             try {
-                writeJsonAtomic(EZZEL_CLIENTS_PATH, clients);
+                savePersistentJson('ezzel_clients', 'ezzel_clients.json', clients);
             } catch {}
 
             syncAndBuildObsidianVault();
