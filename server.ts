@@ -1288,6 +1288,44 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       } catch {}
   }, 45000);
 
+  // --- JARVIS SWARM ORCHESTRATOR & CLOUD-FIRST MEMORY ENDPOINTS --- //
+  app.post("/api/swarm/run", async (req, res) => {
+      try {
+          const { runJarvisSwarm } = await import("./services/swarmOrchestrator");
+          const { role, brandId, phone, intent } = req.body || {};
+          const result = await runJarvisSwarm({ role, brandId, phone, intent });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Swarm execution failed" });
+      }
+  });
+
+  app.get("/api/memory/context", async (req, res) => {
+      try {
+          const { loadCloudMemory } = await import("./services/swarmOrchestrator");
+          const scopeKey = String(req.query.scopeKey || "guest");
+          const memory = await loadCloudMemory(scopeKey);
+          res.json({ ok: true, memory });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed to load cloud memory" });
+      }
+  });
+
+  app.post("/api/memory/context", async (req, res) => {
+      try {
+          const { saveCloudMemory } = await import("./services/swarmOrchestrator");
+          const { scopeKey, rollingSummary, facts, preferences } = req.body || {};
+          const memory = await saveCloudMemory(String(scopeKey || "guest"), {
+              rollingSummary,
+              facts: Array.isArray(facts) ? facts : undefined,
+              preferences: Array.isArray(preferences) ? preferences : undefined
+          });
+          res.json({ ok: true, memory });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed to save cloud memory" });
+      }
+  });
+
   // --- CLIENT LIVE INTERACTIVE STOREFRONT VIEW (Branded PWA + Live Booking Cart -> CRM) --- //
   // --- PUBLIC MULTI-TENANT BRAND CONFIG ENDPOINT (FOR BATTAH & CLEAN-MASTER) --- //
   app.get("/api/public/brand/:slug", (req, res) => {

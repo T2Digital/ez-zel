@@ -116,7 +116,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
 
     const affiliateInfo = user?.affiliate ? `
     - كود الدعوة الخاص بك (Referral Code): ${user.affiliate.referralCode}
-    - رابط الدعوة الخاص بك: https://Ez-zel.vercel.app/?ref=${user.affiliate.referralCode}
+    - رابط الدعوة الخاص بك: https://ez-zel.onrender.com/?ref=${user.affiliate.referralCode}
     - إجمالي الأرباح: ${user.affiliate.totalEarnings} جنيه
     - عدد الدعوات الناجحة: ${user.affiliate.referralsCount}
     - نسبة العمولة: 10% لكل دعوة تسجل وتفعل باقاتها.
@@ -366,7 +366,6 @@ ${recentHistory}`;
 
 
 export const getShadowResponse = async (history: any[], message: string, extraData?: any, userProfile?: UserProfile, signal?: AbortSignal) => {
-    if (isRequesting) return { text: "ثواني بجمع أفكاري...", toolActions: [], groundingLinks: [], isError: false };
     isRequesting = true;
     
     try {
@@ -488,41 +487,75 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         const contextData = await getContextData();
         const emotionData = analyzeEmotionFromText(message);
 
-        // Unified Second Brain Sync (Shared live memory between Ez-Zel Chat & Jarvis Battle Station)
+        // Unified Role-Isolated Swarm & Cloud-First Memory Sync
         let unifiedSecondBrainText = '';
+        let liveSwarmSnapshot: any = null;
         try {
-            const win = window as any;
-            const nowMs = Date.now();
-            if (!win.__UNIFIED_SECOND_BRAIN_CACHE || (nowMs - win.__UNIFIED_SECOND_BRAIN_TS) > 30000) {
-                const [obsRes, finRes] = await Promise.all([
-                    fetch('/api/obsidian/graph').then(r => r.json()).catch(() => null),
-                    fetch('/api/system/real-financials').then(r => r.json()).catch(() => null)
-                ]);
-                if (obsRes && obsRes.success) {
-                    const brandsSummary = (obsRes.growthAgencyBrands || []).map((b: any) =>
-                        `• ${b.name} (ID: ${b.id} | المجال: ${b.businessType || 'تجاري'} | هاتف: ${b.phone || '01013373634'} | المتجر: /store/${b.slug || b.id} | تقويم ستوديو: ${(b.weekContentPlan || []).length || 7} منشورات)`
-                    ).join('\n');
-                    const ezzelSubs = (obsRes.ezZelPersonalClients || []).map((c: any) =>
-                        `• ${c.name} (الباقة: ${c.plan} | مهام نشطة: ${c.activeTasksCount})`
-                    ).join('\n');
-                    const bookingsCount = finRes?.confirmedBookingsCount || 2;
-                    const revenueEgp = finRes?.realConfirmedRevenueEgp || 1000;
-                    win.__UNIFIED_SECOND_BRAIN_CACHE = `
-[UNIFIED_SECOND_BRAIN_OBSIDIAN_AND_JARVIS_MEMORY]:
-أنت والظل "جارفيس" تتشاركان عقلاً موحداً 100% متصلاً بخزنة أوبسيديان الحية (Obsidian Vault) وسحابة تيتو ستوديو (t2-content-studio) وجسر Turbo Flow × Google Flow وتيتو أجنت ومنصة بناء المتاجر والتطبيقات:
-- إجمالي البراندات الموحدة تحت إدارتنا: ${(obsRes.growthAgencyBrands || []).length} براند حي:
-${brandsSummary}
-- مشتركو مساعد "الظل" الشخصي:
-${ezzelSubs}
-- الحجوزات الفعلية المؤكدة في الـ CRM: ${bookingsCount} حجز مؤكد بإجمالي إيرادات ${revenueEgp} ج.م.
-- تعليمات تنفيذية:
-  1) لا تذكر أبداً كلمة "بناء وتوليد" أو "مطور" في أي رد، واستخدم بدلاً منها "متجر وتطبيق البراند" أو "منصة بناء المتاجر".
-  2) عندما يطلب الماستر تيتو أو المستخدم عمل استراتيجية تسويقية، أو توليد محتوى أول أسبوع، أو اعتماد الجدولة، أو نشر منشور، أو فتح براند معين وصناعة بوست مخصص حول موضوع معين وجدولته أو نشره فوراً (مثال: "افتح براند كلين ماستر واعمل بوست عن كذا وجدوله بكره 8 بالليل أو انشره دلوقتي")، استدعِ فوراً أداة \`tito_studio_workflow\` لتنفيذ العملية فعلياً في تيتو ستوديو وعرض البطاقة التفاعلية!
-`;
-                    win.__UNIFIED_SECOND_BRAIN_TS = nowMs;
-                }
+            const emailLower = (userProfile?.email || '').toLowerCase();
+            const isMasterRole = userProfile?.role === 'master' || emailLower === 'ahm.atya@gmail.com' || emailLower === 'ahmed.atya.daif@gmail.com';
+            const inferredRole = isMasterRole ? 'MASTER_ADMIN' : (userProfile?.linkedBrandId ? 'BRAND_OWNER' : 'VISITOR');
+            const scopeKey = userProfile?.linkedBrandId || userProfile?.email || 'guest';
+
+            const [swarmRes, cloudMemRes, obsRes, finRes] = await Promise.all([
+                fetch('/api/swarm/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        role: inferredRole,
+                        brandId: userProfile?.linkedBrandId,
+                        phone: (userProfile as any)?.phone,
+                        intent: message
+                    })
+                }).then(r => r.json()).catch(() => null),
+                fetch(`/api/memory/context?scopeKey=${encodeURIComponent(scopeKey)}`).then(r => r.json()).catch(() => null),
+                isMasterRole ? fetch('/api/obsidian/graph').then(r => r.json()).catch(() => null) : Promise.resolve(null),
+                isMasterRole ? fetch('/api/system/real-financials').then(r => r.json()).catch(() => null) : Promise.resolve(null)
+            ]);
+
+            if (swarmRes?.ok) {
+                liveSwarmSnapshot = swarmRes;
+                (window as any).__LAST_SWARM_SNAPSHOT = swarmRes;
             }
-            unifiedSecondBrainText = win.__UNIFIED_SECOND_BRAIN_CACHE || '';
+
+            const cloudSummary = cloudMemRes?.memory?.rollingSummary || '';
+            const cloudFacts = Array.isArray(cloudMemRes?.memory?.facts) ? cloudMemRes.memory.facts.join(' | ') : '';
+            const swarmAgentsLine = Array.isArray(swarmRes?.agents)
+                ? swarmRes.agents.map((a: any) => `  * [${a.name}] (${a.status}): ${a.summary}`).join('\n')
+                : '';
+
+            if (isMasterRole) {
+                const brandsSummary = (obsRes?.growthAgencyBrands || []).map((b: any) =>
+                    `• ${b.name} (ID: ${b.id} | المجال: ${b.businessType || 'تجاري'} | هاتف: ${b.phone || ''} | ستوديو: ${(b.weekContentPlan || []).length} منشور)`
+                ).join('\n');
+                const ezzelSubs = (obsRes?.ezZelPersonalClients || []).map((c: any) =>
+                    `• ${c.name} (الحالة: ${c.status} | الباقة: ${c.plan})`
+                ).join('\n');
+                const bookingsCount = finRes?.confirmedBookingsCount ?? 0;
+                const revenueEgp = finRes?.realConfirmedRevenueEgp ?? 0;
+                unifiedSecondBrainText = `
+[JARVIS_SWARM_MASTER_CONTEXT]:
+- وضع القيادة: الماستر تيتو (إشراف كامل على المنظومة).
+- سرب الوكلاء الخمسة (حالة لحظية):
+${swarmAgentsLine}
+- إجمالي البراندات الموحدة: ${(obsRes?.growthAgencyBrands || []).length} براند:
+${brandsSummary}
+- مشتركو الظل:
+${ezzelSubs}
+- الحجوزات المؤكدة: ${bookingsCount} حجز | الإيرادات المؤكدة: ${revenueEgp} ج.م.
+${cloudSummary ? `- ملخص الذاكرة السحابية: ${cloudSummary}` : ''}
+${cloudFacts ? `- حقائق محفوظة: ${cloudFacts}` : ''}
+`;
+            } else {
+                unifiedSecondBrainText = `
+[JARVIS_SWARM_CLIENT_CONTEXT]:
+- الدور: ${inferredRole === 'BRAND_OWNER' ? 'صاحب براند' : 'زائر'}
+- سرب الوكلاء الخاص بك:
+${swarmAgentsLine}
+${cloudSummary ? `- ملخص الذاكرة السحابية: ${cloudSummary}` : ''}
+${cloudFacts ? `- حقائق محفوظة عن نشاطك: ${cloudFacts}` : ''}
+- توجيه: أجب بوضوح وتركيز على مصلحة العميل أو الزائر فقط، واستخدم بيانات السرب الحية أعلاه ولا تذكر أي بيانات داخلية لأدمن المنظومة.
+`;
+            }
         } catch {}
 
         const identityInjection = `
@@ -872,10 +905,26 @@ ${ezzelSubs}
             });
         }
 
+        // Persist rolling summary to Cloud-First Memory (non-blocking)
+        try {
+            const scopeKey = userProfile?.linkedBrandId || userProfile?.email || 'guest';
+            const snippet = `المستخدم: ${message.slice(0, 120)} | جارفيس: ${(finalText || '').slice(0, 160)}`;
+            fetch('/api/memory/context', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scopeKey,
+                    rollingSummary: snippet,
+                    facts: archivistCall?.args?.fact ? [String(archivistCall.args.fact)] : undefined
+                })
+            }).catch(() => {});
+        } catch {}
+
         return { 
             text: finalText || "معلش يا ريس، الشبكة قطعت فجأة. قول تاني؟", 
             toolActions, 
             groundingLinks, 
+            swarmSnapshot: liveSwarmSnapshot,
             isError: false 
         };
 

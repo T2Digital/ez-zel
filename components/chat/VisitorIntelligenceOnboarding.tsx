@@ -503,7 +503,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
 
       {/* STAGE 4: EXISTING BUSINESS INPUT (ALL POSSIBILITIES: LOGO / SITE / SOCIAL / APP) */}
       {step === 4 && (
-        <div className="space-y-2.5 py-1 animate-in zoom-in-95 max-h-[390px] overflow-y-auto pr-1">
+        <div className="space-y-2.5 py-1 animate-in zoom-in-95">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="block text-[10px] font-bold text-white/80 mb-1">اسم البراند أو الشركة الحالية:</label>
@@ -671,7 +671,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
 
       {/* STAGE 3: REAL LIVE EXECUTION HUB (STOREFRONT + WHATSAPP QR/CODE + META CONNECT + 7-DAY TRIAL) */}
       {step === 3 && (
-        <div className="space-y-3 py-1 animate-in zoom-in-95 max-h-[390px] overflow-y-auto pr-1">
+        <div className="space-y-3 py-1 animate-in zoom-in-95">
           {/* 1. Provisioned Storefront Live Banner */}
           <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">

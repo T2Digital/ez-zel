@@ -26,6 +26,7 @@ import LiveAgentAction from './LiveAgentAction';
 import { ChatInputArea } from './chat/ChatInputArea';
 import { AGIReasoningTrace } from './chat/AGIReasoningTrace';
 import { ToolCardRenderer, handleAppCardAction, getCardIcon } from './chat/ToolCardRenderer';
+import { JarvisExecutiveSummaryDrawer } from './chat/JarvisExecutiveSummaryDrawer';
 const PredictiveAnalyticsBoard = React.lazy(() => import('./chat/PredictiveAnalyticsBoard').then(m => ({ default: m.PredictiveAnalyticsBoard })));
 import { useAppStore } from '../services/store';
 import { useChatStore } from '../services/chatStore';
@@ -580,22 +581,37 @@ const ChatInterface: React.FC<Props> = ({ onBack, onNavigateTo }) => {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef<boolean>(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [swarmRefreshKey, setSwarmRefreshKey] = useState(0);
 
-  // Auto-scroll to bottom when messages change or on initial load
+  const handleChatScroll = useCallback(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const nearBottom = distanceFromBottom < 140;
+      isNearBottomRef.current = nearBottom;
+      setShowScrollToBottom(!nearBottom);
+  }, []);
+
+  const scrollToBottom = useCallback((smooth = true) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+      isNearBottomRef.current = true;
+      setShowScrollToBottom(false);
+  }, []);
+
+  // Zero-Fight Smart Sticky Scroll: only scroll down if user is already near bottom (never fight user scrolling up)
   useEffect(() => {
-      if (scrollRef.current && page === 1) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      if (scrollRef.current && page === 1 && isNearBottomRef.current) {
+          const timer = setTimeout(() => {
+              if (scrollRef.current && isNearBottomRef.current) {
+                  scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              }
+          }, 80);
+          return () => clearTimeout(timer);
       }
-  }, [messages, appStatus, page]);
-
-  // Force scroll to bottom after a slight delay to ensure rendering is complete
-  useEffect(() => {
-      const timer = setTimeout(() => {
-          if (scrollRef.current && page === 1) {
-              scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }
-      }, 100);
-      return () => clearTimeout(timer);
   }, [messages.length, page]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -1476,7 +1492,17 @@ ${textContent.substring(0, 10000)}`;
           </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 pb-64 space-y-4 scrollbar-hide relative">
+      <JarvisExecutiveSummaryDrawer
+        userProfile={userProfile}
+        externalRefreshKey={swarmRefreshKey + messages.length}
+        onQuickPrompt={(prompt) => handleSend(prompt)}
+      />
+
+      <div
+        ref={scrollRef}
+        onScroll={handleChatScroll}
+        className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-6 pb-64 space-y-4 scrollbar-hide relative"
+      >
         {isDreaming && (
             <div className="absolute top-10 left-1/2 -translate-x-1/2 z-0 opacity-50 flex flex-col items-center pointer-events-none fade-in">
                 <Brain className="w-16 h-16 text-cyan-600 animate-pulse mb-4 opacity-50" />
@@ -1520,6 +1546,16 @@ ${textContent.substring(0, 10000)}`;
           />
         )}
       </div>
+
+      {showScrollToBottom && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom(true)}
+          className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-cyan-500/90 hover:bg-cyan-400 text-black font-black text-xs shadow-[0_0_20px_rgba(6,182,212,0.45)] flex items-center gap-1.5 transition animate-in fade-in"
+        >
+          <span>⬇️ أحدث الرسائل</span>
+        </button>
+      )}
 
       <ChatInputArea 
         input={input} 
