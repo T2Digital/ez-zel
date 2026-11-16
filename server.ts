@@ -1465,6 +1465,22 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
       const cleanPhone = String(brand.phone || "01013373634").replace(/[^0-9]/g, "");
       const wa = cleanPhone.startsWith("0") ? `2${cleanPhone}` : cleanPhone;
+
+      // Check subscription / 7-day trial status
+      const clients = getEzZelPersonalClients();
+      const linkedClient = clients.find((c: any) => c.linkedBrandId === brand.id);
+      const subs = getPaymobSubscriptions();
+      const paidSub = subs.find((s: any) => (s.brandId === brand.id || s.brandId === brand.slug) && s.status === "paid");
+      let subscriptionStatus: "active" | "trial" | "expired" = "active";
+      let trialEndsAt = linkedClient?.trialEndsAt || "";
+      let trialDaysLeft: number | null = null;
+      if (!paidSub && linkedClient?.status === "trial" && trialEndsAt) {
+          const endMs = new Date(trialEndsAt).getTime();
+          const diffDays = Math.ceil((endMs - Date.now()) / 86400000);
+          trialDaysLeft = Math.max(0, diffDays);
+          subscriptionStatus = diffDays <= 0 ? "expired" : "trial";
+      }
+
       res.json({
           ok: true,
           brand: {
@@ -1481,7 +1497,11 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               businessType: brand.businessType || "",
               directKnowledge: brand.directKnowledge || "",
               appTemplate: brand.appTemplate || "services_booking",
-              productsCatalog: Array.isArray(brand.productsCatalog) ? brand.productsCatalog : []
+              productsCatalog: Array.isArray(brand.productsCatalog) ? brand.productsCatalog : [],
+              subscriptionStatus,
+              trialEndsAt,
+              trialDaysLeft,
+              upgradeUrl: `${process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com"}/pricing?brandId=${encodeURIComponent(brand.slug || brand.id)}`
           }
       });
   });
