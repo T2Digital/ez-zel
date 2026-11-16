@@ -1,0 +1,15 @@
+# T2OS — The AI Operating System for Business Growth
+> By T2 Digital (T2 Digital Solutions for Business Development)
+
+Slogan (AR): عقل تنفيذي واحد.. يبني تطبيقك، يصنع محتواك، ويقفّل مبيعاتك 24/7
+Slogan (EN): One AI Brain. Apps, Content & Sales on Autopilot.
+
+## Core Modules
+- T2OS Core (Jarvis / الظل): Voice & text AI executive orchestrator with 5 specialist swarm agents and cloud memory.
+- T2OS Apps: Instant multi-tenant PWA storefronts (e-commerce + ERP/POS) and service booking platforms with isolated Firestore databases.
+- T2OS Studio: AI content strategy, visual & video generation, and multi-platform scheduling across Facebook, Instagram, TikTok, YouTube, Telegram, X, LinkedIn, and Snapchat.
+- T2OS Agent: 24/7 WhatsApp & social sales/support agent connected directly to each brand's live catalog and bookings.
+
+## Entry Points
+- Platform Home: https://ez-zel.onrender.com/
+- Pricing & 7-Day Free Trial: https://ez-zel.onrender.com/pricing
