@@ -119,11 +119,41 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [voiceSocketState, setVoiceSocketState] = useState<VoiceSocketState>('disconnected');
   const [transcript, setTranscript] = useState('');
   const transcriptRef = useRef<string>('');
+  const streamTimerRef = useRef<any>(null);
+  const [quickChips, setQuickChips] = useState<string[]>([
+    'عندي بيزنس قائم بالفعل',
+    'فكرة جديدة من الصفر',
+    'تجهيز التطبيق والكتالوج'
+  ]);
+  const [visitorName, setVisitorName] = useState<string>(() => {
+    try { return localStorage.getItem('ezzel_visitor_name_v1') || ''; } catch { return ''; }
+  });
   const [detectedVisitorBrand, setDetectedVisitorBrand] = useState<{
     businessName?: string;
     industry?: string;
     hasExistingBusiness?: boolean | null;
   }>({});
+
+  const streamTranscriptWords = useCallback((fullText: string) => {
+    if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+    const words = String(fullText || '').split(/\s+/).filter(Boolean);
+    if (words.length <= 4) {
+      setTranscript(fullText);
+      return;
+    }
+    let idx = 3;
+    setTranscript(words.slice(0, idx).join(' '));
+    streamTimerRef.current = setInterval(() => {
+      idx += 3;
+      if (idx >= words.length) {
+        setTranscript(fullText);
+        clearInterval(streamTimerRef.current);
+        streamTimerRef.current = null;
+      } else {
+        setTranscript(words.slice(0, idx).join(' '));
+      }
+    }, 55);
+  }, []);
   const [isThinking, setIsThinking] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'model'; text: string }>>([]);
   const recognitionRef = useRef<any>(null);
@@ -926,6 +956,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           .join('');
         transcriptRef.current = text;
         setTranscript(text);
+    streamTranscriptWords(text);
       };
 
       recognition.onerror = (err: any) => {
@@ -962,7 +993,29 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     let text = '';
     if (activeP === 'visitor') {
-      text = `يا هلا بيك في منظومة T2 ديجيتال للنمو الشامل! أنا جارفيس المستشار التنفيذي لأعمالك.. قولي عشان أحلل موقفك صح: نشاطك التجاري شغال حالياً في السوق وفيه عملاء ومبيعات؟ ولا دي فكرة جديدة بتنطلق فيها من الصفر؟`;
+      let savedJourney: any = null;
+      try {
+        const raw = localStorage.getItem('ezzel_visitor_journey_v1');
+        if (raw) savedJourney = JSON.parse(raw);
+      } catch {}
+
+      if (savedJourney?.generatedBrand?.name) {
+        let liveOrders = 0;
+        let liveWa = 0;
+        try {
+          const tel = await fetch(`/api/telemetry/live?brandId=${encodeURIComponent(savedJourney.generatedBrand.id || savedJourney.generatedBrand.slug)}`).then(r => r.json());
+          if (tel?.ok) {
+            liveOrders = (tel.orders || 0) + (tel.bookings || 0);
+            liveWa = tel.whatsappMessages || 0;
+          }
+        } catch {}
+        const namePart = visitorName ? `يا ${visitorName}` : 'يا فندم';
+        text = `أهلاً بيك ${namePart} مرة تانية في T2OS! براند ${savedJourney.generatedBrand.name} شغال الآن — سجّلنا ${liveOrders} طلب وحجز و${liveWa} رسالة واتساب. تحب نراجع أو نطوّر إيه النهاردة؟`;
+      } else if (visitorName) {
+        text = `أهلاً بيك يا ${visitorName} في منظومة T2OS من T2 Digital! قولي عشان نبدأ صح: عندك نشاط تجاري شغال حالياً في السوق، ولا دي فكرة جديدة بتنطلق فيها من الصفر؟`;
+      } else {
+        text = `أهلاً بيك في منظومة T2OS من T2 Digital! أنا جارفيس المستشار التنفيذي لأعمالك.. نتشرف باسمك الأول يا فندم؟ وقولي هل عندك نشاط تجاري شغال حالياً ولا بتبدأ فكرة جديدة من الصفر؟`;
+      }
     } else if (activeP === 'trial') {
       text = `أهلاً بيك يا فندم في أسبوع التجربة المجانية لـ ${currentSelectedBrand.name}! خطتك من 3 منشورات حقيقية (يوم ويوم: الأحد، الثلاثاء، والخميس) جاهزة، والوكيل الذكي متصل بيرد 24 ساعة.. تحب نولد أول تصميم في تيتو ستوديو دلوقتي؟`;
     } else if (activeP === 'client') {
@@ -973,6 +1026,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
 
     setTranscript(text);
+    streamTranscriptWords(text);
     // Play ONLY 100% Gemini Human TTS voice (Puck 24kHz)
     playShadowVoice(text, 'male', undefined, () => {
       setIsPlayingVoice(false);
@@ -1182,6 +1236,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       });
       const data = await res.json();
       setIsThinking(false);
+      if (data.detectedVisitorName) {
+        setVisitorName(data.detectedVisitorName);
+        try { localStorage.setItem('ezzel_visitor_name_v1', data.detectedVisitorName); } catch {}
+      }
+      if (Array.isArray(data.quickChips) && data.quickChips.length > 0) {
+        setQuickChips(data.quickChips);
+      }
       if (data.action?.type === 'VISITOR_EXISTING_BUSINESS_DETECTED' && data.action.businessName) {
         setDetectedVisitorBrand({
           businessName: data.action.businessName,
@@ -1193,11 +1254,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           ? data.replyText
           : String(data.replyText)
               .replace(/[a-z_][a-z0-9_]*\s*\([^)]*\)/gi, '')
-              .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر/gi, 'يا فندم')
+              .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر/gi, visitorName ? `يا ${visitorName}` : 'يا فندم')
               .replace(/\bBattah\b|بطاح/gi, 'منصة المتاجر والمخازن المتكاملة')
               .replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, 'منصة الخدمات والحجوزات الذكية')
               .trim();
-        setTranscript(cleanReply);
+        streamTranscriptWords(cleanReply);
         setConversationHistory(prev => [
           ...prev.slice(-8),
           { role: 'user', text: commandText },
@@ -1631,9 +1692,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             <button
               type="button"
               onClick={() => {
+                // Instant Voice Barge-In: interrupt Jarvis immediately and start listening
                 if (isPlayingVoice) {
                   stopVoice();
                   setIsPlayingVoice(false);
+                  isPlayingVoiceRef.current = false;
+                  startListeningLoop();
                 } else {
                   handleToggleListening();
                 }
@@ -1683,6 +1747,50 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </div>
                 <span className="text-[10px] text-cyan-300 font-mono bg-cyan-950/40 px-2.5 py-0.5 rounded-full border border-cyan-500/20">
                   AI GROWTH CONSULTANT
+                </span>
+              </div>
+            )}
+
+            {/* CONTEXTUAL QUICK ACTION CHIPS + LIVE APP MINI-PREVIEW */}
+            {quickChips.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-2xl">
+                {quickChips.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => {
+                      if (isPlayingVoice) { stopVoice(); setIsPlayingVoice(false); }
+                      handleSendToJarvis(chip);
+                    }}
+                    className="px-3 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/35 text-[11px] font-bold transition shadow-sm"
+                  >
+                    ⚡ {chip}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {(detectedVisitorBrand.businessName || (currentSelectedBrand?.id && currentSelectedBrand.id !== 'clean_master')) && (
+              <div className="w-full max-w-md p-2.5 rounded-2xl bg-[#040b1e]/90 border border-emerald-500/35 flex items-center justify-between gap-3 shadow-lg" dir="rtl">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {currentSelectedBrand?.logoUrl ? (
+                    <img src={currentSelectedBrand.logoUrl} alt="Logo" className="w-9 h-9 rounded-xl object-cover border border-emerald-400/50 shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-black font-black text-xs shrink-0">
+                      {(detectedVisitorBrand.businessName || currentSelectedBrand?.name || 'T2').slice(0, 2)}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-white truncate">
+                      📱 معاينة حية: {detectedVisitorBrand.businessName || currentSelectedBrand?.name}
+                    </div>
+                    <div className="text-[10px] text-emerald-300 truncate">
+                      {currentSelectedBrand?.slogan || 'تطبيق PWA متكامل بالهوية والألوان والكتالوج'}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-[9px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/30 shrink-0">
+                  LIVE PREVIEW
                 </span>
               </div>
             )}

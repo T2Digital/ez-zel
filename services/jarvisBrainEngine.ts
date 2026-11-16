@@ -654,7 +654,19 @@ export async function runJarvisBrainConversation(
   const nameMatch = allUserTexts.match(
     /(?:أنا\s+اسمي|اسمي|معاك|كلمني\s+يا|ناديني\s+يا|أنا\s+الاستاذ|أنا\s+المهندس|أنا\s+دكتور)\s+([^\s،,.!?\n]{2,20})/i
   );
-  const detectedVisitorName = nameMatch ? nameMatch[1].trim() : "";
+  let detectedVisitorName = nameMatch ? nameMatch[1].trim() : "";
+
+  // Also detect a direct 1-2 word name reply if Jarvis just asked for their name
+  if (!detectedVisitorName && Array.isArray(history) && history.length > 0) {
+    const lastModelMsg = [...history].reverse().find((h: any) => h.role !== "user")?.text || "";
+    const lastUserMsg = [...history].reverse().find((h: any) => h.role === "user")?.text || "";
+    const askedName = /اسمك|أناديك\s+بإيه|نتشرف\s+باسمك/i.test(lastModelMsg);
+    const candidate = (askedName ? message : (/اسمك|نتشرف\s+باسمك/i.test(lastModelMsg) ? lastUserMsg : "")).trim();
+    const words = candidate.split(/\s+/).filter(Boolean);
+    if (askedName && words.length >= 1 && words.length <= 2 && candidate.length >= 2 && candidate.length <= 24 && !/نعم|لأ|لا|أيوة|تمام|ماشي|عند|جديد|قائم/i.test(candidate)) {
+      detectedVisitorName = words[0];
+    }
+  }
 
   const formattedHistory =
     hasPriorTurns
@@ -1621,9 +1633,18 @@ ${
     audioBase64 &&
     Buffer.from(audioBase64, "base64").toString("ascii", 0, 4) === "RIFF";
 
+  const quickChips: string[] =
+    persona === "visitor"
+      ? (executedAction?.type === "VISITOR_EXISTING_BUSINESS_DETECTED" || targetBrand?.id !== "clean_master"
+          ? ["تجهيز التطبيق والكتالوج الآن", "عندي لوجو وموقع حالي", "عاوز أربط واتساب والسوشيال"]
+          : ["عندي بيزنس قائم بالفعل", "فكرة جديدة من الصفر", "ورّيني الباقات والتجربة 7 أيام"])
+      : ["تقرير السرب والأرقام الآن", "ملخص تفاعلات الواتساب", "خطة المحتوى في ستوديو"];
+
   return {
     success: true,
     replyText,
+    detectedVisitorName: detectedVisitorName || undefined,
+    quickChips,
     audioBase64,
     audioFormat: isWav ? "audio/wav" : "audio/mp3",
     action: executedAction,
