@@ -979,6 +979,18 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
               >
                 {isConnectingSocial ? 'جاري الربط...' : socialLinks[activeSocialTab] ? '🔄 تحديث' : '🔗 ربط وحفظ'}
               </button>
+              {['tiktok', 'youtube', 'linkedin', 'x'].includes(activeSocialTab) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const bId = generatedBrand?.id || generatedBrand?.slug || 'clean_master';
+                    window.open(`/api/auth/social/login/${activeSocialTab}?brandId=${encodeURIComponent(bId)}`, 'social_oauth', 'width=600,height=700');
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 text-[10px] font-black shrink-0"
+                >
+                  🔐 OAuth
+                </button>
+              )}
             </div>
           </div>
 

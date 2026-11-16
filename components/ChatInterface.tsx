@@ -27,6 +27,7 @@ import { ChatInputArea } from './chat/ChatInputArea';
 import { AGIReasoningTrace } from './chat/AGIReasoningTrace';
 import { ToolCardRenderer, handleAppCardAction, getCardIcon } from './chat/ToolCardRenderer';
 import { JarvisExecutiveSummaryDrawer } from './chat/JarvisExecutiveSummaryDrawer';
+import { LiveTelemetryNotifier } from './LiveTelemetryNotifier';
 const PredictiveAnalyticsBoard = React.lazy(() => import('./chat/PredictiveAnalyticsBoard').then(m => ({ default: m.PredictiveAnalyticsBoard })));
 import { useAppStore } from '../services/store';
 import { useChatStore } from '../services/chatStore';
@@ -1491,6 +1492,11 @@ ${textContent.substring(0, 10000)}`;
               <p className="text-white/30 text-sm mt-8 font-bold animate-pulse">انقر في أي مكان للإغلاق</p>
           </div>
       )}
+
+      <LiveTelemetryNotifier
+        isMasterAdmin={isAdmin}
+        activeBrandId={(userProfile as any)?.linkedBrandId}
+      />
 
       <JarvisExecutiveSummaryDrawer
         userProfile={userProfile}

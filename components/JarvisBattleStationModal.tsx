@@ -14,6 +14,7 @@ import { playShadowVoice, stopVoice, speakBrowserNaturalVoice } from '../service
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
 import { JarvisExecutiveSummaryDrawer } from './chat/JarvisExecutiveSummaryDrawer';
+import { LiveTelemetryNotifier } from './LiveTelemetryNotifier';
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
 import SpaceCanvas from './SpaceCanvas';
 import { ObsidianHolographicConstellation } from './ObsidianHolographicConstellation';
@@ -1687,6 +1688,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             )}
 
             {/* SWARM & EXECUTIVE SERVICES SUMMARY DRAWER (Unified in BattleStation + Chat) */}
+            <LiveTelemetryNotifier
+              isMasterAdmin={isMasterAdmin}
+              activeBrandId={currentSelectedBrand?.id !== 'clean_master' ? currentSelectedBrand?.id : undefined}
+            />
             <div className="w-full max-w-4xl">
               <JarvisExecutiveSummaryDrawer
                 userProfile={{

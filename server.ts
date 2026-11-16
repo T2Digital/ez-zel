@@ -1415,6 +1415,126 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
+  // --- OMNI-CHANNEL SOCIAL OAUTH & AUTO-PUBLISH (ALL 8 PLATFORMS IN TRIAL, PLAN-GATED AFTER) --- //
+  app.get("/api/social/allowed-platforms/:brandId", async (req, res) => {
+      try {
+          const { getAllowedPlatformsForBrand } = await import("./services/omniSocialPublisher");
+          res.json({ ok: true, ...getAllowedPlatformsForBrand(String(req.params.brandId || "")) });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/auth/social/login/:platform", async (req, res) => {
+      try {
+          const { buildPlatformOAuthUrl } = await import("./services/omniSocialPublisher");
+          const platform = String(req.params.platform || "").toLowerCase() as any;
+          const brandId = String(req.query.brandId || "clean_master");
+          const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+          const built = buildPlatformOAuthUrl(platform, brandId, baseUrl);
+          if (!built.ok || !built.authUrl) {
+              return res.status(400).send(`<html dir="rtl"><body style="background:#020617;color:#fff;font-family:sans-serif;padding:40px;text-align:center;"><h2>تعذر بدء الربط الرسمي (${platform})</h2><p>${built.message || ""}</p></body></html>`);
+          }
+          res.redirect(built.authUrl);
+      } catch (err: any) {
+          res.status(500).send(err?.message || "OAuth init error");
+      }
+  });
+
+  app.get("/api/auth/social/callback/:platform", async (req, res) => {
+      try {
+          const { saveSocialOAuthToken } = await import("./services/omniSocialPublisher");
+          const platform = String(req.params.platform || "").toLowerCase() as any;
+          const code = String(req.query.code || "");
+          let brandId = "clean_master";
+          try {
+              const parsed = JSON.parse(String(req.query.state || "{}"));
+              if (parsed.brandId) brandId = parsed.brandId;
+          } catch {}
+
+          const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+          const redirectUri = `${baseUrl.replace(/\/$/, "")}/api/auth/social/callback/${platform}`;
+          let tokenPayload: any = { code, connectedAt: new Date().toISOString() };
+
+          if (platform === "tiktok" && process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET && code) {
+              const r = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: new URLSearchParams({
+                      client_key: process.env.TIKTOK_CLIENT_KEY,
+                      client_secret: process.env.TIKTOK_CLIENT_SECRET,
+                      code,
+                      grant_type: "authorization_code",
+                      redirect_uri: redirectUri
+                  })
+              });
+              const d: any = await r.json();
+              if (d.access_token) tokenPayload = { accessToken: d.access_token, refreshToken: d.refresh_token, openId: d.open_id };
+          } else if (platform === "youtube" && (process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_OAUTH_CLIENT_ID) && code) {
+              const r = await fetch("https://oauth2.googleapis.com/token", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: new URLSearchParams({
+                      client_id: process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_OAUTH_CLIENT_ID || "",
+                      client_secret: process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_OAUTH_CLIENT_SECRET || "",
+                      code,
+                      grant_type: "authorization_code",
+                      redirect_uri: redirectUri
+                  })
+              });
+              const d: any = await r.json();
+              if (d.access_token) tokenPayload = { accessToken: d.access_token, refreshToken: d.refresh_token };
+          } else if (platform === "linkedin" && process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET && code) {
+              const r = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: new URLSearchParams({
+                      grant_type: "authorization_code",
+                      code,
+                      redirect_uri: redirectUri,
+                      client_id: process.env.LINKEDIN_CLIENT_ID,
+                      client_secret: process.env.LINKEDIN_CLIENT_SECRET
+                  })
+              });
+              const d: any = await r.json();
+              if (d.access_token) tokenPayload = { accessToken: d.access_token };
+          } else if (platform === "x" && process.env.X_CLIENT_ID && code) {
+              const r = await fetch("https://api.twitter.com/2/oauth2/token", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: new URLSearchParams({
+                      code,
+                      grant_type: "authorization_code",
+                      client_id: process.env.X_CLIENT_ID,
+                      redirect_uri: redirectUri,
+                      code_verifier: "challenge"
+                  })
+              });
+              const d: any = await r.json();
+              if (d.access_token) tokenPayload = { accessToken: d.access_token, refreshToken: d.refresh_token };
+          }
+
+          saveSocialOAuthToken(brandId, platform, tokenPayload);
+          res.send(`<html dir="rtl"><body style="background:#020617;color:#fff;font-family:sans-serif;padding:40px;text-align:center;"><h2>✅ تم ربط ${platform.toUpperCase()} بنجاح!</h2><script>if(window.opener){window.opener.postMessage({type:'SOCIAL_OAUTH_SUCCESS',platform:'${platform}',brandId:'${brandId}'},'*');}setTimeout(()=>window.close(),1500);</script></body></html>`);
+      } catch (err: any) {
+          res.status(500).send(err?.message || "OAuth callback failed");
+      }
+  });
+
+  app.post("/api/social/publish", async (req, res) => {
+      try {
+          const { publishToOmniPlatform } = await import("./services/omniSocialPublisher");
+          const { platform, brandId, text, mediaUrl } = req.body || {};
+          if (!platform || !brandId || !text) {
+              return res.status(400).json({ ok: false, error: "platform, brandId, and text are required" });
+          }
+          const result = await publishToOmniPlatform({ platform, brandId, text, mediaUrl });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Publish failed" });
+      }
+  });
+
   // --- JARVIS SWARM ORCHESTRATOR & CLOUD-FIRST MEMORY ENDPOINTS --- //
   app.post("/api/swarm/run", async (req, res) => {
       try {
