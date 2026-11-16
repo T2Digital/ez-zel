@@ -51,7 +51,7 @@ const TerminalEffect = () => {
     }, [currentText, currentLineIndex]);
 
     return (
-        <div className="bg-black/60 backdrop-blur-xl rounded-[20px] border border-white/10 p-4 font-mono text-left w-full h-[180px] flex flex-col relative overflow-hidden shadow-inner" dir="ltr">
+        <div className="bg-black/35 backdrop-blur-sm rounded-[20px] border border-white/10 p-4 font-mono text-left w-full h-[180px] flex flex-col relative overflow-hidden shadow-inner" dir="ltr">
             <div className="absolute top-2 left-3 flex gap-1.5 z-10">
                 <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
                 <div className="w-2 h-2 rounded-full bg-amber-500/50"></div>
@@ -212,7 +212,7 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
 
         {/* SINGLE UNIFIED GLASS TERMINAL CARD (Header + Jarvis Orb + Terminal + Tiers + Actions) */}
         <div className="flex-1 flex flex-col items-center justify-center relative py-2">
-            <div className="relative w-full glass p-5 pt-6 rounded-[32px] border border-cyan-500/20 bg-black/55 shadow-[0_24px_80px_rgba(0,0,0,0.75)] backdrop-blur-2xl group hover:border-cyan-400/35 transition-colors">
+            <div className="relative w-full p-5 pt-6 rounded-[32px] border border-cyan-500/25 bg-black/20 shadow-xl backdrop-blur-sm group hover:border-cyan-400/40 transition-colors">
 
                 {/* 1. HEADER INSIDE TERMINAL CARD */}
                 <div className="flex flex-col items-center justify-center mb-3">

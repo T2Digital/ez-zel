@@ -1473,7 +1473,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }`} dir="rtl">
       
       {/* Deep Blue-Black Fiber-Optic Second Brain OS Container with Dominant Space Canvas */}
-      <div className={`relative w-full bg-[#01030b]/80 backdrop-blur-2xl border border-cyan-500/40 shadow-[0_0_120px_rgba(0,240,255,0.28)] flex flex-col overflow-hidden transition-all duration-300 ${
+      <div className={`relative w-full bg-[#01030b]/45 backdrop-blur-md border border-cyan-500/40 shadow-[0_0_60px_rgba(0,240,255,0.2)] flex flex-col overflow-hidden transition-all duration-300 ${
         isFullscreen ? 'h-[100dvh] rounded-none border-0' : 'max-w-[1560px] h-[95dvh] rounded-[36px]'
       }`}>
 
