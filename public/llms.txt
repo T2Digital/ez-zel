@@ -1,8 +1,8 @@
-# T2OS — The AI Operating System for Business Growth
-> By T2 Digital (T2 Digital Solutions for Business Development)
+# T2OS — AI-Powered Business OS by T2 Digital
+> منصة بناء وتشغيل الأعمال بالذكاء الاصطناعي — تحت إدارة T2 Digital (T2 Digital Solutions for Business Development)
 
-Slogan (AR): عقل تنفيذي واحد.. يبني تطبيقك، يصنع محتواك، ويقفّل مبيعاتك 24/7
-Slogan (EN): One AI Brain. Apps, Content & Sales on Autopilot.
+Slogan (AR): منصة بناء وتشغيل الأعمال بالذكاء الاصطناعي — تحت إدارة T2 Digital
+Slogan (EN): AI-Powered Business OS by T2 Digital
 
 ## Core Modules
 - T2OS Core (Jarvis / الظل): Voice & text AI executive orchestrator with 5 specialist swarm agents and cloud memory.
