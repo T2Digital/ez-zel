@@ -1196,10 +1196,42 @@ export async function executeRealJarvisEcosystemAction(input: {
             const finalLogoUrl = logoUrl || (cloned as any).logoUrl || siteMeta?.ogImage || '';
 
             const adminPin = normalizedPhone.slice(-6) || String(Math.floor(100000 + Math.random() * 900000));
+            const asciiSlug = String(cloned.slug || cloned.id || 'brand')
+                .toLowerCase()
+                .replace(/[^a-z0-9-]+/g, '-')
+                .replace(/^-+|-+$/g, '') || `brand-${Date.now().toString().slice(-4)}`;
+            const adminEmail = `owner@${asciiSlug}.t2.app`;
+            const adminPassword = `T2@${adminPin}`;
+
+            const industryPalette: Array<{ match: RegExp; primary: string; accent: string }> = [
+                { match: /قطع غيار|سيار|أوتو|اوتو|auto|car/i, primary: '#dc2626', accent: '#111827' },
+                { match: /عياد|أسنان|طب|دكتور|clinic|dental/i, primary: '#0284c7', accent: '#0f172a' },
+                { match: /نظاف|تعقيم|صيان|clean/i, primary: '#0d9488', accent: '#134e4a' },
+                { match: /أزياء|ملابس|موض|fashion/i, primary: '#db2777', accent: '#18181b' },
+                { match: /عقار|مقاول|real/i, primary: '#b45309', accent: '#1c1917' }
+            ];
+            const matchedColors = industryPalette.find(p => p.match.test(`${industry} ${cloned.name}`));
+            const finalPrimaryColor = (cloned as any).primaryColor || matchedColors?.primary || '#06b6d4';
+            const finalAccentColor = (cloned as any).accentColor || matchedColors?.accent || '#0f172a';
+
+            // Auto-provision Firebase Auth account on Battah / Clean-Master Firebase project if API key is configured
+            const targetFbApiKey = resolvedTemplate === 'products_erp'
+                ? (process.env.BATTAH_FIREBASE_API_KEY || '')
+                : (process.env.CLEAN_MASTER_FIREBASE_API_KEY || '');
+            if (targetFbApiKey) {
+                fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(targetFbApiKey)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: adminEmail, password: adminPassword, returnSecureToken: false })
+                }).catch(() => {});
+            }
+
             const enrichedBrand = persistBrandUpdateAcrossEcosystem(cloned.id, {
                 ...cloned,
                 slogan: finalSlogan,
                 logoUrl: finalLogoUrl,
+                primaryColor: finalPrimaryColor,
+                accentColor: finalAccentColor,
                 productsCatalog: finalCatalog,
                 appTemplate: resolvedTemplate,
                 appMode,
@@ -1210,6 +1242,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                     ...socialLinks
                 },
                 adminPin,
+                adminEmail,
                 weekContentPlan: omniPlan
             } as any);
             await upsertBrandToTitoStudioFirestore(enrichedBrand);
@@ -1255,6 +1288,11 @@ export async function executeRealJarvisEcosystemAction(input: {
                 storeUrl: `/app/${storeSlug}`,
                 flagshipUrl,
                 optionalFlagshipUrl: generatedFlagshipUrl,
+                ownerCredentials: {
+                    email: adminEmail,
+                    password: adminPassword,
+                    pin: adminPin
+                },
                 appTemplate: resolvedTemplate,
                 appMode,
                 studioPostsCount,

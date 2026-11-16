@@ -70,6 +70,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   // Real Provisioned Output & Live Connection Windows
   const [generatedBrand, setGeneratedBrand] = useState<any>(null);
   const [generatedAppUrl, setGeneratedAppUrl] = useState('');
+  const [ownerCredentials, setOwnerCredentials] = useState<{ email: string; password: string; pin?: string } | null>(null);
   const [weekPlan, setWeekPlan] = useState<any[]>([]);
 
   // Existing Business Assets & Omni-Channel Social State
@@ -298,6 +299,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
         const fallbackAppUrl = `${window.location.origin}/app/${data.brand.slug || data.brand.id}`;
         setGeneratedAppUrl(data.flagshipUrl || fallbackAppUrl);
         if (data.optionalFlagshipUrl) setOptionalFlagshipUrl(data.optionalFlagshipUrl);
+        if (data.ownerCredentials) setOwnerCredentials(data.ownerCredentials);
         if (Array.isArray(data.brand.weekContentPlan)) {
           setWeekPlan(data.brand.weekContentPlan);
         }
@@ -800,6 +802,28 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
               )}
             </div>
           </div>
+
+          {ownerCredentials && (
+            <div className="p-2.5 rounded-2xl bg-amber-950/30 border border-amber-500/35 flex flex-wrap items-center justify-between gap-2 text-[10px]">
+              <div className="space-y-0.5">
+                <div className="font-black text-amber-300">🔐 بيانات دخول لوحة الإدارة الخاصة بتطبيقك (PWA):</div>
+                <div className="font-mono text-white/90" dir="ltr">
+                  Email: <span className="text-cyan-300">{ownerCredentials.email}</span> • Pass: <span className="text-emerald-300">{ownerCredentials.password}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    navigator.clipboard?.writeText(`Email: ${ownerCredentials.email}\nPassword: ${ownerCredentials.password}`);
+                  } catch {}
+                }}
+                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 font-bold"
+              >
+                نسخ البيانات
+              </button>
+            </div>
+          )}
 
           {/* 2. Real Interactive Account Connection Windows (WhatsApp & Meta) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">

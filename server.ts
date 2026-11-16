@@ -1474,6 +1474,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               slogan: brand.slogan || "",
               logoUrl: brand.logoUrl || "",
               primaryColor: brand.primaryColor || "#06b6d4",
+              accentColor: (brand as any).accentColor || "#0f172a",
+              adminEmail: (brand as any).adminEmail || "",
               phone: brand.phone || "",
               whatsapp: wa,
               businessType: brand.businessType || "",
