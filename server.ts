@@ -74,45 +74,18 @@ import { getPersistentFilePath, savePersistentJson, hydrateCriticalStateOnBoot }
 import { registerCommunicationsRoutes } from "./routes/communicationsRoutes";
 import { registerMetaAndAgencyRoutes } from "./routes/metaAndAgencyRoutes";
 import { registerProxyAndSystemRoutes } from "./routes/proxyAndSystemRoutes";
+import { loadGeminiKeysFromEnv, getNextHealthyGeminiKey, createRotatingServerAI, getGeminiKeyPoolStatus } from "./services/geminiKeyPool";
 
 function getCandidateGeminiKeys(): string[] {
-    const rawKeys = [
-        process.env.GEMINI_API_KEY,
-        process.env.GEMINI_API_KEYS,
-        process.env.VITE_GEMINI_API_KEY
-    ].filter(Boolean);
-
-    const keys: string[] = [];
-    for (const raw of rawKeys) {
-        if (!raw) continue;
-        const parts = raw.split(/[,;\n]/).map(k => k.replace(/^["']|["']$/g, '').trim()).filter(Boolean);
-        for (const p of parts) {
-            if (p && !keys.includes(p) && p !== "dummy" && p !== "AIzaSyDummy" && p !== "undefined" && p !== "null" && p.length > 20) {
-                keys.push(p);
-            }
-        }
-    }
-    return keys;
+    return loadGeminiKeysFromEnv();
 }
 
 function getCleanServerGeminiKey(): string {
-    const candidateKeys = getCandidateGeminiKeys();
-    return candidateKeys.length > 0 ? candidateKeys[0] : '';
+    return getNextHealthyGeminiKey();
 }
 
 function getServerAI(): GoogleGenAI {
-    const apiKey = getCleanServerGeminiKey();
-    if (!apiKey) {
-        throw new Error("GEMINI_API_KEY is not configured on the server.");
-    }
-    return new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-            headers: {
-                'User-Agent': 'aistudio-build',
-            }
-        }
-    });
+    return createRotatingServerAI();
 }
 
 process.on('uncaughtException', (err) => {
@@ -480,7 +453,7 @@ async function startServer() {
           const { getUnifiedGrowthBrands } = await import("./services/obsidianVaultService");
           const brands = getUnifiedGrowthBrands();
           const brand = brands.find((b: any) => b.id === brandId || b.slug === brandId) || brands[0];
-          const apiKey = process.env.GEMINI_API_KEY;
+          const apiKey = getCleanServerGeminiKey();
           if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
 
           const ai = new GoogleGenAI({ apiKey });
@@ -1545,6 +1518,10 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   <url><loc>${base}/</loc><lastmod>${today}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
   <url><loc>${base}/pricing</loc><lastmod>${today}</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
 </urlset>`);
+  });
+
+  app.get("/api/system/gemini-pool-status", (_req, res) => {
+      res.json({ ok: true, ...getGeminiKeyPoolStatus() });
   });
 
   // --- JARVIS SWARM ORCHESTRATOR & CLOUD-FIRST MEMORY ENDPOINTS --- //

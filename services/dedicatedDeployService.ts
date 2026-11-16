@@ -1,4 +1,5 @@
 import { getUnifiedGrowthBrands, persistBrandUpdateAcrossEcosystem } from './obsidianVaultService';
+import { getNextHealthyGeminiKey } from './geminiKeyPool';
 
 export interface DedicatedDeployResult {
   ok: boolean;
@@ -157,11 +158,43 @@ export async function provisionDedicatedRepoAndVercel(input: {
     });
 
     let dedicatedLiveUrl = `https://${repoName}.vercel.app`;
+    let vercelProjectId = '';
     if (vercelProjRes.ok) {
       const projData: any = await vercelProjRes.json();
       if (projData?.name) {
         dedicatedLiveUrl = `https://${projData.name}.vercel.app`;
       }
+      vercelProjectId = projData?.id || repoName;
+    }
+
+    // 5. Auto-inject required Environment Variables into the dedicated Vercel project
+    const envTarget = vercelProjectId || repoName;
+    const rotatingGeminiKey = getNextHealthyGeminiKey();
+    const envVarsToInject: Array<{ key: string; value: string }> = [
+      { key: 'VITE_EZZEL_API_URL', value: process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com' },
+      { key: 'VITE_TENANT_BRAND_ID', value: String(brand.slug || brand.id) },
+      ...(rotatingGeminiKey
+        ? [
+            { key: 'VITE_GEMINI_API_KEY', value: rotatingGeminiKey },
+            { key: 'GEMINI_API_KEY', value: rotatingGeminiKey }
+          ]
+        : [])
+    ];
+
+    for (const ev of envVarsToInject) {
+      await fetch(`https://api.vercel.com/v10/projects/${encodeURIComponent(envTarget)}/env?upsert=true`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${vercelToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key: ev.key,
+          value: ev.value,
+          type: 'encrypted',
+          target: ['production', 'preview', 'development']
+        })
+      }).catch(() => {});
     }
 
     persistBrandUpdateAcrossEcosystem(brand.id, {

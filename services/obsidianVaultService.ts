@@ -1172,9 +1172,9 @@ export async function executeRealJarvisEcosystemAction(input: {
 
             // Deep Industry Hydration: generate real domain catalog + scrape existing website metadata in parallel
             const { generateIndustryCatalogWithAI, scrapeWebsiteMetadata } = await import('./industryHydrationService');
-            const { GoogleGenAI } = await import('@google/genai');
-            const geminiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-            const hydrationAi = geminiKey ? new GoogleGenAI({ apiKey: geminiKey }) : null;
+            const { createRotatingServerAI } = await import('./geminiKeyPool');
+            let hydrationAi: any = null;
+            try { hydrationAi = createRotatingServerAI(); } catch {}
 
             const [hydratedCatalog, siteMeta] = await Promise.all([
                 generateIndustryCatalogWithAI({
