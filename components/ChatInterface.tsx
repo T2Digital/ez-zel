@@ -1495,11 +1495,11 @@ ${textContent.substring(0, 10000)}`;
 
       <LiveTelemetryNotifier
         isMasterAdmin={isAdmin}
-        activeBrandId={(userProfile as any)?.linkedBrandId}
+        activeBrandId={(user as any)?.linkedBrandId}
       />
 
       <JarvisExecutiveSummaryDrawer
-        userProfile={userProfile}
+        userProfile={user}
         externalRefreshKey={swarmRefreshKey + messages.length}
         onQuickPrompt={(prompt) => handleSend(prompt)}
       />
