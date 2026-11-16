@@ -155,7 +155,24 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }, 55);
   }, []);
   const [isThinking, setIsThinking] = useState(false);
-  const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'model'; text: string }>>([]);
+  const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'model'; text: string }>>(() => {
+    try {
+      const raw = localStorage.getItem('ezzel_voice_history_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const voiceChatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      if (conversationHistory.length > 0) {
+        localStorage.setItem('ezzel_voice_history_v1', JSON.stringify(conversationHistory.slice(-20)));
+      }
+    } catch {}
+    voiceChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [conversationHistory]);
   const recognitionRef = useRef<any>(null);
   const autoLoopEnabledRef = useRef<boolean>(true);
   const isOpenRef = useRef<boolean>(isOpen);
@@ -957,6 +974,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         transcriptRef.current = text;
         setTranscript(text);
     streamTranscriptWords(text);
+    setConversationHistory(prev => (prev.length === 0 ? [{ role: 'model', text }] : prev));
       };
 
       recognition.onerror = (err: any) => {
@@ -1027,6 +1045,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     setTranscript(text);
     streamTranscriptWords(text);
+    setConversationHistory(prev => (prev.length === 0 ? [{ role: 'model', text }] : prev));
     // Play ONLY 100% Gemini Human TTS voice (Puck 24kHz)
     playShadowVoice(text, 'male', undefined, () => {
       setIsPlayingVoice(false);
@@ -1725,6 +1744,45 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               handlePlayPersonaGreeting={handlePlayPersonaGreeting}
               setIsPlayingVoice={setIsPlayingVoice}
             />
+
+            {/* LIVE VOICE & TEXT CONVERSATION TRANSCRIPT FEED */}
+            {conversationHistory.length > 0 && (
+              <div className="w-full max-w-2xl rounded-2xl bg-[#030a1c]/80 border border-cyan-500/25 p-3 space-y-2 max-h-56 overflow-y-auto overscroll-contain font-['Cairo']" dir="rtl">
+                <div className="flex items-center justify-between text-[10px] text-cyan-300/80 font-bold pb-1 border-b border-white/10">
+                  <span>💬 محتوى المحادثة الصوتية والنصية الحية ({conversationHistory.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConversationHistory([]);
+                      try { localStorage.removeItem('ezzel_voice_history_v1'); } catch {}
+                    }}
+                    className="text-white/40 hover:text-rose-300 transition"
+                  >
+                    مسح السجل
+                  </button>
+                </div>
+                {conversationHistory.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex flex-col ${item.role === 'user' ? 'items-start' : 'items-end'}`}
+                  >
+                    <div
+                      className={`max-w-[88%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
+                        item.role === 'user'
+                          ? 'bg-cyan-500/20 border border-cyan-400/35 text-white rounded-tr-sm'
+                          : 'bg-emerald-950/50 border border-emerald-500/30 text-emerald-100 rounded-tl-sm'
+                      }`}
+                    >
+                      <span className="block text-[9px] font-black mb-0.5 opacity-70">
+                        {item.role === 'user' ? `🎤 ${visitorName || 'أنت'}` : '⚡ جارفيس'}
+                      </span>
+                      {item.text}
+                    </div>
+                  </div>
+                ))}
+                <div ref={voiceChatEndRef} />
+              </div>
+            )}
 
             {/* DYNAMIC JARVIS STAGE: Neural Constellation is the sole default stage; dynamic views appear on demand */}
             {persona !== 'visitor' ? (
