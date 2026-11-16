@@ -9,19 +9,38 @@ interface VisitorIntelligenceOnboardingProps {
   onComplete?: (brandData: any) => void;
   onSwitchToAdmin?: () => void;
   isMasterAdmin?: boolean;
+  initialBusinessName?: string;
+  initialIndustry?: string;
+  initialHasExistingBusiness?: boolean | null;
 }
 
 export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardingProps> = ({
   onComplete,
   onSwitchToAdmin,
-  isMasterAdmin = false
+  isMasterAdmin = false,
+  initialBusinessName = '',
+  initialIndustry = '',
+  initialHasExistingBusiness = null
 }) => {
-  const [step, setStep] = useState<number>(1);
-  const [hasExistingBusiness, setHasExistingBusiness] = useState<boolean | null>(null);
+  const [step, setStep] = useState<number>(() => (initialHasExistingBusiness === true ? 4 : initialHasExistingBusiness === false ? 2 : 1));
+  const [hasExistingBusiness, setHasExistingBusiness] = useState<boolean | null>(initialHasExistingBusiness);
 
   // Form & AI Generation State
-  const [industry, setIndustry] = useState('');
-  const [brandName, setBrandName] = useState('');
+  const [industry, setIndustry] = useState(initialIndustry);
+  const [brandName, setBrandName] = useState(initialBusinessName);
+
+  useEffect(() => {
+    if (initialBusinessName && initialBusinessName.trim()) {
+      setBrandName(initialBusinessName.trim());
+    }
+    if (initialIndustry && initialIndustry.trim()) {
+      setIndustry(initialIndustry.trim());
+    }
+    if (initialHasExistingBusiness === true) {
+      setHasExistingBusiness(true);
+      setStep(4);
+    }
+  }, [initialBusinessName, initialIndustry, initialHasExistingBusiness]);
   const [salesChannel, setSalesChannel] = useState('');
   const [phone, setPhone] = useState('01013373634');
   const [websiteUrl, setWebsiteUrl] = useState('');

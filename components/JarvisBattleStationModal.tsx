@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { playShadowVoice, stopVoice, speakBrowserNaturalVoice } from '../services/speechService';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
+import { JarvisExecutiveSummaryDrawer } from './chat/JarvisExecutiveSummaryDrawer';
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
 import SpaceCanvas from './SpaceCanvas';
 import { ObsidianHolographicConstellation } from './ObsidianHolographicConstellation';
@@ -117,6 +118,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [voiceSocketState, setVoiceSocketState] = useState<VoiceSocketState>('disconnected');
   const [transcript, setTranscript] = useState('');
   const transcriptRef = useRef<string>('');
+  const [detectedVisitorBrand, setDetectedVisitorBrand] = useState<{
+    businessName?: string;
+    industry?: string;
+    hasExistingBusiness?: boolean | null;
+  }>({});
   const [isThinking, setIsThinking] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'model'; text: string }>>([]);
   const recognitionRef = useRef<any>(null);
@@ -910,7 +916,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setIsListening(true);
         setHasMicPermission(true);
         transcriptRef.current = '';
-        setTranscript('أنا سامعك يا ماستر.. اتفضل اتكلم');
+        setTranscript(isMasterAdmin ? 'أنا سامعك يا ماستر.. اتفضل اتكلم' : 'أهلاً بيك في منظومة الظل — أنا سامعك، اتفضل اتكلم');
       };
 
       recognition.onresult = (event: any) => {
@@ -929,7 +935,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       recognition.onend = () => {
         setIsListening(false);
         const finalRecorded = transcriptRef.current;
-        if (finalRecorded && finalRecorded !== 'أنا سامعك يا ماستر.. اتفضل اتكلم' && finalRecorded.trim().length > 0) {
+        if (finalRecorded && !finalRecorded.includes('اتفضل اتكلم') && finalRecorded.trim().length > 0) {
           handleSendLiveCommand(finalRecorded);
         }
       };
@@ -1175,8 +1181,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       });
       const data = await res.json();
       setIsThinking(false);
+      if (data.action?.type === 'VISITOR_EXISTING_BUSINESS_DETECTED' && data.action.businessName) {
+        setDetectedVisitorBrand({
+          businessName: data.action.businessName,
+          hasExistingBusiness: true
+        });
+      }
       if (data.success && data.replyText) {
-        setTranscript(data.replyText);
+        const cleanReply = isMasterAdmin
+          ? data.replyText
+          : String(data.replyText)
+              .replace(/[a-z_][a-z0-9_]*\s*\([^)]*\)/gi, '')
+              .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر/gi, 'يا فندم')
+              .replace(/\bBattah\b|بطاح/gi, 'منصة المتاجر والمخازن المتكاملة')
+              .replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, 'منصة الخدمات والحجوزات الذكية')
+              .trim();
+        setTranscript(cleanReply);
         setConversationHistory(prev => [
           ...prev.slice(-8),
           { role: 'user', text: commandText },
@@ -1421,9 +1441,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             </div>
 
             <div className="hidden sm:flex items-center gap-2 text-[11px] font-['Cairo'] border-r border-white/10 pr-3">
-              <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/25 text-cyan-200 font-bold">
-                {allBrandsList.length || realStats.totalVaultBrandsCount || 0} براند متصل
-              </span>
+              {isMasterAdmin ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/25 text-cyan-200 font-bold">
+                  {allBrandsList.length || realStats.totalVaultBrandsCount || 0} براند متصل
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-bold">
+                  تجربة مجانية 7 أيام
+                </span>
+              )}
             </div>
           </div>
 
@@ -1431,59 +1457,71 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           <div className="flex items-center gap-2">
             <Cpu className="w-4 h-4 text-cyan-400" />
             <h1 className="text-xs md:text-sm font-black tracking-wider text-white/95 font-['Cairo']">
-              جارفس <span className="text-cyan-400">//</span> العقل التنفيذي الموحد
+              جارفس <span className="text-cyan-400">//</span> {isMasterAdmin ? 'العقل التنفيذي الموحد' : 'المستشار التنفيذي لأعمالك'}
             </h1>
           </div>
 
-          {/* Right: Sleek Unified Glass Action Buttons */}
+          {/* Right: Role-Separated Action Buttons */}
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => {
-                handleInspectObsidianNode(currentSelectedBrand.id);
-                setIsBrandSuperWindowOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-cyan-500/15 text-slate-100 border border-white/10 hover:border-cyan-400/40 font-bold text-xs transition-all cursor-pointer"
-            >
-              <Layers className="w-3.5 h-3.5 text-cyan-300" />
-              <span>شاشة البراند</span>
-            </button>
+            {isMasterAdmin ? (
+              <>
+                <button
+                  onClick={() => {
+                    handleInspectObsidianNode(currentSelectedBrand.id);
+                    setIsBrandSuperWindowOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-cyan-500/15 text-slate-100 border border-white/10 hover:border-cyan-400/40 font-bold text-xs transition-all cursor-pointer"
+                >
+                  <Layers className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>شاشة البراند</span>
+                </button>
 
-            <button
-              onClick={() => setIsExecutiveOpen(!isExecutiveOpen)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
-                isExecutiveOpen
-                  ? 'bg-cyan-400 text-slate-950 border-cyan-300'
-                  : 'bg-white/[0.06] hover:bg-cyan-500/15 text-slate-100 border-white/10 hover:border-cyan-400/40'
-              }`}
-            >
-              <Zap className="w-3.5 h-3.5 text-cyan-300" />
-              <span>المتصفح التنفيذي</span>
-            </button>
+                <button
+                  onClick={() => setIsExecutiveOpen(!isExecutiveOpen)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
+                    isExecutiveOpen
+                      ? 'bg-cyan-400 text-slate-950 border-cyan-300'
+                      : 'bg-white/[0.06] hover:bg-cyan-500/15 text-slate-100 border-white/10 hover:border-cyan-400/40'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>المتصفح التنفيذي</span>
+                </button>
 
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch('/api/system/ecosystem-health');
-                  const json = await res.json();
-                  if (json.ok) {
-                    setActiveDynamicWidget({ widgetType: 'ecosystem_health', data: json });
-                  }
-                } catch {}
-              }}
-              title="فحص وربط المنصات الثلاث (الظل + تيتو ستوديو + تيتو أجنت)"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-emerald-500/15 text-emerald-300 border border-white/10 hover:border-emerald-400/40 font-bold text-xs transition-all cursor-pointer"
-            >
-              <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>رادار الربط</span>
-            </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/system/ecosystem-health');
+                      const json = await res.json();
+                      if (json.ok) {
+                        setActiveDynamicWidget({ widgetType: 'ecosystem_health', data: json });
+                      }
+                    } catch {}
+                  }}
+                  title="فحص وربط المنصات الثلاث (الظل + تيتو ستوديو + تيتو أجنت)"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-emerald-500/15 text-emerald-300 border border-white/10 hover:border-emerald-400/40 font-bold text-xs transition-all cursor-pointer"
+                >
+                  <Radio className="w-3.5 h-3.5 animate-pulse" />
+                  <span>رادار الربط</span>
+                </button>
 
-            <button
-              onClick={() => setIsOnboardingOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs transition-all cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>براند جديد</span>
-            </button>
+                <button
+                  onClick={() => setIsOnboardingOpen(true)}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>براند جديد</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsOnboardingOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-black text-xs transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>تجهيز براندك الآن</span>
+              </button>
+            )}
 
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
@@ -1648,10 +1686,24 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
+            {/* SWARM & EXECUTIVE SERVICES SUMMARY DRAWER (Unified in BattleStation + Chat) */}
+            <div className="w-full max-w-4xl">
+              <JarvisExecutiveSummaryDrawer
+                userProfile={{
+                  role: isMasterAdmin ? 'master' : 'visitor',
+                  linkedBrandId: currentSelectedBrand?.id !== 'clean_master' ? currentSelectedBrand?.id : undefined
+                }}
+                onQuickPrompt={(prompt) => handleSendToJarvis(prompt)}
+              />
+            </div>
+
             {/* VISITOR INTELLIGENCE ONBOARDING (When Persona === 'visitor') */}
             {persona === 'visitor' ? (
               <VisitorIntelligenceOnboarding 
                 isMasterAdmin={isMasterAdmin}
+                initialBusinessName={detectedVisitorBrand.businessName}
+                initialIndustry={detectedVisitorBrand.industry}
+                initialHasExistingBusiness={detectedVisitorBrand.hasExistingBusiness}
                 onSwitchToAdmin={isMasterAdmin ? () => setPersona('tito') : undefined}
                 onComplete={() => {
                   fetchDatabaseStats();
