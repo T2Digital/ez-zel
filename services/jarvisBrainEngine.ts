@@ -645,10 +645,21 @@ export async function runJarvisBrainConversation(
     recentChatSummary
   );
 
+  const hasPriorTurns = Array.isArray(history) && history.length > 0;
+  const allUserTexts = [
+    ...(Array.isArray(history) ? history.filter((h: any) => h.role === "user").map((h: any) => String(h.text || "")) : []),
+    message,
+  ].join("\n");
+
+  const nameMatch = allUserTexts.match(
+    /(?:أنا\s+اسمي|اسمي|معاك|كلمني\s+يا|ناديني\s+يا|أنا\s+الاستاذ|أنا\s+المهندس|أنا\s+دكتور)\s+([^\s،,.!?\n]{2,20})/i
+  );
+  const detectedVisitorName = nameMatch ? nameMatch[1].trim() : "";
+
   const formattedHistory =
-    Array.isArray(history) && history.length > 0
+    hasPriorTurns
       ? history
-          .slice(-6)
+          .slice(-8)
           .map(
             (h: any) =>
               `${h.role === "user" ? "المتحدث" : "جارفيس"}: "${h.text}"`
@@ -656,7 +667,21 @@ export async function runJarvisBrainConversation(
           .join("\n")
       : "";
 
+  const conversationMemoryDirective = [
+    detectedVisitorName
+      ? `اسم المتحدث الحالي: "${detectedVisitorName}" — نادِه دائماً باسمه ("يا ${detectedVisitorName}") في ردودك.`
+      : `إذا لم تعرف اسم المتحدث بعد في أول حوار، اسأله بلطف مرة واحدة تحب أناديك بإيه.`,
+    hasPriorTurns
+      ? `ممنوع منعاً باتاً إعادة تقديم نفسك أو قول "أهلاً بيك أنا جارفيس" أو "مرحباً بك" لأن الحوار مستمر بالفعل — ادخل في الإجابة أو التنفيذ مباشرة!`
+      : ``,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   const fullPrompt = `${systemPrompt}
+
+[توجيه الذاكرة الشخصية اللحظي]:
+${conversationMemoryDirective}
 
 ${
   formattedHistory
@@ -1556,9 +1581,15 @@ ${
 
   if (persona !== "tito") {
     replyText = replyText
-      .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر/gi, "يا فندم")
+      .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر/gi, detectedVisitorName ? `يا ${detectedVisitorName}` : "يا فندم")
       .replace(/\bBattah\b|بطاح/gi, "منصة المتاجر والمخازن المتكاملة")
       .replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, "منصة الخدمات والحجوزات الذكية");
+
+    if (hasPriorTurns) {
+      replyText = replyText
+        .replace(/^(?:أهلاً|اهلا|مرحباً|مرحبا|يا هلا)\s+(?:بيك|بك|بحضرتك)[^.!؟\n]{0,65}(?:أنا\s*جارفيس|أنا\s*جارفز|منظومة\s*T2|النمو\s*الشامل)[^.!؟\n]*[.!؟،]?\s*/i, "")
+        .trim();
+    }
   }
 
   // Detect existing business name mentioned by visitor to auto-sync onboarding card
