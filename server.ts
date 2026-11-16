@@ -894,6 +894,10 @@ async function startServer() {
                   brandId,
                   payload: { planId, orderId }
               });
+              // Auto-provision dedicated GitHub repo + Vercel deployment for paid subscriber
+              import("./services/dedicatedDeployService")
+                  .then(({ provisionDedicatedRepoAndVercel }) => provisionDedicatedRepoAndVercel({ brandId }))
+                  .catch(() => {});
           }
           res.json({ ok: true, activated: isSuccess, brandId, orderId });
       } catch (err: any) {
@@ -1287,6 +1291,129 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           }
       } catch {}
   }, 45000);
+
+  // --- REAL-TIME LIVE TELEMETRY WEBHOOKS (META + BATTAH + CLEAN-MASTER + T2 AGENT WHATSAPP) --- //
+  app.get("/api/webhooks/meta", (req, res) => {
+      const mode = req.query["hub.mode"];
+      const token = req.query["hub.verify_token"];
+      const challenge = req.query["hub.challenge"];
+      const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN || "ezzel_t2_meta_verify";
+      if (mode === "subscribe" && token === verifyToken) {
+          return res.status(200).send(String(challenge || ""));
+      }
+      return res.sendStatus(403);
+  });
+
+  app.post("/api/webhooks/meta", async (req, res) => {
+      try {
+          const { recordLiveEvent } = await import("./services/liveTelemetryService");
+          const body = req.body || {};
+          const entries = Array.isArray(body.entry) ? body.entry : [];
+          for (const entry of entries) {
+              const pageId = String(entry.id || "");
+              const changes = Array.isArray(entry.changes) ? entry.changes : [];
+              for (const ch of changes) {
+                  const val = ch.value || {};
+                  const item = String(val.item || ch.field || "feed");
+                  const verb = String(val.verb || "add");
+                  const isLike = item === "reaction" || item === "like";
+                  const isComment = item === "comment";
+                  const isLead = ch.field === "leadgen";
+                  const eventType = isLead
+                      ? "meta_lead"
+                      : isLike
+                      ? "meta_like"
+                      : isComment
+                      ? "meta_comment"
+                      : "meta_message";
+                  const ev = recordLiveEvent({
+                      source: "meta_webhook",
+                      eventType,
+                      brandId: String(req.query.brandId || pageId || "clean_master"),
+                      customerName: val.from?.name || val.sender_name || "متفاعل سوشيال",
+                      summary: isComment
+                          ? `تعليق جديد على فيسبوك/إنستجرام: "${String(val.message || "").slice(0, 80)}"`
+                          : isLike
+                          ? `تفاعل/إعجاب جديد (${verb}) على منشور الصفحة`
+                          : isLead
+                          ? `عميل محتمل جديد (Lead) من إعلانات ميتا`
+                          : `حدث سوشيال جديد (${item}) عبر Meta Webhook`,
+                      raw: { pageId, field: ch.field, val }
+                  });
+                  broadcastGatewayEvent("LIVE_TELEMETRY_EVENT", ev);
+              }
+              const messaging = Array.isArray(entry.messaging) ? entry.messaging : [];
+              for (const m of messaging) {
+                  const ev = recordLiveEvent({
+                      source: "meta_webhook",
+                      eventType: "meta_message",
+                      brandId: String(req.query.brandId || pageId || "clean_master"),
+                      customerName: m.sender?.id || "عميل ماسنجر",
+                      summary: `رسالة جديدة على الصفحة: "${String(m.message?.text || "[مرفق]").slice(0, 80)}"`,
+                      raw: { pageId, messaging: m }
+                  });
+                  broadcastGatewayEvent("LIVE_TELEMETRY_EVENT", ev);
+              }
+          }
+          res.status(200).json({ ok: true });
+      } catch (err: any) {
+          res.status(200).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.options("/api/webhooks/tenant-event", (_req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.sendStatus(204);
+  });
+
+  app.post("/api/webhooks/tenant-event", async (req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      try {
+          const { recordLiveEvent } = await import("./services/liveTelemetryService");
+          const { source, eventType, brandId, customerName, customerPhone, amountEgp, summary, raw } = req.body || {};
+          if (!eventType) {
+              return res.status(400).json({ ok: false, error: "eventType is required" });
+          }
+          const ev = recordLiveEvent({
+              source: source || "battah",
+              eventType,
+              brandId: String(brandId || "clean_master"),
+              customerName,
+              customerPhone,
+              amountEgp: Number(amountEgp || 0),
+              summary: summary || `${eventType} (${customerName || customerPhone || "عميل"})`,
+              raw
+          });
+          broadcastGatewayEvent("LIVE_TELEMETRY_EVENT", ev);
+          res.json({ ok: true, event: ev });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed to record tenant event" });
+      }
+  });
+
+  app.get("/api/telemetry/live", async (req, res) => {
+      try {
+          const { getLiveTelemetrySummary } = await import("./services/liveTelemetryService");
+          const brandId = req.query.brandId ? String(req.query.brandId) : undefined;
+          res.json({ ok: true, ...getLiveTelemetrySummary(brandId) });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/deploy/dedicated-tenant", async (req, res) => {
+      try {
+          const { provisionDedicatedRepoAndVercel } = await import("./services/dedicatedDeployService");
+          const { brandId, appTemplate } = req.body || {};
+          if (!brandId) return res.status(400).json({ ok: false, error: "brandId is required" });
+          const result = await provisionDedicatedRepoAndVercel({ brandId: String(brandId), appTemplate });
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Dedicated deploy failed" });
+      }
+  });
 
   // --- JARVIS SWARM ORCHESTRATOR & CLOUD-FIRST MEMORY ENDPOINTS --- //
   app.post("/api/swarm/run", async (req, res) => {

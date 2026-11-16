@@ -1,5 +1,6 @@
 import { getEzZelPersonalClients, getUnifiedGrowthBrands } from './obsidianVaultService';
 import { mirrorStateToFirestore, restoreStateFromFirestore } from './persistentStorage';
+import { getLiveTelemetrySummary } from './liveTelemetryService';
 
 export type SwarmRole = 'MASTER_ADMIN' | 'BRAND_OWNER' | 'VISITOR';
 
@@ -154,6 +155,7 @@ export async function runJarvisSwarm(input: {
     : undefined;
 
   const trialDaysLeft = computeTrialDaysLeft(linkedClient?.trialEndsAt);
+  const telemetry = getLiveTelemetrySummary(role === 'MASTER_ADMIN' ? undefined : targetBrand?.id);
 
   // Execute all 5 specialist agents concurrently
   const [brandAgent, appAgent, socialAgent, waAgent, cfoAgent] = await Promise.all([
@@ -163,7 +165,7 @@ export async function runJarvisSwarm(input: {
       roleTitle: 'Brand Architect',
       status: targetBrand ? 'done' : 'needs_action',
       summary: targetBrand
-        ? `هوية "${targetBrand.name}" معتمدة${(targetBrand as any).slogan ? ` (${(targetBrand as any).slogan})` : ''}.`
+        ? `هوية "${targetBrand.name}" معتمدة${(targetBrand as any).slogan ? ` (${(targetBrand as any).slogan})` : ''}${(targetBrand as any).dedicatedLiveUrl ? ` • رابط مستقل: ${(targetBrand as any).dedicatedLiveUrl}` : ''}.`
         : 'جاهز لابتكار الاسم والسلوجان واللوجو أو استيعاب هويتك الحالية.',
       metric: targetBrand?.businessType || 'بانتظار تحديد النشاط'
     }),
@@ -173,32 +175,30 @@ export async function runJarvisSwarm(input: {
       roleTitle: 'App Provisioner',
       status: resolvedAppUrl ? 'done' : 'needs_action',
       summary: resolvedAppUrl
-        ? `التطبيق مفعّل ويعمل بالهوية المعزولة (${(targetBrand as any)?.appTemplate === 'products_erp' ? 'متجر + ERP/POS' : 'خدمات + حجوزات'}).`
+        ? `التطبيق مفعّل (${(targetBrand as any)?.appTemplate === 'products_erp' ? 'متجر + ERP/POS' : 'خدمات + حجوزات'}). طلبات/حجوزات لايف: ${telemetry.orders + telemetry.bookings}.`
         : 'جاهز لتفعيل نسخة تطبيق بطاح أو كلين ماستر أو ربط موقعك الحالي.',
-      metric: `${Array.isArray(targetBrand?.productsCatalog) ? targetBrand.productsCatalog.length : 0} عنصر بالكتالوج`,
+      metric: `${telemetry.orders} طلب | ${telemetry.bookings} حجز`,
       actionLabel: resolvedAppUrl ? 'فتح التطبيق' : undefined,
-      actionUrl: resolvedAppUrl
+      actionUrl: (targetBrand as any)?.dedicatedLiveUrl || resolvedAppUrl
     }),
     Promise.resolve<SwarmAgentReport>({
       id: 'social_studio',
       name: 'وكيل السوشيال والمحتوى',
       roleTitle: 'Omni-Social Studio',
-      status: connectedSocials.length > 0 || studioPostsCount > 0 ? 'active' : 'pending',
+      status: connectedSocials.length > 0 || studioPostsCount > 0 || telemetry.socialInteractions > 0 ? 'active' : 'pending',
       summary:
-        connectedSocials.length > 0
-          ? `مربوط بـ ${connectedSocials.length} من 8 منصات (${connectedSocials.join('، ')}) مع ${studioPostsCount} منشور في تيتو ستوديو.`
-          : `خطة تيتو ستوديو تحتوي ${studioPostsCount} منشور — بانتظار ربط حسابات السوشيال.`,
-      metric: `${connectedSocials.length}/8 منصات`
+        `مربوط بـ ${connectedSocials.length}/8 منصات • ${studioPostsCount} منشور ستوديو • ${telemetry.socialInteractions} تفاعل لايف (لايك/كومنت/رسالة).`,
+      metric: `${connectedSocials.length}/8 منصات | ${telemetry.socialInteractions} تفاعل`
     }),
     Promise.resolve<SwarmAgentReport>({
       id: 'whatsapp_sales',
       name: 'وكيل الواتساب والمبيعات',
       roleTitle: 'T2 WhatsApp Agent',
-      status: (targetBrand as any)?.whatsappConnected || targetBrand?.phone ? 'active' : 'pending',
+      status: (targetBrand as any)?.whatsappConnected || targetBrand?.phone || telemetry.whatsappMessages > 0 ? 'active' : 'pending',
       summary: targetBrand?.phone
-        ? `رقم الواتساب (${targetBrand.phone}) مهيأ للرد الآلي واستقبال الطلبات عبر T2 Agent.`
-        : 'بانتظار ربط رقم الواتساب عبر QR أو كود الربط.',
-      metric: targetBrand?.phone || 'غير مربوط'
+        ? `واتساب (${targetBrand.phone}): ${telemetry.whatsappMessages} رسالة واردة، و${telemetry.whatsappConfirmed} حجز/بيع مؤكد عبر الواتساب.`
+        : `رسائل واتساب لايف: ${telemetry.whatsappMessages} | حجوزات مؤكدة: ${telemetry.whatsappConfirmed}.`,
+      metric: `${telemetry.whatsappMessages} رسالة | ${telemetry.whatsappConfirmed} مؤكد`
     }),
     Promise.resolve<SwarmAgentReport>(
       role === 'MASTER_ADMIN'
@@ -207,8 +207,8 @@ export async function runJarvisSwarm(input: {
             name: 'الوكيل المالي والتنفيذي',
             roleTitle: 'Master Executive CFO',
             status: 'done',
-            summary: `إجمالي البراندات الموحدة: ${brands.length} براند | مشتركو الظل: ${clients.length} | تجارب نشطة: ${clients.filter((c: any) => c.status === 'trial').length}.`,
-            metric: `${brands.length} براند | ${clients.length} مشترك`
+            summary: `${brands.length} براند | ${clients.length} مشترك (${clients.filter((c: any) => c.status === 'trial').length} تجربة) | إيراد لايف: ${telemetry.totalRevenueEgp} ج.م | ${telemetry.totalEvents} حدث حي.`,
+            metric: `${telemetry.totalRevenueEgp} ج.م | ${telemetry.orders + telemetry.bookings} عملية`
           }
         : {
             id: 'executive_cfo',
@@ -216,9 +216,9 @@ export async function runJarvisSwarm(input: {
             roleTitle: 'Growth & Plan Agent',
             status: linkedClient ? 'active' : 'pending',
             summary: linkedClient
-              ? `الحالة: ${linkedClient.plan || linkedClient.status}${trialDaysLeft !== null ? ` — متبقي ${trialDaysLeft} يوم في التجربة` : ''}.`
+              ? `الباقة: ${linkedClient.plan || linkedClient.status}${trialDaysLeft !== null ? ` (متبقي ${trialDaysLeft} يوم)` : ''} • إيراد لايف: ${telemetry.totalRevenueEgp} ج.م.`
               : 'مؤهل لتفعيل تجربة مجانية كاملة لمدة 7 أيام بدون التزام.',
-            metric: trialDaysLeft !== null ? `${trialDaysLeft} يوم متبقي` : (linkedClient?.status || 'زائر')
+            metric: trialDaysLeft !== null ? `${trialDaysLeft} يوم | ${telemetry.totalRevenueEgp} ج.م` : `${telemetry.totalRevenueEgp} ج.م`
           }
     )
   ]);

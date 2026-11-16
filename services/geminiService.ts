@@ -496,7 +496,7 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
             const inferredRole = isMasterRole ? 'MASTER_ADMIN' : (userProfile?.linkedBrandId ? 'BRAND_OWNER' : 'VISITOR');
             const scopeKey = userProfile?.linkedBrandId || userProfile?.email || 'guest';
 
-            const [swarmRes, cloudMemRes, obsRes, finRes] = await Promise.all([
+            const [swarmRes, cloudMemRes, liveTelRes, obsRes, finRes] = await Promise.all([
                 fetch('/api/swarm/run', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -508,9 +508,19 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                     })
                 }).then(r => r.json()).catch(() => null),
                 fetch(`/api/memory/context?scopeKey=${encodeURIComponent(scopeKey)}`).then(r => r.json()).catch(() => null),
+                fetch(`/api/telemetry/live${!isMasterRole && userProfile?.linkedBrandId ? `?brandId=${encodeURIComponent(userProfile.linkedBrandId)}` : ''}`).then(r => r.json()).catch(() => null),
                 isMasterRole ? fetch('/api/obsidian/graph').then(r => r.json()).catch(() => null) : Promise.resolve(null),
                 isMasterRole ? fetch('/api/system/real-financials').then(r => r.json()).catch(() => null) : Promise.resolve(null)
             ]);
+
+            const liveEventsLines = Array.isArray(liveTelRes?.latestEvents) && liveTelRes.latestEvents.length > 0
+                ? liveTelRes.latestEvents.slice(0, 6).map((ev: any) => `  • [${ev.source}] ${ev.summary}${ev.amountEgp ? ` (${ev.amountEgp} ج.م)` : ''} — ${ev.timestamp}`).join('\n')
+                : '  • لا توجد أحداث لحظية مسجلة بعد.';
+            const liveTelemetryBlock = liveTelRes?.ok
+                ? `- الأحداث الحية اللحظية (Live Telemetry):
+  * طلبات/مبيعات: ${liveTelRes.orders} | حجوزات: ${liveTelRes.bookings} | رسائل واتساب: ${liveTelRes.whatsappMessages} | حجوزات/مبيعات واتساب مؤكدة: ${liveTelRes.whatsappConfirmed} | تفاعلات سوشيال (لايك/كومنت/رسائل): ${liveTelRes.socialInteractions} | إيراد لايف: ${liveTelRes.totalRevenueEgp} ج.م
+${liveEventsLines}`
+                : '';
 
             if (swarmRes?.ok) {
                 liveSwarmSnapshot = swarmRes;
@@ -542,6 +552,7 @@ ${brandsSummary}
 - مشتركو الظل:
 ${ezzelSubs}
 - الحجوزات المؤكدة: ${bookingsCount} حجز | الإيرادات المؤكدة: ${revenueEgp} ج.م.
+${liveTelemetryBlock}
 ${cloudSummary ? `- ملخص الذاكرة السحابية: ${cloudSummary}` : ''}
 ${cloudFacts ? `- حقائق محفوظة: ${cloudFacts}` : ''}
 `;
@@ -551,6 +562,7 @@ ${cloudFacts ? `- حقائق محفوظة: ${cloudFacts}` : ''}
 - الدور: ${inferredRole === 'BRAND_OWNER' ? 'صاحب براند' : 'زائر'}
 - سرب الوكلاء الخاص بك:
 ${swarmAgentsLine}
+${liveTelemetryBlock}
 ${cloudSummary ? `- ملخص الذاكرة السحابية: ${cloudSummary}` : ''}
 ${cloudFacts ? `- حقائق محفوظة عن نشاطك: ${cloudFacts}` : ''}
 - توجيه: أجب بوضوح وتركيز على مصلحة العميل أو الزائر فقط، واستخدم بيانات السرب الحية أعلاه ولا تذكر أي بيانات داخلية لأدمن المنظومة.
