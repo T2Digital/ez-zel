@@ -149,6 +149,45 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
     setIsConnectingSocial(false);
   };
 
+  // Persist visitor journey across page reloads (Zero-Dead-End Resilience)
+  useEffect(() => {
+    if (generatedBrand && generatedAppUrl) {
+      try {
+        localStorage.setItem(
+          'ezzel_visitor_journey_v1',
+          JSON.stringify({
+            brandName: generatedBrand.name || brandName,
+            industry,
+            phone,
+            generatedBrand,
+            generatedAppUrl,
+            optionalFlagshipUrl,
+            socialLinks,
+            hasExistingBusiness,
+            savedAt: Date.now()
+          })
+        );
+      } catch {}
+    }
+  }, [generatedBrand, generatedAppUrl, optionalFlagshipUrl, socialLinks, brandName, industry, phone, hasExistingBusiness]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('ezzel_visitor_journey_v1');
+      if (!raw || generatedBrand) return;
+      const saved = JSON.parse(raw);
+      if (saved?.generatedBrand && saved?.generatedAppUrl && Date.now() - (saved.savedAt || 0) < 7 * 86400000) {
+        setGeneratedBrand(saved.generatedBrand);
+        setGeneratedAppUrl(saved.generatedAppUrl);
+        if (saved.optionalFlagshipUrl) setOptionalFlagshipUrl(saved.optionalFlagshipUrl);
+        if (saved.socialLinks) setSocialLinks(saved.socialLinks);
+        if (saved.brandName) setBrandName(saved.brandName);
+        if (saved.phone) setPhone(saved.phone);
+        setStep(3);
+      }
+    } catch {}
+  }, []);
+
   // Step 1: Initial Question (Zero-to-One vs Existing)
   const handleSelectBusinessStatus = (hasBusiness: boolean) => {
     setHasExistingBusiness(hasBusiness);
@@ -345,14 +384,53 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           </div>
         </div>
 
-        {isMasterAdmin && onSwitchToAdmin && (
-          <button 
-            onClick={onSwitchToAdmin}
-            className="text-[10px] text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/30 transition"
+        <div className="flex items-center gap-1.5">
+          {step === 3 && generatedBrand && (
+            <button
+              type="button"
+              onClick={() => {
+                try { localStorage.removeItem('ezzel_visitor_journey_v1'); } catch {}
+                setGeneratedBrand(null);
+                setGeneratedAppUrl('');
+                setStep(1);
+              }}
+              className="text-[10px] text-white/60 hover:text-white bg-white/5 px-2 py-1 rounded-lg border border-white/10"
+            >
+              + براند آخر
+            </button>
+          )}
+          {isMasterAdmin && onSwitchToAdmin && (
+            <button 
+              onClick={onSwitchToAdmin}
+              className="text-[10px] text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/30 transition"
+            >
+              👑 وضع الماستر تيتو
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 4-Stage Visual Journey Stepper */}
+      <div className="grid grid-cols-4 gap-1.5 text-[9px] font-bold">
+        {[
+          { n: 1, label: '1. الوضع الحالي', active: step === 1, done: step > 1 },
+          { n: 2, label: '2. الهوية والكتالوج', active: step === 2 || step === 4, done: step === 3 },
+          { n: 3, label: '3. التطبيق والقنوات', active: step === 3, done: false },
+          { n: 4, label: '4. تفعيل 7 أيام', active: false, done: Boolean(generatedBrand) }
+        ].map((st) => (
+          <div
+            key={st.n}
+            className={`px-2 py-1 rounded-lg text-center border transition ${
+              st.active
+                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200'
+                : st.done
+                  ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-300'
+                  : 'bg-white/5 border-white/10 text-white/40'
+            }`}
           >
-            👑 وضع الماستر تيتو
-          </button>
-        )}
+            {st.done ? '✓ ' : ''}{st.label}
+          </div>
+        ))}
       </div>
 
       {/* STAGE 1: HAS BUSINESS OR ZERO-TO-ONE? */}

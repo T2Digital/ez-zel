@@ -1171,11 +1171,36 @@ export async function executeRealJarvisEcosystemAction(input: {
                 industry,
                 name: cloned.name
             });
+
+            // Deep Industry Hydration: generate real domain catalog + scrape existing website metadata in parallel
+            const { generateIndustryCatalogWithAI, scrapeWebsiteMetadata } = await import('./industryHydrationService');
+            const { GoogleGenAI } = await import('@google/genai');
+            const geminiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+            const hydrationAi = geminiKey ? new GoogleGenAI({ apiKey: geminiKey }) : null;
+
+            const [hydratedCatalog, siteMeta] = await Promise.all([
+                generateIndustryCatalogWithAI({
+                    ai: hydrationAi,
+                    brandName: cloned.name,
+                    industry,
+                    appTemplate: resolvedTemplate
+                }),
+                websiteUrl ? scrapeWebsiteMetadata(websiteUrl) : Promise.resolve({} as any)
+            ]);
+
+            const finalCatalog =
+                Array.isArray(hydratedCatalog) && hydratedCatalog.length > 0
+                    ? hydratedCatalog
+                    : cloned.productsCatalog;
+            const finalSlogan = slogan || (cloned as any).slogan || siteMeta?.description?.slice(0, 100) || '';
+            const finalLogoUrl = logoUrl || (cloned as any).logoUrl || siteMeta?.ogImage || '';
+
             const adminPin = normalizedPhone.slice(-6) || String(Math.floor(100000 + Math.random() * 900000));
             const enrichedBrand = persistBrandUpdateAcrossEcosystem(cloned.id, {
                 ...cloned,
-                slogan: slogan || (cloned as any).slogan || '',
-                logoUrl: logoUrl || (cloned as any).logoUrl || '',
+                slogan: finalSlogan,
+                logoUrl: finalLogoUrl,
+                productsCatalog: finalCatalog,
                 appTemplate: resolvedTemplate,
                 appMode,
                 hasExistingBusiness,
