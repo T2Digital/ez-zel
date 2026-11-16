@@ -12,6 +12,28 @@ export function resolveBrandTemplate(brand: any): TenantAppTemplate {
   return productKeywords.some((kw) => text.includes(kw)) ? 'products_erp' : 'services_booking';
 }
 
+export function buildFlagshipTenantUrl(slug: string, appTemplate: TenantAppTemplate | string): string {
+  const cleanSlug = String(slug || 'app')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'app';
+
+  const isProducts = appTemplate === 'products_erp';
+  const wildcardDomain = isProducts
+    ? (process.env.BATTAH_WILDCARD_DOMAIN || '').trim()
+    : (process.env.CLEAN_MASTER_WILDCARD_DOMAIN || '').trim();
+
+  if (wildcardDomain) {
+    const cleanDomain = wildcardDomain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    return `https://${cleanSlug}.${cleanDomain}`;
+  }
+
+  const baseUrl = isProducts
+    ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
+    : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
+  return `${baseUrl.replace(/\/$/, '')}/?brandId=${encodeURIComponent(slug)}`;
+}
+
 function escapeHtml(value: any): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')

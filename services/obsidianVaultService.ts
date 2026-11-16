@@ -1128,12 +1128,10 @@ export async function executeRealJarvisEcosystemAction(input: {
                 if (existingBrand) {
                     const reusedSlug = existingBrand.slug || existingBrand.id;
                     const reusedTpl = (existingBrand as any).appTemplate === 'products_erp' ? 'products_erp' : 'services_booking';
-                    const reusedBase = reusedTpl === 'products_erp'
-                        ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
-                        : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
+                    const { buildFlagshipTenantUrl } = await import('./tenantAppRenderer');
                     const reusedFlagship = (existingBrand as any).appMode === 'existing_site' && existingBrand.websiteUrl
                         ? existingBrand.websiteUrl
-                        : `${reusedBase.replace(/\/$/, '')}/?brandId=${encodeURIComponent(reusedSlug)}`;
+                        : buildFlagshipTenantUrl(reusedSlug, reusedTpl);
                     return {
                         success: true,
                         reusedTrial: true,
@@ -1275,10 +1273,8 @@ export async function executeRealJarvisEcosystemAction(input: {
             syncAndBuildObsidianVault();
 
             const storeSlug = cloned.slug || cloned.id;
-            const flagshipBaseUrl = resolvedTemplate === 'products_erp'
-                ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
-                : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
-            const generatedFlagshipUrl = `${flagshipBaseUrl.replace(/\/$/, '')}/?brandId=${encodeURIComponent(storeSlug)}`;
+            const { buildFlagshipTenantUrl } = await import('./tenantAppRenderer');
+            const generatedFlagshipUrl = buildFlagshipTenantUrl(storeSlug, resolvedTemplate);
             const flagshipUrl = (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl;
 
             return {

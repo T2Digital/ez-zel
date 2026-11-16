@@ -1,6 +1,7 @@
 import { getEzZelPersonalClients, getUnifiedGrowthBrands } from './obsidianVaultService';
 import { mirrorStateToFirestore, restoreStateFromFirestore } from './persistentStorage';
 import { getLiveTelemetrySummary } from './liveTelemetryService';
+import { buildFlagshipTenantUrl } from './tenantAppRenderer';
 
 export type SwarmRole = 'MASTER_ADMIN' | 'BRAND_OWNER' | 'VISITOR';
 
@@ -144,14 +145,10 @@ export async function runJarvisSwarm(input: {
   });
 
   const studioPostsCount = Array.isArray(targetBrand?.weekContentPlan) ? targetBrand.weekContentPlan.length : 0;
-  const flagshipBase =
-    (targetBrand as any)?.appTemplate === 'products_erp'
-      ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
-      : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
   const resolvedAppUrl = targetBrand
     ? ((targetBrand as any)?.appMode === 'existing_site' && targetBrand.websiteUrl
         ? targetBrand.websiteUrl
-        : `${flagshipBase.replace(/\/$/, '')}/?brandId=${encodeURIComponent(targetBrand.slug || targetBrand.id)}`)
+        : buildFlagshipTenantUrl(targetBrand.slug || targetBrand.id, (targetBrand as any)?.appTemplate || 'services_booking'))
     : undefined;
 
   const trialDaysLeft = computeTrialDaysLeft(linkedClient?.trialEndsAt);
