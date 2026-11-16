@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   X, ShieldCheck, Zap, Activity, Users, DollarSign, 
   Cpu, Sparkles, Volume2, VolumeX, ArrowRight, ExternalLink, 

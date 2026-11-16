@@ -4,7 +4,7 @@ import CapabilitiesGuide from './CapabilitiesGuide';
 import WhitePaper from './WhitePaper';
 import { JarvisBattleStationModal } from './JarvisBattleStationModal';
 import { JarvisArcReactorCore } from './jarvis/JarvisArcReactorCore';
-import { playShadowVoice } from '../services/speechService';
+import { playShadowVoice, stopVoice } from '../services/speechService';
 
 const JARVIS_WELCOME_SCRIPT =
   'أهلاً بيك في منظومة T2OS من شركة T2 Digital! أنا جارفيس، عقلك التنفيذي التاني اللي بيبني ويدير شغلك بالكامل بالذكاء الاصطناعي. لو بتبدأ فكرة جديدة، بنبتكرلك الاسم واللوجو والكتالوج ونبني تطبيقك في دقائق؛ ولو عندك بيزنس قائم، بنربط موقعك وهويتك وصفحاتك والواتساب في عقل واحد يصمم وينشر محتواك ويرد على عملاءك ويقفّل مبيعاتك 24 ساعة. عندك 7 أيام تجربة مجانية كاملة بكل المميزات بدون أي التزام — ادخل محطة جارفيس وجرّب بنفسك دلوقتي!';
@@ -86,12 +86,29 @@ interface Props {
 const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart, onLoginClick }) => {
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [showWhitePaper, setShowWhitePaper] = useState(false);
-  const [showBattleStation, setShowBattleStation] = useState(false);
+  const [showBattleStation, setShowBattleStation] = useState(() => {
+    try { return typeof window !== 'undefined' && window.location.pathname === '/jarvis'; } catch { return false; }
+  });
   const [isGreetingPlaying, setIsGreetingPlaying] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const hasAutoGreetedRef = useRef(false);
 
+  useEffect(() => {
+    try {
+      if (showBattleStation && window.location.pathname !== '/jarvis') {
+        window.history.pushState({}, '', '/jarvis');
+      } else if (!showBattleStation && window.location.pathname === '/jarvis') {
+        window.history.pushState({}, '', '/pricing');
+      }
+    } catch {}
+  }, [showBattleStation]);
+
   const handlePlayJarvisWelcome = () => {
+    if (isGreetingPlaying) {
+      stopVoice();
+      setIsGreetingPlaying(false);
+      return;
+    }
     setIsGreetingPlaying(true);
     playShadowVoice(
       JARVIS_WELCOME_SCRIPT,
