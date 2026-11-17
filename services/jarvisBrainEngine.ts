@@ -613,6 +613,17 @@ function buildPersonaSystemPrompt(
 6. جوجل بزنس وخرائط جوجل (Google Business Profile & Maps): نشر البوستات والعروض على خرائط جوجل + سحب تقييمات العملاء والرد الذكي التلقائي عليها.
 7. منصة إكس (X / Twitter).
 
+[فنيات وتريكات الماستر تيتو في تيتو ستوديو (T2 Studio Craft)]:
+- أسلوب "ابن البلد" في الكوبي: هوك مصري خاطف في أول سطر يلمس وجع أو رغبة العميل + كلام بسيط دافئ + عرض واضح + CTA مباشر برقم الواتساب.
+- تريكة دمج الأبطال والمكان الحقيقي: عند طلب تصميم احترافي، فضّل دائماً استخدام صور المنتجات الحقيقية وخلفيات المكان الفعلي من مكتبة البراند والكتالوج بدل الصور المولدة العشوائية، واختر النوع الأنسب للهدف (تصميم Feed، إنفوجراف طبي/تعليمي، كاروسيل شرائح، مقارنة قبل وبعد، استنساخ ستايل ناجح، أو فيديو ريلز/فيلم درامي 10 مشاهد).
+- دورة الإنتاج والاعتماد الاحترافية: توليد الفكرة/النسخة -> توليد التصميم الفعلي عبر content.generate_design في تيتو ستوديو -> إرسال لصالة العرض (showroom.send) -> اعتماد العميل (showroom.approve) -> النشر الفوري عبر publish.multi_platform على كل المنصات المتصلة للبراند (فيسبوك، إنستجرام، سناب شات، إكس، وللفيديوهات تيك توك ويوتيوب).
+- أسلحة النمو المتقدمة: الأوتوبايلوت واقتناص التريندات (autopilot.virtual_browse)، الرد الذكي بالذكاء الاصطناعي على تعليقات السوشيال (comments.ai_reply)، وحملات ميتا والإيميل.
+
+[فنيات وتريكات الماستر تيتو في تيتو أجنت (T2 Agent Craft)]:
+- استخراج الكتالوج والزحف الذكي (Crawler) من موقع البراند لتغذية البوت بالأسعار والخدمات الحقيقية فوراً.
+- قمع المبيعات الذكي: ربط واتساب (QR / Pairing Code) + تدريب البوت (playground) -> حجز المواعيد في التقويم -> توليد رابط دفع فوري -> إعادة استهداف العملاء غير المكتملين (re-engagement) وبث الحملات الآمن بتناوب الأرقام الإضافية.
+- القاعدة الذهبية للتنفيذ: استخدم tito_studio_remote_execute لعمليات الاستوديو وt2_agent_remote_execute لعمليات الأجنت، وافتح النافذة المدمجة المناسبة للمستخدم ليراجع ويعتمد مباشرة.
+
 [أهم تطبيقي ويب أساسيين للعملاء (Flagship Templates) — مع تغيير الهوية والواجهة وإعدادات العمل الداخلية لأي مجال]:
 1. قالب بيع المنتجات الشامل (${FLAGSHIP_TEMPLATES.battah.repoUrl} — Live: ${FLAGSHIP_TEMPLATES.battah.referenceLiveUrl}):
    يدمج متجر إلكتروني + ERP + CRM + POS (نقطة بيع ومخازن) مع تخصيص كامل للهوية والواجهة وإعدادات الأدمن الداخلية حسب المجال (مناسب لأي نشاط بيع منتجات: متاجر، قطع غيار، ملابس، سوبر ماركت، مطاعم، صيدليات).
@@ -648,6 +659,7 @@ function buildPersonaSystemPrompt(
 بيانات وإحصائيات براندك الحية فقط: ${activeBrandStats}
 دورك معه: أنت المدير التنفيذي والسكرتير الذكي المسؤول عن إدارة برانده فقط (${activeBrand?.name || "البراند"}): تقويم تيتو ستوديو، وكيل واتساب، جوجل بزنس وخرائط جوجل، سناب شات وتيك توك وميتا، الحملات الممولة، وتطبيق الويب (Battah أو Clean Master).
 ممنوع ذكر أي بيانات أو أرقام لبراندات أو مشتركين آخرين في المنظومة؛ ركز بالكامل على برانده فقط.
+إذا سألك العميل عن أي براند آخر غير برانده (${activeBrand?.name || "برانده"}), اعتذر بلطف وأكد له أن حسابه معزول تماماً لإدارة برانده فقط ولا يمكنه الاطلاع على براندات أخرى.
 خاطبه باحترام كشريك نجاح ("يا فندم" أو "يا ريس") باللهجة المصرية الودودة والاحترافية.`;
   } else {
     const trialList = trialClients.slice(0, 8).map((c: any) => `${c.name} (ينتهي ${c.trialEndsAt || "-"})`).join("، ") || "لا يوجد";
@@ -1116,10 +1128,27 @@ ${conversationMemoryDirective}`;
             },
           });
 
-          // Save to Tito Studio (non-blocking) and publish live via publish.multi_platform across ALL connected platforms
-          const publicMediaUrl = /^https?:\/\//i.test(String(visualUrl || ""))
-            ? visualUrl
-            : (matchedStudioBrand?.logo || targetBrand?.logo || "");
+          // Save to Tito Studio (non-blocking) and ensure a real Studio AI design URL before publishing
+          let publicMediaUrl = /^https?:\/\//i.test(String(visualUrl || "")) ? visualUrl : "";
+          let usedStudioDesignGenerator = false;
+          if (!publicMediaUrl) {
+            try {
+              const studioDesignRes: any = await titoStudioApi.executeRemoteAction("content.generate_design", studioClinicId, {
+                topic: dynamicTopic,
+                platforms: resolveConnectedPlatforms(matchedStudioBrand, false),
+                saveToCalendar: false,
+                sendToShowroom: false,
+              });
+              const candidateUrl = studioDesignRes?.visualUrl || studioDesignRes?.result?.visualUrl || studioDesignRes?.data?.visualUrl || "";
+              if (/^https?:\/\//i.test(String(candidateUrl))) {
+                publicMediaUrl = candidateUrl;
+                usedStudioDesignGenerator = true;
+              }
+            } catch {}
+          }
+          if (!publicMediaUrl) {
+            publicMediaUrl = matchedStudioBrand?.logo || targetBrand?.logo || "";
+          }
           const targetPlatforms = resolveConnectedPlatforms(matchedStudioBrand, /\.(mp4|mov|webm)/i.test(publicMediaUrl));
 
           let studioDispatchRes: any = null;
@@ -1869,7 +1898,20 @@ ${conversationMemoryDirective}`;
             result: remoteRes,
           };
         } catch (err: any) {
-          backendExecutionResult = { success: false, message: `تعذر تنفيذ أمر تيتو ستوديو عن بُعد: ${err?.message}` };
+          const fallbackEmbedView = String(args.embedView || "generator").trim();
+          const fallbackEmbedUrl = titoStudioApi.buildStudioEmbedUrl(fallbackEmbedView, String(brandId || "1"));
+          backendExecutionResult = {
+            success: false,
+            embedUrl: fallbackEmbedUrl,
+            message: `تعذر تنفيذ الأمر الخلفي (${err?.message})، لكن تم فتح شاشة (${fallbackEmbedView}) في تيتو ستوديو مباشرة لتكمل منها فوراً.`,
+          };
+          executedAction = {
+            type: "STUDIO_EMBED_VIEW",
+            view: fallbackEmbedView,
+            clinicId: String(brandId || "1"),
+            embedUrl: fallbackEmbedUrl,
+            actionExecuted: String(args.action || "ui.navigate"),
+          };
         }
         break;
       }
