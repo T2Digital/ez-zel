@@ -562,6 +562,36 @@ const jarvisBrainTools: FunctionDeclaration[] = [
       required: ["section", "action"],
     },
   },
+  {
+    name: "manage_store_erp",
+    description:
+      "الأداة العميقة لمتجر ونظام ERP/POS الخاص بالبراند: تقرأ كل تفصيلة وكل جنيه وكل منتج أو خدمة ومبيعات ومصاريف وطلبات، وتضيف منتجاً/خدمة جديدة، أو تغير سعر أو مخزون منتج، أو تسجل مصروفاً أو مبيعة، وتزامنها فوراً مع المتجر ولوحة الإدارة السحابية.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ["get_summary", "add_product", "update_price", "add_expense", "record_sale", "update_order_status"],
+          description: "العملية المطلوبة على المتجر والـ ERP",
+        },
+        brandSlugOrId: {
+          type: Type.STRING,
+          description: "معرف أو slug البراند مثل auto-house",
+        },
+        productName: { type: Type.STRING, description: "اسم المنتج أو الخدمة" },
+        sku: { type: Type.STRING, description: "كود الصنف SKU" },
+        category: { type: Type.STRING, description: "تصنيف المنتج أو الخدمة" },
+        price: { type: Type.NUMBER, description: "السعر الجديد بالجنيه" },
+        stock: { type: Type.NUMBER, description: "الكمية المتاحة بالمخزن" },
+        description: { type: Type.STRING, description: "وصف المنتج أو المصروف" },
+        amount: { type: Type.NUMBER, description: "المبلغ بالجنيه (للمصروف أو المبيعة)" },
+        customerName: { type: Type.STRING, description: "اسم العميل (للمبيعة)" },
+        orderId: { type: Type.STRING, description: "رقم الطلب" },
+        status: { type: Type.STRING, description: "حالة الطلب الجديدة" },
+      },
+      required: ["action"],
+    },
+  },
 ];
 
 function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, any[]>): string {
@@ -622,7 +652,7 @@ function buildPersonaSystemPrompt(
 [فنيات وتريكات الماستر تيتو في تيتو أجنت (T2 Agent Craft)]:
 - استخراج الكتالوج والزحف الذكي (Crawler) من موقع البراند لتغذية البوت بالأسعار والخدمات الحقيقية فوراً.
 - قمع المبيعات الذكي: ربط واتساب (QR / Pairing Code) + تدريب البوت (playground) -> حجز المواعيد في التقويم -> توليد رابط دفع فوري -> إعادة استهداف العملاء غير المكتملين (re-engagement) وبث الحملات الآمن بتناوب الأرقام الإضافية.
-- القاعدة الذهبية للتنفيذ: استخدم tito_studio_remote_execute لعمليات الاستوديو وt2_agent_remote_execute لعمليات الأجنت، وافتح النافذة المدمجة المناسبة للمستخدم ليراجع ويعتمد مباشرة.
+- القاعدة الذهبية للتنفيذ: استخدم tito_studio_remote_execute لعمليات الاستوديو وt2_agent_remote_execute لعمليات الأجنت وmanage_store_erp لقراءة وتعديل منتجات وأسعار ومبيعات ومصاريف وطلبات المتجر مباشرة، وافتح النافذة المدمجة المناسبة للمستخدم ليراجع ويعتمد مباشرة.
 
 [أهم تطبيقي ويب أساسيين للعملاء (Flagship Templates) — مع تغيير الهوية والواجهة وإعدادات العمل الداخلية لأي مجال]:
 1. قالب بيع المنتجات الشامل (${FLAGSHIP_TEMPLATES.battah.repoUrl} — Live: ${FLAGSHIP_TEMPLATES.battah.referenceLiveUrl}):
@@ -853,6 +883,7 @@ ${conversationMemoryDirective}`;
   const SOVEREIGN_UNIFIED_TOOLS = new Set([
     "tito_studio_remote_execute",
     "t2_agent_remote_execute",
+    "manage_store_erp",
     "create_and_publish_post",
     "onboard_new_client_brand",
     "navigate_jarvis_ui",
@@ -2017,6 +2048,148 @@ ${conversationMemoryDirective}`;
             embedUrl: fallbackEmbedUrl,
             actionExecuted: String(args.action || "ui.navigate"),
           };
+        }
+        break;
+      }
+
+      case "manage_store_erp": {
+        const erpAction = String(args.action || "get_summary").trim();
+        const resolvedSlug = String(
+          args.brandSlugOrId || targetBrand?.slug || targetBrand?.id || brandId || "auto-house"
+        ).trim();
+        try {
+          const { loadTenantErpState, saveTenantErpState, normalizeSlugKey } = await import("./tenantErpStoreService");
+          const slugKey = normalizeSlugKey(resolvedSlug);
+          const erpState = await loadTenantErpState(slugKey);
+          let products: any[] = Array.isArray(erpState.products) && erpState.products.length > 0
+            ? [...erpState.products]
+            : (Array.isArray(targetBrand?.productsCatalog)
+                ? targetBrand.productsCatalog.map((p: any, idx: number) => ({
+                    id: idx + 1,
+                    name: p.name || `منتج ${idx + 1}`,
+                    sku: p.sku || `SKU-${idx + 101}`,
+                    category: p.category || "عام",
+                    description: p.description || "",
+                    sellingPrice: Number(p.numericPrice || String(p.price || "").replace(/[^\d.]/g, "")) || 500,
+                    purchasePrice: Math.round((Number(p.numericPrice || 500) || 500) * 0.7),
+                    stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+                  }))
+                : []);
+          const sales: any[] = Array.isArray(erpState.dailySales) ? [...erpState.dailySales] : [];
+          const expenses: any[] = Array.isArray(erpState.expenses) ? [...erpState.expenses] : [];
+          const orders: any[] = Array.isArray(erpState.orders) ? [...erpState.orders] : [];
+
+          if (erpAction === "get_summary") {
+            const totalSalesEgp = sales.reduce((s, x) => s + (Number(x.total || x.amount || 0) || 0), 0);
+            const totalExpensesEgp = expenses.reduce((s, x) => s + (Number(x.amount || 0) || 0), 0);
+            const totalOrdersEgp = orders.reduce((s, x) => s + (Number(x.total || x.totalAmount || 0) || 0), 0);
+            backendExecutionResult = {
+              success: true,
+              brandSlug: slugKey,
+              productsCount: products.length,
+              products: products.slice(0, 25).map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                sku: p.sku,
+                category: p.category,
+                priceEgp: p.sellingPrice || p.price,
+                mainStock: p.stock?.main ?? p.stock ?? 0,
+              })),
+              salesCount: sales.length,
+              totalSalesEgp,
+              expensesCount: expenses.length,
+              totalExpensesEgp,
+              netProfitEgp: totalSalesEgp - totalExpensesEgp,
+              ordersCount: orders.length,
+              totalOrdersEgp,
+            };
+          } else if (erpAction === "add_product") {
+            const newPrice = Number(args.price || 500) || 500;
+            const newStock = Number(args.stock ?? 20);
+            const newProd = {
+              id: Date.now(),
+              name: String(args.productName || "منتج جديد"),
+              sku: String(args.sku || `SKU-${Date.now().toString().slice(-5)}`),
+              category: String(args.category || targetBrand?.businessType || "عام"),
+              description: String(args.description || ""),
+              purchasePrice: Math.round(newPrice * 0.7),
+              sellingPrice: newPrice,
+              stock: { main: newStock, branch1: 5, branch2: 5, branch3: 5 },
+              imageUrl: targetBrand?.logoUrl || "",
+            };
+            products = [newProd, ...products];
+            await saveTenantErpState(slugKey, { products });
+            if (targetBrand?.id) {
+              const nextCatalog = [
+                { name: newProd.name, sku: newProd.sku, category: newProd.category, numericPrice: newPrice, description: newProd.description },
+                ...(Array.isArray(targetBrand.productsCatalog) ? targetBrand.productsCatalog : []),
+              ];
+              persistBrandUpdateAcrossEcosystem(targetBrand.id, { productsCatalog: nextCatalog });
+            }
+            backendExecutionResult = {
+              success: true,
+              product: newProd,
+              message: `تمت إضافة "${newProd.name}" بسعر ${newPrice} ج.م (${newStock} قطعة) وحفظه في المتجر السحابي فوراً!`,
+            };
+          } else if (erpAction === "update_price") {
+            const needle = String(args.productName || args.sku || "").trim().toLowerCase();
+            const newPrice = Number(args.price || 0);
+            const idx = products.findIndex((p: any) =>
+              (needle && String(p.name || "").toLowerCase().includes(needle)) ||
+              (needle && String(p.sku || "").toLowerCase() === needle)
+            );
+            if (idx === -1 || !newPrice) {
+              backendExecutionResult = { success: false, error: `لم يتم العثور على المنتج "${needle}" أو السعر غير صالح` };
+            } else {
+              const oldPrice = products[idx].sellingPrice;
+              products[idx] = { ...products[idx], sellingPrice: newPrice };
+              await saveTenantErpState(slugKey, { products });
+              backendExecutionResult = {
+                success: true,
+                productName: products[idx].name,
+                oldPrice,
+                newPrice,
+                message: `تم تحديث سعر "${products[idx].name}" من ${oldPrice} ج.م إلى ${newPrice} ج.م في المتجر السحابي فوراً!`,
+              };
+            }
+          } else if (erpAction === "add_expense") {
+            const amt = Number(args.amount || 0);
+            const exp = {
+              id: Date.now(),
+              date: new Date().toISOString().split("T")[0],
+              category: String(args.category || "مصروفات تشغيل"),
+              description: String(args.description || args.productName || "مصروف مسجل عبر جارفيس"),
+              amount: amt,
+              branch: "main",
+            };
+            await saveTenantErpState(slugKey, { expenses: [exp, ...expenses] });
+            backendExecutionResult = { success: true, expense: exp, message: `تم تسجيل مصروف "${exp.description}" بقيمة ${amt} ج.م.` };
+          } else if (erpAction === "record_sale") {
+            const amt = Number(args.amount || args.price || 0);
+            const sale = {
+              id: Date.now(),
+              date: new Date().toISOString(),
+              customerName: String(args.customerName || "عميل مباشر"),
+              items: args.productName ? [{ name: args.productName, quantity: 1, price: amt }] : [],
+              total: amt,
+              paymentMethod: "cash",
+              branch: "main",
+            };
+            await saveTenantErpState(slugKey, { dailySales: [sale, ...sales] });
+            backendExecutionResult = { success: true, sale, message: `تم تسجيل مبيعة بقيمة ${amt} ج.م للعميل "${sale.customerName}".` };
+          } else if (erpAction === "update_order_status") {
+            const oid = String(args.orderId || "");
+            const oIdx = orders.findIndex((o: any) => String(o.id) === oid);
+            if (oIdx === -1) {
+              backendExecutionResult = { success: false, error: `الطلب (${oid}) غير موجود` };
+            } else {
+              orders[oIdx] = { ...orders[oIdx], status: String(args.status || "confirmed") };
+              await saveTenantErpState(slugKey, { orders });
+              backendExecutionResult = { success: true, order: orders[oIdx], message: `تم تحديث حالة الطلب ${oid} إلى ${orders[oIdx].status}.` };
+            }
+          }
+        } catch (err: any) {
+          backendExecutionResult = { success: false, error: err?.message || "ERP execution error" };
         }
         break;
       }

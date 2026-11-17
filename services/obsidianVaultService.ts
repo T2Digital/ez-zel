@@ -1275,15 +1275,42 @@ export async function executeRealJarvisEcosystemAction(input: {
             const storeSlug = cloned.slug || cloned.id;
             const { buildFlagshipTenantUrl } = await import('./tenantAppRenderer');
             const generatedFlagshipUrl = buildFlagshipTenantUrl(storeSlug, resolvedTemplate);
-            const flagshipUrl = (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl;
+
+            let dedicatedResult: any = null;
+            if (appMode !== 'existing_site' && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
+                try {
+                    const { provisionDedicatedRepoAndVercel } = await import('./dedicatedDeployService');
+                    dedicatedResult = await provisionDedicatedRepoAndVercel({
+                        brandId: cloned.id,
+                        appTemplate: resolvedTemplate
+                    });
+                    if (dedicatedResult?.ok && dedicatedResult?.dedicatedLiveUrl) {
+                        persistBrandUpdateAcrossEcosystem(cloned.id, {
+                            dedicatedRepoUrl: dedicatedResult.dedicatedRepoUrl,
+                            dedicatedLiveUrl: dedicatedResult.dedicatedLiveUrl
+                        } as any);
+                    }
+                } catch {}
+            }
+
+            const finalLiveAppUrl = (dedicatedResult?.ok && dedicatedResult?.dedicatedLiveUrl)
+                ? dedicatedResult.dedicatedLiveUrl
+                : generatedFlagshipUrl;
+            const flagshipUrl = (appMode === 'existing_site' && websiteUrl) ? websiteUrl : finalLiveAppUrl;
 
             return {
                 success: true,
-                brand: enrichedBrand,
+                brand: {
+                    ...enrichedBrand,
+                    ...(dedicatedResult?.dedicatedLiveUrl ? { dedicatedLiveUrl: dedicatedResult.dedicatedLiveUrl } : {}),
+                    ...(dedicatedResult?.dedicatedRepoUrl ? { dedicatedRepoUrl: dedicatedResult.dedicatedRepoUrl } : {})
+                },
                 trialClient: newClient,
                 storeUrl: `/app/${storeSlug}`,
                 flagshipUrl,
-                optionalFlagshipUrl: generatedFlagshipUrl,
+                optionalFlagshipUrl: finalLiveAppUrl,
+                ...(dedicatedResult?.dedicatedLiveUrl ? { dedicatedLiveUrl: dedicatedResult.dedicatedLiveUrl } : {}),
+                ...(dedicatedResult?.dedicatedRepoUrl ? { dedicatedRepoUrl: dedicatedResult.dedicatedRepoUrl } : {}),
                 ownerCredentials: {
                     email: adminEmail,
                     password: adminPassword,
