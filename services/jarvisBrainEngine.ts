@@ -51,10 +51,11 @@ export function resolveBrandDynamically(
   // 1. Direct ID or slug match from explicit tool argument
   if (queryOrId && queryOrId.trim()) {
     const q = queryOrId.trim().toLowerCase();
+    const qNorm = q.replace(/[-_]+/g, "-");
     const direct = unifiedBrands.find(
       (b) =>
         String(b.id || "").toLowerCase() === q ||
-        String(b.slug || "").toLowerCase() === q ||
+        String(b.slug || "").toLowerCase().replace(/[-_]+/g, "-") === qNorm ||
         String(b.name || "").toLowerCase() === q
     );
     if (direct) return direct;
@@ -738,6 +739,7 @@ ${recentChatSummary ? `\n[سياق الذاكرة المشتركة مع شات �
 - تحدث بالعامية المصرية المهذبة والرزينة (بدون مبالغة أو كلام إنشائي) لصوت طبيعي واضح.
 - أجب بأرقام وحقائق حقيقية من الذاكرة الحية أو من نتائج الأدوات فقط — ممنوع تأليف أي رقم أو سعر أو حالة غير موجودة.
 - عند أي أمر تنفيذي (نشر، تعديل سعر، إضافة منتج، مصروف، موظف، مورد، خزينة، ربط واتساب): نفّذ الأداة أولاً ثم قدّم تقريراً تنفيذياً دقيقاً في جملة أو جملتين.
+- عند أي سؤال عن المنتجات أو الأسعار أو المخزون أو المبيعات أو المصاريف أو تأكيد وجود/إضافة منتج في المتجر: استخدم `manage_store_erp` (`get_summary` أو `add_product` أو `update_price`) فوراً — وممنوع خلط طلبات المتجر بأدوات النشر على السوشيال ميديا (`create_and_publish_post`).
 - لا تكرر تقارير قديمة إلا إذا سألك المستخدم عنها مباشرة.`;
 }
 
@@ -2155,7 +2157,8 @@ ${conversationMemoryDirective}`;
               id: Date.now(),
               name: String(args.productName || "منتج جديد"),
               sku: String(args.sku || `SKU-${Date.now().toString().slice(-5)}`),
-              category: String(args.category || targetBrand?.businessType || "عام"),
+              category: String(args.category || "عام"),
+              mainCategory: String(args.category || "عام"),
               description: String(args.description || ""),
               purchasePrice: Math.round(newPrice * 0.7),
               sellingPrice: newPrice,
