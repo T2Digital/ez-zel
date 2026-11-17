@@ -125,6 +125,24 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [transcript, setTranscript] = useState('');
   const transcriptRef = useRef<string>('');
   const streamTimerRef = useRef<any>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const speechSeqRef = useRef<number>(0);
+
+  const stopAllJarvisAudio = useCallback(() => {
+    speechSeqRef.current += 1;
+    try { stopVoice(); } catch {}
+    if (activeAudioRef.current) {
+      try {
+        activeAudioRef.current.onended = null;
+        activeAudioRef.current.onerror = null;
+        activeAudioRef.current.pause();
+        activeAudioRef.current.src = '';
+      } catch {}
+      activeAudioRef.current = null;
+    }
+    setIsPlayingVoice(false);
+    isPlayingVoiceRef.current = false;
+  }, []);
   const [quickChips, setQuickChips] = useState<string[]>([
     'عندي بيزنس قائم بالفعل',
     'فكرة جديدة من الصفر',
@@ -1191,9 +1209,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   // Process Live Voice Command through Jarvis Brain & Gemini Human TTS
   const handleSendLiveCommand = async (commandText: string) => {
+    stopAllJarvisAudio();
+    const mySpeechSeq = speechSeqRef.current;
     setIsThinking(true);
     isThinkingRef.current = true;
-    stopVoice();
     appendLiveLog(`[VOICE_CMD]: "${commandText}"`);
 
     // Direct Studio Workflow Voice Commands (Strategy -> Week Plan -> Preview -> Publish / Approve Schedule)
@@ -1339,19 +1358,28 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           }
         };
 
-        // Play authentic Egyptian Gemini Human voice reply
+        // Play authentic Egyptian Gemini Human voice reply (strictly single active channel)
+        if (speechSeqRef.current !== mySpeechSeq) return;
+        stopAllJarvisAudio();
+        const activeSeq = speechSeqRef.current;
         setIsPlayingVoice(true);
         isPlayingVoiceRef.current = true;
 
         if (data.audioBase64) {
           const mime = data.audioBase64.startsWith('UklGR') ? 'audio/wav' : 'audio/mp3';
           const audio = new Audio(`data:${mime};base64,${data.audioBase64}`);
-          audio.onended = onSpeechEnd;
+          activeAudioRef.current = audio;
+          audio.onended = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            onSpeechEnd();
+          };
           audio.onerror = () => {
-            playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            if (speechSeqRef.current === activeSeq) playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
           };
           audio.play().catch(() => {
-            playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            if (speechSeqRef.current === activeSeq) playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
           });
         } else {
           playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
@@ -1604,14 +1632,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {isMasterAdmin ? (
               <>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    stopAllJarvisAudio();
                     const bId = currentSelectedBrand?.id || 'clean_master';
-                    setAgentEmbed({
-                      open: true,
-                      windowName: 'crm',
-                      brandId: bId,
-                      embedUrl: `https://khedr-bot-agent.onrender.com/embed/crm?brandId=${encodeURIComponent(bId)}&embed=1`
-                    });
+                    let embedUrl = `https://khedr-bot-agent.onrender.com/embed/crm?brandId=${encodeURIComponent(bId)}&embed=1`;
+                    try {
+                      const r = await fetch(`/api/embed/signed-urls?brandId=${encodeURIComponent(bId)}&window=crm`);
+                      const j = await r.json();
+                      if (j?.agentEmbedUrl) embedUrl = j.agentEmbedUrl;
+                    } catch {}
+                    setAgentEmbed({ open: true, windowName: 'crm', brandId: bId, embedUrl });
                   }}
                   className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 font-bold text-xs transition-all cursor-pointer"
                 >
@@ -1620,14 +1650,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </button>
 
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    stopAllJarvisAudio();
                     const cId = currentSelectedBrand?.id || '1';
-                    setStudioEmbed({
-                      open: true,
-                      view: 'calendar',
-                      clinicId: cId,
-                      embedUrl: `https://t2-studio.onrender.com/?embed=1&view=calendar&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(cId)}`
-                    });
+                    let embedUrl = `https://t2-studio.onrender.com/?embed=1&view=calendar&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(cId)}`;
+                    try {
+                      const r = await fetch(`/api/embed/signed-urls?clinicId=${encodeURIComponent(cId)}&view=calendar`);
+                      const j = await r.json();
+                      if (j?.studioEmbedUrl) embedUrl = j.studioEmbedUrl;
+                    } catch {}
+                    setStudioEmbed({ open: true, view: 'calendar', clinicId: cId, embedUrl });
                   }}
                   className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-400/40 font-bold text-xs transition-all cursor-pointer"
                 >
@@ -1898,15 +1930,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* CONTEXTUAL QUICK ACTION CHIPS + LIVE APP MINI-PREVIEW */}
-            {quickChips.length > 0 && (
+            {/* CONTEXTUAL QUICK ACTION CHIPS + LIVE APP MINI-PREVIEW (Visitor / Trial Onboarding Only — clean separation from Master Tito) */}
+            {persona === 'visitor' && quickChips.length > 0 && (
               <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-2xl">
                 {quickChips.map((chip) => (
                   <button
                     key={chip}
                     type="button"
                     onClick={() => {
-                      if (isPlayingVoice) { stopVoice(); setIsPlayingVoice(false); }
+                      stopAllJarvisAudio();
                       handleSendLiveCommand(chip);
                     }}
                     className="px-3 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/35 text-[11px] font-bold transition shadow-sm"
@@ -1917,53 +1949,24 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {(detectedVisitorBrand.businessName || (currentSelectedBrand?.id && currentSelectedBrand.id !== 'clean_master')) && (
+            {persona === 'visitor' && detectedVisitorBrand.businessName && (
               <div className="w-full max-w-md p-2.5 rounded-2xl bg-[#040b1e]/90 border border-emerald-500/35 flex items-center justify-between gap-3 shadow-lg" dir="rtl">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  {currentSelectedBrand?.logoUrl ? (
-                    <img src={currentSelectedBrand.logoUrl} alt="Logo" className="w-9 h-9 rounded-xl object-cover border border-emerald-400/50 shrink-0" />
-                  ) : (
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-black font-black text-xs shrink-0">
-                      {(detectedVisitorBrand.businessName || currentSelectedBrand?.name || 'T2').slice(0, 2)}
-                    </div>
-                  )}
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-black font-black text-xs shrink-0">
+                    {detectedVisitorBrand.businessName.slice(0, 2)}
+                  </div>
                   <div className="min-w-0">
                     <div className="text-xs font-black text-white truncate">
-                      📱 معاينة حية: {detectedVisitorBrand.businessName || currentSelectedBrand?.name}
+                      📱 معاينة حية: {detectedVisitorBrand.businessName}
                     </div>
                     <div className="text-[10px] text-emerald-300 truncate">
-                      {currentSelectedBrand?.slogan || 'تطبيق PWA متكامل بالهوية والألوان والكتالوج'}
+                      تطبيق PWA متكامل بالهوية والألوان والكتالوج
                     </div>
                   </div>
                 </div>
                 <span className="text-[9px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/30 shrink-0">
                   LIVE PREVIEW
                 </span>
-              </div>
-            )}
-
-            {/* POKA-YOKE 4-STEP PRODUCTION RAIL (Error-Proof Guided Workflow) */}
-            {persona !== 'visitor' && (
-              <div className="w-full max-w-3xl flex flex-wrap items-center justify-center gap-1.5 px-2 py-1.5 rounded-2xl bg-[#030816]/85 border border-cyan-500/25 font-['Cairo']" dir="rtl">
-                <span className="text-[10px] font-black text-cyan-300/80 ml-1">🛡️ مسار الإنتاج المحكم:</span>
-                {[
-                  { step: '1', label: 'الهوية والتطبيق', cmd: `جهّز الهوية البصرية وتطبيق PWA لبراند ${currentSelectedBrand?.name || ''}` },
-                  { step: '2', label: 'خطة الشهر', cmd: `نفذ خطة محتوى شهرية دفعة واحدة لبراند ${currentSelectedBrand?.name || ''} عبر تيتو ستوديو` },
-                  { step: '3', label: 'الاعتماد والنشر', cmd: `افتح صالة العرض والاعتماد لبراند ${currentSelectedBrand?.name || ''}` },
-                  { step: '4', label: 'واتساب والمبيعات', cmd: `افتح نافذة واتساب QR والحجوزات لبراند ${currentSelectedBrand?.name || ''}` },
-                ].map((item) => (
-                  <button
-                    key={item.step}
-                    type="button"
-                    onClick={() => handleSendLiveCommand(item.cmd)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/40 text-[10.5px] font-bold text-white/85 hover:text-cyan-100 transition"
-                  >
-                    <span className="w-4 h-4 rounded-full bg-cyan-500/25 text-cyan-300 text-[9px] font-black flex items-center justify-center">
-                      {item.step}
-                    </span>
-                    <span>{item.label}</span>
-                  </button>
-                ))}
               </div>
             )}
 

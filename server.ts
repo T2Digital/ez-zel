@@ -1555,6 +1555,29 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
+  app.get("/api/embed/signed-urls", async (req, res) => {
+      try {
+          const brandId = String(req.query.brandId || "clean_master");
+          const clinicId = String(req.query.clinicId || brandId || "1");
+          const view = String(req.query.view || "calendar");
+          const windowName = String(req.query.window || "crm");
+          const { titoStudioApi } = await import("./services/titoStudioApiClient");
+          const { t2AgentApi } = await import("./services/t2AgentApiClient");
+
+          let brandApiKey: string | undefined;
+          try {
+              const keysRes: any = await t2AgentApi.getBrandKeys(brandId);
+              brandApiKey = keysRes?.apiKey || keysRes?.keys?.apiKey || keysRes?.data?.apiKey;
+          } catch {}
+
+          const studioEmbedUrl = titoStudioApi.buildStudioEmbedUrl(view, clinicId);
+          const agentEmbedUrl = t2AgentApi.buildAgentEmbedUrl(windowName, brandId, brandApiKey);
+          res.json({ ok: true, studioEmbedUrl, agentEmbedUrl });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   app.get("/api/studio/remote-views", async (req, res) => {
       try {
           const { titoStudioApi } = await import("./services/titoStudioApiClient");
