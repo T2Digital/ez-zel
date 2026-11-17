@@ -2164,6 +2164,7 @@ ${conversationMemoryDirective}`;
               sellingPrice: newPrice,
               stock: { main: newStock, branch1: 5, branch2: 5, branch3: 5 },
               imageUrl: targetBrand?.logoUrl || "",
+              images: targetBrand?.logoUrl ? [targetBrand.logoUrl] : [],
             };
             products = [newProd, ...products];
             await saveTenantErpState(slugKey, { products });
