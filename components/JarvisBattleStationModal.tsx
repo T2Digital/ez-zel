@@ -133,6 +133,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [visitorName, setVisitorName] = useState<string>(() => {
     try { return localStorage.getItem('ezzel_visitor_name_v1') || ''; } catch { return ''; }
   });
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isBrandSuperWindowOpen) setIsBrandSuperWindowOpen(false);
+        else if (studioEmbed?.open) setStudioEmbed(null);
+        else if (agentEmbed?.open) setAgentEmbed(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isBrandSuperWindowOpen, studioEmbed?.open, agentEmbed?.open]);
   const [detectedVisitorBrand, setDetectedVisitorBrand] = useState<{
     businessName?: string;
     industry?: string;
@@ -1345,14 +1357,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
         }
 
-        // Check if voice command asks to open the Multi-Window Brand Super-Window
-        if (/نافذ|شاشه|شاشة|تفاصيل براند|اعرض براند|افتح براند/i.test(commandText) && persona !== 'visitor') {
-          setIsBrandSuperWindowOpen(true);
-        }
-
         // LIVE VOICE-TO-ACTION EXECUTIVE CONTROLLER
         if (data.action) {
           appendLiveLog(`[EXEC_ACTION]: ${data.action.type} -> ${data.action.tab || data.action.modal || data.action.action || data.action.brandId || 'OK'}`);
+          if (data.action.type === 'SWITCH_BRAND' && data.action.brandId && persona !== 'visitor') {
+            handleSelectBrand(data.action.brandId);
+            handleInspectObsidianNode(data.action.brandId);
+          }
           if (data.action.type === 'STUDIO_EMBED_VIEW' && data.action.embedUrl && persona !== 'visitor') {
             setStudioEmbed({
               open: true,

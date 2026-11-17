@@ -193,13 +193,13 @@ const jarvisBrainTools: FunctionDeclaration[] = [
   {
     name: "navigate_jarvis_ui",
     description:
-      "التحكم في واجهة جارفيس وفتح الشاشات أو التبويبات أو النوافذ المنبثقة (الشبكة 3D، تقويم ستوديو، وكيل واتساب، ربط QR، ربط ميتا، متجر PWA، نافذة البراند الشاملة، أو إيقاف البوت).",
+      "التحكم في واجهة جارفيس: استخدم SWITCH_BRAND عندما يطلب المستخدم الانتقال لبراند معين أو فتح براند كذا (بدون فتح نافذة منبثقة ثقيلة)، أو SWITCH_TAB لتبديل التبويب، أو OPEN_MODAL لربط واتساب/ميتا. لا تستخدم OPEN_BRAND_SUPER_WINDOW إلا إذا طلب المستخدم نافذة القيادة المتعددة (4 شاشات) بالاسم.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         actionType: {
           type: Type.STRING,
-          enum: ["OPEN_BRAND_SUPER_WINDOW", "SWITCH_TAB", "OPEN_MODAL", "TOGGLE_BOT"],
+          enum: ["SWITCH_BRAND", "SWITCH_TAB", "OPEN_MODAL", "TOGGLE_BOT", "OPEN_BRAND_SUPER_WINDOW"],
           description: "نوع إجراء الواجهة المطلوب.",
         },
         tab: {
@@ -849,15 +849,24 @@ ${conversationMemoryDirective}`;
     { role: "user", parts: [{ text: message }] },
   ];
 
+  const SOVEREIGN_UNIFIED_TOOLS = new Set([
+    "tito_studio_remote_execute",
+    "t2_agent_remote_execute",
+    "create_and_publish_post",
+    "onboard_new_client_brand",
+    "navigate_jarvis_ui",
+    "show_dynamic_widget",
+    "check_ecosystem_health",
+  ]);
+
   const activeTools =
     persona === "visitor"
       ? jarvisBrainTools.filter(
           (t) =>
             t.name === "record_visitor_diagnostic" ||
-            t.name === "onboard_new_client_brand" ||
-            t.name === "t2_agent_enterprise_control"
+            t.name === "onboard_new_client_brand"
         )
-      : jarvisBrainTools;
+      : jarvisBrainTools.filter((t) => SOVEREIGN_UNIFIED_TOOLS.has(t.name));
 
   const modelCascade = [
     "gemini-3.1-flash-lite",
@@ -1401,7 +1410,18 @@ ${conversationMemoryDirective}`;
 
       case "navigate_jarvis_ui": {
         if (persona !== "visitor") {
-          if (args.actionType === "OPEN_BRAND_SUPER_WINDOW") {
+          if (args.actionType === "SWITCH_BRAND") {
+            const targetSwitch =
+              persona === "tito" && args.brandNameOrId
+                ? resolveBrandDynamically(String(args.brandNameOrId), message, unifiedBrands) || targetBrand
+                : targetBrand;
+            const switchId = targetSwitch?.id || brandId;
+            executedAction = {
+              type: "SWITCH_BRAND",
+              brandId: switchId,
+              brandName: targetSwitch?.name || switchId,
+            };
+          } else if (args.actionType === "OPEN_BRAND_SUPER_WINDOW") {
             executedAction = { type: "OPEN_BRAND_SUPER_WINDOW", brandId };
           } else if (args.actionType === "OPEN_MODAL") {
             executedAction = {
@@ -1826,9 +1846,44 @@ ${conversationMemoryDirective}`;
             try { parsedPayload = JSON.parse(String(args.payloadJson)); } catch {}
           }
 
-          const remoteRes = (persona === "tito" && args.isAdminAction)
-            ? await t2AgentApi.executeExternalAdminAction(actionName, { brandId: agentBrandId, ...parsedPayload })
-            : await t2AgentApi.executeExternalAction(agentBrandId, section, actionName, parsedPayload);
+          let remoteRes: any;
+          if (actionName === "generate_payment_link" && (parsedPayload.phone || parsedPayload.customerPhone)) {
+            const { createPaymobCheckoutSession } = await import("./paymobService");
+            const customerPhone = String(parsedPayload.phone || parsedPayload.customerPhone);
+            const serviceLabel = String(parsedPayload.serviceName || "باقة خدمات");
+            const amountVal = Number(parsedPayload.amount) || 1000;
+            const checkout = await createPaymobCheckoutSession({
+              brandId: agentBrandId,
+              brandName: targetBrand?.name || agentBrandId,
+              planId: "custom_brand_order",
+              amountEgp: amountVal,
+              customerName: String(parsedPayload.customerName || "عميلنا العزيز"),
+              customerEmail: "client@t2-studio.app",
+              customerPhone,
+            });
+            const paymobUrl = checkout?.checkoutUrl || checkout?.iframeUrl || "";
+            let waDispatch: any = null;
+            if (paymobUrl) {
+              const payMsg = `أهلاً بك يا ${parsedPayload.customerName || "فندم"} في ${targetBrand?.name || "خدماتنا"}! 💳\nرابط الدفع الآمن عبر Paymob لطلب (${serviceLabel}) بقيمة ${amountVal} ج.م:\n${paymobUrl}`;
+              try {
+                waDispatch = await t2AgentApi.sendManualReply(agentBrandId, customerPhone, payMsg);
+              } catch {}
+            }
+            remoteRes = {
+              success: Boolean(paymobUrl),
+              brandId: agentBrandId,
+              paymobUrl,
+              orderId: checkout?.orderId,
+              whatsappSent: Boolean(waDispatch),
+              message: paymobUrl
+                ? `تم إصدار رابط دفع Paymob لبراند (${agentBrandId}) وإرساله للعميل (${customerPhone}) عبر واتساب.`
+                : "تعذر توليد رابط Paymob.",
+            };
+          } else {
+            remoteRes = (persona === "tito" && args.isAdminAction)
+              ? await t2AgentApi.executeExternalAdminAction(actionName, { brandId: agentBrandId, ...parsedPayload })
+              : await t2AgentApi.executeExternalAction(agentBrandId, section, actionName, parsedPayload);
+          }
 
           let brandApiKey: string | undefined;
           try {
