@@ -7,6 +7,7 @@ export interface PaymobCheckoutRequest {
     brandId: string;
     brandName: string;
     planId: string;
+    customTitle?: string;
     billingCycle?: 'monthly' | 'yearly';
     amountEgp?: number;
     customerName?: string;
@@ -218,9 +219,9 @@ export async function createPaymobCheckoutSession(req: PaymobCheckoutRequest): P
                     payment_methods: [integrationId],
                     items: [
                         {
-                            name: `${plan.name} - ${req.brandName}`,
+                            name: `${req.customTitle || plan.name} - ${req.brandName}`,
                             amount: amountCents,
-                            description: `اشتراك منظومة تيتو للبراند ${req.brandName}`,
+                            description: req.customTitle ? `${req.customTitle} (${req.brandName})` : `اشتراك منظومة تيتو للبراند ${req.brandName}`,
                             quantity: 1
                         }
                     ],

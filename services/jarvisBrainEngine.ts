@@ -1334,12 +1334,13 @@ ${conversationMemoryDirective}`;
               brandId: targetId,
               brandName: targetBrand?.name || targetId,
               planId: "custom_brand_order",
+              customTitle: serviceLabel,
               amountEgp: amountVal,
               customerName: String(args.customerName || "عميلنا العزيز"),
               customerEmail: "client@t2-studio.app",
               customerPhone: String(args.phone),
             });
-            const paymobUrl = checkout?.checkoutUrl || checkout?.iframeUrl || "";
+            const paymobUrl = checkout?.paymentUrl || "";
             let waDispatch: any = null;
             if (paymobUrl) {
               const payMsg = `أهلاً بك يا ${args.customerName || "فندم"} في ${targetBrand?.name || "خدماتنا"}! 💳\nرابط الدفع الآمن عبر Paymob لطلب (${serviceLabel}) بقيمة ${amountVal} ج.م:\n${paymobUrl}`;
@@ -1856,12 +1857,13 @@ ${conversationMemoryDirective}`;
               brandId: agentBrandId,
               brandName: targetBrand?.name || agentBrandId,
               planId: "custom_brand_order",
+              customTitle: serviceLabel,
               amountEgp: amountVal,
               customerName: String(parsedPayload.customerName || "عميلنا العزيز"),
               customerEmail: "client@t2-studio.app",
               customerPhone,
             });
-            const paymobUrl = checkout?.checkoutUrl || checkout?.iframeUrl || "";
+            const paymobUrl = checkout?.paymentUrl || "";
             let waDispatch: any = null;
             if (paymobUrl) {
               const payMsg = `أهلاً بك يا ${parsedPayload.customerName || "فندم"} في ${targetBrand?.name || "خدماتنا"}! 💳\nرابط الدفع الآمن عبر Paymob لطلب (${serviceLabel}) بقيمة ${amountVal} ج.م:\n${paymobUrl}`;
