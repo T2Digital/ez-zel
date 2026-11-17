@@ -500,6 +500,33 @@ const jarvisBrainTools: FunctionDeclaration[] = [
       properties: {},
     },
   },
+  {
+    name: "tito_studio_remote_execute",
+    description:
+      "تنفيذ أي زر أو عملية داخل تيتو ستوديو عن بُعد (60 أمر: showroom.send, showroom.approve, showroom.request_revision, content.generate_copy, content.generate_design, content.generate_carousel, content.generate_voiceover, video.generate, publish.multi_platform, drama.generate_film, autopilot.run, autopilot.batch_produce, calendar.schedule_post, calendar.recycle_30d, ideas.generate_batch, ideas.convert_to_post, research.generate_report, branding.generate_and_save, metaAds.generate, metaAds.create, email.generate_campaign, email.send_campaign) وفتح شاشة الاستوديو المدمجة (embedView) للاعتماد المباشر.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          description: "اسم الأمر مثل showroom.approve أو content.generate_copy أو autopilot.batch_produce أو research.generate_report أو calendar.schedule_post",
+        },
+        brandNameOrId: {
+          type: Type.STRING,
+          description: "اسم البراند أو معرفه في تيتو ستوديو (مثل عيادة كريستال أو تيتو ميديا)",
+        },
+        embedView: {
+          type: Type.STRING,
+          description: "اسم الشاشة المراد عرضها داخل جارفيس: showroom, generator, videoHub, dramaFilm, calendar, workflowStudio, marketResearch, metaAds, salesRadar, emailMarketing, branding, ideas, analytics",
+        },
+        payloadJson: {
+          type: Type.STRING,
+          description: "JSON string اختياري لبيانات الأمر مثل itemId أو topic أو platforms",
+        },
+      },
+      required: ["action"],
+    },
+  },
 ];
 
 function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, any[]>): string {
@@ -1596,6 +1623,58 @@ ${conversationMemoryDirective}`;
           };
         } catch (err: any) {
           backendExecutionResult = { success: false, message: `خطأ في رادار المبيعات أو الإعلانات: ${err?.message}` };
+        }
+        break;
+      }
+
+      case "tito_studio_remote_execute": {
+        try {
+          const actionName = String(args.action || "calendar.schedule_post").trim();
+          const embedView = String(args.embedView || (actionName.startsWith("showroom") ? "showroom" : actionName.startsWith("research") ? "marketResearch" : actionName.startsWith("drama") ? "dramaFilm" : actionName.startsWith("autopilot") ? "workflowStudio" : actionName.startsWith("metaAds") ? "metaAds" : "calendar")).trim();
+
+          // Resolve exact clinicId from live Tito Studio /api/brands
+          let clinicId = String(brandId || "1");
+          try {
+            const liveBrandsRes: any = await titoStudioApi.listBrands();
+            const liveList = Array.isArray(liveBrandsRes?.brands) ? liveBrandsRes.brands : Array.isArray(liveBrandsRes) ? liveBrandsRes : [];
+            const needle = String(args.brandNameOrId || targetBrand?.name || message || "").toLowerCase();
+            const matchedStudio = liveList.find((sb: any) =>
+              String(sb.id) === needle ||
+              (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
+              (sb.nameAr && needle.includes(String(sb.nameAr).toLowerCase())) ||
+              (targetBrand?.name && (String(sb.name || "").includes(targetBrand.name) || targetBrand.name.includes(String(sb.name || ""))))
+            );
+            if (matchedStudio?.id) {
+              clinicId = String(matchedStudio.id);
+            }
+          } catch {}
+
+          let parsedPayload: Record<string, any> = {};
+          if (args.payloadJson) {
+            try { parsedPayload = JSON.parse(String(args.payloadJson)); } catch {}
+          }
+
+          const remoteRes = await titoStudioApi.executeRemoteAction(actionName, clinicId, parsedPayload);
+          const embedUrl = titoStudioApi.buildStudioEmbedUrl(embedView, clinicId);
+
+          backendExecutionResult = {
+            success: true,
+            clinicId,
+            action: actionName,
+            embedUrl,
+            data: remoteRes,
+            message: remoteRes?.message || `تم تنفيذ (${actionName}) عبر تيتو ستوديو للبراند (${clinicId}) وتجهيز شاشة (${embedView}) للاعتماد والنشر!`,
+          };
+          executedAction = {
+            type: "STUDIO_EMBED_VIEW",
+            view: embedView,
+            clinicId,
+            embedUrl,
+            actionExecuted: actionName,
+            result: remoteRes,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `تعذر تنفيذ أمر تيتو ستوديو عن بُعد: ${err?.message}` };
         }
         break;
       }

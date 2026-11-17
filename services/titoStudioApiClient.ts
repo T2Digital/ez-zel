@@ -29,8 +29,8 @@ async function studioRequest<T = any>(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (process.env.TITO_STUDIO_API_KEY) {
-    headers["x-api-key"] = process.env.TITO_STUDIO_API_KEY;
+  if (process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY) {
+    headers["x-api-key"] = process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || "";
   }
 
   const res = await fetch(url.toString(), {
@@ -287,4 +287,17 @@ export const titoStudioApi = {
   // --- 10. Health Alerts ---
   sendAlertTest: (clinicId: string, message: string, type = "success") =>
     studioRequest("POST", "/api/alerts/test", { clinicId, message, type }),
+
+  // --- 11. Unified Action Execution API & Embeddable Views (60 Actions + 25 Views) ---
+  listRemoteActions: () => studioRequest("GET", "/api/v1/actions"),
+  getRemoteViews: (clinicId?: string) =>
+    studioRequest("GET", "/api/v1/views", undefined, clinicId ? { clinicId } : undefined),
+  executeRemoteAction: (action: string, clinicId: string, payload: Record<string, any> = {}) =>
+    studioRequest("POST", "/api/v1/execute", { action, clinicId, payload }),
+  sendUiCommand: (command: string, view: string, clinicId: string, payload?: Record<string, any>) =>
+    studioRequest("POST", "/api/v1/ui/command", { command, view, clinicId, payload }),
+  buildStudioEmbedUrl: (view: string, clinicId: string) => {
+    const base = getTitoStudioBaseUrl();
+    return `${base}/?embed=1&view=${encodeURIComponent(view || "calendar")}&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(clinicId || "1")}`;
+  },
 };

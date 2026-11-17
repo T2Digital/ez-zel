@@ -133,6 +133,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     industry?: string;
     hasExistingBusiness?: boolean | null;
   }>({});
+  const [studioEmbed, setStudioEmbed] = useState<{
+    open: boolean;
+    view: string;
+    clinicId: string;
+    embedUrl: string;
+  } | null>(null);
+  const studioIframeRef = useRef<HTMLIFrameElement>(null);
 
   const streamTranscriptWords = useCallback((fullText: string) => {
     if (streamTimerRef.current) clearInterval(streamTimerRef.current);
@@ -1334,6 +1341,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         // LIVE VOICE-TO-ACTION EXECUTIVE CONTROLLER
         if (data.action) {
           appendLiveLog(`[EXEC_ACTION]: ${data.action.type} -> ${data.action.tab || data.action.modal || data.action.action || data.action.brandId || 'OK'}`);
+          if (data.action.type === 'STUDIO_EMBED_VIEW' && data.action.embedUrl && persona !== 'visitor') {
+            setStudioEmbed({
+              open: true,
+              view: data.action.view || 'calendar',
+              clinicId: data.action.clinicId || '1',
+              embedUrl: data.action.embedUrl
+            });
+          }
           if (data.action.type === 'SWITCH_TAB' && data.action.tab) {
             // STRICT SHIELD: Never hijack view away from visitor onboarding
             if (persona !== 'visitor') {
@@ -1557,6 +1572,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           <div className="flex items-center gap-1.5">
             {isMasterAdmin ? (
               <>
+                <button
+                  onClick={() => {
+                    const cId = currentSelectedBrand?.id || '1';
+                    setStudioEmbed({
+                      open: true,
+                      view: 'calendar',
+                      clinicId: cId,
+                      embedUrl: `https://t2-studio.onrender.com/?embed=1&view=calendar&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(cId)}`
+                    });
+                  }}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-400/40 font-bold text-xs transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+                  <span>الاستوديو المدمج</span>
+                </button>
+
                 <button
                   onClick={() => {
                     handleInspectObsidianNode(currentSelectedBrand.id);
@@ -1869,6 +1900,63 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               isMasterAdmin={isMasterAdmin}
               activeBrandId={currentSelectedBrand?.id !== 'clean_master' ? currentSelectedBrand?.id : undefined}
             />
+
+            {/* EMBEDDED TITO STUDIO LIVE PANEL (25 Embed Views + postMessage Remote Control) */}
+            {studioEmbed?.open && persona !== 'visitor' && (
+              <div className="w-full max-w-5xl rounded-2xl bg-[#040a1a]/95 border-2 border-purple-500/45 shadow-[0_0_50px_rgba(168,85,247,0.25)] overflow-hidden font-['Cairo']" dir="rtl">
+                <div className="px-3 py-2 bg-purple-950/50 border-b border-purple-500/30 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black text-purple-200">🎬 استوديو المحتوى المدمج (تحكم حي):</span>
+                    {[
+                      { id: 'calendar', label: 'التقويم' },
+                      { id: 'showroom', label: 'صالة الاعتماد' },
+                      { id: 'generator', label: 'استوديو المحتوى' },
+                      { id: 'videoHub', label: 'مركز الفيديو' },
+                      { id: 'dramaFilm', label: 'الفيلم الدرامي' },
+                      { id: 'workflowStudio', label: 'الأوتوبايلوت' },
+                      { id: 'marketResearch', label: 'أبحاث السوق' },
+                      { id: 'metaAds', label: 'إعلانات ميتا' }
+                    ].map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => {
+                          setStudioEmbed(prev => prev ? { ...prev, view: v.id } : null);
+                          try {
+                            studioIframeRef.current?.contentWindow?.postMessage(
+                              { type: 'T2_REMOTE_COMMAND', command: 'SET_VIEW', view: v.id, clinicId: studioEmbed.clinicId },
+                              '*'
+                            );
+                          } catch {}
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
+                          studioEmbed.view === v.id
+                            ? 'bg-purple-500 text-white border-purple-300'
+                            : 'bg-white/5 text-white/70 border-white/10 hover:text-white'
+                        }`}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStudioEmbed(null)}
+                    className="p-1 rounded-lg bg-white/10 hover:bg-rose-500/30 text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <iframe
+                  ref={studioIframeRef}
+                  src={studioEmbed.embedUrl}
+                  title="T2OS Studio Embed"
+                  className="w-full h-[65vh] border-0 bg-[#020617]"
+                  allow="clipboard-write; microphone; camera"
+                />
+              </div>
+            )}
+
             <div className="w-full max-w-4xl">
               <JarvisExecutiveSummaryDrawer
                 userProfile={{

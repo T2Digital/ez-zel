@@ -1508,6 +1508,38 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
+  // --- TITO STUDIO REMOTE EXECUTION & EMBEDDABLE VIEWS BRIDGE --- //
+  app.get("/api/studio/remote-actions", async (_req, res) => {
+      try {
+          const { titoStudioApi } = await import("./services/titoStudioApiClient");
+          res.json(await titoStudioApi.listRemoteActions());
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/studio/remote-views", async (req, res) => {
+      try {
+          const { titoStudioApi } = await import("./services/titoStudioApiClient");
+          const clinicId = String(req.query.clinicId || "1");
+          res.json(await titoStudioApi.getRemoteViews(clinicId));
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/studio/remote-execute", async (req, res) => {
+      try {
+          const { titoStudioApi } = await import("./services/titoStudioApiClient");
+          const { action, clinicId, payload } = req.body || {};
+          if (!action) return res.status(400).json({ ok: false, error: "action is required" });
+          const result = await titoStudioApi.executeRemoteAction(String(action), String(clinicId || "1"), payload || {});
+          res.json({ ok: true, result });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   // --- SEO & GEO ENDPOINTS (robots.txt, llms.txt, sitemap.xml) --- //
   app.get("/sitemap.xml", (_req, res) => {
       const base = process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com";
