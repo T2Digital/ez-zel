@@ -633,9 +633,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       })
       .catch(() => {});
 
-    // Trigger voice greeting tailored to current persona
-    const activeInitial = initialPersona || persona;
-    if (initialPersona && initialPersona !== persona) {
+    // Preserve completed onboarding brand if visitor already created one
+    let savedTrialBrand: any = null;
+    try {
+      const rawTrial = localStorage.getItem('t2_active_trial_brand');
+      if (rawTrial) savedTrialBrand = JSON.parse(rawTrial);
+    } catch {}
+
+    const activeInitial = savedTrialBrand?.id ? 'trial' : (initialPersona || persona);
+    if (savedTrialBrand?.id) {
+      setObsidianBrands(prev => (prev.some(b => b.id === savedTrialBrand.id) ? prev : [savedTrialBrand, ...prev]));
+      setSelectedBrandId(prev => prev || savedTrialBrand.id);
+      if (persona === 'visitor') setPersona('trial');
+    } else if (initialPersona && initialPersona !== persona) {
       setPersona(initialPersona);
     }
     let alreadyGreeted = false;
@@ -2083,7 +2093,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 initialIndustry={detectedVisitorBrand.industry}
                 initialHasExistingBusiness={detectedVisitorBrand.hasExistingBusiness}
                 onSwitchToAdmin={isMasterAdmin ? () => setPersona('tito') : undefined}
-                onComplete={() => {
+                onComplete={(createdBrand?: any) => {
+                  if (createdBrand?.id) {
+                    setObsidianBrands(prev => [createdBrand, ...prev.filter(b => b.id !== createdBrand.id)]);
+                    setSelectedBrandId(createdBrand.id);
+                    try { localStorage.setItem('t2_active_trial_brand', JSON.stringify(createdBrand)); } catch {}
+                  }
                   fetchDatabaseStats();
                   fetchObsidianVault();
                   setPersona('trial');
@@ -2151,7 +2166,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       </button>
 
                       <button
-                        onClick={() => window.open(`/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`, '_blank')}
+                        onClick={() => window.open((currentSelectedBrand as any).dedicatedLiveUrl || `/app/${currentSelectedBrand.slug || currentSelectedBrand.id}`, '_blank')}
                         className="py-1.5 px-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
                       >
                         <ExternalLink className="w-3 h-3" />
