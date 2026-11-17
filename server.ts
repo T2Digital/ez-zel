@@ -1763,6 +1763,137 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       });
   });
 
+  // --- ISOLATED PER-TENANT ADMIN AUTHENTICATION (HMAC-SHA256 SIGNED SESSIONS) --- //
+  const getTenantAuthSecret = () =>
+      process.env.TENANT_AUTH_SECRET || process.env.ADMIN_API_SECRET || process.env.T2_REMOTE_API_KEY || "t2os-sovereign-tenant-secret-2026";
+
+  const signTenantToken = (payloadObj: Record<string, any>) => {
+      const payload = Buffer.from(JSON.stringify(payloadObj), "utf8").toString("base64url");
+      const sig = crypto.createHmac("sha256", getTenantAuthSecret()).update(payload).digest("base64url");
+      return `${payload}.${sig}`;
+  };
+
+  const verifyTenantToken = (token: string): Record<string, any> | null => {
+      try {
+          const [payload, sig] = String(token || "").split(".");
+          if (!payload || !sig) return null;
+          const expectedSig = crypto.createHmac("sha256", getTenantAuthSecret()).update(payload).digest("base64url");
+          const a = Buffer.from(sig, "utf8");
+          const b = Buffer.from(expectedSig, "utf8");
+          if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+          const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+          if (!data?.exp || Date.now() > Number(data.exp)) return null;
+          return data;
+      } catch {
+          return null;
+      }
+  };
+
+  app.options(["/api/tenant-auth/login", "/api/tenant-auth/verify"], (_req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      res.status(204).end();
+  });
+
+  app.post("/api/tenant-auth/login", async (req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      try {
+          const { brandSlug, email, password } = req.body || {};
+          const slug = String(brandSlug || "").trim();
+          const emailInput = String(email || "").trim().toLowerCase();
+          const passInput = String(password || "");
+          if (!slug || !emailInput || !passInput) {
+              return res.status(400).json({ ok: false, error: "يرجى إدخال البريد الإلكتروني وكلمة المرور" });
+          }
+
+          const slugNorm = slug.toLowerCase().replace(/[-_]+/g, "-");
+          const unified = getUnifiedGrowthBrands();
+          let brand: any = unified.find(b =>
+              b.id === slug ||
+              String(b.slug || "").toLowerCase().replace(/[-_]+/g, "-") === slugNorm
+          ) || getClonedBrandByIdOrSlug(slug);
+
+          if (!brand) {
+              try {
+                  const { titoStudioApi } = await import("./services/titoStudioApiClient");
+                  const liveRes: any = await titoStudioApi.listBrands();
+                  const list = Array.isArray(liveRes?.brands) ? liveRes.brands : Array.isArray(liveRes) ? liveRes : [];
+                  const sb = list.find((x: any) => {
+                      const enSlug = String(x.englishName || "").toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[-_\s]+/g, "-");
+                      const xSlug = String(x.slug || "").toLowerCase().replace(/[-_]+/g, "-");
+                      return String(x.id || "") === slug || xSlug === slugNorm || enSlug === slugNorm;
+                  });
+                  if (sb) {
+                      brand = {
+                          id: sb.id,
+                          slug: sb.slug || slugNorm,
+                          englishName: sb.englishName || "",
+                          name: sb.name || sb.englishName,
+                          phone: sb.phone || sb.whatsappNumber || "",
+                          adminEmail: sb.adminEmail || "",
+                          adminPin: sb.adminPin || ""
+                      };
+                  }
+              } catch {}
+          }
+
+          if (!brand) {
+              return res.status(404).json({ ok: false, error: "البراند غير مسجل" });
+          }
+
+          const asciiSlug = String(brand.slug || brand.englishName || brand.id || "brand")
+              .toLowerCase()
+              .replace(/[^a-z0-9-]+/g, "-")
+              .replace(/^-+|-+$/g, "") || slugNorm;
+          const expectedEmail = String(brand.adminEmail || `owner@${asciiSlug}.t2.app`).trim().toLowerCase();
+          const phoneDigits = String(brand.phone || brand.whatsapp || "").replace(/\D/g, "");
+          const adminPin = String(brand.adminPin || phoneDigits.slice(-6) || "");
+          const expectedPass = adminPin ? `T2@${adminPin}` : "";
+
+          const hashSha = (v: string) => crypto.createHash("sha256").update(v).digest();
+          const emailMatch = crypto.timingSafeEqual(hashSha(emailInput), hashSha(expectedEmail));
+          const passMatch = expectedPass.length > 0 && crypto.timingSafeEqual(hashSha(passInput), hashSha(expectedPass));
+
+          if (!emailMatch || !passMatch) {
+              return res.status(401).json({ ok: false, error: "بيانات الدخول غير صحيحة لهذا البراند" });
+          }
+
+          const userObj = {
+              id: `admin_${asciiSlug}`,
+              username: expectedEmail,
+              email: expectedEmail,
+              name: `مدير ${brand.name}`,
+              role: "admin",
+              branch: "main",
+              brandSlug: asciiSlug,
+              permissions: [
+                  "daily-sales", "store-management", "treasury", "expenses",
+                  "employees", "payroll", "advances", "attendance",
+                  "suppliers", "purchasing", "daily-review", "orders"
+              ]
+          };
+
+          const token = signTenantToken({ ...userObj, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+          res.json({ ok: true, token, user: userObj });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Tenant auth error" });
+      }
+  });
+
+  app.get("/api/tenant-auth/verify", (req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      const authHeader = String(req.headers.authorization || "");
+      const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : String(req.query.token || "");
+      const decoded = verifyTenantToken(token);
+      if (!decoded) return res.status(401).json({ ok: false, error: "Invalid or expired session" });
+      const brandSlug = String(req.query.brandSlug || "").toLowerCase().replace(/[-_]+/g, "-");
+      if (brandSlug && String(decoded.brandSlug || "").toLowerCase().replace(/[-_]+/g, "-") !== brandSlug) {
+          return res.status(403).json({ ok: false, error: "Token not scoped to this brand" });
+      }
+      res.json({ ok: true, user: decoded });
+  });
+
   // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
   app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
       const slug = String(req.params.slug || "");
