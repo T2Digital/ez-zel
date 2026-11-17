@@ -617,6 +617,8 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         txType: { type: Type.STRING, description: "نوع حركة الخزينة: in (وارد) أو out (صادر)" },
         companyName: { type: Type.STRING, description: "اسم المتجر/الشركة في الإعدادات" },
         tickerText: { type: Type.STRING, description: "نص الشريط الإعلاني أعلى المتجر" },
+        address: { type: Type.STRING, description: "عنوان المتجر الذي يظهر في الفوتر والفاتورة" },
+        primaryColor: { type: Type.STRING, description: "لون الثيم الأساسي للمتجر والأزرار مثل #0284c7" },
         branchCount: { type: Type.NUMBER, description: "عدد الفروع الظاهرة في الفواتير (1 إلى 4)" },
         cashierCount: { type: Type.NUMBER, description: "عدد الكاشيرات الظاهرة في الفواتير (1 إلى 3)" },
         primaryBranchLabel: { type: Type.STRING, description: "اسم الفرع الأول أو الوحيد" },
@@ -2342,8 +2344,8 @@ ${conversationMemoryDirective}`;
               treasury: treasuryList,
             });
 
-            const basePublicUrl = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/$/, "");
-            const invoicePrintUrl = `${basePublicUrl}/api/tenant-erp/${encodeURIComponent(slugKey)}/invoice/${saleId}/print`;
+            const appBase = String(targetBrand?.dedicatedLiveUrl || `https://t2-tenant-${slugKey}.vercel.app`).replace(/\/$/, "");
+            const invoicePrintUrl = `${appBase}/#print-invoice/${saleId}`;
             backendExecutionResult = {
               success: true,
               invoiceNumber,
@@ -2456,6 +2458,8 @@ ${conversationMemoryDirective}`;
               ...(args.companyName ? { companyName: String(args.companyName) } : {}),
               ...(args.tickerText ? { tickerText: String(args.tickerText) } : {}),
               ...(args.phone ? { contactPhone: String(args.phone) } : {}),
+              ...(args.address ? { address: String(args.address) } : {}),
+              ...(args.primaryColor ? { primaryColor: String(args.primaryColor) } : {}),
               ...(args.description ? { aboutUs: String(args.description) } : {}),
             };
             await saveTenantErpState(slugKey, { storefrontSettings: nextSettings });
