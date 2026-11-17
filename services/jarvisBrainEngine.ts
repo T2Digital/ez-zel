@@ -1318,12 +1318,35 @@ ${conversationMemoryDirective}`;
           } else if (t2Action === "trigger_reengagement") {
             backendExecutionResult = await t2AgentApi.triggerReEngagement(targetId, String(args.phone || "all"), args.message);
           } else if (t2Action === "generate_payment_link" && args.phone) {
-            backendExecutionResult = await t2AgentApi.generatePaymentLink(targetId, {
+            const { createPaymobCheckoutSession } = await import("./paymobService");
+            const serviceLabel = String(args.serviceName || "باقة خدمات");
+            const amountVal = Number(args.amount) || 1000;
+            const checkout = await createPaymobCheckoutSession({
+              brandId: targetId,
+              brandName: targetBrand?.name || targetId,
+              planId: "custom_brand_order",
+              amountEgp: amountVal,
+              customerName: String(args.customerName || "عميلنا العزيز"),
+              customerEmail: "client@t2-studio.app",
               customerPhone: String(args.phone),
-              customerName: args.customerName,
-              serviceName: String(args.serviceName || "باقة خدمات"),
-              amount: Number(args.amount) || 1000,
             });
+            const paymobUrl = checkout?.checkoutUrl || checkout?.iframeUrl || "";
+            let waDispatch: any = null;
+            if (paymobUrl) {
+              const payMsg = `أهلاً بك يا ${args.customerName || "فندم"} في ${targetBrand?.name || "خدماتنا"}! 💳\nرابط الدفع الآمن عبر Paymob لطلب (${serviceLabel}) بقيمة ${amountVal} ج.م:\n${paymobUrl}`;
+              try {
+                waDispatch = await t2AgentApi.sendManualReply(targetId, String(args.phone), payMsg);
+              } catch {}
+            }
+            backendExecutionResult = {
+              success: Boolean(paymobUrl),
+              brandId: targetId,
+              paymobUrl,
+              orderId: checkout?.orderId,
+              whatsappSent: Boolean(waDispatch),
+              checkout,
+              waDispatch,
+            };
           } else if (t2Action === "start_broadcast" && args.message) {
             backendExecutionResult = await t2AgentApi.startWhatsAppBroadcast(targetId, {
               campaignName: String(args.campaignName || "حملة جارفس الذكية"),

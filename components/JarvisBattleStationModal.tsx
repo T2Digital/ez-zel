@@ -1720,7 +1720,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         </div>
 
         {/* MAIN HUD INTERACTION VIEWPORT (3 Sci-Fi Columns With Mobile-First Spatial Hierarchy) */}
-        <div className={`relative z-10 flex-1 min-h-0 flex flex-col items-center p-1.5 md:p-2.5 w-full max-w-[96vw] xl:max-w-[1780px] mx-auto ${activeDeckTab === 'obsidian_graph' && !activeDynamicWidget ? 'justify-between overflow-hidden' : 'justify-start overflow-y-auto overscroll-contain pb-12'}`}>
+        <div className={`relative z-10 flex-1 min-h-0 flex flex-col items-center p-1.5 md:p-2.5 w-full max-w-[96vw] xl:max-w-[1780px] mx-auto overflow-y-auto overscroll-contain pb-12 ${activeDeckTab === 'obsidian_graph' && !activeDynamicWidget ? 'justify-start md:justify-between' : 'justify-start'}`}>
 
           {/* CENTER HERO: THE HOLOGRAPHIC ARC REACTOR CORE (6 Cols)    */}
           {/* ========================================================= */}

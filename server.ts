@@ -66,6 +66,7 @@ import { publishBrandPost, launchAdCampaign, runSelfOptimizingLoop, setupAutonom
 import { syncAndBuildObsidianVault, getObsidianNodeMarkdown, saveObsidianNodeMarkdown, startObsidianTwoWayWatcher, executeRealJarvisEcosystemAction, getUnifiedGrowthBrands, getEzZelPersonalClients } from "./services/obsidianVaultService";
 import { readTurboFlowQueue, enqueueTurboFlowVideoJob, completeTurboFlowVideoJob, readTitoStudioCacheSync } from "./services/titoStudioFirestoreBridge";
 import { PAYMOB_PLANS, PAYMOB_TIERS, createPaymobCheckoutSession, verifyPaymobWebhookHmac, readPaymobSubscriptions, savePaymobSubscriptionRecord } from "./services/paymobService";
+import firebaseAppletConfig from "./firebase-applet-config.json";
 import { readBookings, broadcastGatewayEvent } from "./services/microservicesGateway";
 import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./services/brandingForgeService";
 import { syncBrandToAllEcosystems, reconcileAllBrands } from "./services/universalBrandSync";
@@ -888,7 +889,7 @@ async function startServer() {
 
       const authHeader = String(req.headers.authorization || '');
       const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : String(req.body?.idToken || '');
-      const fbKey = process.env.VITE_FIREBASE_API_KEY || process.env.TITO_STUDIO_FIREBASE_API_KEY || '';
+      const fbKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || process.env.TITO_STUDIO_FIREBASE_API_KEY || (firebaseAppletConfig as any)?.apiKey || '';
       if (idToken && fbKey) {
           try {
               const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${fbKey}`, {
@@ -900,7 +901,7 @@ async function startServer() {
               if (resp.ok) {
                   const data: any = await resp.json();
                   const email = String(data?.users?.[0]?.email || '').toLowerCase();
-                  if (email === 'ahm.atya@gmail.com' || email === 'ahmed.atya.daif@gmail.com') {
+                  if (['ahm.atya@gmail.com', 'ahmed.atya.daif@gmail.com', 'tito@shadow.com', 'admin@shadow.com'].includes(email)) {
                       return { ok: true, email };
                   }
                   return { ok: false, error: `Unauthorized email: ${email}` };
