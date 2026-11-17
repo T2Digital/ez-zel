@@ -1581,13 +1581,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         isFullscreen ? 'h-[100dvh] rounded-none border-0' : 'max-w-[1560px] h-[95dvh] rounded-[36px]'
       }`}>
 
-        {/* 3D Cosmos Space Canvas Background (The Sovereign Hero Cosmos with Earth & Stars) */}
-        <div className="absolute inset-0 pointer-events-none z-0 opacity-85 overflow-hidden">
-          <SpaceCanvas interactive={true} showEarth={true} />
+        {/* 3D Cosmos Space Canvas Background (Subtle dim backdrop so Jarvis Core & text stay 100% crisp) */}
+        <div className="absolute inset-0 pointer-events-none z-0 opacity-20 overflow-hidden">
+          <SpaceCanvas interactive={false} showEarth={false} />
         </div>
 
         {/* Fiber-Optic Bioluminescent Grid & Deep Space Vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,240,255,0.04)_0%,_rgba(1,3,11,0.65)_70%,_#01030a_100%)] pointer-events-none z-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,240,255,0.03)_0%,_rgba(1,3,11,0.88)_65%,_#01030a_100%)] pointer-events-none z-0" />
         <div 
           className="absolute inset-0 opacity-[0.04] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] z-0" 
         />
@@ -1606,13 +1606,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </span>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 text-[11px] font-['Cairo'] border-r border-white/10 pr-3">
+            <div className="hidden sm:flex items-center gap-2 text-[11px] font-['Cairo'] border-r border-white/10 pr-3 shrink-0">
               {isMasterAdmin ? (
-                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/25 text-cyan-200 font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/25 text-cyan-200 font-bold whitespace-nowrap">
                   {allBrandsList.length || realStats.totalVaultBrandsCount || 0} براند متصل
                 </span>
               ) : (
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-bold whitespace-nowrap">
                   تجربة مجانية 7 أيام
                 </span>
               )}
@@ -1620,15 +1620,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           </div>
 
           {/* Center: Clean Minimalist Title */}
-          <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-cyan-400" />
-            <h1 className="text-xs md:text-sm font-black tracking-wider text-white/95 font-['Cairo']">
+          <div className="flex items-center gap-2 shrink-0">
+            <Cpu className="w-4 h-4 text-cyan-400 shrink-0" />
+            <h1 className="text-xs md:text-sm font-black tracking-wider text-white/95 font-['Cairo'] whitespace-nowrap">
               جارفس <span className="text-cyan-400">//</span> {isMasterAdmin ? 'العقل التنفيذي الموحد' : 'المستشار التنفيذي لأعمالك'}
             </h1>
           </div>
 
-          {/* Right: Role-Separated Action Buttons */}
-          <div className="flex items-center gap-1.5">
+          {/* Right: Role-Separated Action Buttons (Clean 4-button Executive Header) */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {isMasterAdmin ? (
               <>
                 <button
@@ -1643,7 +1643,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     } catch {}
                     setAgentEmbed({ open: true, windowName: 'crm', brandId: bId, embedUrl });
                   }}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 font-bold text-xs transition-all cursor-pointer"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 font-bold text-xs whitespace-nowrap transition-all cursor-pointer"
                 >
                   <Bot className="w-3.5 h-3.5 text-emerald-300" />
                   <span>الأجنت المدمج</span>
@@ -1661,33 +1661,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     } catch {}
                     setStudioEmbed({ open: true, view: 'calendar', clinicId: cId, embedUrl });
                   }}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-400/40 font-bold text-xs transition-all cursor-pointer"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-400/40 font-bold text-xs whitespace-nowrap transition-all cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-purple-300" />
                   <span>الاستوديو المدمج</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    handleInspectObsidianNode(currentSelectedBrand.id);
-                    setIsBrandSuperWindowOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-cyan-500/15 text-slate-100 border border-white/10 hover:border-cyan-400/40 font-bold text-xs transition-all cursor-pointer"
-                >
-                  <Layers className="w-3.5 h-3.5 text-cyan-300" />
-                  <span>شاشة البراند</span>
-                </button>
-
-                <button
-                  onClick={() => setIsExecutiveOpen(!isExecutiveOpen)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
-                    isExecutiveOpen
-                      ? 'bg-cyan-400 text-slate-950 border-cyan-300'
-                      : 'bg-white/[0.06] hover:bg-cyan-500/15 text-slate-100 border-white/10 hover:border-cyan-400/40'
-                  }`}
-                >
-                  <Zap className="w-3.5 h-3.5 text-cyan-300" />
-                  <span>المتصفح التنفيذي</span>
                 </button>
 
                 <button

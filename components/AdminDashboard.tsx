@@ -981,7 +981,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       </div>
 
       <nav className="fixed bottom-[32px] left-0 w-full bg-black/95 border-t border-white/10 z-[100] rounded-t-[40px]">
-        <div className="flex items-center justify-start md:justify-center max-w-full md:max-w-4xl mx-auto overflow-x-auto gap-4 px-6 pt-5 pb-6 scrollbar-none relative z-[105]">
+        <div className="flex items-center justify-start w-full overflow-x-auto gap-4 px-6 pt-5 pb-6 scrollbar-none relative z-[105]">
             <button onClick={() => setActiveView('analytics')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'analytics' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><BarChart2 className="w-5 h-5" /><span className="text-[8px] font-bold">تحليل</span></button>
             <button onClick={() => setActiveView('members')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
             <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
