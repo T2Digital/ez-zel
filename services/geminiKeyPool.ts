@@ -161,10 +161,16 @@ export function createRotatingServerAI(): GoogleGenAI {
   });
 
   const originalGenerateContent = baseClient.models.generateContent.bind(baseClient.models);
+  const originalGenerateImages = (baseClient.models as any).generateImages?.bind(baseClient.models);
+
+  const shouldRotateError = (err: any) => {
+    const msg = String(err?.message || err || '');
+    return /429|403|quota|RESOURCE_EXHAUSTED|PERMISSION_DENIED|billing|suspended|rate|limit|API_KEY_INVALID|API key not valid|expired|500|503|UNAVAILABLE|overloaded/i.test(msg);
+  };
 
   const rotatingGenerateContent = async (params: any) => {
     const candidateKeys = loadGeminiKeysFromEnv();
-    const maxAttempts = Math.max(1, Math.min(candidateKeys.length, 6));
+    const maxAttempts = Math.max(1, candidateKeys.length);
     let lastErr: any = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -185,9 +191,7 @@ export function createRotatingServerAI(): GoogleGenAI {
       } catch (err: any) {
         lastErr = err;
         markGeminiKeyFailure(key, err);
-        const msg = String(err?.message || err || '');
-        const shouldRotate = /429|quota|RESOURCE_EXHAUSTED|API_KEY_INVALID|API key not valid|expired|503|UNAVAILABLE/i.test(msg);
-        if (!shouldRotate || attempt === maxAttempts - 1) {
+        if (!shouldRotateError(err) || attempt === maxAttempts - 1) {
           throw err;
         }
       }
@@ -196,5 +200,28 @@ export function createRotatingServerAI(): GoogleGenAI {
   };
 
   (baseClient.models as any).generateContent = rotatingGenerateContent;
+
+  if (originalGenerateImages) {
+    (baseClient.models as any).generateImages = async (params: any) => {
+      const candidateKeys = loadGeminiKeysFromEnv();
+      const maxAttempts = Math.max(1, candidateKeys.length);
+      let lastErr: any = null;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const key = attempt === 0 ? primaryKey : getNextHealthyGeminiKey();
+        try {
+          const client = attempt === 0 ? baseClient : new GoogleGenAI({ apiKey: key, httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
+          const res = await (attempt === 0 ? originalGenerateImages(params) : (client.models as any).generateImages(params));
+          markGeminiKeySuccess(key);
+          return res;
+        } catch (err: any) {
+          lastErr = err;
+          markGeminiKeyFailure(key, err);
+          if (!shouldRotateError(err) || attempt === maxAttempts - 1) throw err;
+        }
+      }
+      throw lastErr;
+    };
+  }
+
   return baseClient;
 }
