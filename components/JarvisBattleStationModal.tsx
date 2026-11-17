@@ -1942,6 +1942,31 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
+            {/* POKA-YOKE 4-STEP PRODUCTION RAIL (Error-Proof Guided Workflow) */}
+            {persona !== 'visitor' && (
+              <div className="w-full max-w-3xl flex flex-wrap items-center justify-center gap-1.5 px-2 py-1.5 rounded-2xl bg-[#030816]/85 border border-cyan-500/25 font-['Cairo']" dir="rtl">
+                <span className="text-[10px] font-black text-cyan-300/80 ml-1">🛡️ مسار الإنتاج المحكم:</span>
+                {[
+                  { step: '1', label: 'الهوية والتطبيق', cmd: `جهّز الهوية البصرية وتطبيق PWA لبراند ${currentSelectedBrand?.name || ''}` },
+                  { step: '2', label: 'خطة الشهر', cmd: `نفذ خطة محتوى شهرية دفعة واحدة لبراند ${currentSelectedBrand?.name || ''} عبر تيتو ستوديو` },
+                  { step: '3', label: 'الاعتماد والنشر', cmd: `افتح صالة العرض والاعتماد لبراند ${currentSelectedBrand?.name || ''}` },
+                  { step: '4', label: 'واتساب والمبيعات', cmd: `افتح نافذة واتساب QR والحجوزات لبراند ${currentSelectedBrand?.name || ''}` },
+                ].map((item) => (
+                  <button
+                    key={item.step}
+                    type="button"
+                    onClick={() => handleSendLiveCommand(item.cmd)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-400/40 text-[10.5px] font-bold text-white/85 hover:text-cyan-100 transition"
+                  >
+                    <span className="w-4 h-4 rounded-full bg-cyan-500/25 text-cyan-300 text-[9px] font-black flex items-center justify-center">
+                      {item.step}
+                    </span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* SWARM & EXECUTIVE SERVICES SUMMARY DRAWER (Unified in BattleStation + Chat) */}
             <LiveTelemetryNotifier
               isMasterAdmin={isMasterAdmin}

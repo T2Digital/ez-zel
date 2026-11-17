@@ -1007,7 +1007,7 @@ ${conversationMemoryDirective}`;
           if (brandObj?.xToken) p.push("x");
           if (isVideo && brandObj?.tiktokToken) p.push("tiktok");
           if (isVideo && brandObj?.youtubeToken) p.push("youtube");
-          return p.length > 0 ? p : ["facebook", "instagram"];
+          return p;
         };
 
         if (
@@ -1177,29 +1177,40 @@ ${conversationMemoryDirective}`;
           }
 
           if (publishNow) {
-            try {
-              studioDispatchRes = await titoStudioApi.executeRemoteAction("publish.multi_platform", studioClinicId, {
-                title: customHook,
-                caption: customCaption || dynamicTopic,
-                mediaUrl: publicMediaUrl,
-                platforms: targetPlatforms,
-              });
+            if (targetPlatforms.length === 0) {
+              // Poka-Yoke Guard: Never dispatch to unlinked channels; route to Showroom + Settings cleanly
               backendExecutionResult = {
                 ...backendExecutionResult,
+                pokaYokeBlocked: true,
                 studioClinicId,
-                targetPlatforms,
                 studioCreateErr,
-                studioDispatchRes,
-                publishResult: studioDispatchRes,
+                message: `تم تجهيز المنشور وحفظه في صالة العرض لبراند (${targetBrand?.name || studioClinicId})، ولكن لا توجد صفحات سوشيال مربوطة بعد. اربط صفحة فيسبوك/إنستجرام من الإعدادات ثم اعتمد النشر بضغطة واحدة.`,
               };
-            } catch (pubErr: any) {
-              backendExecutionResult = {
-                ...backendExecutionResult,
-                studioClinicId,
-                targetPlatforms,
-                studioCreateErr,
-                studioPublishError: pubErr?.message,
-              };
+            } else {
+              try {
+                studioDispatchRes = await titoStudioApi.executeRemoteAction("publish.multi_platform", studioClinicId, {
+                  title: customHook,
+                  caption: customCaption || dynamicTopic,
+                  mediaUrl: publicMediaUrl,
+                  platforms: targetPlatforms,
+                });
+                backendExecutionResult = {
+                  ...backendExecutionResult,
+                  studioClinicId,
+                  targetPlatforms,
+                  studioCreateErr,
+                  studioDispatchRes,
+                  publishResult: studioDispatchRes,
+                };
+              } catch (pubErr: any) {
+                backendExecutionResult = {
+                  ...backendExecutionResult,
+                  studioClinicId,
+                  targetPlatforms,
+                  studioCreateErr,
+                  studioPublishError: pubErr?.message,
+                };
+              }
             }
           }
 
