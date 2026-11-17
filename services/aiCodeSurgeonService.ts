@@ -62,9 +62,9 @@ export async function customizeAppLiveConfig(
   let nextCashiers = options.cashiers;
   if (!nextCashiers && typeof options.cashierCount === 'number') {
     const allCashiers = [
-      { value: 'main', label: options.primaryCashierLabel || 'الكاشير الرئيسي' },
+      { value: 'تحت', label: options.primaryCashierLabel || 'الكاشير الرئيسي' },
       { value: 'فوق', label: 'كاشير فوق' },
-      { value: 'تحت', label: 'كاشير تحت' }
+      { value: 'online', label: 'كاشير أونلاين' }
     ];
     nextCashiers = allCashiers.slice(0, Math.max(1, Math.min(3, options.cashierCount)));
   }
