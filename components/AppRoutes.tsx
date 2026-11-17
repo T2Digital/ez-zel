@@ -137,13 +137,16 @@ export const AppRoutes: React.FC = () => {
     }
   };
 
+  const userEmailLower = (user?.email || "").toLowerCase();
   const isAdminUser = user
-    ? user.email === "TITO" ||
-      user.email === "tito@shadow.com" ||
-      user.email === "admin@shadow.com" ||
-      user.email === "ahmed.atya.daif@gmail.com" ||
+    ? userEmailLower === "tito" ||
+      userEmailLower === "tito@shadow.com" ||
+      userEmailLower === "admin@shadow.com" ||
+      userEmailLower === "ahm.atya@gmail.com" ||
+      userEmailLower === "ahmed.atya.daif@gmail.com" ||
       (user.tier === "sovereign" && user.name.includes("تيتو"))
     : false;
+  const adminInUserMode = typeof window !== "undefined" && sessionStorage.getItem("t2_admin_user_mode") === "1";
 
   return (
     <Suspense fallback={
@@ -185,7 +188,7 @@ export const AppRoutes: React.FC = () => {
                 onUnlock={() => setIsAppLocked(false)}
                 onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
               />
-            ) : isAdminUser ? (
+            ) : isAdminUser && !adminInUserMode ? (
               <Navigate to="/admin" replace />
             ) : (
               <Dashboard
@@ -260,7 +263,7 @@ export const AppRoutes: React.FC = () => {
         path="/pricing"
         element={
           user && new URLSearchParams(location.search).get("upgrade") !== "1" ? (
-            <Navigate to={isAdminUser ? "/admin" : "/"} replace />
+            <Navigate to={isAdminUser && !adminInUserMode ? "/admin" : "/"} replace />
           ) : (
             <Pricing
             onSelectPlan={(plan, cycle) => {
@@ -333,8 +336,14 @@ export const AppRoutes: React.FC = () => {
         element={
           <AdminDashboard
             onLogout={handleLogout}
-            onSwitchToUserMode={() => navigateToView("dashboard")}
-            onNavigateTo={(v) => navigateToView(v)}
+            onSwitchToUserMode={() => {
+              try { sessionStorage.setItem("t2_admin_user_mode", "1"); } catch {}
+              navigateToView("dashboard");
+            }}
+            onNavigateTo={(v) => {
+              try { sessionStorage.removeItem("t2_admin_user_mode"); } catch {}
+              navigateToView(v);
+            }}
           />
         }
       />

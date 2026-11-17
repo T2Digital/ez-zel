@@ -30,6 +30,7 @@ import { JarvisConnectionModals } from './jarvis/JarvisConnectionModals';
 import { jarvisVoiceSocket, VoiceSocketState } from '../services/jarvisVoiceSocketService';
 import { BRAND_VAULT } from '../services/brandVault';
 import { shadowDB } from '../services/dbService';
+import { useAppStore } from '../services/store';
 
 const toast = {
   success: (msg: string) => console.log('[Toast Success]:', msg),
@@ -51,8 +52,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   onNavigateTo
 }) => {
   // Master Admin verification (Strict Sovereignty Isolation)
+  const storeUser = useAppStore((s) => s.user);
+  const storeUserEmail = (storeUser?.email || '').toLowerCase();
   const isMasterAdmin = typeof window !== 'undefined' && (
-    localStorage.getItem('tito_admin_master') === 'true'
+    localStorage.getItem('tito_admin_master') === 'true' ||
+    ['tito', 'tito@shadow.com', 'admin@shadow.com', 'ahm.atya@gmail.com', 'ahmed.atya.daif@gmail.com'].includes(storeUserEmail) ||
+    (storeUser?.tier === 'sovereign' && Boolean(storeUser?.name?.includes('تيتو')))
   );
 
   // Active Persona: Initialized to passed prop, or 'tito' for master admin, or 'visitor' for guests
