@@ -397,12 +397,15 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                         {/* Action Buttons */}
                         <div className="space-y-2 pt-1">
                             <button
-                                onClick={() => setShowBattleStation(true)}
+                                onClick={() => {
+                                    if (onTrialStart) onTrialStart();
+                                    else setShowBattleStation(true);
+                                }}
                                 className="group relative w-full py-3 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 text-black rounded-[18px] font-black text-sm hover:scale-[1.01] active:scale-[0.98] transition-all shadow-[0_0_30px_rgba(16,185,129,0.28)] flex items-center justify-center gap-2 overflow-hidden cursor-pointer"
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
                                 <Eye className="w-4 h-4 text-black" />
-                                <span>ابدأ الأسبوع المجاني مع جارفيس (7 أيام)</span>
+                                <span>ابدأ الأسبوع المجاني مع جارفيس (دخول بجوجل)</span>
                             </button>
 
                             <div className="flex gap-2">

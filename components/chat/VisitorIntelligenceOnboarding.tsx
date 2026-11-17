@@ -856,13 +856,24 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 </p>
               )}
 
-              <button
-                onClick={handleConnectWhatsAppLive}
-                disabled={isConnectingWa}
-                className="w-full py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-black transition"
-              >
-                {isConnectingWa ? 'جاري فتح جلسة الربط...' : waPairingData ? '🔄 تحديث كود الربط و QR' : '📱 إظهار QR وكود ربط واتساب الآن'}
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={handleConnectWhatsAppLive}
+                  disabled={isConnectingWa}
+                  className="flex-1 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-black transition"
+                >
+                  {isConnectingWa ? 'جاري التوليد...' : waPairingData ? '🔄 تحديث QR والكود' : '📱 QR وكود الربط الفوري'}
+                </button>
+                <a
+                  href={`https://khedr-bot-agent.onrender.com/dashboard?brandId=${encodeURIComponent(generatedBrand?.agentBrandId || generatedBrand?.slug || generatedBrand?.id || 'clean_master')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/45 text-emerald-200 border border-emerald-400/50 text-[10px] font-black transition shrink-0 flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  فتح تيتو أجنت
+                </a>
+              </div>
             </div>
 
             {/* Window B: Meta (Facebook & Instagram) Connect */}
@@ -900,12 +911,12 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 <button
                   type="button"
                   onClick={() => {
-                    const bId = generatedBrand?.id || generatedBrand?.slug || 'clean_master';
-                    window.open(`/api/auth/meta/login?brandId=${encodeURIComponent(bId)}`, 'meta_oauth', 'width=600,height=700');
+                    const bId = generatedBrand?.studioBrandId || generatedBrand?.id || generatedBrand?.slug || 'clean_master';
+                    window.open(`https://t2-studio.onrender.com/?brandId=${encodeURIComponent(bId)}&tab=settings`, '_blank', 'noopener,noreferrer');
                   }}
                   className="flex-1 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/45 text-blue-200 border border-blue-400/50 text-[10px] font-black transition"
                 >
-                  🔐 ربط رسمي (Meta OAuth)
+                  🔐 ربط رسمي (تيتو استوديو)
                 </button>
                 <button
                   onClick={handleConnectMetaLive}
@@ -979,16 +990,16 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
               >
                 {isConnectingSocial ? 'جاري الربط...' : socialLinks[activeSocialTab] ? '🔄 تحديث' : '🔗 ربط وحفظ'}
               </button>
-              {['tiktok', 'youtube', 'linkedin', 'x'].includes(activeSocialTab) && (
+              {['tiktok', 'youtube', 'linkedin', 'x', 'snapchat'].includes(activeSocialTab) && (
                 <button
                   type="button"
                   onClick={() => {
-                    const bId = generatedBrand?.id || generatedBrand?.slug || 'clean_master';
-                    window.open(`/api/auth/social/login/${activeSocialTab}?brandId=${encodeURIComponent(bId)}`, 'social_oauth', 'width=600,height=700');
+                    const bId = generatedBrand?.studioBrandId || generatedBrand?.id || generatedBrand?.slug || 'clean_master';
+                    window.open(`https://t2-studio.onrender.com/?brandId=${encodeURIComponent(bId)}&tab=settings`, '_blank', 'noopener,noreferrer');
                   }}
                   className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 text-[10px] font-black shrink-0"
                 >
-                  🔐 OAuth
+                  🔐 OAuth (الاستوديو)
                 </button>
               )}
             </div>

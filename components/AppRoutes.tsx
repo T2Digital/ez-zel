@@ -273,13 +273,32 @@ export const AppRoutes: React.FC = () => {
               setAuthDefaultTab("register");
               navigateToView("auth");
             }}
-            onTrialStart={handleGuestAccess}
+            onTrialStart={async () => {
+              try {
+                const gUser = await shadowDB.loginWithGoogle();
+                if (gUser && gUser.status !== "blocked") {
+                  useAppStore.getState().setUser(gUser);
+                  navigateToView("dashboard");
+                  return;
+                }
+              } catch {}
+              setAuthDefaultTab("login");
+              navigateToView("auth");
+            }}
             onAffiliateStart={() => {
               setIsAffiliateRegistration(true);
               setAuthDefaultTab("register");
               navigateToView("auth");
             }}
-              onLoginClick={() => {
+              onLoginClick={async () => {
+                try {
+                  const gUser = await shadowDB.loginWithGoogle();
+                  if (gUser && gUser.status !== "blocked") {
+                    useAppStore.getState().setUser(gUser);
+                    navigateToView("dashboard");
+                    return;
+                  }
+                } catch {}
                 setAuthDefaultTab("login");
                 navigateToView("auth");
               }}
