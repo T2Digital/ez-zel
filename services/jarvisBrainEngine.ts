@@ -565,14 +565,28 @@ const jarvisBrainTools: FunctionDeclaration[] = [
   {
     name: "manage_store_erp",
     description:
-      "الأداة العميقة لمتجر ونظام ERP/POS الخاص بالبراند: تقرأ كل تفصيلة وكل جنيه وكل منتج أو خدمة ومبيعات ومصاريف وطلبات، وتضيف منتجاً/خدمة جديدة، أو تغير سعر أو مخزون منتج، أو تسجل مصروفاً أو مبيعة، وتزامنها فوراً مع المتجر ولوحة الإدارة السحابية.",
+      "الأداة التنفيذية الكاملة لإدارة متجر ونظام ERP/POS الخاص بالبراند: تقرأ كل تفصيلة وكل جنيه وكل منتج أو خدمة ومبيعات ومصاريف وخزينة وموظفين وموردين، وتنفذ تعديلات فورية (إضافة منتج، تعديل سعر/مخزون، تسجيل مبيعة أو مصروف، إضافة موظف/سلفة، إضافة مورد/فاتورة شراء، حركة خزينة، أو تعديل إعدادات المتجر) مع مزامنة لحظية للداشبورد.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         action: {
           type: Type.STRING,
-          enum: ["get_summary", "add_product", "update_price", "add_expense", "record_sale", "update_order_status"],
-          description: "العملية المطلوبة على المتجر والـ ERP",
+          enum: [
+            "get_summary",
+            "add_product",
+            "update_price",
+            "update_stock",
+            "add_expense",
+            "record_sale",
+            "update_order_status",
+            "add_employee",
+            "record_advance",
+            "add_supplier",
+            "record_purchase",
+            "add_treasury_tx",
+            "update_store_settings",
+          ],
+          description: "العملية المطلوبة على المتجر ونظام الـ ERP",
         },
         brandSlugOrId: {
           type: Type.STRING,
@@ -580,14 +594,23 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         },
         productName: { type: Type.STRING, description: "اسم المنتج أو الخدمة" },
         sku: { type: Type.STRING, description: "كود الصنف SKU" },
-        category: { type: Type.STRING, description: "تصنيف المنتج أو الخدمة" },
+        category: { type: Type.STRING, description: "تصنيف المنتج أو المصروف" },
         price: { type: Type.NUMBER, description: "السعر الجديد بالجنيه" },
-        stock: { type: Type.NUMBER, description: "الكمية المتاحة بالمخزن" },
-        description: { type: Type.STRING, description: "وصف المنتج أو المصروف" },
-        amount: { type: Type.NUMBER, description: "المبلغ بالجنيه (للمصروف أو المبيعة)" },
-        customerName: { type: Type.STRING, description: "اسم العميل (للمبيعة)" },
+        stock: { type: Type.NUMBER, description: "الكمية بالمخزن" },
+        branch: { type: Type.STRING, description: "الفرع: main, branch1, branch2, branch3" },
+        description: { type: Type.STRING, description: "وصف العملية أو المنتج أو المصروف" },
+        amount: { type: Type.NUMBER, description: "المبلغ بالجنيه" },
+        customerName: { type: Type.STRING, description: "اسم العميل" },
         orderId: { type: Type.STRING, description: "رقم الطلب" },
-        status: { type: Type.STRING, description: "حالة الطلب الجديدة" },
+        status: { type: Type.STRING, description: "حالة الطلب" },
+        employeeName: { type: Type.STRING, description: "اسم الموظف" },
+        employeeRole: { type: Type.STRING, description: "المسمى الوظيفي للموظف" },
+        salary: { type: Type.NUMBER, description: "الراتب الأساسي الشهري" },
+        supplierName: { type: Type.STRING, description: "اسم المورد" },
+        phone: { type: Type.STRING, description: "رقم الهاتف" },
+        txType: { type: Type.STRING, description: "نوع حركة الخزينة: in (وارد) أو out (صادر)" },
+        companyName: { type: Type.STRING, description: "اسم المتجر/الشركة في الإعدادات" },
+        tickerText: { type: Type.STRING, description: "نص الشريط الإعلاني أعلى المتجر" },
       },
       required: ["action"],
     },
@@ -711,9 +734,10 @@ ${personaRoleInstruction}
 ${persona !== "visitor" ? activatedPlatformsKnowledge : ""}
 ${recentChatSummary ? `\n[سياق الذاكرة المشتركة مع شات الظل الرئيسي]: ${recentChatSummary}` : ""}
 
-قواعد صارمة:
-- تحدث بالعامية المصرية الطبيعية السلسة جداً (بدون تشكيل معقد وبدون فصحى روبوتية) عشان صوت Gemini البشري يطلع طبيعي 100%.
-- اجعل ردك مختصراً ومباشراً في جملة أو جملتين مركزتين وعمليتين.
+قواعد صارمة لشخصية جارفيس المتحدث (Executive Poise):
+- تحدث بالعامية المصرية المهذبة والرزينة (بدون مبالغة أو كلام إنشائي) لصوت طبيعي واضح.
+- أجب بأرقام وحقائق حقيقية من الذاكرة الحية أو من نتائج الأدوات فقط — ممنوع تأليف أي رقم أو سعر أو حالة غير موجودة.
+- عند أي أمر تنفيذي (نشر، تعديل سعر، إضافة منتج، مصروف، موظف، مورد، خزينة، ربط واتساب): نفّذ الأداة أولاً ثم قدّم تقريراً تنفيذياً دقيقاً في جملة أو جملتين.
 - لا تكرر تقارير قديمة إلا إذا سألك المستخدم عنها مباشرة.`;
 }
 
@@ -723,10 +747,27 @@ async function fetchLiveEcosystemFromStudioAndAgent(persona: string, selectedBra
     Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]).catch(() => null);
 
   try {
-    const [studioBrandsRes, agentHealthRes, brandBookingsRes] = await Promise.all([
+    const [studioBrandsRes, agentHealthRes, brandBookingsRes, liveErpSummary] = await Promise.all([
       persona === "tito" ? withTimeout(titoStudioApi.listBrands()) : Promise.resolve(null),
       persona === "tito" ? withTimeout(t2AgentApi.getAllBrandsHealth()) : Promise.resolve(null),
       selectedBrandId ? withTimeout(t2AgentApi.getBookings(selectedBrandId)) : Promise.resolve(null),
+      selectedBrandId ? withTimeout((async () => {
+        const { loadTenantErpState, normalizeSlugKey } = await import("./tenantErpStoreService");
+        const st = await loadTenantErpState(normalizeSlugKey(selectedBrandId));
+        if (!st || typeof st !== "object") return null;
+        const prods = Array.isArray(st.products) ? st.products : [];
+        const sales = Array.isArray(st.dailySales) ? st.dailySales : [];
+        const exps = Array.isArray(st.expenses) ? st.expenses : [];
+        const emps = Array.isArray(st.employees) ? st.employees : [];
+        const sups = Array.isArray(st.suppliers) ? st.suppliers : [];
+        const treas = Array.isArray(st.treasury) ? st.treasury : [];
+        const ords = Array.isArray(st.orders) ? st.orders : [];
+        const totalSales = sales.reduce((s: number, x: any) => s + (Number(x.total || x.amount || 0) || 0), 0);
+        const totalExps = exps.reduce((s: number, x: any) => s + (Number(x.amount || 0) || 0), 0);
+        const treasBal = treas.reduce((s: number, x: any) => s + (Number(x.amountIn || 0) || 0) - (Number(x.amountOut || 0) || 0), 0);
+        const topProds = prods.slice(0, 8).map((p: any) => `${p.name} (${p.sellingPrice || 0} ج.م، مخزون:${p.stock?.main ?? 0})`).join("، ");
+        return `[بيانات Cloud ERP الحية للبراند (${selectedBrandId})]: المنتجات (${prods.length}${topProds ? `: ${topProds}` : ""}) | المبيعات: ${sales.length} (${totalSales} ج.م) | المصاريف: ${exps.length} (${totalExps} ج.م) | الخزينة: ${treasBal} ج.م | الموظفون: ${emps.length} | الموردون: ${sups.length} | الطلبات: ${ords.length}`;
+      })(), 2200) : Promise.resolve(null),
     ]);
 
     const lines: string[] = [];
@@ -763,7 +804,11 @@ async function fetchLiveEcosystemFromStudioAndAgent(persona: string, selectedBra
       lines.push(`• حجوزات البراند الحية في تيتو أجنت: ${bookings.length} حجز.`);
     }
 
-    return lines.length > 0 ? `\n[بيانات حية مباشرة من قواعد بيانات تيتو ستوديو وتيتو أجنت الآن]:\n${lines.join("\n")}` : "";
+    if (liveErpSummary) {
+      lines.push(`• ${liveErpSummary}`);
+    }
+
+    return lines.length > 0 ? `\n[بيانات حية مباشرة من قواعد بيانات تيتو ستوديو وتيتو أجنت والمتجر الآن]:\n${lines.join("\n")}` : "";
   } catch {
     return "";
   }
@@ -2187,6 +2232,98 @@ ${conversationMemoryDirective}`;
               await saveTenantErpState(slugKey, { orders });
               backendExecutionResult = { success: true, order: orders[oIdx], message: `تم تحديث حالة الطلب ${oid} إلى ${orders[oIdx].status}.` };
             }
+          } else if (erpAction === "update_stock") {
+            const needle = String(args.productName || args.sku || "").trim().toLowerCase();
+            const newQty = Number(args.stock ?? 0);
+            const branchKey = String(args.branch || "main").trim();
+            const idx = products.findIndex((p: any) =>
+              (needle && String(p.name || "").toLowerCase().includes(needle)) ||
+              (needle && String(p.sku || "").toLowerCase() === needle)
+            );
+            if (idx === -1) {
+              backendExecutionResult = { success: false, error: `لم يتم العثور على المنتج "${needle}"` };
+            } else {
+              const prevStock = typeof products[idx].stock === "object" ? { ...products[idx].stock } : { main: Number(products[idx].stock || 0) };
+              prevStock[branchKey] = newQty;
+              products[idx] = { ...products[idx], stock: prevStock };
+              await saveTenantErpState(slugKey, { products });
+              backendExecutionResult = { success: true, productName: products[idx].name, branch: branchKey, stock: newQty, message: `تم تحديث مخزون "${products[idx].name}" في (${branchKey}) إلى ${newQty} قطعة.` };
+            }
+          } else if (erpAction === "add_employee") {
+            const employees: any[] = Array.isArray(erpState.employees) ? [...erpState.employees] : [];
+            const emp = {
+              id: Date.now(),
+              name: String(args.employeeName || "موظف جديد"),
+              role: String(args.employeeRole || "مبيعات"),
+              salary: Number(args.salary || args.amount || 4000),
+              phone: String(args.phone || ""),
+              branch: String(args.branch || "main"),
+              joinDate: new Date().toISOString().split("T")[0],
+            };
+            await saveTenantErpState(slugKey, { employees: [emp, ...employees] });
+            backendExecutionResult = { success: true, employee: emp, message: `تم تسجيل الموظف "${emp.name}" براتب ${emp.salary} ج.م.` };
+          } else if (erpAction === "record_advance") {
+            const advances: any[] = Array.isArray(erpState.advances) ? [...erpState.advances] : [];
+            const amt = Number(args.amount || 0);
+            const adv = {
+              id: Date.now(),
+              employeeName: String(args.employeeName || "موظف"),
+              amount: amt,
+              date: new Date().toISOString().split("T")[0],
+              notes: String(args.description || "سلفة مسجلة عبر جارفيس"),
+            };
+            await saveTenantErpState(slugKey, { advances: [adv, ...advances] });
+            backendExecutionResult = { success: true, advance: adv, message: `تم تسجيل سلفة بقيمة ${amt} ج.م للموظف "${adv.employeeName}".` };
+          } else if (erpAction === "add_supplier") {
+            const suppliers: any[] = Array.isArray(erpState.suppliers) ? [...erpState.suppliers] : [];
+            const sup = {
+              id: Date.now(),
+              name: String(args.supplierName || "مورد جديد"),
+              phone: String(args.phone || ""),
+              notes: String(args.description || ""),
+              balance: 0,
+            };
+            await saveTenantErpState(slugKey, { suppliers: [sup, ...suppliers] });
+            backendExecutionResult = { success: true, supplier: sup, message: `تمت إضافة المورد "${sup.name}" لقاعدة الموردين.` };
+          } else if (erpAction === "record_purchase") {
+            const purchases: any[] = Array.isArray(erpState.purchases) ? [...erpState.purchases] : [];
+            const amt = Number(args.amount || 0);
+            const pur = {
+              id: Date.now(),
+              date: new Date().toISOString().split("T")[0],
+              supplierName: String(args.supplierName || "مورد عام"),
+              description: String(args.description || args.productName || "فاتورة مشتريات"),
+              total: amt,
+              branch: String(args.branch || "main"),
+            };
+            await saveTenantErpState(slugKey, { purchases: [pur, ...purchases] });
+            backendExecutionResult = { success: true, purchase: pur, message: `تم تسجيل فاتورة مشتريات من "${pur.supplierName}" بقيمة ${amt} ج.م.` };
+          } else if (erpAction === "add_treasury_tx") {
+            const treasury: any[] = Array.isArray(erpState.treasury) ? [...erpState.treasury] : [];
+            const amt = Number(args.amount || 0);
+            const isOut = String(args.txType || "in").toLowerCase() === "out";
+            const tx = {
+              id: Date.now(),
+              date: new Date().toISOString(),
+              type: isOut ? "expense" : "deposit",
+              description: String(args.description || (isOut ? "صرف خزينة عبر جارفيس" : "إيداع خزينة عبر جارفيس")),
+              amountIn: isOut ? 0 : amt,
+              amountOut: isOut ? amt : 0,
+              relatedId: `JRV-${Date.now()}`,
+            };
+            await saveTenantErpState(slugKey, { treasury: [tx, ...treasury] });
+            backendExecutionResult = { success: true, transaction: tx, message: `تم تسجيل حركة خزينة (${isOut ? "صادر" : "وارد"}) بقيمة ${amt} ج.م.` };
+          } else if (erpAction === "update_store_settings") {
+            const currentSettings = (erpState.storefrontSettings && typeof erpState.storefrontSettings === "object") ? { ...erpState.storefrontSettings } : {};
+            const nextSettings = {
+              ...currentSettings,
+              ...(args.companyName ? { companyName: String(args.companyName) } : {}),
+              ...(args.tickerText ? { tickerText: String(args.tickerText) } : {}),
+              ...(args.phone ? { contactPhone: String(args.phone) } : {}),
+              ...(args.description ? { aboutUs: String(args.description) } : {}),
+            };
+            await saveTenantErpState(slugKey, { storefrontSettings: nextSettings });
+            backendExecutionResult = { success: true, storefrontSettings: nextSettings, message: "تم تحديث إعدادات المتجر السحابية بنجاح." };
           }
         } catch (err: any) {
           backendExecutionResult = { success: false, error: err?.message || "ERP execution error" };
