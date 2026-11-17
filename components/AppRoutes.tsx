@@ -102,7 +102,7 @@ export const AppRoutes: React.FC = () => {
 
   // 2. React to Store view changes (only if it didn't originate from URL change)
   useEffect(() => {
-    if (isNavigatingRef.current) return;
+    if (isNavigatingRef.current || location.pathname.startsWith("/client/")) return;
     const targetPath = pathMapping[view];
     if (targetPath && targetPath !== location.pathname) {
       navigate(targetPath, { replace: view === "loading" || view === "dashboard" });

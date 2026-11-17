@@ -133,18 +133,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [visitorName, setVisitorName] = useState<string>(() => {
     try { return localStorage.getItem('ezzel_visitor_name_v1') || ''; } catch { return ''; }
   });
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isBrandSuperWindowOpen) setIsBrandSuperWindowOpen(false);
-        else if (studioEmbed?.open) setStudioEmbed(null);
-        else if (agentEmbed?.open) setAgentEmbed(null);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isBrandSuperWindowOpen, studioEmbed?.open, agentEmbed?.open]);
   const [detectedVisitorBrand, setDetectedVisitorBrand] = useState<{
     businessName?: string;
     industry?: string;
@@ -164,6 +152,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     embedUrl: string;
   } | null>(null);
   const agentIframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isBrandSuperWindowOpen) setIsBrandSuperWindowOpen(false);
+        else if (studioEmbed?.open) setStudioEmbed(null);
+        else if (agentEmbed?.open) setAgentEmbed(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isBrandSuperWindowOpen, studioEmbed?.open, agentEmbed?.open]);
 
   const streamTranscriptWords = useCallback((fullText: string) => {
     if (streamTimerRef.current) clearInterval(streamTimerRef.current);
