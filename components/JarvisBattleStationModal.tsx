@@ -1891,7 +1891,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     type="button"
                     onClick={() => {
                       if (isPlayingVoice) { stopVoice(); setIsPlayingVoice(false); }
-                      handleSendToJarvis(chip);
+                      handleSendLiveCommand(chip);
                     }}
                     className="px-3 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/35 text-[11px] font-bold transition shadow-sm"
                   >
@@ -2050,7 +2050,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   role: isMasterAdmin ? 'master' : 'visitor',
                   linkedBrandId: currentSelectedBrand?.id !== 'clean_master' ? currentSelectedBrand?.id : undefined
                 }}
-                onQuickPrompt={(prompt) => handleSendToJarvis(prompt)}
+                onQuickPrompt={(prompt) => handleSendLiveCommand(prompt)}
               />
             </div>
 

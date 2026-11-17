@@ -296,8 +296,17 @@ export const titoStudioApi = {
     studioRequest("POST", "/api/v1/execute", { action, clinicId, payload }),
   sendUiCommand: (command: string, view: string, clinicId: string, payload?: Record<string, any>) =>
     studioRequest("POST", "/api/v1/ui/command", { command, view, clinicId, payload }),
-  buildStudioEmbedUrl: (view: string, clinicId: string) => {
+  buildStudioEmbedUrl: (view: string, clinicId: string, apiKey?: string) => {
     const base = getTitoStudioBaseUrl();
-    return `${base}/?embed=1&view=${encodeURIComponent(view || "calendar")}&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(clinicId || "1")}`;
+    const qs = new URLSearchParams({
+      embed: "1",
+      view: view || "calendar",
+      hideSidebar: "1",
+      hideHeader: "1",
+      clinicId: clinicId || "1",
+    });
+    const resolvedKey = (apiKey || process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || "").trim();
+    if (resolvedKey) qs.set("apiKey", resolvedKey);
+    return `${base}/?${qs.toString()}`;
   },
 };

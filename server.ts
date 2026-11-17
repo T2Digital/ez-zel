@@ -1646,7 +1646,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       // Check subscription / 7-day trial status
       const clients = getEzZelPersonalClients();
       const linkedClient = clients.find((c: any) => c.linkedBrandId === brand.id);
-      const subs = getPaymobSubscriptions();
+      const subs = readPaymobSubscriptions();
       const paidSub = subs.find((s: any) => (s.brandId === brand.id || s.brandId === brand.slug) && s.status === "paid");
       let subscriptionStatus: "active" | "trial" | "expired" = "active";
       let trialEndsAt = linkedClient?.trialEndsAt || "";

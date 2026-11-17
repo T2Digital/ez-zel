@@ -1663,6 +1663,10 @@ ${conversationMemoryDirective}`;
       }
 
       case "t2_agent_remote_execute": {
+        if (persona === "visitor") {
+          backendExecutionResult = { success: false, message: "هذه الميزة متاحة للأعضاء والمديرين فقط. سجل دخولك أو فعّل التجربة المجانية أولاً." };
+          break;
+        }
         try {
           const section = String(args.section || "crm").trim();
           const actionName = String(args.action || "get_status").trim();
@@ -1691,7 +1695,13 @@ ${conversationMemoryDirective}`;
             ? await t2AgentApi.executeExternalAdminAction(actionName, { brandId: agentBrandId, ...parsedPayload })
             : await t2AgentApi.executeExternalAction(agentBrandId, section, actionName, parsedPayload);
 
-          const embedUrl = t2AgentApi.buildAgentEmbedUrl(embedWindow, agentBrandId);
+          let brandApiKey: string | undefined;
+          try {
+            const keysRes: any = await t2AgentApi.getBrandKeys(agentBrandId);
+            brandApiKey = keysRes?.apiKey || keysRes?.keys?.apiKey || keysRes?.data?.apiKey;
+          } catch {}
+
+          const embedUrl = t2AgentApi.buildAgentEmbedUrl(embedWindow, agentBrandId, brandApiKey);
           backendExecutionResult = {
             success: true,
             brandId: agentBrandId,
@@ -1716,6 +1726,10 @@ ${conversationMemoryDirective}`;
       }
 
       case "tito_studio_remote_execute": {
+        if (persona === "visitor") {
+          backendExecutionResult = { success: false, message: "هذه الميزة متاحة للأعضاء والمديرين فقط. سجل دخولك أو فعّل التجربة المجانية أولاً." };
+          break;
+        }
         try {
           const actionName = String(args.action || "calendar.schedule_post").trim();
           const embedView = String(args.embedView || (actionName.startsWith("showroom") ? "showroom" : actionName.startsWith("research") ? "marketResearch" : actionName.startsWith("drama") ? "dramaFilm" : actionName.startsWith("autopilot") ? "workflowStudio" : actionName.startsWith("metaAds") ? "metaAds" : "calendar")).trim();
