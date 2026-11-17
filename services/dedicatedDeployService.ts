@@ -221,6 +221,26 @@ export async function provisionDedicatedRepoAndVercel(input: {
       }).catch(() => {});
     }
 
+    // 6. Trigger initial production deployment on Vercel
+    await fetch('https://api.vercel.com/v13/deployments', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${vercelToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: repoName,
+        project: envTarget,
+        target: 'production',
+        gitSource: {
+          type: 'github',
+          org: owner,
+          repo: repoName,
+          ref: 'main'
+        }
+      })
+    }).catch(() => {});
+
     persistBrandUpdateAcrossEcosystem(brand.id, {
       dedicatedRepoUrl: repoUrl,
       dedicatedLiveUrl
