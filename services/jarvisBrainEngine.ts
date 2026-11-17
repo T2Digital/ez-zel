@@ -601,15 +601,67 @@ function buildPersonaSystemPrompt(
 عندما يسألك الماستر عن اشتراكات الظل وجارفيس أو عن إحصائيات أي براند مربوط، أجب فوراً بالأرقام الحية أعلاه، واستدعِ الأداة المناسبة عند طلب أي أمر تنفيذي.`;
   }
 
-  return `أنت "جارفيس" (Jarvis)، العقل التنفيذي الموحد لمنظومة النمو الشامل للأعمال (Ez-Zel + Tito Studio + T2 Agent + Flagship Apps + Obsidian Knowledge Vault).
+  return `أنت "جارفيس" (Jarvis)، العقل التنفيذي الموحد لمنظومة T2OS من شركة T2 Digital.
 ${personaRoleInstruction}
-${activatedPlatformsKnowledge}
-${recentChatSummary ? `\n[سياق آخر محادثة في شات الظل الرئيسي]: ${recentChatSummary}` : ""}
+${persona !== "visitor" ? activatedPlatformsKnowledge : ""}
+${recentChatSummary ? `\n[سياق الذاكرة المشتركة مع شات الظل الرئيسي]: ${recentChatSummary}` : ""}
 
 قواعد صارمة:
 - تحدث بالعامية المصرية الطبيعية السلسة جداً (بدون تشكيل معقد وبدون فصحى روبوتية) عشان صوت Gemini البشري يطلع طبيعي 100%.
 - اجعل ردك مختصراً ومباشراً في جملة أو جملتين مركزتين وعمليتين.
 - لا تكرر تقارير قديمة إلا إذا سألك المستخدم عنها مباشرة.`;
+}
+
+async function fetchLiveEcosystemFromStudioAndAgent(persona: string, selectedBrandId: string): Promise<string> {
+  if (persona === "visitor") return "";
+  const withTimeout = <T>(p: Promise<T>, ms = 2200): Promise<T | null> =>
+    Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]).catch(() => null);
+
+  try {
+    const [studioBrandsRes, agentHealthRes, brandBookingsRes] = await Promise.all([
+      persona === "tito" ? withTimeout(titoStudioApi.listBrands()) : Promise.resolve(null),
+      persona === "tito" ? withTimeout(t2AgentApi.getAllBrandsHealth()) : Promise.resolve(null),
+      selectedBrandId ? withTimeout(t2AgentApi.getBookings(selectedBrandId)) : Promise.resolve(null),
+    ]);
+
+    const lines: string[] = [];
+    const studioBrands = Array.isArray((studioBrandsRes as any)?.brands)
+      ? (studioBrandsRes as any).brands
+      : Array.isArray(studioBrandsRes)
+        ? studioBrandsRes
+        : [];
+    if (studioBrands.length > 0) {
+      lines.push(
+        `• قاعدة بيانات تيتو ستوديو الحية (${studioBrands.length} براند): ` +
+          studioBrands.slice(0, 15).map((b: any) => `${b.name || b.id}`).join("، ")
+      );
+    }
+
+    const agentBrands = Array.isArray((agentHealthRes as any)?.brands)
+      ? (agentHealthRes as any).brands
+      : Array.isArray(agentHealthRes)
+        ? agentHealthRes
+        : [];
+    if (agentBrands.length > 0) {
+      lines.push(
+        `• قاعدة بيانات تيتو أجنت الحية (${agentBrands.length} جلسة واتساب): ` +
+          agentBrands.slice(0, 15).map((b: any) => `${b.brandName || b.brandId || b.id} (${b.status || b.connected ? "متصل" : "غير متصل"})`).join("، ")
+      );
+    }
+
+    const bookings = Array.isArray((brandBookingsRes as any)?.bookings)
+      ? (brandBookingsRes as any).bookings
+      : Array.isArray(brandBookingsRes)
+        ? brandBookingsRes
+        : [];
+    if (bookings.length > 0) {
+      lines.push(`• حجوزات البراند الحية في تيتو أجنت: ${bookings.length} حجز.`);
+    }
+
+    return lines.length > 0 ? `\n[بيانات حية مباشرة من قواعد بيانات تيتو ستوديو وتيتو أجنت الآن]:\n${lines.join("\n")}` : "";
+  } catch {
+    return "";
+  }
 }
 
 export async function runJarvisBrainConversation(
@@ -618,7 +670,7 @@ export async function runJarvisBrainConversation(
   const {
     message,
     history = [],
-    persona = "tito",
+    persona = "visitor",
     selectedBrandId = "",
     recentChatSummary = "",
     ai,
@@ -628,21 +680,39 @@ export async function runJarvisBrainConversation(
   const unifiedBrands = getUnifiedGrowthBrands();
   const ezzelClients = getEzZelPersonalClients();
 
-  const mentionedOrSelectedBrand =
-    resolveBrandDynamically(selectedBrandId, message, unifiedBrands) ||
-    unifiedBrands[0] || {
-      id: "tito_media",
-      name: "تيتو ميديا",
-      businessType: "نمو رقمي وتسويق",
-      phone: "01030956097",
-    };
+  // Strict Role-Based Brand Isolation:
+  // - visitor: NEVER auto-attach unifiedBrands[0]! Starts clean with null.
+  // - trial / client: ONLY their verified selectedBrandId (never fallback to unifiedBrands[0]).
+  // - tito: can resolve any brand dynamically by name or selectedBrandId.
+  const resolvedBrand =
+    persona === "tito"
+      ? resolveBrandDynamically(selectedBrandId, message, unifiedBrands) || null
+      : (persona === "trial" || persona === "client") && selectedBrandId
+        ? unifiedBrands.find((b: any) => b.id === selectedBrandId || b.slug === selectedBrandId) || null
+        : null;
+
+  const mentionedOrSelectedBrand = resolvedBrand || {
+    id: selectedBrandId || "",
+    name: persona === "visitor" ? "مشروعك الجديد" : "البراند",
+    businessType: "أعمال",
+    phone: "",
+  };
+
+  const { loadCloudMemory, saveCloudMemory } = await import("./swarmOrchestrator");
+  const scopeKey = persona === "tito" ? "ahm.atya@gmail.com" : (selectedBrandId || "guest");
+  const [cloudMem, liveDbContext] = await Promise.all([
+    loadCloudMemory(scopeKey).catch(() => null),
+    fetchLiveEcosystemFromStudioAndAgent(persona, selectedBrandId),
+  ]);
+
+  const combinedMemory = [recentChatSummary, cloudMem?.rollingSummary, liveDbContext].filter(Boolean).join("\n");
 
   const systemPrompt = buildPersonaSystemPrompt(
     persona,
-    selectedBrandId ? mentionedOrSelectedBrand : null,
+    resolvedBrand,
     unifiedBrands,
     ezzelClients,
-    recentChatSummary
+    combinedMemory
   );
 
   const hasPriorTurns = Array.isArray(history) && history.length > 0;
@@ -690,16 +760,20 @@ export async function runJarvisBrainConversation(
     .filter(Boolean)
     .join("\n");
 
-  const fullPrompt = `${systemPrompt}
+  const fullSystemInstruction = `${systemPrompt}
 
 [توجيه الذاكرة الشخصية اللحظي]:
-${conversationMemoryDirective}
+${conversationMemoryDirective}`;
 
-${
-  formattedHistory
-    ? `[سجل الحوار السابق - اقرأه جيداً وممنوع تكرار التحية أو أي سؤال تم سؤاله]:\n${formattedHistory}\n`
-    : ""
-}رسالة المتحدث الحالية: "${message}"`;
+  const structuredContents = [
+    ...(hasPriorTurns
+      ? history.slice(-8).map((h: any) => ({
+          role: h.role === "user" ? "user" : "model",
+          parts: [{ text: String(h.text || "") }],
+        }))
+      : []),
+    { role: "user", parts: [{ text: message }] },
+  ];
 
   const activeTools =
     persona === "visitor"
@@ -726,8 +800,9 @@ ${
     try {
       chat = await ai.models.generateContent({
         model: modelName,
-        contents: fullPrompt,
+        contents: structuredContents,
         config: {
+          systemInstruction: { parts: [{ text: fullSystemInstruction }] },
           tools: [{ functionDeclarations: activeTools }],
           temperature: 0.4,
         },
@@ -745,8 +820,11 @@ ${
       try {
         chat = await ai.models.generateContent({
           model: modelName,
-          contents: fullPrompt,
-          config: { temperature: 0.5 },
+          contents: structuredContents,
+          config: {
+            systemInstruction: { parts: [{ text: fullSystemInstruction }] },
+            temperature: 0.5,
+          },
         });
         if (chat) break;
       } catch (err: any) {
@@ -1639,6 +1717,12 @@ ${
           ? ["تجهيز التطبيق والكتالوج الآن", "عندي لوجو وموقع حالي", "عاوز أربط واتساب والسوشيال"]
           : ["عندي بيزنس قائم بالفعل", "فكرة جديدة من الصفر", "ورّيني الباقات والتجربة 7 أيام"])
       : ["تقرير السرب والأرقام الآن", "ملخص تفاعلات الواتساب", "خطة المحتوى في ستوديو"];
+
+  // Persist rolling summary to Cloud-First Memory so /jarvis and /chat share one brain
+  saveCloudMemory(scopeKey, {
+    rollingSummary: `المتحدث: ${message.slice(0, 120)} | جارفيس: ${replyText.slice(0, 160)}`,
+    facts: detectedVisitorName ? [`اسم العميل: ${detectedVisitorName}`] : undefined,
+  }).catch(() => {});
 
   return {
     success: true,

@@ -119,10 +119,17 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   };
 
   useEffect(() => {
+    try {
+      if (localStorage.getItem('t2os_welcome_heard_v1') === '1') {
+        hasAutoGreetedRef.current = true;
+        return;
+      }
+    } catch {}
     if (hasAutoGreetedRef.current) return;
     const triggerAutoGreeting = () => {
       if (hasAutoGreetedRef.current) return;
       hasAutoGreetedRef.current = true;
+      try { localStorage.setItem('t2os_welcome_heard_v1', '1'); } catch {}
       handlePlayJarvisWelcome();
     };
     const timer = setTimeout(triggerAutoGreeting, 900);

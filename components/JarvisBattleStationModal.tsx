@@ -589,7 +589,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     if (initialPersona && initialPersona !== persona) {
       setPersona(initialPersona);
     }
-    handlePlayPersonaGreeting(activeInitial);
+    let alreadyGreeted = false;
+    try { alreadyGreeted = localStorage.getItem('t2os_station_greeted_v1') === '1'; } catch {}
+    if (activeInitial === 'visitor' && !alreadyGreeted) {
+      try { localStorage.setItem('t2os_station_greeted_v1', '1'); } catch {}
+      handlePlayPersonaGreeting(activeInitial);
+    } else {
+      setTranscript(
+        activeInitial === 'tito'
+          ? 'أهلاً يا تيتو، جاهز — اضغط الكرة للتحدث أو اكتب أمرك.'
+          : 'جارفيس جاهز — اضغط الكرة للتحدث.'
+      );
+    }
 
     // Live Server-Sent Events (SSE) Stream from Sovereign Microservices Gateway
     let eventSource: EventSource | null = null;
