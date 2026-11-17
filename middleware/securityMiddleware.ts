@@ -40,6 +40,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/health",
   "/api/public/",
   "/api/tenant-auth/",
+  "/api/tenant-erp/",
   "/api/auth/meta/",
   "/api/auth/social/",
   "/api/system/ecosystem-health",

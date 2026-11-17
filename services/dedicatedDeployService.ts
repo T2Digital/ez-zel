@@ -133,16 +133,27 @@ export async function provisionDedicatedRepoAndVercel(input: {
       repoUrl = generated.html_url || repoUrl;
     }
 
+    const asciiSlug = String(brand.slug || slug).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || slug;
+    const phoneDigits = String(brand.phone || '').replace(/\D/g, '');
+    const adminPin = String((brand as any).adminPin || phoneDigits.slice(-6) || '373634');
+    const adminEmail = String((brand as any).adminEmail || `owner@${asciiSlug}.t2.app`).toLowerCase();
+
     // 3. Inject brand tenant-config.json into the dedicated repo
     const configContent = Buffer.from(
       JSON.stringify(
         {
+          id: brand.id,
           brandId: brand.id,
-          slug: brand.slug || brand.id,
+          slug: asciiSlug,
           name: brand.name,
           slogan: (brand as any).slogan || '',
           logoUrl: (brand as any).logoUrl || '',
           phone: brand.phone || '',
+          whatsapp: (brand as any).whatsapp || brand.phone || '',
+          adminEmail,
+          primaryColor: (brand as any).primaryColor || '#06b6d4',
+          accentColor: (brand as any).accentColor || '#0f172a',
+          productsCatalog: Array.isArray((brand as any).productsCatalog) ? (brand as any).productsCatalog : [],
           appTemplate: input.appTemplate || (brand as any).appTemplate || 'services_booking',
           ezZelApiBase: process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com'
         },
@@ -295,8 +306,24 @@ export async function provisionDedicatedRepoAndVercel(input: {
 
     persistBrandUpdateAcrossEcosystem(brand.id, {
       dedicatedRepoUrl: repoUrl,
-      dedicatedLiveUrl
+      dedicatedLiveUrl,
+      adminEmail,
+      adminPin
     } as any);
+
+    // Zero-Touch Onboarding notification (WhatsApp + Telegram)
+    try {
+      const { sendZeroTouchOnboardingPacket } = await import('./tenantErpStoreService');
+      await sendZeroTouchOnboardingPacket({
+        brandId: brand.id,
+        slug: asciiSlug,
+        brandName: brand.name,
+        phone: brand.phone || '',
+        liveAppUrl: `https://${repoName}.vercel.app`,
+        adminEmail,
+        tempPassword: `T2@${adminPin}`
+      });
+    } catch {}
 
     return {
       ok: true,

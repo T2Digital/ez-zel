@@ -1789,7 +1789,14 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   };
 
-  app.options(["/api/tenant-auth/login", "/api/tenant-auth/verify"], (_req, res) => {
+  app.options(["/api/tenant-auth/login", "/api/tenant-auth/verify", "/api/tenant-auth/change-password"], (_req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      res.status(204).end();
+  });
+
+  app.options(["/api/tenant-erp/:slug/state", "/api/tenant-erp/:slug/sync", "/api/tenant-erp/:slug/orders"], (_req, res) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
@@ -1853,7 +1860,12 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
           const hashSha = (v: string) => crypto.createHash("sha256").update(v).digest();
           const emailMatch = crypto.timingSafeEqual(hashSha(emailInput), hashSha(expectedEmail));
-          const passMatch = expectedPass.length > 0 && crypto.timingSafeEqual(hashSha(passInput), hashSha(expectedPass));
+
+          const { getTenantPasswordRecord, verifyPasswordHash } = await import("./services/tenantErpStoreService");
+          const customPassRec = await getTenantPasswordRecord(asciiSlug);
+          const passMatch = customPassRec
+              ? verifyPasswordHash(passInput, customPassRec.hash, customPassRec.salt)
+              : (expectedPass.length > 0 && crypto.timingSafeEqual(hashSha(passInput), hashSha(expectedPass)));
 
           if (!emailMatch || !passMatch) {
               return res.status(401).json({ ok: false, error: "بيانات الدخول غير صحيحة لهذا البراند" });
@@ -1892,6 +1904,130 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           return res.status(403).json({ ok: false, error: "Token not scoped to this brand" });
       }
       res.json({ ok: true, user: decoded });
+  });
+
+  app.post("/api/tenant-auth/change-password", async (req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      try {
+          const authHeader = String(req.headers.authorization || "");
+          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+          const decoded = verifyTenantToken(token);
+          if (!decoded?.brandSlug) {
+              return res.status(401).json({ ok: false, error: "جلسة غير صالحة أو منتهية" });
+          }
+          const { oldPassword, newPassword } = req.body || {};
+          const oldPass = String(oldPassword || "");
+          const newPass = String(newPassword || "");
+          if (newPass.length < 6) {
+              return res.status(400).json({ ok: false, error: "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل" });
+          }
+
+          const { getTenantPasswordRecord, setTenantPasswordRecord, verifyPasswordHash } = await import("./services/tenantErpStoreService");
+          const customRec = await getTenantPasswordRecord(decoded.brandSlug);
+          if (customRec) {
+              if (!verifyPasswordHash(oldPass, customRec.hash, customRec.salt)) {
+                  return res.status(403).json({ ok: false, error: "كلمة المرور الحالية غير صحيحة" });
+              }
+          } else {
+              const unified = getUnifiedGrowthBrands();
+              const slugNorm = String(decoded.brandSlug).toLowerCase().replace(/[-_]+/g, "-");
+              const brand = unified.find(b => String(b.slug || "").toLowerCase().replace(/[-_]+/g, "-") === slugNorm) || getClonedBrandByIdOrSlug(slugNorm);
+              const phoneDigits = String(brand?.phone || "").replace(/\D/g, "");
+              const expectedDefault = brand?.adminPin ? `T2@${brand.adminPin}` : (phoneDigits.length >= 6 ? `T2@${phoneDigits.slice(-6)}` : "");
+              if (expectedDefault && oldPass !== expectedDefault) {
+                  return res.status(403).json({ ok: false, error: "كلمة المرور الحالية غير صحيحة" });
+              }
+          }
+
+          await setTenantPasswordRecord(decoded.brandSlug, newPass);
+          res.json({ ok: true, message: "تم تحديث كلمة المرور وتشفيرها بنجاح" });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed to update password" });
+      }
+  });
+
+  app.get("/api/tenant-erp/:slug/state", async (req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      try {
+          const slug = String(req.params.slug || "").trim();
+          const { loadTenantErpState, normalizeSlugKey } = await import("./services/tenantErpStoreService");
+          const slugNorm = normalizeSlugKey(slug);
+          const fullState = await loadTenantErpState(slugNorm);
+
+          const authHeader = String(req.headers.authorization || "");
+          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+          const decoded = token ? verifyTenantToken(token) : null;
+          const isAuthorizedAdmin = Boolean(
+              decoded && normalizeSlugKey(decoded.brandSlug || "") === slugNorm
+          );
+
+          if (!isAuthorizedAdmin) {
+              return res.json({
+                  ok: true,
+                  scope: "public",
+                  state: {
+                      products: Array.isArray(fullState.products) ? fullState.products : null,
+                      broadcasts: Array.isArray(fullState.broadcasts) ? fullState.broadcasts : [],
+                      settings: fullState.settings || null
+                  }
+              });
+          }
+
+          const { __auth: _stripAuth, ...safeAdminState } = fullState;
+          res.json({ ok: true, scope: "admin", state: safeAdminState });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed to load ERP state" });
+      }
+  });
+
+  app.post("/api/tenant-erp/:slug/sync", async (req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      try {
+          const slug = String(req.params.slug || "").trim();
+          const { saveTenantErpState, normalizeSlugKey } = await import("./services/tenantErpStoreService");
+          const slugNorm = normalizeSlugKey(slug);
+
+          const authHeader = String(req.headers.authorization || "");
+          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+          const decoded = verifyTenantToken(token);
+          if (!decoded || normalizeSlugKey(decoded.brandSlug || "") !== slugNorm) {
+              return res.status(403).json({ ok: false, error: "غير مصرح بالتعديل على بيانات هذا البراند" });
+          }
+
+          const incoming = (req.body?.state && typeof req.body.state === "object") ? req.body.state : (req.body || {});
+          const { __auth: _dropAuth, updatedAt: _dropTs, ...cleanPartial } = incoming;
+          const saved = await saveTenantErpState(slugNorm, cleanPartial);
+          const { __auth: _stripAuth, ...safeState } = saved;
+          res.json({ ok: true, state: safeState });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed to sync ERP state" });
+      }
+  });
+
+  app.post("/api/tenant-erp/:slug/orders", async (req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      try {
+          const slug = String(req.params.slug || "").trim();
+          const { loadTenantErpState, saveTenantErpState, normalizeSlugKey } = await import("./services/tenantErpStoreService");
+          const slugNorm = normalizeSlugKey(slug);
+          const order = req.body?.order || req.body;
+          if (!order || typeof order !== "object") {
+              return res.status(400).json({ ok: false, error: "Invalid order payload" });
+          }
+          const current = await loadTenantErpState(slugNorm);
+          const existingOrders = Array.isArray(current.orders) ? current.orders : [];
+          const newOrder = {
+              ...order,
+              id: order.id || Date.now(),
+              createdAt: order.createdAt || new Date().toISOString()
+          };
+          await saveTenantErpState(slugNorm, {
+              orders: [newOrder, ...existingOrders].slice(0, 500)
+          });
+          res.json({ ok: true, order: newOrder });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed to save order" });
+      }
   });
 
   // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
