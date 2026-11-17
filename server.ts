@@ -1508,6 +1508,42 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
+  // --- T2 AGENT EXTERNAL ACTION API v1 & EMBED WINDOWS BRIDGE --- //
+  app.get("/api/agent/external-catalog", async (_req, res) => {
+      try {
+          const { t2AgentApi } = await import("./services/t2AgentApiClient");
+          res.json(await t2AgentApi.getExternalCatalog());
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/agent/external-execute", async (req, res) => {
+      try {
+          const { t2AgentApi } = await import("./services/t2AgentApiClient");
+          const { brandId, section, action, payload } = req.body || {};
+          if (!section || !action) return res.status(400).json({ ok: false, error: "section and action are required" });
+          const result = await t2AgentApi.executeExternalAction(String(brandId || "clean_master"), String(section), String(action), payload || {});
+          res.json({ ok: true, result });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/agent/external-admin", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Unauthorized" });
+          const { t2AgentApi } = await import("./services/t2AgentApiClient");
+          const { action, payload } = req.body || {};
+          if (!action) return res.status(400).json({ ok: false, error: "action is required" });
+          const result = await t2AgentApi.executeExternalAdminAction(String(action), payload || {});
+          res.json({ ok: true, result });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   // --- TITO STUDIO REMOTE EXECUTION & EMBEDDABLE VIEWS BRIDGE --- //
   app.get("/api/studio/remote-actions", async (_req, res) => {
       try {

@@ -140,6 +140,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     embedUrl: string;
   } | null>(null);
   const studioIframeRef = useRef<HTMLIFrameElement>(null);
+  const [agentEmbed, setAgentEmbed] = useState<{
+    open: boolean;
+    windowName: string;
+    brandId: string;
+    embedUrl: string;
+  } | null>(null);
+  const agentIframeRef = useRef<HTMLIFrameElement>(null);
 
   const streamTranscriptWords = useCallback((fullText: string) => {
     if (streamTimerRef.current) clearInterval(streamTimerRef.current);
@@ -1349,6 +1356,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               embedUrl: data.action.embedUrl
             });
           }
+          if (data.action.type === 'AGENT_EMBED_VIEW' && data.action.embedUrl && persona !== 'visitor') {
+            setAgentEmbed({
+              open: true,
+              windowName: data.action.windowName || 'crm',
+              brandId: data.action.brandId || 'clean_master',
+              embedUrl: data.action.embedUrl
+            });
+          }
           if (data.action.type === 'SWITCH_TAB' && data.action.tab) {
             // STRICT SHIELD: Never hijack view away from visitor onboarding
             if (persona !== 'visitor') {
@@ -1572,6 +1587,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           <div className="flex items-center gap-1.5">
             {isMasterAdmin ? (
               <>
+                <button
+                  onClick={() => {
+                    const bId = currentSelectedBrand?.id || 'clean_master';
+                    setAgentEmbed({
+                      open: true,
+                      windowName: 'crm',
+                      brandId: bId,
+                      embedUrl: `https://khedr-bot-agent.onrender.com/embed/crm?brandId=${encodeURIComponent(bId)}&embed=1`
+                    });
+                  }}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 font-bold text-xs transition-all cursor-pointer"
+                >
+                  <Bot className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>الأجنت المدمج</span>
+                </button>
+
                 <button
                   onClick={() => {
                     const cId = currentSelectedBrand?.id || '1';
@@ -1951,6 +1982,62 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   ref={studioIframeRef}
                   src={studioEmbed.embedUrl}
                   title="T2OS Studio Embed"
+                  className="w-full h-[65vh] border-0 bg-[#020617]"
+                  allow="clipboard-write; microphone; camera"
+                />
+              </div>
+            )}
+
+            {/* EMBEDDED T2 AGENT LIVE PANEL (29 Embed Windows/Modals + postMessage Remote Control) */}
+            {agentEmbed?.open && persona !== 'visitor' && (
+              <div className="w-full max-w-5xl rounded-2xl bg-[#040a1a]/95 border-2 border-emerald-500/45 shadow-[0_0_50px_rgba(16,185,129,0.25)] overflow-hidden font-['Cairo']" dir="rtl">
+                <div className="px-3 py-2 bg-emerald-950/50 border-b border-emerald-500/30 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black text-emerald-200">🤖 تيتو أجنت المدمج (تحكم حي):</span>
+                    {[
+                      { id: 'crm', label: 'المحادثات CRM' },
+                      { id: 'qr', label: 'واتساب QR' },
+                      { id: 'calendar', label: 'الحجوزات' },
+                      { id: 'catalog', label: 'الكتالوج والأسعار' },
+                      { id: 'broadcast-whatsapp', label: 'حملات واتساب' },
+                      { id: 'omnichannel', label: 'المنصات' },
+                      { id: 'playground', label: 'تدريب البوت' },
+                      { id: 'brands', label: 'البراندات' }
+                    ].map((w) => (
+                      <button
+                        key={w.id}
+                        type="button"
+                        onClick={() => {
+                          setAgentEmbed(prev => prev ? { ...prev, windowName: w.id } : null);
+                          try {
+                            agentIframeRef.current?.contentWindow?.postMessage(
+                              { type: 'T2_NAVIGATE', payload: { window: w.id, brandId: agentEmbed.brandId } },
+                              '*'
+                            );
+                          } catch {}
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
+                          agentEmbed.windowName === w.id
+                            ? 'bg-emerald-500 text-black border-emerald-300'
+                            : 'bg-white/5 text-white/70 border-white/10 hover:text-white'
+                        }`}
+                      >
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAgentEmbed(null)}
+                    className="p-1 rounded-lg bg-white/10 hover:bg-rose-500/30 text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <iframe
+                  ref={agentIframeRef}
+                  src={agentEmbed.embedUrl}
+                  title="T2OS Agent Embed"
                   className="w-full h-[65vh] border-0 bg-[#020617]"
                   allow="clipboard-write; microphone; camera"
                 />

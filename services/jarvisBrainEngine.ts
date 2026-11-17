@@ -527,6 +527,41 @@ const jarvisBrainTools: FunctionDeclaration[] = [
       required: ["action"],
     },
   },
+  {
+    name: "t2_agent_remote_execute",
+    description:
+      "تنفيذ أي زر أو عملية في تيتو أجنت عن بُعد (16 قسماً / 107 عملية: brands, whatsapp, crm, calendar, funnel, playground, broadcast_whatsapp, broadcast_facebook, re_engagement, followups, omnichannel, ecommerce, team, telemetry, payments, notifications, admin) وفتح شاشة أو مودال الأجنت المدمج (embedWindow: brands, crm, calendar, playground, broadcast-whatsapp, broadcast-facebook, re-engagement, funnel, omnichannel, ecommerce, team, telemetry, qr, catalog, integrations, new-booking, payment-link).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        section: {
+          type: Type.STRING,
+          description: "اسم القسم مثل whatsapp أو crm أو calendar أو brands أو broadcast_whatsapp أو ecommerce أو admin",
+        },
+        action: {
+          type: Type.STRING,
+          description: "اسم الأمر مثل create_booking أو send_reply أو toggle_pause أو get_qr أو activate_vip أو extract_catalog",
+        },
+        brandNameOrId: {
+          type: Type.STRING,
+          description: "اسم البراند أو معرفه في تيتو أجنت مثل clean_master أو alkhedr_car_rental أو battah_system",
+        },
+        embedWindow: {
+          type: Type.STRING,
+          description: "اسم نافذة التضمين المراد فتحها: brands, crm, calendar, playground, qr, catalog, broadcast-whatsapp, omnichannel, admin",
+        },
+        isAdminAction: {
+          type: Type.BOOLEAN,
+          description: "true إذا كان أمراً للمدير العام فقط (تفعيل باقات/VIP)",
+        },
+        payloadJson: {
+          type: Type.STRING,
+          description: "JSON string لبيانات الأمر",
+        },
+      },
+      required: ["section", "action"],
+    },
+  },
 ];
 
 function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, any[]>): string {
@@ -1623,6 +1658,59 @@ ${conversationMemoryDirective}`;
           };
         } catch (err: any) {
           backendExecutionResult = { success: false, message: `خطأ في رادار المبيعات أو الإعلانات: ${err?.message}` };
+        }
+        break;
+      }
+
+      case "t2_agent_remote_execute": {
+        try {
+          const section = String(args.section || "crm").trim();
+          const actionName = String(args.action || "get_status").trim();
+          const embedWindow = String(args.embedWindow || (section === "whatsapp" ? "qr" : section === "admin" ? "admin" : section)).trim();
+          let agentBrandId = String(brandId || "clean_master");
+
+          // Resolve exact brandId from live T2 Agent /api/admin/brands/health
+          try {
+            const healthRes: any = await t2AgentApi.getAllBrandsHealth();
+            const list = Array.isArray(healthRes?.brands) ? healthRes.brands : Array.isArray(healthRes) ? healthRes : [];
+            const needle = String(args.brandNameOrId || targetBrand?.name || message || "").toLowerCase();
+            const matched = list.find((ab: any) =>
+              String(ab.brandId || ab.id) === needle ||
+              (ab.brandName && needle.includes(String(ab.brandName).toLowerCase())) ||
+              (targetBrand?.name && String(ab.brandName || "").includes(targetBrand.name))
+            );
+            if (matched) agentBrandId = String(matched.brandId || matched.id);
+          } catch {}
+
+          let parsedPayload: Record<string, any> = {};
+          if (args.payloadJson) {
+            try { parsedPayload = JSON.parse(String(args.payloadJson)); } catch {}
+          }
+
+          const remoteRes = args.isAdminAction
+            ? await t2AgentApi.executeExternalAdminAction(actionName, { brandId: agentBrandId, ...parsedPayload })
+            : await t2AgentApi.executeExternalAction(agentBrandId, section, actionName, parsedPayload);
+
+          const embedUrl = t2AgentApi.buildAgentEmbedUrl(embedWindow, agentBrandId);
+          backendExecutionResult = {
+            success: true,
+            brandId: agentBrandId,
+            section,
+            action: actionName,
+            embedUrl,
+            data: remoteRes,
+            message: remoteRes?.message || `تم تنفيذ (${section}.${actionName}) في تيتو أجنت للبراند (${agentBrandId}) وتجهيز نافذة (${embedWindow})!`,
+          };
+          executedAction = {
+            type: "AGENT_EMBED_VIEW",
+            windowName: embedWindow,
+            brandId: agentBrandId,
+            embedUrl,
+            actionExecuted: `${section}.${actionName}`,
+            result: remoteRes,
+          };
+        } catch (err: any) {
+          backendExecutionResult = { success: false, message: `تعذر تنفيذ أمر تيتو أجنت عن بُعد: ${err?.message}` };
         }
         break;
       }

@@ -148,4 +148,27 @@ export const t2AgentApi = {
       `/api/brands/${encodeURIComponent(brandId)}/playground/correct`,
       { question, botReply, correctedAnswer }
     ),
+
+  // --- External Action API v1 & Embed Windows (16 Sections / 107 Operations / 29 Embed Windows) ---
+  getExternalCatalog: () => agentRequest("GET", "/api/external/v1/catalog"),
+  getBrandKeys: (brandId: string) =>
+    agentRequest("GET", `/api/external/v1/brands/${encodeURIComponent(brandId)}/keys`),
+  rotateBrandKeys: (brandId: string) =>
+    agentRequest("POST", `/api/external/v1/brands/${encodeURIComponent(brandId)}/keys/rotate`, {}),
+  executeExternalAction: (
+    brandId: string,
+    section: string,
+    action: string,
+    payload: Record<string, any> = {}
+  ) => agentRequest("POST", "/api/external/v1/execute", { brandId, section, action, payload }),
+  executeExternalAdminAction: (action: string, payload: Record<string, any> = {}) =>
+    agentRequest("POST", `/api/external/v1/admin/actions/${encodeURIComponent(action)}`, payload),
+  getExternalWindowData: (brandId: string, windowName: string) =>
+    agentRequest("GET", `/api/external/v1/brands/${encodeURIComponent(brandId)}/windows/${encodeURIComponent(windowName)}`),
+  buildAgentEmbedUrl: (windowName: string, brandId: string, apiKey?: string) => {
+    const base = getT2AgentBaseUrl();
+    const qs = new URLSearchParams({ brandId: brandId || "clean_master", embed: "1" });
+    if (apiKey) qs.set("apiKey", apiKey);
+    return `${base}/embed/${encodeURIComponent(windowName || "crm")}?${qs.toString()}`;
+  },
 };
