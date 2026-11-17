@@ -962,20 +962,32 @@ ${conversationMemoryDirective}`;
           String(args.topic || "").trim() ||
           `أقوى خدمات وعروض ${targetBrand.name} (${targetBrand.businessType || "خدمات احترافية"})`;
 
-        // Resolve real Tito Studio clinicId (e.g. brand_1779847291377 for تيتو ميديا)
+        // Resolve real Tito Studio clinicId + connected platforms (e.g. brand_1779847291377 for تيتو ميديا)
         let studioClinicId = String(brandId || "1");
+        let matchedStudioBrand: any = null;
         try {
           const liveBrandsRes: any = await titoStudioApi.listBrands();
           const liveList = Array.isArray(liveBrandsRes?.brands) ? liveBrandsRes.brands : Array.isArray(liveBrandsRes) ? liveBrandsRes : [];
           const needle = String(targetBrand?.name || brandId || message || "").toLowerCase();
-          const matchedStudio = liveList.find((sb: any) =>
+          matchedStudioBrand = liveList.find((sb: any) =>
             String(sb.id).toLowerCase() === String(brandId || "").toLowerCase() ||
             (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
             (sb.nameAr && needle.includes(String(sb.nameAr).toLowerCase())) ||
             (targetBrand?.name && (String(sb.name || "").includes(targetBrand.name) || targetBrand.name.includes(String(sb.name || ""))))
           );
-          if (matchedStudio?.id) studioClinicId = String(matchedStudio.id);
+          if (matchedStudioBrand?.id) studioClinicId = String(matchedStudioBrand.id);
         } catch {}
+
+        const resolveConnectedPlatforms = (brandObj: any, isVideo: boolean): string[] => {
+          const p: string[] = [];
+          if (brandObj?.selectedMetaPage?.id || brandObj?.metaToken) p.push("facebook");
+          if (brandObj?.selectedMetaPage?.instagram_business_account?.id || brandObj?.instagramAccountId) p.push("instagram");
+          if (brandObj?.snapchatToken) p.push("snapchat");
+          if (brandObj?.xToken) p.push("x");
+          if (isVideo && brandObj?.tiktokToken) p.push("tiktok");
+          if (isVideo && brandObj?.youtubeToken) p.push("youtube");
+          return p.length > 0 ? p : ["facebook", "instagram"];
+        };
 
         if (
           publishNow &&
@@ -983,8 +995,9 @@ ${conversationMemoryDirective}`;
           /انشر|نزل البوست/i.test(message)
         ) {
           try {
+            const targetPlatforms = resolveConnectedPlatforms(matchedStudioBrand, false);
             const pubRes = await titoStudioApi.executeRemoteAction("publish.multi_platform", studioClinicId, {
-              platforms: ["facebook", "instagram"],
+              platforms: targetPlatforms,
             });
             backendExecutionResult = pubRes;
             const embedUrl = titoStudioApi.buildStudioEmbedUrl("showroom", studioClinicId);
@@ -1103,7 +1116,12 @@ ${conversationMemoryDirective}`;
             },
           });
 
-          // Save to Tito Studio (non-blocking) and publish live via publish.multi_platform if requested
+          // Save to Tito Studio (non-blocking) and publish live via publish.multi_platform across ALL connected platforms
+          const publicMediaUrl = /^https?:\/\//i.test(String(visualUrl || ""))
+            ? visualUrl
+            : (matchedStudioBrand?.logo || targetBrand?.logo || "");
+          const targetPlatforms = resolveConnectedPlatforms(matchedStudioBrand, /\.(mp4|mov|webm)/i.test(publicMediaUrl));
+
           let studioDispatchRes: any = null;
           let studioCreateErr: string | undefined;
           try {
@@ -1112,9 +1130,9 @@ ${conversationMemoryDirective}`;
               title: customHook,
               type: "image",
               caption: customCaption || dynamicTopic,
-              visualUrl,
+              visualUrl: publicMediaUrl || visualUrl,
               status: publishNow ? "published" : "scheduled",
-              scheduledPlatforms: ["instagram", "facebook"],
+              scheduledPlatforms: targetPlatforms,
             });
           } catch (createErr: any) {
             studioCreateErr = createErr?.message;
@@ -1125,12 +1143,13 @@ ${conversationMemoryDirective}`;
               studioDispatchRes = await titoStudioApi.executeRemoteAction("publish.multi_platform", studioClinicId, {
                 title: customHook,
                 caption: customCaption || dynamicTopic,
-                mediaUrl: visualUrl,
-                platforms: ["facebook", "instagram"],
+                mediaUrl: publicMediaUrl,
+                platforms: targetPlatforms,
               });
               backendExecutionResult = {
                 ...backendExecutionResult,
                 studioClinicId,
+                targetPlatforms,
                 studioCreateErr,
                 studioDispatchRes,
                 publishResult: studioDispatchRes,
@@ -1139,6 +1158,7 @@ ${conversationMemoryDirective}`;
               backendExecutionResult = {
                 ...backendExecutionResult,
                 studioClinicId,
+                targetPlatforms,
                 studioCreateErr,
                 studioPublishError: pubErr?.message,
               };
