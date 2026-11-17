@@ -243,6 +243,7 @@ export function registerTenantErpRoutes(
             products: Array.isArray(fullState.products) ? fullState.products : null,
             broadcasts: Array.isArray(fullState.broadcasts) ? fullState.broadcasts : [],
             settings: fullState.settings || null,
+            appCustomization: fullState.appCustomization || null,
           },
         });
       }

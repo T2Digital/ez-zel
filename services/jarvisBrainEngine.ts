@@ -873,7 +873,11 @@ export async function runJarvisBrainConversation(
     persona === "tito"
       ? resolveBrandDynamically(selectedBrandId, message, unifiedBrands) || null
       : (persona === "trial" || persona === "client") && selectedBrandId
-        ? unifiedBrands.find((b: any) => b.id === selectedBrandId || b.slug === selectedBrandId) || null
+        ? unifiedBrands.find((b: any) => {
+            const qNorm = String(selectedBrandId).toLowerCase().replace(/[-_]+/g, "-");
+            return String(b.id || "").toLowerCase() === String(selectedBrandId).toLowerCase() ||
+              String(b.slug || "").toLowerCase().replace(/[-_]+/g, "-") === qNorm;
+          }) || null
         : null;
 
   const mentionedOrSelectedBrand = resolvedBrand || {
@@ -2441,6 +2445,22 @@ ${conversationMemoryDirective}`;
         break;
       }
     }
+  }
+
+  // Zero-Hallucination Deterministic Guard for live App Customization (branches / cashiers)
+  if (!backendExecutionResult && /فرع|فروع|كاشير/i.test(message) && /واحد|اثنين|2|1|3|عدل|خلي|خلّي/i.test(message)) {
+    try {
+      const { customizeAppLiveConfig } = await import("./aiCodeSurgeonService");
+      const branchCount = /فرع\s*واحد|فرع\s*1\b|فرع\s*فقط/i.test(message) ? 1 : (/فرعين|2\s*فرع/i.test(message) ? 2 : undefined);
+      const cashierCount = /كاشير\s*واحد|كاشير\s*1\b|كاشير\s*فقط/i.test(message) ? 1 : (/كاشيرين|2\s*كاشير/i.test(message) ? 2 : undefined);
+      if (branchCount || cashierCount) {
+        const slugTarget = String(targetBrand?.slug || targetBrand?.id || selectedBrandId || "auto-house").trim();
+        backendExecutionResult = await customizeAppLiveConfig(slugTarget, {
+          ...(branchCount ? { branchCount } : {}),
+          ...(cashierCount ? { cashierCount } : {}),
+        });
+      }
+    } catch {}
   }
 
   // If Gemini executed a tool and didn't produce spoken text in the same turn, generate a natural Egyptian Arabic confirmation
