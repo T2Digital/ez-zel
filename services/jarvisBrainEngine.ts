@@ -2368,7 +2368,18 @@ ${conversationMemoryDirective}`;
               ...(args.description ? { aboutUs: String(args.description) } : {}),
             };
             await saveTenantErpState(slugKey, { storefrontSettings: nextSettings });
-            backendExecutionResult = { success: true, storefrontSettings: nextSettings, message: "تم تحديث إعدادات المتجر السحابية بنجاح." };
+            if (typeof args.branchCount === "number" || typeof args.cashierCount === "number" || args.primaryBranchLabel || args.primaryCashierLabel) {
+              const { customizeAppLiveConfig } = await import("./aiCodeSurgeonService");
+              const cRes = await customizeAppLiveConfig(slugKey, {
+                branchCount: typeof args.branchCount === "number" ? args.branchCount : undefined,
+                cashierCount: typeof args.cashierCount === "number" ? args.cashierCount : undefined,
+                primaryBranchLabel: args.primaryBranchLabel ? String(args.primaryBranchLabel) : undefined,
+                primaryCashierLabel: args.primaryCashierLabel ? String(args.primaryCashierLabel) : undefined,
+              });
+              backendExecutionResult = { success: true, storefrontSettings: nextSettings, ...cRes };
+            } else {
+              backendExecutionResult = { success: true, storefrontSettings: nextSettings, message: "تم تحديث إعدادات المتجر السحابية بنجاح." };
+            }
           } else if (erpAction === "customize_app") {
             const { customizeAppLiveConfig } = await import("./aiCodeSurgeonService");
             const cRes = await customizeAppLiveConfig(slugKey, {
@@ -2448,7 +2459,7 @@ ${conversationMemoryDirective}`;
   }
 
   // Zero-Hallucination Deterministic Guard for live App Customization (branches / cashiers)
-  if (!backendExecutionResult && /فرع|فروع|كاشير/i.test(message) && /واحد|اثنين|2|1|3|عدل|خلي|خلّي/i.test(message)) {
+  if (!backendExecutionResult?.appCustomization && /فرع|فروع|كاشير/i.test(message) && /واحد|اثنين|2|1|3|عدل|خلي|خلّي/i.test(message)) {
     try {
       const { customizeAppLiveConfig } = await import("./aiCodeSurgeonService");
       const branchCount = /فرع\s*واحد|فرع\s*1\b|فرع\s*فقط/i.test(message) ? 1 : (/فرعين|2\s*فرع/i.test(message) ? 2 : undefined);
