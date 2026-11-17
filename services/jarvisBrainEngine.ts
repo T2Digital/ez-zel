@@ -1670,17 +1670,27 @@ ${conversationMemoryDirective}`;
         try {
           const section = String(args.section || "crm").trim();
           const actionName = String(args.action || "get_status").trim();
+          if (persona !== "tito" && (section === "admin" || args.isAdminAction)) {
+            backendExecutionResult = { success: false, message: "أوامر الإدارة العامة متاحة للمدير العام فقط." };
+            break;
+          }
           const embedWindow = String(args.embedWindow || (section === "whatsapp" ? "qr" : section === "admin" ? "admin" : section)).trim();
           let agentBrandId = String(brandId || "clean_master");
 
           // Resolve exact brandId from live T2 Agent /api/admin/brands/health
+          // Strict client isolation: non-admin users are locked to their own brandId/targetBrand only
           try {
             const healthRes: any = await t2AgentApi.getAllBrandsHealth();
             const list = Array.isArray(healthRes?.brands) ? healthRes.brands : Array.isArray(healthRes) ? healthRes : [];
-            const needle = String(args.brandNameOrId || targetBrand?.name || message || "").toLowerCase();
+            const needle = persona === "tito"
+              ? String(args.brandNameOrId || targetBrand?.name || message || "").toLowerCase()
+              : String(brandId || targetBrand?.name || "").toLowerCase();
             const matched = list.find((ab: any) =>
-              String(ab.brandId || ab.id) === needle ||
-              (ab.brandName && needle.includes(String(ab.brandName).toLowerCase())) ||
+              String(ab.brandId || ab.id).toLowerCase() === String(brandId || "").toLowerCase() ||
+              (persona === "tito" && (
+                String(ab.brandId || ab.id).toLowerCase() === needle ||
+                (ab.brandName && needle.includes(String(ab.brandName).toLowerCase()))
+              )) ||
               (targetBrand?.name && String(ab.brandName || "").includes(targetBrand.name))
             );
             if (matched) agentBrandId = String(matched.brandId || matched.id);
@@ -1691,7 +1701,7 @@ ${conversationMemoryDirective}`;
             try { parsedPayload = JSON.parse(String(args.payloadJson)); } catch {}
           }
 
-          const remoteRes = args.isAdminAction
+          const remoteRes = (persona === "tito" && args.isAdminAction)
             ? await t2AgentApi.executeExternalAdminAction(actionName, { brandId: agentBrandId, ...parsedPayload })
             : await t2AgentApi.executeExternalAction(agentBrandId, section, actionName, parsedPayload);
 
@@ -1732,18 +1742,28 @@ ${conversationMemoryDirective}`;
         }
         try {
           const actionName = String(args.action || "calendar.schedule_post").trim();
+          if (persona !== "tito" && (actionName === "brand.delete" || actionName.startsWith("admin."))) {
+            backendExecutionResult = { success: false, message: "هذا الإجراء متاح للمدير العام فقط." };
+            break;
+          }
           const embedView = String(args.embedView || (actionName.startsWith("showroom") ? "showroom" : actionName.startsWith("research") ? "marketResearch" : actionName.startsWith("drama") ? "dramaFilm" : actionName.startsWith("autopilot") ? "workflowStudio" : actionName.startsWith("metaAds") ? "metaAds" : "calendar")).trim();
 
           // Resolve exact clinicId from live Tito Studio /api/brands
+          // Strict client isolation: non-admin users are locked to their own brandId/targetBrand only
           let clinicId = String(brandId || "1");
           try {
             const liveBrandsRes: any = await titoStudioApi.listBrands();
             const liveList = Array.isArray(liveBrandsRes?.brands) ? liveBrandsRes.brands : Array.isArray(liveBrandsRes) ? liveBrandsRes : [];
-            const needle = String(args.brandNameOrId || targetBrand?.name || message || "").toLowerCase();
+            const needle = persona === "tito"
+              ? String(args.brandNameOrId || targetBrand?.name || message || "").toLowerCase()
+              : String(brandId || targetBrand?.name || "").toLowerCase();
             const matchedStudio = liveList.find((sb: any) =>
-              String(sb.id) === needle ||
-              (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
-              (sb.nameAr && needle.includes(String(sb.nameAr).toLowerCase())) ||
+              String(sb.id).toLowerCase() === String(brandId || "").toLowerCase() ||
+              (persona === "tito" && (
+                String(sb.id).toLowerCase() === needle ||
+                (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
+                (sb.nameAr && needle.includes(String(sb.nameAr).toLowerCase()))
+              )) ||
               (targetBrand?.name && (String(sb.name || "").includes(targetBrand.name) || targetBrand.name.includes(String(sb.name || ""))))
             );
             if (matchedStudio?.id) {
