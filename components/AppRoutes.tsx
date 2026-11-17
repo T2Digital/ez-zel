@@ -185,6 +185,8 @@ export const AppRoutes: React.FC = () => {
                 onUnlock={() => setIsAppLocked(false)}
                 onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
               />
+            ) : isAdminUser ? (
+              <Navigate to="/admin" replace />
             ) : (
               <Dashboard
                 user={user}
@@ -257,7 +259,10 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/pricing"
         element={
-          <Pricing
+          user && new URLSearchParams(location.search).get("upgrade") !== "1" ? (
+            <Navigate to={isAdminUser ? "/admin" : "/"} replace />
+          ) : (
+            <Pricing
             onSelectPlan={(plan, cycle) => {
               setSelectedPlan(plan);
               if (cycle) setBillingCycle(cycle);
@@ -271,11 +276,12 @@ export const AppRoutes: React.FC = () => {
               setAuthDefaultTab("register");
               navigateToView("auth");
             }}
-            onLoginClick={() => {
-              setAuthDefaultTab("login");
-              navigateToView("auth");
-            }}
-          />
+              onLoginClick={() => {
+                setAuthDefaultTab("login");
+                navigateToView("auth");
+              }}
+            />
+          )
         }
       />
 
