@@ -21,7 +21,31 @@ export async function provisionDedicatedRepoAndVercel(input: {
   appTemplate?: 'products_erp' | 'services_booking';
 }): Promise<DedicatedDeployResult> {
   const brands = getUnifiedGrowthBrands();
-  const brand = brands.find((b: any) => b.id === input.brandId || b.slug === input.brandId);
+  const needle = String(input.brandId || '').trim().toLowerCase();
+  let brand: any = brands.find((b: any) =>
+    String(b.id || '').toLowerCase() === needle || String(b.slug || '').toLowerCase() === needle
+  );
+  if (!brand) {
+    try {
+      const { titoStudioApi } = await import('./titoStudioApiClient');
+      const liveRes: any = await titoStudioApi.listBrands();
+      const liveList = Array.isArray(liveRes?.brands) ? liveRes.brands : Array.isArray(liveRes) ? liveRes : [];
+      const sb = liveList.find((x: any) => {
+        const enSlug = String(x.englishName || '').toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+        return String(x.id || '').toLowerCase() === needle ||
+          String(x.slug || '').toLowerCase() === needle ||
+          enSlug === needle;
+      });
+      if (sb) {
+        brand = {
+          id: sb.id,
+          slug: sb.slug || String(sb.englishName || sb.id).toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-'),
+          name: sb.name || sb.englishName,
+          appTemplate: input.appTemplate || 'products_erp',
+        };
+      }
+    } catch {}
+  }
   if (!brand) {
     return {
       ok: false,

@@ -644,7 +644,8 @@ function buildPersonaSystemPrompt(
    - ب) إذا كان يبدأ فكرة جديدة من الصفر بدون اسم: اقترح 3 أسماء مميزة و3 سلوجانات، ثم صمّم الشعار، وجهّز تطبيقه، واربط الواتساب وكل منصات السوشيال واعرض أسبوع التجربة المجانية 7 أيام.
 قواعد الحوار:
 - ممنوع تكرار التحية ("أهلاً بك" أو "مرحباً") بعد أول رسالة، وممنوع تكرار أي سؤال أجاب عنه مسبقاً.
-- استدعِ أداة record_visitor_diagnostic بصمت عبر function calling فقط بدون ذكر اسمها في النص.`;
+- استدعِ أداة record_visitor_diagnostic بصمت عبر function calling فقط بدون ذكر اسمها في النص.
+- بمجرد أن يطلب الزائر تأسيس/إطلاق البراند أو تجهيز التطبيق أو تفعيل التجربة المجانية 7 أيام (ويتوفر اسم النشاط أو المجال)، استدعِ أداة onboard_new_client_brand فوراً لتنفيذ الإنشاء الفعلي ولا تكتفِ بالوعد النصي.`;
   } else if (persona === "trial" || persona === "client") {
     const clientSub = (ezzelClients || []).find((c: any) => c.linkedBrandId === activeBrand?.id);
     const subStatusNote = clientSub
