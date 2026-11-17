@@ -2026,12 +2026,15 @@ ${conversationMemoryDirective}`;
           break;
         }
         try {
-          const actionName = String(args.action || "calendar.schedule_post").trim();
+          let actionName = String(args.action || "calendar.schedule_post").trim();
           if (persona !== "tito" && (actionName === "brand.delete" || actionName.startsWith("admin."))) {
             backendExecutionResult = { success: false, message: "هذا الإجراء متاح للمدير العام فقط." };
             break;
           }
           const embedView = String(args.embedView || (actionName.startsWith("showroom") ? "showroom" : actionName.startsWith("research") ? "marketResearch" : actionName.startsWith("drama") ? "dramaFilm" : actionName.startsWith("autopilot") ? "workflowStudio" : actionName.startsWith("metaAds") ? "metaAds" : "calendar")).trim();
+          if (actionName === "ui.navigate" && embedView === "showroom" && /صمم|تصميم|اعمل بوست|بوست جديد|جديد/i.test(message)) {
+            actionName = "content.generate_design";
+          }
 
           // Resolve exact clinicId from live Tito Studio /api/brands
           // Strict client isolation: non-admin users are locked to their own brandId/targetBrand only

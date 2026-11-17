@@ -1354,6 +1354,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           { role: 'user', text: commandText },
           { role: 'model', text: data.replyText }
         ]);
+        // Mirror conversation turns directly into the main Shadow Chat & DB
+        try {
+          const activeUser = useAppStore.getState().user;
+          const uid = activeUser?.email || (isMasterAdmin ? 'ahm.atya@gmail.com' : 'GUEST');
+          const nowTs = Date.now();
+          const uMsg = { id: nowTs, role: 'user' as const, text: `🎤 ${commandText}`, timestamp: nowTs, userId: uid };
+          const mMsg = { id: nowTs + 1, role: 'model' as const, text: cleanReply || data.replyText, timestamp: nowTs + 1, userId: uid };
+          shadowDB.saveMessage(uMsg as any).catch(() => {});
+          shadowDB.saveMessage(mMsg as any).catch(() => {});
+          window.dispatchEvent(new CustomEvent('shadow_new_message', { detail: uMsg }));
+          window.dispatchEvent(new CustomEvent('shadow_new_message', { detail: mMsg }));
+        } catch {}
         appendLiveLog(`[JARVIS_REPLY]: ${data.replyText.slice(0, 95)}...`);
 
         const onSpeechEnd = () => {
@@ -1853,44 +1865,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               setIsPlayingVoice={setIsPlayingVoice}
             />
 
-            {/* LIVE VOICE & TEXT CONVERSATION TRANSCRIPT FEED */}
-            {conversationHistory.length > 0 && (
-              <div className="w-full max-w-2xl rounded-2xl bg-[#030a1c]/80 border border-cyan-500/25 p-3 space-y-2 max-h-56 overflow-y-auto overscroll-contain font-['Cairo']" dir="rtl">
-                <div className="flex items-center justify-between text-[10px] text-cyan-300/80 font-bold pb-1 border-b border-white/10">
-                  <span>💬 محتوى المحادثة الصوتية والنصية الحية ({conversationHistory.length})</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConversationHistory([]);
-                      try { localStorage.removeItem('ezzel_voice_history_v1'); } catch {}
-                    }}
-                    className="text-white/40 hover:text-rose-300 transition"
-                  >
-                    مسح السجل
-                  </button>
-                </div>
-                {conversationHistory.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex flex-col ${item.role === 'user' ? 'items-start' : 'items-end'}`}
-                  >
-                    <div
-                      className={`max-w-[88%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
-                        item.role === 'user'
-                          ? 'bg-cyan-500/20 border border-cyan-400/35 text-white rounded-tr-sm'
-                          : 'bg-emerald-950/50 border border-emerald-500/30 text-emerald-100 rounded-tl-sm'
-                      }`}
-                    >
-                      <span className="block text-[9px] font-black mb-0.5 opacity-70">
-                        {item.role === 'user' ? `🎤 ${visitorName || 'أنت'}` : '⚡ جارفيس'}
-                      </span>
-                      {item.text}
-                    </div>
-                  </div>
-                ))}
-                <div ref={voiceChatEndRef} />
-              </div>
-            )}
+            {/* Voice conversation is synced directly to main Shadow Chat */}
 
             {/* DYNAMIC JARVIS STAGE: Neural Constellation is the sole default stage; dynamic views appear on demand */}
             {persona !== 'visitor' ? (
@@ -1963,9 +1938,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               activeBrandId={currentSelectedBrand?.id !== 'clean_master' ? currentSelectedBrand?.id : undefined}
             />
 
-            {/* EMBEDDED TITO STUDIO LIVE PANEL (25 Embed Views + postMessage Remote Control) */}
+            {/* EMBEDDED TITO STUDIO LIVE PANEL (Full Viewport Overlay) */}
             {studioEmbed?.open && persona !== 'visitor' && (
-              <div className="w-full max-w-5xl rounded-2xl bg-[#040a1a]/95 border-2 border-purple-500/45 shadow-[0_0_50px_rgba(168,85,247,0.25)] overflow-hidden font-['Cairo']" dir="rtl">
+              <div className="fixed inset-2 sm:inset-4 z-[120] flex flex-col rounded-2xl bg-[#040a1a] border-2 border-purple-500/55 shadow-[0_0_60px_rgba(168,85,247,0.35)] overflow-hidden font-['Cairo']" dir="rtl">
                 <div className="px-3 py-2 bg-purple-950/50 border-b border-purple-500/30 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-black text-purple-200">🎬 استوديو المحتوى المدمج (تحكم حي):</span>
@@ -2013,15 +1988,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   ref={studioIframeRef}
                   src={studioEmbed.embedUrl}
                   title="T2OS Studio Embed"
-                  className="w-full h-[65vh] border-0 bg-[#020617]"
+                  className="w-full flex-1 border-0 bg-[#020617]"
                   allow="clipboard-write; microphone; camera"
                 />
               </div>
             )}
 
-            {/* EMBEDDED T2 AGENT LIVE PANEL (29 Embed Windows/Modals + postMessage Remote Control) */}
+            {/* EMBEDDED T2 AGENT LIVE PANEL (Full Viewport Overlay) */}
             {agentEmbed?.open && persona !== 'visitor' && (
-              <div className="w-full max-w-5xl rounded-2xl bg-[#040a1a]/95 border-2 border-emerald-500/45 shadow-[0_0_50px_rgba(16,185,129,0.25)] overflow-hidden font-['Cairo']" dir="rtl">
+              <div className="fixed inset-2 sm:inset-4 z-[120] flex flex-col rounded-2xl bg-[#040a1a] border-2 border-emerald-500/55 shadow-[0_0_60px_rgba(16,185,129,0.35)] overflow-hidden font-['Cairo']" dir="rtl">
                 <div className="px-3 py-2 bg-emerald-950/50 border-b border-emerald-500/30 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-black text-emerald-200">🤖 تيتو أجنت المدمج (تحكم حي):</span>
@@ -2069,7 +2044,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   ref={agentIframeRef}
                   src={agentEmbed.embedUrl}
                   title="T2OS Agent Embed"
-                  className="w-full h-[65vh] border-0 bg-[#020617]"
+                  className="w-full flex-1 border-0 bg-[#020617]"
                   allow="clipboard-write; microphone; camera"
                 />
               </div>
