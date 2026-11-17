@@ -962,22 +962,43 @@ ${conversationMemoryDirective}`;
           String(args.topic || "").trim() ||
           `أقوى خدمات وعروض ${targetBrand.name} (${targetBrand.businessType || "خدمات احترافية"})`;
 
+        // Resolve real Tito Studio clinicId (e.g. brand_1779847291377 for تيتو ميديا)
+        let studioClinicId = String(brandId || "1");
+        try {
+          const liveBrandsRes: any = await titoStudioApi.listBrands();
+          const liveList = Array.isArray(liveBrandsRes?.brands) ? liveBrandsRes.brands : Array.isArray(liveBrandsRes) ? liveBrandsRes : [];
+          const needle = String(targetBrand?.name || brandId || message || "").toLowerCase();
+          const matchedStudio = liveList.find((sb: any) =>
+            String(sb.id).toLowerCase() === String(brandId || "").toLowerCase() ||
+            (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
+            (sb.nameAr && needle.includes(String(sb.nameAr).toLowerCase())) ||
+            (targetBrand?.name && (String(sb.name || "").includes(targetBrand.name) || targetBrand.name.includes(String(sb.name || ""))))
+          );
+          if (matchedStudio?.id) studioClinicId = String(matchedStudio.id);
+        } catch {}
+
         if (
           publishNow &&
-          !/فكرة|صمم|اعمل|جديد|توليد/i.test(message) &&
+          !/فكرة|صمم|اعمل|جديد|توليد|باقات|عن /i.test(message) &&
           /انشر|نزل البوست/i.test(message)
         ) {
-          backendExecutionResult = await executeRealJarvisEcosystemAction({
-            actionType: "PUBLISH_STUDIO_POST",
-            brandId,
-            data: { postIndex: 0 },
-          });
-          executedAction = {
-            type: "TRIGGER_ACTION",
-            action: "PUBLISH_POST",
-            brandId,
-            result: backendExecutionResult,
-          };
+          try {
+            const pubRes = await titoStudioApi.executeRemoteAction("publish.multi_platform", studioClinicId, {
+              platforms: ["facebook", "instagram"],
+            });
+            backendExecutionResult = pubRes;
+            const embedUrl = titoStudioApi.buildStudioEmbedUrl("showroom", studioClinicId);
+            executedAction = {
+              type: "STUDIO_EMBED_VIEW",
+              view: "showroom",
+              clinicId: studioClinicId,
+              embedUrl,
+              actionExecuted: "publish.multi_platform",
+              result: pubRes,
+            };
+          } catch (pubErr: any) {
+            backendExecutionResult = { success: false, message: `تعذر النشر عبر تيتو ستوديو: ${pubErr?.message}` };
+          }
         } else {
           // 1. Generate bespoke AI Egyptian Arabic copy tailored to the exact user prompt
           let customHook = `🚀 ${dynamicTopic}`;
@@ -1082,10 +1103,12 @@ ${conversationMemoryDirective}`;
             },
           });
 
-          // Mirror to Tito Studio Cloud Run if reachable
+          // Save to Tito Studio (non-blocking) and publish live via publish.multi_platform if requested
+          let studioDispatchRes: any = null;
+          let studioCreateErr: string | undefined;
           try {
             await titoStudioApi.createContent({
-              clinicId: brandId,
+              clinicId: studioClinicId,
               title: customHook,
               type: "image",
               caption: customCaption || dynamicTopic,
@@ -1093,13 +1116,43 @@ ${conversationMemoryDirective}`;
               status: publishNow ? "published" : "scheduled",
               scheduledPlatforms: ["instagram", "facebook"],
             });
-          } catch {}
+          } catch (createErr: any) {
+            studioCreateErr = createErr?.message;
+          }
 
+          if (publishNow) {
+            try {
+              studioDispatchRes = await titoStudioApi.executeRemoteAction("publish.multi_platform", studioClinicId, {
+                title: customHook,
+                caption: customCaption || dynamicTopic,
+                mediaUrl: visualUrl,
+                platforms: ["facebook", "instagram"],
+              });
+              backendExecutionResult = {
+                ...backendExecutionResult,
+                studioClinicId,
+                studioCreateErr,
+                studioDispatchRes,
+                publishResult: studioDispatchRes,
+              };
+            } catch (pubErr: any) {
+              backendExecutionResult = {
+                ...backendExecutionResult,
+                studioClinicId,
+                studioCreateErr,
+                studioPublishError: pubErr?.message,
+              };
+            }
+          }
+
+          const embedUrl = titoStudioApi.buildStudioEmbedUrl(publishNow ? "showroom" : "calendar", studioClinicId);
           executedAction = {
-            type: "SWITCH_TAB",
-            tab: "content_post_card",
-            action: publishNow ? "PUBLISH_POST" : undefined,
-            brandId,
+            type: "STUDIO_EMBED_VIEW",
+            view: publishNow ? "showroom" : "calendar",
+            clinicId: studioClinicId,
+            embedUrl,
+            actionExecuted: publishNow ? "publish.multi_platform" : "content.create",
+            brandId: studioClinicId,
             result: backendExecutionResult,
           };
         }
