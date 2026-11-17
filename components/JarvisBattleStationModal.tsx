@@ -1410,6 +1410,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         // LIVE VOICE-TO-ACTION EXECUTIVE CONTROLLER
         if (data.action) {
           appendLiveLog(`[EXEC_ACTION]: ${data.action.type} -> ${data.action.tab || data.action.modal || data.action.action || data.action.brandId || 'OK'}`);
+          if (data.action.type === 'OPEN_INVOICE_PRINT' && data.action.url) {
+            window.open(data.action.url, '_blank', 'noopener,noreferrer');
+          }
           if (data.action.type === 'SWITCH_BRAND' && data.action.brandId && persona !== 'visitor') {
             handleSelectBrand(data.action.brandId);
             handleInspectObsidianNode(data.action.brandId);

@@ -299,4 +299,114 @@ export function registerTenantErpRoutes(
       res.status(500).json({ ok: false, error: err?.message || "Failed to save order" });
     }
   });
+
+  app.get("/api/tenant-erp/:slug/invoice/:invoiceId/print", async (req: Request, res: Response) => {
+    try {
+      const slugNorm = normalizeSlugKey(String(req.params.slug || "").trim());
+      const invoiceId = String(req.params.invoiceId || "").trim();
+      const state = await loadTenantErpState(slugNorm);
+      const sales: any[] = Array.isArray(state.dailySales) ? state.dailySales : [];
+      const sale = sales.find(
+        (s) => String(s.id) === invoiceId || String(s.invoiceNumber) === invoiceId
+      );
+      if (!sale) {
+        return res.status(404).send("<html dir='rtl'><body style='font-family:sans-serif;padding:40px;text-align:center'><h2>الفاتورة غير موجودة</h2></body></html>");
+      }
+
+      const unified = getUnifiedGrowthBrands();
+      const brand =
+        unified.find(
+          (b) => b.id === slugNorm || String(b.slug || "").toLowerCase().replace(/[-_]+/g, "-") === slugNorm
+        ) || getClonedBrandByIdOrSlug(slugNorm);
+      const brandName = String(state.storefrontSettings?.companyName || brand?.name || slugNorm).replace(/[<>]/g, "");
+      const brandLogo = String(brand?.logoUrl || "");
+      const brandPhone = String(state.storefrontSettings?.contactPhone || brand?.phone || "");
+
+      const items: any[] = Array.isArray(sale.items) ? sale.items : [];
+      const rowsHtml = items
+        .map((it: any, i: number) => {
+          const qty = Number(it.quantity || it.qty || 1);
+          const unitPrice = Number(it.unitPrice || it.price || 0);
+          const rowTotal = qty * unitPrice;
+          return `<tr>
+            <td>${i + 1}</td>
+            <td>${String(it.productName || it.name || "صنف").replace(/[<>]/g, "")}</td>
+            <td>${qty}</td>
+            <td>${unitPrice.toLocaleString("ar-EG")} ج.م</td>
+            <td><strong>${rowTotal.toLocaleString("ar-EG")} ج.م</strong></td>
+          </tr>`;
+        })
+        .join("");
+
+      const subtotal = Number(sale.subtotal || sale.total || 0);
+      const discount = Number(sale.discount || 0);
+      const taxAmount = Number(sale.taxAmount || 0);
+      const total = Number(sale.total || sale.totalAmount || subtotal);
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<title>فاتورة رقم ${sale.invoiceNumber || sale.id} - ${brandName}</title>
+<style>
+  body { font-family: 'Cairo', Tahoma, Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }
+  .sheet { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 8px 30px rgba(15,23,42,0.06); }
+  .top { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 18px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 58px; height: 58px; border-radius: 12px; object-fit: cover; border: 1px solid #cbd5e1; }
+  .meta { text-align: left; font-size: 13px; color: #475569; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; background: #f1f5f9; padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 14px; }
+  th, td { border-bottom: 1px solid #e2e8f0; padding: 10px 8px; text-align: right; }
+  th { background: #0f172a; color: #fff; font-weight: 700; }
+  .totals { width: 280px; margin-right: auto; font-size: 14px; }
+  .totals div { display: flex; justify-content: space-between; padding: 5px 0; }
+  .totals .grand { font-size: 18px; font-weight: 900; border-top: 2px solid #0f172a; margin-top: 6px; padding-top: 8px; color: #0284c7; }
+  .actions { text-align: center; margin-top: 22px; }
+  .btn { background: #0284c7; color: #fff; border: 0; padding: 10px 26px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  @media print { body { background: #fff; padding: 0; } .sheet { box-shadow: none; border: 0; } .actions { display: none; } }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="top">
+      <div class="brand">
+        ${brandLogo ? `<img src="${brandLogo}" alt="${brandName}" />` : ""}
+        <div>
+          <h2 style="margin:0;font-size:20px;">${brandName}</h2>
+          <div style="font-size:12px;color:#64748b;">${brandPhone ? `هاتف: ${brandPhone}` : "فاتورة مبيعات معتمدة"}</div>
+        </div>
+      </div>
+      <div class="meta">
+        <div><strong>رقم الفاتورة:</strong> ${sale.invoiceNumber || sale.id}</div>
+        <div><strong>التاريخ:</strong> ${String(sale.date || "").slice(0, 10)}</div>
+      </div>
+    </div>
+    <div class="grid">
+      <div><strong>العميل:</strong> ${String(sale.customerName || "عميل نقدي").replace(/[<>]/g, "")}</div>
+      <div><strong>الفرع:</strong> ${String(sale.branchSoldFrom || sale.branch || "الفرع الرئيسي")}</div>
+      <div><strong>الكاشير:</strong> ${String(sale.cashierLocation || "الكاشير الرئيسي")}</div>
+      <div><strong>الدفع:</strong> ${String(sale.paymentMethod || "نقدي")}</div>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>
+      <tbody>${rowsHtml || `<tr><td>1</td><td>مبيعات عامة</td><td>1</td><td>${total} ج.م</td><td><strong>${total} ج.م</strong></td></tr>`}</tbody>
+    </table>
+    <div class="totals">
+      <div><span>المجموع الفرعي:</span><span>${subtotal.toLocaleString("ar-EG")} ج.م</span></div>
+      ${discount > 0 ? `<div><span>الخصم:</span><span>-${discount.toLocaleString("ar-EG")} ج.م</span></div>` : ""}
+      ${taxAmount > 0 ? `<div><span>ضريبة القيمة المضافة (14%):</span><span>${taxAmount.toLocaleString("ar-EG")} ج.م</span></div>` : ""}
+      <div class="grand"><span>الإجمالي النهائي:</span><span>${total.toLocaleString("ar-EG")} ج.م</span></div>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="window.print()">🖨️ طباعة الفاتورة الآن</button>
+    </div>
+  </div>
+</body>
+</html>`);
+    } catch (err: any) {
+      res.status(500).send("Error rendering invoice");
+    }
+  });
 }

@@ -598,7 +598,11 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         sku: { type: Type.STRING, description: "كود الصنف SKU" },
         category: { type: Type.STRING, description: "تصنيف المنتج أو المصروف" },
         price: { type: Type.NUMBER, description: "السعر الجديد بالجنيه" },
-        stock: { type: Type.NUMBER, description: "الكمية بالمخزن" },
+        stock: { type: Type.NUMBER, description: "الكمية بالمخزن أو الكمية المباعة في الفاتورة" },
+        quantity: { type: Type.NUMBER, description: "الكمية المطلوبة في الفاتورة" },
+        discount: { type: Type.NUMBER, description: "قيمة الخصم بالجنيه" },
+        isTaxable: { type: Type.BOOLEAN, description: "هل الفاتورة ضريبية (+14% ضريبة قيمة مضافة)" },
+        paymentMethod: { type: Type.STRING, description: "طريقة الدفع: نقدى، إلكتروني، آجل" },
         branch: { type: Type.STRING, description: "الفرع: main, branch1, branch2, branch3" },
         description: { type: Type.STRING, description: "وصف العملية أو المنتج أو المصروف" },
         amount: { type: Type.NUMBER, description: "المبلغ بالجنيه" },
@@ -2255,18 +2259,105 @@ ${conversationMemoryDirective}`;
             await saveTenantErpState(slugKey, { expenses: [exp, ...expenses] });
             backendExecutionResult = { success: true, expense: exp, message: `تم تسجيل مصروف "${exp.description}" بقيمة ${amt} ج.م.` };
           } else if (erpAction === "record_sale") {
-            const amt = Number(args.amount || args.price || 0);
+            const qty = Math.max(1, Number(args.quantity || args.stock || 1) || 1);
+            const needle = String(args.productName || args.sku || "").trim().toLowerCase();
+            const branchKey = String(args.branch || "branch1").trim();
+            const matchedIdx = needle
+              ? products.findIndex((p: any) =>
+                  String(p.name || "").toLowerCase().includes(needle) ||
+                  String(p.sku || "").toLowerCase() === needle
+                )
+              : -1;
+            const matchedProduct = matchedIdx >= 0 ? products[matchedIdx] : null;
+            const unitPrice = Number(args.price || args.amount || matchedProduct?.sellingPrice || 0) || 0;
+            const subtotal = matchedProduct && !args.amount ? unitPrice * qty : (Number(args.amount) || unitPrice * qty);
+            const discountVal = Math.max(0, Number(args.discount || 0) || 0);
+            const afterDiscount = Math.max(0, subtotal - discountVal);
+            const isTax = Boolean(args.isTaxable);
+            const taxAmount = isTax ? Math.round(afterDiscount * 0.14) : 0;
+            const total = afterDiscount + taxAmount;
+
+            const todayCompact = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+            const todaySeq = sales.filter((s: any) => String(s.invoiceNumber || "").startsWith(todayCompact)).length + 1;
+            const invoiceNumber = `${todayCompact}${String(todaySeq).padStart(3, "0")}`;
+            const saleId = Date.now();
+            const payMethod = String(args.paymentMethod || "نقدى");
+
+            if (matchedIdx >= 0 && products[matchedIdx]) {
+              const curStock = typeof products[matchedIdx].stock === "object"
+                ? { ...products[matchedIdx].stock }
+                : { main: Number(products[matchedIdx].stock || 0), branch1: Number(products[matchedIdx].stock || 0) };
+              curStock[branchKey] = Math.max(0, Number(curStock[branchKey] ?? 0) - qty);
+              products[matchedIdx] = { ...products[matchedIdx], stock: curStock };
+            }
+
             const sale = {
-              id: Date.now(),
-              date: new Date().toISOString(),
-              customerName: String(args.customerName || "عميل مباشر"),
-              items: args.productName ? [{ name: args.productName, quantity: 1, price: amt }] : [],
-              total: amt,
-              paymentMethod: "cash",
-              branch: "main",
+              id: saleId,
+              invoiceNumber,
+              date: new Date().toISOString().split("T")[0],
+              direction: "بيع",
+              invoiceType: "retail",
+              branchSoldFrom: branchKey,
+              cashierLocation: "تحت",
+              customerName: String(args.customerName || "عميل نقدي"),
+              items: [
+                {
+                  productId: matchedProduct?.id || 0,
+                  productName: matchedProduct?.name || String(args.productName || "مبيعات عامة"),
+                  name: matchedProduct?.name || String(args.productName || "مبيعات عامة"),
+                  quantity: qty,
+                  unitPrice,
+                  price: unitPrice,
+                  total: subtotal,
+                },
+              ],
+              subtotal,
+              discount: discountVal,
+              isTaxable: isTax,
+              taxAmount,
+              total,
+              cashAmount: payMethod === "نقدى" ? total : 0,
+              electronicAmount: payMethod === "إلكتروني" ? total : 0,
+              remainingAmount: payMethod === "آجل" ? total : 0,
+              paymentMethod: payMethod,
+              branch: branchKey,
             };
-            await saveTenantErpState(slugKey, { dailySales: [sale, ...sales] });
-            backendExecutionResult = { success: true, sale, message: `تم تسجيل مبيعة بقيمة ${amt} ج.م للعميل "${sale.customerName}".` };
+
+            const treasuryList: any[] = Array.isArray(erpState.treasury) ? [...erpState.treasury] : [];
+            if (payMethod !== "آجل" && total > 0) {
+              treasuryList.unshift({
+                id: saleId + 1,
+                date: new Date().toISOString(),
+                type: "sale",
+                description: `فاتورة مبيعات #${invoiceNumber} - ${sale.customerName}`,
+                amountIn: total,
+                amountOut: 0,
+                relatedId: invoiceNumber,
+              });
+            }
+
+            await saveTenantErpState(slugKey, {
+              dailySales: [sale, ...sales],
+              products,
+              treasury: treasuryList,
+            });
+
+            const basePublicUrl = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/$/, "");
+            const invoicePrintUrl = `${basePublicUrl}/api/tenant-erp/${encodeURIComponent(slugKey)}/invoice/${saleId}/print`;
+            backendExecutionResult = {
+              success: true,
+              invoiceNumber,
+              sale,
+              invoicePrintUrl,
+              stockDeducted: Boolean(matchedProduct),
+              message: `تم إصدار الفاتورة رقم #${invoiceNumber} للعميل "${sale.customerName}" بإجمالي ${total} ج.م${matchedProduct ? ` وخصم ${qty} قطعة من مخزون "${matchedProduct.name}" وترحيل المبلغ للخزينة` : ""}. رابط الطباعة الفوري: ${invoicePrintUrl}`,
+            };
+            executedAction = {
+              type: "OPEN_INVOICE_PRINT",
+              url: invoicePrintUrl,
+              invoiceNumber,
+              total,
+            };
           } else if (erpAction === "update_order_status") {
             const oid = String(args.orderId || "");
             const oIdx = orders.findIndex((o: any) => String(o.id) === oid);
