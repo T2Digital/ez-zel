@@ -1660,14 +1660,18 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       res.setHeader("Access-Control-Allow-Origin", "*");
       const slug = String(req.params.slug || "").trim();
       const slugLower = slug.toLowerCase();
+      const slugNorm = slugLower.replace(/[-_]+/g, "-");
       const unified = getUnifiedGrowthBrands();
-      let brand: any = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
+      let brand: any = unified.find(b =>
+        b.id === slug ||
+        String(b.slug || "").toLowerCase().replace(/[-_]+/g, "-") === slugNorm
+      ) || getClonedBrandByIdOrSlug(slug);
 
       if (!brand) {
           try {
               const { listProvisionedTenants } = await import("./services/tenantFactory");
               const t = listProvisionedTenants().find((x: any) =>
-                  String(x.slug || "").toLowerCase() === slugLower || String(x.id || "") === slug
+                  String(x.slug || "").toLowerCase().replace(/[-_]+/g, "-") === slugNorm || String(x.id || "") === slug
               );
               if (t) {
                   brand = {
@@ -1691,10 +1695,11 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               const liveRes: any = await titoStudioApi.listBrands();
               const list = Array.isArray(liveRes?.brands) ? liveRes.brands : Array.isArray(liveRes) ? liveRes : [];
               const sb = list.find((x: any) => {
-                  const enSlug = String(x.englishName || "").toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+                  const enSlug = String(x.englishName || "").toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[-_\s]+/g, "-");
+                  const xSlug = String(x.slug || "").toLowerCase().replace(/[-_]+/g, "-");
                   return String(x.id || "") === slug ||
-                      String(x.slug || "").toLowerCase() === slugLower ||
-                      enSlug === slugLower;
+                      xSlug === slugNorm ||
+                      enSlug === slugNorm;
               });
               if (sb) {
                   brand = {

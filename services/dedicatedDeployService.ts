@@ -151,7 +151,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
       )
     ).toString('base64');
 
-    await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/tenant-config.json`, {
+    await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/public/tenant-config.json`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${githubToken}`,
@@ -163,6 +163,39 @@ export async function provisionDedicatedRepoAndVercel(input: {
         content: configContent
       })
     }).catch(() => {});
+
+    // 3b. Rebrand index.html title/meta/logo in cloned repo so SSR/initial load matches the new brand
+    try {
+      const idxRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/index.html`, {
+        headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github+json' }
+      });
+      if (idxRes.ok) {
+        const idxData: any = await idxRes.json();
+        const rawHtml = Buffer.from(idxData.content || '', 'base64').toString('utf8');
+        const safeName = String(brand.name || brand.slug).replace(/[<>]/g, '');
+        const safeSlogan = String((brand as any).slogan || `متجر ونظام إدارة ${safeName}`).replace(/[<>]/g, '');
+        const safeLogo = String((brand as any).logoUrl || '').trim();
+        let rebrandedHtml = rawHtml
+          .replace(/بطاح الأصلي/g, safeName)
+          .replace(/تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من [^."<]+/g, safeSlogan);
+        if (safeLogo) {
+          rebrandedHtml = rebrandedHtml.replace(/https:\/\/i\.ibb\.co\/LDdGwd87\/5-1\.png/g, safeLogo);
+        }
+        await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/index.html`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${githubToken}`,
+            Accept: 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: `chore(tenant): rebrand index.html for ${safeName}`,
+            content: Buffer.from(rebrandedHtml, 'utf8').toString('base64'),
+            sha: idxData.sha
+          })
+        });
+      }
+    } catch {}
 
     // 4. Create Vercel project & deployment
     const vercelProjRes = await fetch('https://api.vercel.com/v9/projects', {
