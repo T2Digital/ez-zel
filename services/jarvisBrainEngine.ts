@@ -1827,12 +1827,15 @@ ${conversationMemoryDirective}`;
         }
         try {
           const section = String(args.section || "crm").trim();
-          const actionName = String(args.action || "get_status").trim();
+          let actionName = String(args.action || "get_status").trim();
+          if (section === "brands" && (actionName === "create_brand" || actionName === "register")) {
+            actionName = "create";
+          }
           if (persona !== "tito" && (section === "admin" || args.isAdminAction)) {
             backendExecutionResult = { success: false, message: "أوامر الإدارة العامة متاحة للمدير العام فقط." };
             break;
           }
-          const embedWindow = String(args.embedWindow || (section === "whatsapp" ? "qr" : section === "admin" ? "admin" : section)).trim();
+          const embedWindow = String(args.embedWindow || (section === "whatsapp" ? "qr" : section === "admin" ? "admin" : section === "brands" ? "catalog" : section)).trim();
           let agentBrandId = String(brandId || "clean_master");
 
           // Resolve exact brandId from live T2 Agent /api/admin/brands/health
@@ -1857,6 +1860,16 @@ ${conversationMemoryDirective}`;
           let parsedPayload: Record<string, any> = {};
           if (args.payloadJson) {
             try { parsedPayload = JSON.parse(String(args.payloadJson)); } catch {}
+          }
+
+          if (section === "brands" && actionName === "create") {
+            const rawSlug = String(parsedPayload.brandId || args.brandNameOrId || targetBrand?.slug || agentBrandId || "")
+              .toLowerCase()
+              .replace(/[^a-z0-9_]+/g, "_")
+              .replace(/^_+|_+$/g, "");
+            if (rawSlug && rawSlug !== "brand") agentBrandId = rawSlug;
+            parsedPayload.brandId = agentBrandId;
+            parsedPayload.name = parsedPayload.name || targetBrand?.name || args.brandNameOrId || agentBrandId;
           }
 
           let remoteRes: any;
@@ -2087,6 +2100,35 @@ ${conversationMemoryDirective}`;
       replyText = replyText
         .replace(/^(?:أهلاً|اهلا|مرحباً|مرحبا|يا هلا)\s+(?:بيك|بك|بحضرتك)[^.!؟\n]{0,65}(?:أنا\s*جارفيس|أنا\s*جارفز|منظومة\s*T2|النمو\s*الشامل)[^.!؟\n]*[.!؟،]?\s*/i, "")
         .trim();
+    }
+  }
+
+  // Deterministic UI action fallback if Admin asked to open a view or switch brand and Gemini replied in text only
+  if (persona === "tito" && !executedAction) {
+    if (/صالة العرض|الاعتماد|showroom/i.test(message)) {
+      const cid = String(resolvedBrand?.id || selectedBrandId || "1");
+      executedAction = {
+        type: "STUDIO_EMBED_VIEW",
+        view: "showroom",
+        clinicId: cid,
+        embedUrl: titoStudioApi.buildStudioEmbedUrl("showroom", cid),
+        actionExecuted: "ui.navigate",
+      };
+    } else if (/استوديو المحتوى|افتح الاستوديو|generator/i.test(message)) {
+      const cid = String(resolvedBrand?.id || selectedBrandId || "1");
+      executedAction = {
+        type: "STUDIO_EMBED_VIEW",
+        view: "generator",
+        clinicId: cid,
+        embedUrl: titoStudioApi.buildStudioEmbedUrl("generator", cid),
+        actionExecuted: "ui.navigate",
+      };
+    } else if (/افتح.*براند|انقل.*براند/i.test(message) && resolvedBrand?.id) {
+      executedAction = {
+        type: "SWITCH_BRAND",
+        brandId: resolvedBrand.id,
+        brandName: resolvedBrand.name,
+      };
     }
   }
 
