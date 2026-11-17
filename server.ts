@@ -1633,11 +1633,62 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   // --- CLIENT LIVE INTERACTIVE STOREFRONT VIEW (Branded PWA + Live Booking Cart -> CRM) --- //
   // --- PUBLIC MULTI-TENANT BRAND CONFIG ENDPOINT (FOR BATTAH & CLEAN-MASTER) --- //
-  app.get("/api/public/brand/:slug", (req, res) => {
+  app.get("/api/public/brand/:slug", async (req, res) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
-      const slug = String(req.params.slug || "");
+      const slug = String(req.params.slug || "").trim();
+      const slugLower = slug.toLowerCase();
       const unified = getUnifiedGrowthBrands();
-      const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
+      let brand: any = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
+
+      if (!brand) {
+          try {
+              const { listProvisionedTenants } = await import("./services/tenantFactory");
+              const t = listProvisionedTenants().find((x: any) =>
+                  String(x.slug || "").toLowerCase() === slugLower || String(x.id || "") === slug
+              );
+              if (t) {
+                  brand = {
+                      id: t.id,
+                      slug: t.slug,
+                      name: t.businessName || t.clientName,
+                      businessType: t.templateName || "قطع غيار وخدمات",
+                      phone: t.whatsappBot || "01013373634",
+                      logo: t.logoUrl || "",
+                      primaryColor: t.primaryColor || "#06b6d4",
+                      slogan: t.slogan || "",
+                      services: t.pricingNotes ? [{ name: t.businessName, price: "حسب الطلب", description: t.pricingNotes }] : [],
+                  };
+              }
+          } catch {}
+      }
+
+      if (!brand) {
+          try {
+              const { titoStudioApi } = await import("./services/titoStudioApiClient");
+              const liveRes: any = await titoStudioApi.listBrands();
+              const list = Array.isArray(liveRes?.brands) ? liveRes.brands : Array.isArray(liveRes) ? liveRes : [];
+              const sb = list.find((x: any) => {
+                  const enSlug = String(x.englishName || "").toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+                  return String(x.id || "") === slug ||
+                      String(x.slug || "").toLowerCase() === slugLower ||
+                      enSlug === slugLower;
+              });
+              if (sb) {
+                  brand = {
+                      id: sb.id,
+                      slug: sb.slug || slug,
+                      name: sb.name || sb.englishName,
+                      businessType: sb.customIndustry || sb.industry || "خدمات وأعمال",
+                      phone: sb.phone || sb.whatsappNumber || "01013373634",
+                      logo: sb.logo || "",
+                      primaryColor: sb.primaryColor || "#f97316",
+                      slogan: sb.slogan || "",
+                      services: sb.servicesDetails ? [{ name: sb.name, price: "تواصل واتساب", description: sb.servicesDetails }] : [],
+                  };
+              }
+          } catch {}
+      }
+
       if (!brand) {
           return res.status(404).json({ ok: false, error: "Brand not found" });
       }
