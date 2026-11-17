@@ -586,6 +586,7 @@ const jarvisBrainTools: FunctionDeclaration[] = [
             "record_purchase",
             "add_treasury_tx",
             "update_store_settings",
+            "customize_app",
           ],
           description: "العملية المطلوبة على المتجر ونظام الـ ERP",
         },
@@ -612,8 +613,40 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         txType: { type: Type.STRING, description: "نوع حركة الخزينة: in (وارد) أو out (صادر)" },
         companyName: { type: Type.STRING, description: "اسم المتجر/الشركة في الإعدادات" },
         tickerText: { type: Type.STRING, description: "نص الشريط الإعلاني أعلى المتجر" },
+        branchCount: { type: Type.NUMBER, description: "عدد الفروع الظاهرة في الفواتير (1 إلى 4)" },
+        cashierCount: { type: Type.NUMBER, description: "عدد الكاشيرات الظاهرة في الفواتير (1 إلى 3)" },
+        primaryBranchLabel: { type: Type.STRING, description: "اسم الفرع الأول أو الوحيد" },
+        primaryCashierLabel: { type: Type.STRING, description: "اسم الكاشير الأول أو الوحيد" },
       },
       required: ["action"],
+    },
+  },
+  {
+    name: "edit_tenant_repo_code",
+    description:
+      "أداة الماستر تيتو البرمجية لتعديل الكود المصدري لأي تطبيق عميل أو قالب (مثل t2-tenant-auto-house أو battah أو clean-master-egy) على GitHub مع فحص صياغة TypeScript/esbuild إجباري قبل الرفع ونشر Vercel تلقائياً أو التراجع (Rollback).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ["inspect_repo", "edit_code", "rollback"],
+          description: "inspect_repo لقراءة ملفات المستودع، edit_code لتعديل ملف ورفعه بعد الفحص، rollback للتراجع عن آخر تعديل",
+        },
+        repoName: {
+          type: Type.STRING,
+          description: "اسم المستودع مثل t2-tenant-auto-house أو battah أو clean-master-egy",
+        },
+        filePath: {
+          type: Type.STRING,
+          description: "مسار الملف داخل المستودع مثل components/sales/DailySaleModal.tsx",
+        },
+        instruction: {
+          type: Type.STRING,
+          description: "وصف التعديل البرمجي الدقيق المطلوب تنفيذه في الملف",
+        },
+      },
+      required: ["action", "repoName"],
     },
   },
 ];
@@ -931,6 +964,7 @@ ${conversationMemoryDirective}`;
     "tito_studio_remote_execute",
     "t2_agent_remote_execute",
     "manage_store_erp",
+    ...(persona === "tito" ? ["edit_tenant_repo_code"] : []),
     "create_and_publish_post",
     "onboard_new_client_brand",
     "navigate_jarvis_ui",
@@ -2331,9 +2365,48 @@ ${conversationMemoryDirective}`;
             };
             await saveTenantErpState(slugKey, { storefrontSettings: nextSettings });
             backendExecutionResult = { success: true, storefrontSettings: nextSettings, message: "تم تحديث إعدادات المتجر السحابية بنجاح." };
+          } else if (erpAction === "customize_app") {
+            const { customizeAppLiveConfig } = await import("./aiCodeSurgeonService");
+            const cRes = await customizeAppLiveConfig(slugKey, {
+              branchCount: typeof args.branchCount === "number" ? args.branchCount : undefined,
+              cashierCount: typeof args.cashierCount === "number" ? args.cashierCount : undefined,
+              primaryBranchLabel: args.primaryBranchLabel ? String(args.primaryBranchLabel) : undefined,
+              primaryCashierLabel: args.primaryCashierLabel ? String(args.primaryCashierLabel) : undefined,
+            });
+            backendExecutionResult = { success: true, ...cRes };
           }
         } catch (err: any) {
           backendExecutionResult = { success: false, error: err?.message || "ERP execution error" };
+        }
+        break;
+      }
+
+      case "edit_tenant_repo_code": {
+        if (persona !== "tito") {
+          backendExecutionResult = { success: false, error: "أداة التعديل البرمجي متاحة للماستر تيتو فقط." };
+          break;
+        }
+        const surgeonAction = String(args.action || "inspect_repo").trim();
+        const repoName = String(args.repoName || "t2-tenant-auto-house").trim();
+        try {
+          const { inspectTenantRepo, editTenantRepoCode, rollbackLastRepoEdit } = await import("./aiCodeSurgeonService");
+          if (surgeonAction === "inspect_repo") {
+            const res = await inspectTenantRepo(repoName, args.filePath ? String(args.filePath) : undefined);
+            backendExecutionResult = { success: Boolean(res.ok), ...res };
+          } else if (surgeonAction === "edit_code") {
+            const res = await editTenantRepoCode({
+              repoName,
+              filePath: String(args.filePath || ""),
+              instruction: String(args.instruction || message),
+              ai,
+            });
+            backendExecutionResult = { success: Boolean(res.ok), ...res };
+          } else if (surgeonAction === "rollback") {
+            const res = await rollbackLastRepoEdit(repoName);
+            backendExecutionResult = { success: Boolean(res.ok), ...res };
+          }
+        } catch (err: any) {
+          backendExecutionResult = { success: false, error: err?.message || "Code surgeon error" };
         }
         break;
       }
