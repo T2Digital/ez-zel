@@ -221,25 +221,44 @@ export async function provisionDedicatedRepoAndVercel(input: {
       }).catch(() => {});
     }
 
-    // 6. Trigger initial production deployment on Vercel
-    await fetch('https://api.vercel.com/v13/deployments', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${vercelToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: repoName,
-        project: envTarget,
-        target: 'production',
-        gitSource: {
-          type: 'github',
-          org: owner,
-          repo: repoName,
-          ref: 'main'
-        }
-      })
-    }).catch(() => {});
+    // 6. Trigger initial production deployment on Vercel (passing numeric GitHub repoId)
+    let vercelDeploymentId = '';
+    let vercelDeployError = '';
+    try {
+      const repoInfoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
+        headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github+json' }
+      });
+      const repoInfo: any = repoInfoRes.ok ? await repoInfoRes.json() : {};
+      const repoId = repoInfo?.id;
+      const depRes = await fetch('https://api.vercel.com/v13/deployments', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${vercelToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: repoName,
+          project: envTarget,
+          target: 'production',
+          gitSource: {
+            type: 'github',
+            org: owner,
+            repo: repoName,
+            ref: 'main',
+            ...(repoId ? { repoId } : {})
+          }
+        })
+      });
+      const depJson: any = await depRes.json().catch(() => ({}));
+      if (depRes.ok) {
+        vercelDeploymentId = depJson?.id || depJson?.uid || '';
+        if (depJson?.url) dedicatedLiveUrl = `https://${depJson.url}`;
+      } else {
+        vercelDeployError = depJson?.error?.message || `HTTP ${depRes.status}`;
+      }
+    } catch (depErr: any) {
+      vercelDeployError = depErr?.message || 'Vercel deploy call failed';
+    }
 
     persistBrandUpdateAcrossEcosystem(brand.id, {
       dedicatedRepoUrl: repoUrl,
@@ -253,6 +272,8 @@ export async function provisionDedicatedRepoAndVercel(input: {
       repoName,
       dedicatedRepoUrl: repoUrl,
       dedicatedLiveUrl,
+      ...(vercelDeploymentId ? { vercelDeploymentId } : {}),
+      ...(vercelDeployError ? { vercelDeployError } : {}),
       message: `تم إنشاء مستودع مستقل (${repoUrl}) وربطه على Vercel (${dedicatedLiveUrl}) بنجاح للعميل المدفوع!`
     };
   } catch (err: any) {
