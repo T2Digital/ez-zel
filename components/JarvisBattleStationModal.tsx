@@ -1839,30 +1839,33 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* THE GIANT HOLOGRAPHIC ARC REACTOR WITH LIVING FLUID WATER ORB (CLICK = MIC CONTROLLER) */}
-            <button
-              type="button"
-              onClick={() => {
-                // Instant Voice Barge-In: interrupt Jarvis immediately and start listening
-                if (isPlayingVoice) {
-                  stopVoice();
-                  setIsPlayingVoice(false);
-                  isPlayingVoiceRef.current = false;
-                  startListeningLoop();
-                } else {
-                  handleToggleListening();
-                }
-              }}
-              title="اضغط على الكرة المضيئة للتحدث مع جارفس"
-              className="cursor-pointer focus:outline-none hover:scale-[1.03] active:scale-[0.98] transition-transform scale-[0.72] -my-5"
-            >
-              <JarvisArcReactorCore
-                isListening={isListening}
-                isPlayingVoice={isPlayingVoice}
-                isThinking={isThinking}
-                audioLevel={audioLevel}
-              />
-            </button>
+            {/* THE GIANT HOLOGRAPHIC ARC REACTOR — RENDERED IN TOP BAR WHEN SUB-DECK OPEN OR FOR VISITOR; MERGED INTO CONSTELLATION CENTER ON MAIN GRID */}
+            {(persona === 'visitor' || activeDeckTab !== 'obsidian_graph') && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isPlayingVoice) {
+                    stopVoice();
+                    setIsPlayingVoice(false);
+                    isPlayingVoiceRef.current = false;
+                    startListeningLoop();
+                  } else {
+                    handleToggleListening();
+                  }
+                }}
+                title="اضغط على الكرة المضيئة للتحدث مع جارفس"
+                className={`cursor-pointer focus:outline-none hover:scale-[1.03] active:scale-[0.98] transition-transform ${
+                  persona === 'visitor' ? 'scale-[0.72] -my-5' : 'scale-[0.55] -my-7'
+                }`}
+              >
+                <JarvisArcReactorCore
+                  isListening={isListening}
+                  isPlayingVoice={isPlayingVoice}
+                  isThinking={isThinking}
+                  audioLevel={audioLevel}
+                />
+              </button>
+            )}
 
             {/* TWO-WAY LIVE CONVERSATION & AUDIO DOCK (Modular Component) */}
             <JarvisMasterVoiceDock
@@ -2263,6 +2266,30 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     }}
                     onOpenChat={() => handleOpenWhatsAppConnectModal()}
                     onOpenStudio={() => window.open('https://t2-studio.vercel.app', '_blank')}
+                    centerCore={
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isPlayingVoice) {
+                            stopVoice();
+                            setIsPlayingVoice(false);
+                            isPlayingVoiceRef.current = false;
+                            startListeningLoop();
+                          } else {
+                            handleToggleListening();
+                          }
+                        }}
+                        title="اضغط على النواة للتحدث مع جارفس"
+                        className="cursor-pointer focus:outline-none hover:scale-105 active:scale-95 transition-transform"
+                      >
+                        <JarvisArcReactorCore
+                          isListening={isListening}
+                          isPlayingVoice={isPlayingVoice}
+                          isThinking={isThinking}
+                          audioLevel={audioLevel}
+                        />
+                      </button>
+                    }
                     className="!bg-transparent !border-cyan-400/15 !shadow-none"
                   />
                 </div>

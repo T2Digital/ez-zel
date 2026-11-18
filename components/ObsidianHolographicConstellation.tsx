@@ -24,6 +24,7 @@ interface ObsidianHolographicConstellationProps {
   onOpenStudio?: (brandId: string) => void;
   onOpenStore?: (slug: string) => void;
   onOpenChat?: (brandId: string) => void;
+  centerCore?: React.ReactNode;
   className?: string;
 }
 
@@ -34,6 +35,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   onOpenStudio,
   onOpenStore,
   onOpenChat,
+  centerCore,
   className = ''
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -534,6 +536,15 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         ref={canvasRef}
         className="w-full flex-1 cursor-grab active:cursor-grabbing"
       />
+
+      {/* Integrated Jarvis Luminescent Core inside Constellation Center */}
+      {centerCore && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-10">
+          <div className="pointer-events-auto scale-[0.65] sm:scale-[0.75] drop-shadow-[0_0_35px_rgba(0,240,255,0.45)]">
+            {centerCore}
+          </div>
+        </div>
+      )}
 
       {/* Floating Stark Holographic HUD Details Popover */}
       {hoveredNode && (
