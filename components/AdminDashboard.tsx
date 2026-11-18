@@ -7,6 +7,7 @@ import ChatInterface from './ChatInterface';
 import { ArchitectureMap } from './ArchitectureMap';
 import { SovereignOSArchitectureHub } from './SovereignOSArchitectureHub';
 import { TenantFactoryView } from './TenantFactoryView';
+import { AdminLiveStudioPanel, AdminLiveAgentPanel } from './AdminLivePanels';
 
 interface Props {
     onLogout: () => void;
@@ -788,217 +789,37 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
         )}
 
         {activeView === 'studio' && (
-            <div className="w-full space-y-4 animate-fadeIn">
-                <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl">
-                    <div className="flex items-center gap-3">
-                        <Film className="w-6 h-6 text-amber-400" />
-                        <div>
-                            <h3 className="text-base font-black text-white">تيتو ستوديو • محرك إنتاج المحتوى والميديا</h3>
-                            <p className="text-xs text-white/60">Zain Copilot للإعلانات، الاسكربتات، وتصدير الـ Content Decks</p>
-                        </div>
-                    </div>
-                    <a href="https://t2-studio.vercel.app?admin_bypass=vdgcwb4npax7k5me92futh0jq8orzi13y6sl" target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-amber-500 text-black text-xs font-bold rounded-xl shadow-lg shadow-amber-500/30">
-                        فتح في نافذة كاملة ↗
-                    </a>
-                </div>
-                <iframe src="https://t2-studio.vercel.app?admin_bypass=vdgcwb4npax7k5me92futh0jq8orzi13y6sl" title="تيتو ستوديو" className="w-full h-[76vh] rounded-2xl border-2 border-amber-500/30 bg-[#070b14]" allow="clipboard-write; camera; microphone" />
-            </div>
+            <AdminLiveStudioPanel onOpenBrandInJarvis={() => { if (onNavigateTo) onNavigateTo('chat'); }} />
         )}
 
         {activeView === 'agent_platform' && (
-            <div className="w-full space-y-4 animate-fadeIn">
-                <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl">
-                    <div className="flex items-center gap-3">
-                        <Bot className="w-6 h-6 text-emerald-400" />
-                        <div>
-                            <h3 className="text-base font-black text-white">منصة أسطول الأجنت السيادية • T2 Agent Hub</h3>
-                            <p className="text-xs text-white/60">شات بوت واتساب Baileys، حملات البرودكاست، وإدارة المتاجر والطلبات الفورية</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-black text-xs font-black rounded-xl shadow-lg shadow-emerald-500/30 hover:scale-105 transition flex items-center gap-1.5">
-                            <span>لوحة تحكم الأجنت المركزية ↗</span>
-                        </a>
-                    </div>
-                </div>
-
-                <div className="w-full rounded-2xl border-2 border-emerald-500/30 bg-[#070b14]/90 backdrop-blur-md p-6 relative overflow-hidden space-y-6">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-emerald-950/30 via-transparent to-transparent pointer-events-none" />
-
-                    {/* LIVE METRICS SUMMARY */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
-                        <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-3.5 text-center">
-                            <span className="text-[10px] text-emerald-400/80 font-bold block mb-1">المحادثات المعالجة بالكامل</span>
-                            <span className="text-2xl font-black text-emerald-300">358</span>
-                        </div>
-                        <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-3.5 text-center">
-                            <span className="text-[10px] text-cyan-400/80 font-bold block mb-1">الأسطول الذكي المتصل</span>
-                            <span className="text-2xl font-black text-cyan-300">4 براندات</span>
-                        </div>
-                        <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-3.5 text-center">
-                            <span className="text-[10px] text-amber-400/80 font-bold block mb-1">حالة الرد التلقائي</span>
-                            <span className="text-2xl font-black text-amber-300">100% نشط</span>
-                        </div>
-                        <div className="bg-black/40 border border-emerald-500/30 rounded-xl p-3.5 text-center">
-                            <span className="text-[10px] text-emerald-400/80 font-bold block mb-1">حالة WhatsApp Webhook</span>
-                            <span className="text-xs font-black text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-md inline-block mt-1">متزامن ومستقر</span>
-                        </div>
-                    </div>
-
-                    {/* ACTIVE AGENT FLEET CARDS */}
-                    <div className="space-y-3 relative z-10">
-                        <h4 className="text-xs font-black text-white/80 uppercase tracking-widest flex items-center gap-2">
-                            <Zap className="w-4 h-4 text-emerald-400" />
-                            أسطول الوكلاء النشطين على الشبكة
-                        </h4>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* CLEAN MASTER */}
-                            <div className="p-4 rounded-xl bg-black/50 border border-emerald-500/30 space-y-3 hover:border-emerald-500/60 transition">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-xs">
-                                            CM
-                                        </div>
-                                        <div>
-                                            <h5 className="text-sm font-black text-white">كلين ماستر لخدمات النظافة والتعقيم</h5>
-                                            <span className="text-[10px] text-emerald-400 font-bold">بوت واتساب: 01013373634 • نشط</span>
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
-                                        297 محادثة
-                                    </span>
-                                </div>
-                                <p className="text-xs text-white/60 leading-relaxed">
-                                    الرد الآلي على استفسارات تنظيف المنازل، تأكيد الحجوزات بالسعر الفعلي، وتسجيل بيانات العملاء بالـ CRM السيادي.
-                                </p>
-                                <div className="flex gap-2">
-                                    <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="flex-1 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold rounded-lg text-center transition">
-                                        إدارة المحادثات ↗
-                                    </a>
-                                </div>
-                            </div>
-
-                            {/* SALE GATES EGYPT */}
-                            <div className="p-4 rounded-xl bg-black/50 border border-cyan-500/30 space-y-3 hover:border-cyan-500/60 transition">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-black text-xs">
-                                            SG
-                                        </div>
-                                        <div>
-                                            <h5 className="text-sm font-black text-white">منصة Sale Gates Egypt للتسويق العقاري</h5>
-                                            <span className="text-[10px] text-cyan-400 font-bold">وكيل العقارات الذكي • نشط</span>
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold">
-                                        61 محادثة
-                                    </span>
-                                </div>
-                                <p className="text-xs text-white/60 leading-relaxed">
-                                    فرز طلبات الشراء والإيجار بالتجمع والشيخ زايد والعاصمة الإدارية، تأهيل المشترين، وجدولة المعاينات.
-                                </p>
-                                <div className="flex gap-2">
-                                    <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="flex-1 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold rounded-lg text-center transition">
-                                        إدارة المحادثات ↗
-                                    </a>
-                                </div>
-                            </div>
-
-                            {/* AL KHEDR CAR RENTAL */}
-                            <div className="p-4 rounded-xl bg-black/50 border border-amber-500/30 space-y-3 hover:border-amber-500/60 transition">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-xs">
-                                            KH
-                                        </div>
-                                        <div>
-                                            <h5 className="text-sm font-black text-white">الخضر لتأجير السيارات الفاخرة</h5>
-                                            <span className="text-[10px] text-amber-400 font-bold">أسطول الليموزين والـ VIP • نشط</span>
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
-                                        أسطول نشط
-                                    </span>
-                                </div>
-                                <p className="text-xs text-white/60 leading-relaxed">
-                                    حجز رحلات المطار، ليموزين رجال الأعمال، وإرسال عروض الأسعار اللحظية بالواتساب.
-                                </p>
-                                <div className="flex gap-2">
-                                    <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="flex-1 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-bold rounded-lg text-center transition">
-                                        إدارة الأسطول ↗
-                                    </a>
-                                </div>
-                            </div>
-
-                            {/* BATTAH / BARAKA */}
-                            <div className="p-4 rounded-xl bg-black/50 border border-purple-500/30 space-y-3 hover:border-purple-500/60 transition">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-black text-xs">
-                                            BT
-                                        </div>
-                                        <div>
-                                            <h5 className="text-sm font-black text-white">بطاح سيستم ومحركات بركة</h5>
-                                            <span className="text-[10px] text-purple-400 font-bold">وكيل الصيانة وقطع الغيار • نشط</span>
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold">
-                                        جاهز
-                                    </span>
-                                </div>
-                                <p className="text-xs text-white/60 leading-relaxed">
-                                    استقبال طلبات الصيانة، كشف الأعطال الفوري، وربط المستودع بالفواتير الإلكترونية.
-                                </p>
-                                <div className="flex gap-2">
-                                    <a href="https://khedr-bot-agent.onrender.com/dashboard" target="_blank" rel="noreferrer" className="flex-1 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-[10px] font-bold rounded-lg text-center transition">
-                                        إدارة البوت ↗
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* DIRECT ACCESS CTA */}
-                    <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between relative z-10">
-                        <div>
-                            <h5 className="text-sm font-black text-white">لوحة تحكم الأجنت المركزية المستقلة (T2 Agent Hub)</h5>
-                            <p className="text-xs text-white/60">افتح منصة الأجنت في شاشة مستقلة كاملة للتحكم في جلسات Baileys ومسح QR Code</p>
-                        </div>
-                        <a 
-                            href="https://khedr-bot-agent.onrender.com/dashboard" 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs rounded-xl shadow-lg shadow-emerald-500/30 transition flex items-center gap-2"
-                        >
-                            <span>فتح المنصة بالكامل</span>
-                            <span>↗</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
+            <AdminLiveAgentPanel onOpenBrandInJarvis={() => { if (onNavigateTo) onNavigateTo('chat'); }} />
         )}
       </div>
 
       <nav className="fixed bottom-[32px] left-0 w-full bg-black/95 border-t border-white/10 z-[100] rounded-t-[40px]">
-        <div className="flex items-center justify-start w-full overflow-x-auto gap-4 px-6 pt-5 pb-6 scrollbar-none relative z-[105]">
-            <button onClick={() => setActiveView('analytics')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'analytics' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><BarChart2 className="w-5 h-5" /><span className="text-[8px] font-bold">تحليل</span></button>
-            <button onClick={() => setActiveView('members')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
-            <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
-            <button onClick={() => { if(onNavigateTo) onNavigateTo('affiliate'); }} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all text-white/30 hover:text-white/60`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">عمولاتي</span></button>
-            <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
-            <button onClick={() => setActiveView('factory')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'factory' ? 'text-amber-400 scale-110' : 'text-white/40 hover:text-amber-400'}`}><Zap className="w-5 h-5 text-amber-400" /><span className="text-[8px] font-bold text-amber-400">المصنع</span></button>
-            <button onClick={() => setActiveView('studio')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'studio' ? 'text-amber-400 scale-110' : 'text-white/40 hover:text-amber-400'}`}><Film className="w-5 h-5 text-amber-400" /><span className="text-[8px] font-bold text-amber-400">الاستوديو</span></button>
-            <button onClick={() => setActiveView('agent_platform')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'agent_platform' ? 'text-emerald-400 scale-110' : 'text-white/40 hover:text-emerald-400'}`}><Bot className="w-5 h-5 text-emerald-400" /><span className="text-[8px] font-bold text-emerald-400">الأجنت</span></button>
-            
-            <button onClick={() => { if(onNavigateTo) onNavigateTo('chat'); }} className="flex-shrink-0 min-w-[48px] w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(245,158,11,0.5)] hover:scale-110 transition-transform"><Bot className="w-6 h-6" /></button>
+        <div className="flex items-center justify-between w-full px-3 sm:px-6 pt-4 pb-5 relative z-[105] gap-2">
+            <div className="flex-1 flex items-center justify-start overflow-x-auto gap-3 sm:gap-4 scrollbar-none min-w-0">
+                <button onClick={() => setActiveView('analytics')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'analytics' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><BarChart2 className="w-5 h-5" /><span className="text-[8px] font-bold">تحليل</span></button>
+                <button onClick={() => setActiveView('members')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'members' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Users className="w-5 h-5" /><span className="text-[8px] font-bold">الأعضاء</span></button>
+                <button onClick={() => setActiveView('marketers')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'marketers' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Briefcase className="w-5 h-5" /><span className="text-[8px] font-bold">المسوقين</span></button>
+                <button onClick={() => { if(onNavigateTo) onNavigateTo('affiliate'); }} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all text-white/30 hover:text-white/60`}><DollarSign className="w-5 h-5" /><span className="text-[8px] font-bold">عمولاتي</span></button>
+                <button onClick={() => setActiveView('requests')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'requests' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><CreditCard className="w-5 h-5" /><span className="text-[8px] font-bold">الطلبات</span></button>
+                <button onClick={() => setActiveView('factory')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'factory' ? 'text-amber-400 scale-110' : 'text-white/40 hover:text-amber-400'}`}><Zap className="w-5 h-5 text-amber-400" /><span className="text-[8px] font-bold text-amber-400">المصنع</span></button>
+                <button onClick={() => setActiveView('studio')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'studio' ? 'text-amber-400 scale-110' : 'text-white/40 hover:text-amber-400'}`}><Film className="w-5 h-5 text-amber-400" /><span className="text-[8px] font-bold text-amber-400">الاستوديو</span></button>
+            </div>
 
-            <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'settings' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Settings className="w-5 h-5" /><span className="text-[8px] font-bold">المفاتيح</span></button>
-            <button onClick={() => setActiveView('feedback')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'feedback' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><MessageCircle className="w-5 h-5" /><span className="text-[8px] font-bold">الآراء</span></button>
-            <button onClick={() => setActiveView('coupons')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'coupons' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Tag className="w-5 h-5" /><span className="text-[8px] font-bold">كوبونات</span></button>
-            <button onClick={() => setActiveView('broadcast')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'broadcast' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Megaphone className="w-5 h-5" /><span className="text-[8px] font-bold">النبض</span></button>
-            <button onClick={() => setActiveView('core')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'core' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Cpu className="w-5 h-5" /><span className="text-[8px] font-bold">النواة</span></button>
-            <button onClick={() => setActiveView('architecture')} className={`flex flex-col items-center flex-shrink-0 min-w-[50px] gap-1 transition-all ${activeView === 'architecture' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Network className="w-5 h-5" /><span className="text-[8px] font-bold">المعمارية</span></button>
+            <button onClick={() => { if(onNavigateTo) onNavigateTo('chat'); }} className="flex-shrink-0 w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center text-black shadow-[0_0_24px_rgba(245,158,11,0.65)] hover:scale-110 transition-transform mx-1" title="غرفة عمليات جارفيس"><Bot className="w-6 h-6" /></button>
+
+            <div className="flex-1 flex items-center justify-end overflow-x-auto gap-3 sm:gap-4 scrollbar-none min-w-0">
+                <button onClick={() => setActiveView('agent_platform')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'agent_platform' ? 'text-emerald-400 scale-110' : 'text-white/40 hover:text-emerald-400'}`}><Bot className="w-5 h-5 text-emerald-400" /><span className="text-[8px] font-bold text-emerald-400">الأجنت</span></button>
+                <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'settings' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Settings className="w-5 h-5" /><span className="text-[8px] font-bold">المفاتيح</span></button>
+                <button onClick={() => setActiveView('feedback')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'feedback' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><MessageCircle className="w-5 h-5" /><span className="text-[8px] font-bold">الآراء</span></button>
+                <button onClick={() => setActiveView('coupons')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'coupons' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Tag className="w-5 h-5" /><span className="text-[8px] font-bold">كوبونات</span></button>
+                <button onClick={() => setActiveView('broadcast')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'broadcast' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Megaphone className="w-5 h-5" /><span className="text-[8px] font-bold">النبض</span></button>
+                <button onClick={() => setActiveView('core')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'core' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Cpu className="w-5 h-5" /><span className="text-[8px] font-bold">النواة</span></button>
+                <button onClick={() => setActiveView('architecture')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'architecture' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Network className="w-5 h-5" /><span className="text-[8px] font-bold">المعمارية</span></button>
+            </div>
         </div>
       </nav>
 

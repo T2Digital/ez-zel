@@ -185,6 +185,60 @@ function findBrandAndTenant(idOrSlug: string, deps: BrandHubDeps) {
 }
 
 export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
+  // 0) GET Live Fleet Overview from T2 AI Agent (khedr-bot-agent.onrender.com)
+  app.get("/api/brand-hub/agent/fleet", async (_req: Request, res: Response) => {
+    try {
+      const [brandsHealth, financials] = await Promise.all([
+        t2AgentApi.getAllBrandsHealth().catch(() => null),
+        t2AgentApi.getFinancialsSummary().catch(() => null),
+      ]);
+      const unified = deps.getUnifiedGrowthBrands() || [];
+      const tenants = deps.getPersistedTenants() || [];
+      const liveList = Array.isArray(brandsHealth?.brands)
+        ? brandsHealth.brands
+        : Array.isArray(brandsHealth)
+          ? brandsHealth
+          : [];
+
+      res.json({
+        ok: true,
+        source: liveList.length > 0 ? "t2_ai_agent_live" : "unified_fallback",
+        agentPortalUrl: `${getT2AgentBaseUrl()}/dashboard`,
+        financials: financials || null,
+        brands: liveList.length > 0 ? liveList : unified.map((b: any) => ({
+          id: b.id,
+          slug: b.slug,
+          name: b.name,
+          businessType: b.businessType,
+          phone: b.phone,
+          status: b.botPaused ? "paused" : "active",
+          conversationsCount: b.conversationsCount || 0,
+          whatsappConnected: Boolean(b.phone),
+          metaConnected: Boolean(b.metaConnected),
+          appUrl: resolveBrandRealAppUrl(b, tenants.find((t: any) => t.id === b.id || t.slug === b.slug)),
+        })),
+      });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || "Failed loading agent fleet" });
+    }
+  });
+
+  app.post("/api/brand-hub/:idOrSlug/toggle-bot", async (req: Request, res: Response) => {
+    try {
+      const { idOrSlug } = req.params;
+      const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
+      if (!canMutateBrand(req, brand, tenant)) {
+        return res.status(403).json({ ok: false, error: "غير مصرح بتغيير حالة البوت لهذا البراند" });
+      }
+      const slug = normalizeSlugKey(brand?.slug || tenant?.slug || brand?.id || idOrSlug);
+      const agentBrandId = brand?.id || tenant?.templateId || slug;
+      const result = await t2AgentApi.togglePauseBot(agentBrandId);
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(502).json({ ok: false, error: err?.message || "تعذر تغيير حالة البوت عبر T2 Agent" });
+    }
+  });
+
   // 1) GET Unified Brand Hub Payload (App + Social + REAL T2 AI Agent Status & Conversations + Firestore Config)
   app.get("/api/brand-hub/:idOrSlug", async (req: Request, res: Response) => {
     try {

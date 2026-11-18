@@ -31,6 +31,14 @@ export const TenantFactoryView: React.FC = () => {
 
   useEffect(() => {
     setDeployedTenants(getDeployedTenants());
+    fetch('/api/factory/tenants')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.tenants) && data.tenants.length > 0) {
+          setDeployedTenants(data.tenants);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleLaunch = async (e: React.FormEvent) => {
