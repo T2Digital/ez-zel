@@ -715,9 +715,17 @@ async function startServer() {
   app.post("/api/studio/custom-post", async (req, res) => {
       try {
           const { brandId, topic, scheduleTime, mediaFormat, publishNow } = req.body || {};
+          const targetId = brandId || 'clean_master';
+          const brand = getUnifiedGrowthBrands().find((b: any) => b.id === targetId || b.slug === targetId) || { id: targetId };
+          const { consumeBrandMonthlyQuota } = await import("./services/saasPlansService");
+          const kind = String(mediaFormat || 'image').toLowerCase() === 'video' ? 'video' : 'design';
+          const quotaCheck = consumeBrandMonthlyQuota(brand, kind, 1);
+          if (!quotaCheck.allowed) {
+              return res.status(402).json({ success: false, quotaExceeded: true, quota: quotaCheck.status, error: quotaCheck.reason });
+          }
           const result = await executeRealJarvisEcosystemAction({
               actionType: 'CREATE_CUSTOM_STUDIO_POST',
-              brandId: brandId || 'clean_master',
+              brandId: targetId,
               data: {
                   topic: topic || 'منشور إعلاني مخصص',
                   scheduleTime: scheduleTime || '8:00 مساءً',
@@ -725,7 +733,7 @@ async function startServer() {
                   publishNow: !!publishNow
               }
           });
-          res.json(result);
+          res.json({ ...(result as any), quota: quotaCheck.status });
       } catch (err: any) {
           res.status(500).json({ success: false, error: err?.message });
       }
@@ -1756,6 +1764,15 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           subscriptionStatus = diffDays <= 0 ? "expired" : "trial";
       }
 
+      const { resolveBrandPlanSpec, resolveBrandAppAccessMode } = await import("./services/saasPlansService");
+      const effectiveBrandForPlan = {
+          ...brand,
+          planId: (paidSub as any)?.planId || (brand as any)?.planId || linkedClient?.plan,
+          planAmount: (paidSub as any)?.amountEgp || (brand as any)?.planAmount || (linkedClient as any)?.monthlySubscriptionEgp,
+      };
+      const planSpec = resolveBrandPlanSpec(effectiveBrandForPlan);
+      const appAccessMode = resolveBrandAppAccessMode(effectiveBrandForPlan);
+
       res.json({
           ok: true,
           brand: {
@@ -1773,6 +1790,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               directKnowledge: brand.directKnowledge || "",
               appTemplate: brand.appTemplate || "services_booking",
               productsCatalog: Array.isArray(brand.productsCatalog) ? brand.productsCatalog : [],
+              planId: planSpec.id,
+              planNameAr: planSpec.nameAr,
+              appAccessMode,
               subscriptionStatus,
               trialEndsAt,
               trialDaysLeft,
@@ -2166,9 +2186,17 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   app.post("/api/gemini/generate-image", async (req, res) => {
       try {
-          const { prompt, aspectRatio = "1:1", imageSize = "1K" } = req.body || {};
+          const { prompt, aspectRatio = "1:1", imageSize = "1K", brandId } = req.body || {};
           if (!prompt) {
               return res.status(400).json({ error: "prompt is required" });
+          }
+          if (brandId) {
+              const brand = getUnifiedGrowthBrands().find((b: any) => b.id === brandId || b.slug === brandId) || { id: brandId };
+              const { consumeBrandMonthlyQuota } = await import("./services/saasPlansService");
+              const quotaCheck = consumeBrandMonthlyQuota(brand, 'design', 1);
+              if (!quotaCheck.allowed) {
+                  return res.status(402).json({ error: quotaCheck.reason, quotaExceeded: true, quota: quotaCheck.status });
+              }
           }
           const ai = getServerAI();
 
@@ -2872,15 +2900,36 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           list.unshift(newTenant);
           savePersistedTenants(list);
 
+          let deployResult: any = null;
+          if (hasAutoVercelDeploy) {
+              try {
+                  const { provisionDedicatedRepoAndVercel } = await import("./services/dedicatedDeployService");
+                  deployResult = await provisionDedicatedRepoAndVercel({
+                      brandId: slug,
+                      appTemplate: flagship.archetype === 'products_erp' ? 'products_erp' : 'services_booking'
+                  });
+                  if (deployResult?.dedicatedLiveUrl) {
+                      newTenant.liveUrl = deployResult.dedicatedLiveUrl;
+                      savePersistedTenants(list);
+                  }
+              } catch (depErr: any) {
+                  console.warn("[Factory Auto Vercel Deploy Warning]:", depErr?.message);
+              }
+          }
+
           const totalMRR = list.reduce((acc, t) => acc + (t.monthlyRevenue || 0), 0);
           console.log(`[AUTONOMOUS DEV] Provisioned tenant [${businessName}] for client [${clientName}]! Total MRR now: ${totalMRR} EGP`);
 
           res.json({
               success: true,
               tenant: newTenant,
+              autoVercelEnabled: hasAutoVercelDeploy,
+              deployResult,
               totalCount: list.length,
               totalMRR,
-              message: `تم بنجاح بناء وتوليد ونشر تطبيق [${businessName}] وحقن أرقام الواتساب وهوية العميل على Vercel!`
+              message: deployResult?.dedicatedLiveUrl
+                  ? `تم بناء ونشر تطبيق [${businessName}] فعلياً على Vercel: ${deployResult.dedicatedLiveUrl}`
+                  : `تم بنجاح بناء وتوليد تطبيق [${businessName}] (${newTenant.liveUrl}) وحقن أرقام الواتساب وهوية العميل!`
           });
       } catch (e: any) {
           console.error("[Factory Provision Error]:", e.message);

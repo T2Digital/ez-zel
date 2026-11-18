@@ -630,10 +630,12 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
 
       const ai = deps.getServerAI();
       let blueprint: any = null;
+      let aiPowered = false;
 
       if (ai) {
-        try {
-          const prompt = `أنت مهندس مشاريع وخبير اقتصاديات أسواق (ADK Venture Architect) في منظومة T2OS.
+        for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+          try {
+            const prompt = `أنت مهندس مشاريع وخبير اقتصاديات أسواق (ADK Venture Architect) في منظومة T2OS.
 المطلوب اختراع مشروع تجاري واقعي ومحكم بناءً على:
 - المجال/الفكرة: "${niche}"
 - رأس المال التقريبي: ${budgetEgp} ج.م
@@ -669,14 +671,20 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
     { "week": "الأسبوع 4", "focus": "مراجعة العائد وتوسيع المنتجات الأعلى ربحاً" }
   ]
 }`;
-          const aiRes = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-          });
-          const raw = String(aiRes?.text || "").replace(/```json|```/gi, "").trim();
-          const parsed = JSON.parse(raw);
-          if (parsed?.recommendedBrandName) blueprint = parsed;
-        } catch {}
+            const aiRes = await ai.models.generateContent({
+              model: modelName,
+              contents: prompt,
+              config: { responseMimeType: "application/json", temperature: 0.45 },
+            });
+            const raw = String(aiRes?.text || "").replace(/```json|```/gi, "").trim();
+            const parsed = JSON.parse(raw);
+            if (parsed?.recommendedBrandName) {
+              blueprint = parsed;
+              aiPowered = true;
+              break;
+            }
+          } catch {}
+        }
       }
 
       if (!blueprint) {
@@ -714,7 +722,7 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
         };
       }
 
-      res.json({ ok: true, blueprint });
+      res.json({ ok: true, aiPowered, blueprint });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || "ADK venture invention failed" });
     }
