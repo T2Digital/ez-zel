@@ -2747,8 +2747,10 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           const rawSlug = (subdomain || businessName).toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
           const slug = rawSlug && rawSlug.length > 2 ? rawSlug : `app-${Date.now().toString(36)}`;
           const tenantId = `tenant_${Date.now()}`;
-          const liveUrl = `https://${slug}.vercel.app`;
-          const repoName = `${slug}-app`;
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          const hasAutoVercelDeploy = Boolean(process.env.VERCEL_TOKEN && process.env.GITHUB_TOKEN);
+          const liveUrl = hasAutoVercelDeploy ? `https://t2-tenant-${slug}.vercel.app` : `${publicBase}/app/${slug}`;
+          const repoName = `t2-tenant-${slug}`;
           const githubUrl = `https://github.com/T2Digital/${repoName}`;
 
           const newTenant = {

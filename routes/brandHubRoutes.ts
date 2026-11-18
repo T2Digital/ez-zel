@@ -2,8 +2,18 @@ import type { Express, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { loadTenantErpState, saveTenantErpState, normalizeSlugKey } from "../services/tenantErpStoreService";
+import { t2AgentApi, getT2AgentBaseUrl } from "../services/t2AgentApiClient";
+import { getTitoStudioAuthToken } from "../services/titoStudioFirestoreBridge";
 
 const HUB_CONFIG_FILE = path.join(process.cwd(), "data", "brand_hub_configs.json");
+const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || "t2-content-studio";
+const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+const MASTER_EMAILS = new Set([
+  "tito@shadow.com",
+  "admin@shadow.com",
+  "ahm.atya@gmail.com",
+  "ahmed.atya.daif@gmail.com",
+]);
 
 interface BrandHubDeps {
   getUnifiedGrowthBrands: () => any[];
@@ -12,7 +22,7 @@ interface BrandHubDeps {
   getServerAI: () => any;
 }
 
-function readAllHubConfigs(): Record<string, any> {
+function readLocalHubConfigs(): Record<string, any> {
   try {
     if (!fs.existsSync(HUB_CONFIG_FILE)) return {};
     return JSON.parse(fs.readFileSync(HUB_CONFIG_FILE, "utf8")) || {};
@@ -21,15 +31,106 @@ function readAllHubConfigs(): Record<string, any> {
   }
 }
 
-function writeAllHubConfigs(data: Record<string, any>): void {
+function writeLocalHubConfigs(data: Record<string, any>): void {
   try {
     if (!fs.existsSync(path.dirname(HUB_CONFIG_FILE))) {
       fs.mkdirSync(path.dirname(HUB_CONFIG_FILE), { recursive: true });
     }
     fs.writeFileSync(HUB_CONFIG_FILE, JSON.stringify(data, null, 2), "utf8");
   } catch (err) {
-    console.warn("[BrandHub] Failed writing hub configs:", err);
+    console.warn("[BrandHub] Failed writing local cache:", err);
   }
+}
+
+async function loadHubConfigPersistent(slug: string): Promise<any> {
+  const local = readLocalHubConfigs()[slug] || {};
+  try {
+    const token = await getTitoStudioAuthToken();
+    if (!token) return local;
+    const res = await fetch(`${FIRESTORE_BASE}/t2_brand_hub_configs/${encodeURIComponent(slug)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return local;
+    const doc = await res.json();
+    const rawJson = doc?.fields?.payloadJson?.stringValue;
+    if (!rawJson) return local;
+    const remote = JSON.parse(rawJson);
+    // Keep local cache warm
+    const all = readLocalHubConfigs();
+    all[slug] = { ...local, ...remote };
+    writeLocalHubConfigs(all);
+    return { ...local, ...remote };
+  } catch {
+    return local;
+  }
+}
+
+async function saveHubConfigPersistent(slug: string, payload: any): Promise<boolean> {
+  const all = readLocalHubConfigs();
+  all[slug] = payload;
+  writeLocalHubConfigs(all);
+
+  try {
+    const token = await getTitoStudioAuthToken();
+    if (!token) return false;
+    const res = await fetch(`${FIRESTORE_BASE}/t2_brand_hub_configs/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fields: {
+          slug: { stringValue: slug },
+          updatedAt: { stringValue: payload.updatedAt || new Date().toISOString() },
+          payloadJson: { stringValue: JSON.stringify(payload) },
+        },
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function resolveRequesterContext(req: Request): { authenticated: boolean; isMaster: boolean; email: string } {
+  const adminKeyHeader = String(req.headers["x-admin-key"] || "").trim();
+  const expectedKey = String(process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || "").trim();
+  if (expectedKey && adminKeyHeader && adminKeyHeader === expectedKey) {
+    return { authenticated: true, isMaster: true, email: "master@t2.local" };
+  }
+
+  const authHeader = String(req.headers.authorization || "");
+  if (authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    try {
+      const parts = token.split(".");
+      if (parts.length >= 2) {
+        const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+        const email = String(claims?.email || "").toLowerCase().trim();
+        const isMaster = MASTER_EMAILS.has(email) || claims?.role === "admin" || claims?.role === "master";
+        return { authenticated: true, isMaster, email };
+      }
+    } catch {}
+  }
+
+  return { authenticated: false, isMaster: false, email: "" };
+}
+
+function canMutateBrand(req: Request, brand: any, tenant: any): boolean {
+  const ctx = resolveRequesterContext(req);
+  if (ctx.isMaster) return true;
+  if (!ctx.authenticated || !ctx.email) return false;
+  const ownerCandidates = [
+    brand?.ownerEmail,
+    brand?.adminEmail,
+    tenant?.ownerEmail,
+    tenant?.adminEmail,
+  ]
+    .map((e) => String(e || "").toLowerCase().trim())
+    .filter(Boolean);
+  if (ownerCandidates.length === 0) return true;
+  return ownerCandidates.includes(ctx.email);
 }
 
 export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
@@ -53,10 +154,8 @@ export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
   if (slug === "clean_master" || slug === "clean-master") {
     return "https://cleanmaster-eg.com";
   }
-  if (slug) {
-    return `https://t2-tenant-${slug.replace(/_/g, "-")}.vercel.app`;
-  }
-  return `/store/${brand?.slug || brand?.id || ""}`;
+  const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+  return `${publicBase}/app/${brand?.slug || brand?.id || slug}`;
 }
 
 function findBrandAndTenant(idOrSlug: string, deps: BrandHubDeps) {
@@ -86,7 +185,7 @@ function findBrandAndTenant(idOrSlug: string, deps: BrandHubDeps) {
 }
 
 export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
-  // 1) GET Unified Brand Hub Payload (App + Social + Agent + Knowledge Base)
+  // 1) GET Unified Brand Hub Payload (App + Social + REAL T2 AI Agent Status & Conversations + Firestore Config)
   app.get("/api/brand-hub/:idOrSlug", async (req: Request, res: Response) => {
     try {
       const { idOrSlug } = req.params;
@@ -96,22 +195,46 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
       }
 
       const slug = normalizeSlugKey(brand?.slug || tenant?.slug || brand?.id || idOrSlug);
-      const allConfigs = readAllHubConfigs();
-      const savedHub = allConfigs[slug] || allConfigs[brand?.id || ""] || {};
+      const agentBrandId = brand?.id || tenant?.templateId || slug;
+      const savedHub = await loadHubConfigPersistent(slug);
 
-      let erpState: any = null;
-      try {
-        erpState = await loadTenantErpState(slug);
-      } catch {}
+      const [erpState, liveConversationsRes, liveAgentStatusRes] = await Promise.all([
+        loadTenantErpState(slug).catch(() => null),
+        t2AgentApi.getConversations(agentBrandId).catch(() => null),
+        t2AgentApi.getBrandStatus(agentBrandId).catch(() => null),
+      ]);
 
       const storefront = erpState?.storefrontSettings || {};
       const erpProducts = Array.isArray(erpState?.products) ? erpState.products : [];
       const catalog = erpProducts.length > 0 ? erpProducts : (brand?.productsCatalog || []);
-
       const appUrl = savedHub.appUrl || resolveBrandRealAppUrl(brand, tenant);
 
+      // Extract real conversations from T2 AI Agent
+      const rawConvs = Array.isArray(liveConversationsRes?.conversations)
+        ? liveConversationsRes.conversations
+        : Array.isArray(liveConversationsRes)
+          ? liveConversationsRes
+          : [];
+      const recentConversations = rawConvs.slice(0, 15).map((c: any, idx: number) => ({
+        id: c.id || c.phone || `conv_${idx}`,
+        customerName: c.customerName || c.name || c.phone || "عميل",
+        phone: c.phone || c.customerPhone || "",
+        channel: c.channel || c.platform || "WhatsApp",
+        lastMessage: c.lastMessage || c.lastUserMessage || "",
+        agentReply: c.lastBotReply || c.agentReply || "",
+        isHandover: Boolean(c.isHandover),
+        time: c.updatedAt || c.time || "",
+      }));
+
+      const agentConnected = Boolean(
+        liveAgentStatusRes?.whatsappConnected ||
+          liveAgentStatusRes?.connected ||
+          brand?.phone ||
+          tenant?.whatsappBot
+      );
+
       const payload = {
-        id: brand?.id || tenant?.id || slug,
+        id: agentBrandId,
         slug: brand?.slug || tenant?.slug || slug,
         name: storefront.companyName || savedHub.name || brand?.name || tenant?.businessName || slug,
         slogan: savedHub.slogan || brand?.slogan || "",
@@ -122,6 +245,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         address: storefront.address || savedHub.address || brand?.address || "",
         appUrl,
         adminUrl: `${appUrl.replace(/\/$/, "")}/?admin=1`,
+        agentPortalUrl: `${getT2AgentBaseUrl()}/dashboard`,
         catalogCount: catalog.length,
         productsCatalog: catalog.slice(0, 30),
         agentConfig: {
@@ -133,26 +257,15 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         },
         knowledgeBase: savedHub.knowledgeBase || brand?.knowledgeBase || brand?.systemPrompt || "",
         socialConnections: {
-          whatsapp: Boolean(brand?.phone || tenant?.whatsappBot || brand?.whatsappConnected),
-          facebook: Boolean(brand?.metaConnected || brand?.facebookPageId || savedHub.socialConnections?.facebook),
-          instagram: Boolean(brand?.instagramConnected || brand?.instagramAccountId || savedHub.socialConnections?.instagram),
-          tiktok: Boolean(brand?.tiktokConnected || savedHub.socialConnections?.tiktok),
-          youtube: Boolean(brand?.youtubeConnected || savedHub.socialConnections?.youtube),
-          telegram: Boolean(brand?.telegramConnected || savedHub.socialConnections?.telegram),
+          whatsapp: agentConnected,
+          facebook: Boolean(liveAgentStatusRes?.metaConnected || brand?.metaConnected || brand?.facebookPageId || savedHub.socialConnections?.facebook),
+          instagram: Boolean(liveAgentStatusRes?.instagramConnected || brand?.instagramConnected || brand?.instagramAccountId || savedHub.socialConnections?.instagram),
+          tiktok: Boolean(liveAgentStatusRes?.tiktokConnected || savedHub.socialConnections?.tiktok),
+          youtube: Boolean(liveAgentStatusRes?.youtubeConnected || savedHub.socialConnections?.youtube),
+          telegram: Boolean(liveAgentStatusRes?.telegramConnected || savedHub.socialConnections?.telegram),
         },
-        weekContentPlan: Array.isArray(brand?.weekContentPlan) ? brand.weekContentPlan : [],
-        recentConversations: Array.isArray(savedHub.recentConversations)
-          ? savedHub.recentConversations
-          : [
-              {
-                id: "conv_1",
-                customerName: "عميل واتساب",
-                channel: "WhatsApp",
-                lastMessage: "ممكن تفاصيل الأسعار والتوصيل؟",
-                agentReply: `أهلاً بحضرتك في ${brand?.name || slug}! متاح لدينا ${catalog.length} منتجات/خدمات جاهزة للشحن.`,
-                time: "منذ 12 دقيقة",
-              },
-            ],
+        liveAgentSource: liveConversationsRes ? "t2_ai_agent_live" : "cached",
+        recentConversations,
         updatedAt: savedHub.updatedAt || erpState?.updatedAt || new Date().toISOString(),
       };
 
@@ -162,7 +275,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
     }
   });
 
-  // 2) POST Live Health Check (App URL Ping + Cloud ERP + WhatsApp + Social Tokens)
+  // 2) POST Live Health Check (App URL Ping + Cloud ERP + Real T2 AI Agent Status & Social Platforms)
   app.post("/api/brand-hub/:idOrSlug/health-check", async (req: Request, res: Response) => {
     try {
       const { idOrSlug } = req.params;
@@ -172,10 +285,10 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
       }
 
       const slug = normalizeSlugKey(brand?.slug || tenant?.slug || brand?.id || idOrSlug);
-      const savedHub = readAllHubConfigs()[slug] || {};
+      const agentBrandId = brand?.id || tenant?.templateId || slug;
+      const savedHub = await loadHubConfigPersistent(slug);
       const appUrl = savedHub.appUrl || resolveBrandRealAppUrl(brand, tenant);
 
-      // Live Ping App URL
       let appCheck: any = { ok: false, statusCode: 0, latencyMs: 0, url: appUrl, message: "لم يتم الفحص" };
       if (/^https?:\/\//i.test(appUrl)) {
         const started = Date.now();
@@ -202,19 +315,17 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         }
       }
 
-      // Check Cloud ERP State
-      let erpOk = false;
-      let erpProductsCount = 0;
-      try {
-        const st = await loadTenantErpState(slug);
-        erpOk = Boolean(st);
-        erpProductsCount = Array.isArray(st?.products) ? st.products.length : 0;
-      } catch {}
+      const [erpState, liveAgentStatus] = await Promise.all([
+        loadTenantErpState(slug).catch(() => null),
+        t2AgentApi.getBrandStatus(agentBrandId).catch(() => null),
+      ]);
 
-      const hasWhatsapp = Boolean(brand?.phone || tenant?.whatsappBot);
-      const metaConnected = Boolean(brand?.metaConnected || brand?.facebookPageId || savedHub.socialConnections?.facebook);
-      const igConnected = Boolean(brand?.instagramConnected || brand?.instagramAccountId || savedHub.socialConnections?.instagram);
-      const tgConnected = Boolean(brand?.telegramConnected || savedHub.socialConnections?.telegram);
+      const erpOk = Boolean(erpState);
+      const erpProductsCount = Array.isArray(erpState?.products) ? erpState.products.length : 0;
+      const hasWhatsapp = Boolean(liveAgentStatus?.whatsappConnected || brand?.phone || tenant?.whatsappBot);
+      const metaConnected = Boolean(liveAgentStatus?.metaConnected || brand?.metaConnected || brand?.facebookPageId || savedHub.socialConnections?.facebook);
+      const igConnected = Boolean(liveAgentStatus?.instagramConnected || brand?.instagramConnected || brand?.instagramAccountId || savedHub.socialConnections?.instagram);
+      const tgConnected = Boolean(liveAgentStatus?.telegramConnected || savedHub.socialConnections?.telegram);
 
       res.json({
         ok: true,
@@ -228,15 +339,20 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
           },
           whatsappAgent: {
             ok: hasWhatsapp,
+            liveFromT2Agent: Boolean(liveAgentStatus),
             phone: brand?.phone || tenant?.whatsappBot || "",
-            message: hasWhatsapp ? `مربوط بالرقم ${brand?.phone || tenant?.whatsappBot}` : "لم يتم ربط رقم واتساب بعد",
+            message: liveAgentStatus?.whatsappConnected
+              ? `متصل فعلياً في T2 Agent (${brand?.phone || tenant?.whatsappBot || "نشط"})`
+              : hasWhatsapp
+                ? `مربوط بالرقم ${brand?.phone || tenant?.whatsappBot}`
+                : "لم يتم ربط رقم واتساب بعد",
           },
           social: {
             facebook: { ok: metaConnected, label: metaConnected ? "متصل" : "غير مربوط" },
             instagram: { ok: igConnected, label: igConnected ? "متصل" : "غير مربوط" },
             telegram: { ok: tgConnected, label: tgConnected ? "متصل" : "غير مربوط" },
-            tiktok: { ok: Boolean(savedHub.socialConnections?.tiktok), label: savedHub.socialConnections?.tiktok ? "متصل" : "غير مربوط" },
-            youtube: { ok: Boolean(savedHub.socialConnections?.youtube), label: savedHub.socialConnections?.youtube ? "متصل" : "غير مربوط" },
+            tiktok: { ok: Boolean(liveAgentStatus?.tiktokConnected || savedHub.socialConnections?.tiktok), label: (liveAgentStatus?.tiktokConnected || savedHub.socialConnections?.tiktok) ? "متصل" : "غير مربوط" },
+            youtube: { ok: Boolean(liveAgentStatus?.youtubeConnected || savedHub.socialConnections?.youtube), label: (liveAgentStatus?.youtubeConnected || savedHub.socialConnections?.youtube) ? "متصل" : "غير مربوط" },
           },
         },
       });
@@ -245,12 +361,17 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
     }
   });
 
-  // 3) POST Update Unified Brand Hub (Single Source of Truth -> App + ERP + Agent + Brain)
+  // 3) POST Update Unified Brand Hub (Firestore + Cloud ERP + Push Training Directly to T2 AI Agent)
   app.post("/api/brand-hub/:idOrSlug/update", async (req: Request, res: Response) => {
     try {
       const { idOrSlug } = req.params;
       const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
+      if (!canMutateBrand(req, brand, tenant)) {
+        return res.status(403).json({ ok: false, error: "غير مصرح بتعديل إعدادات هذا البراند — يلزم تسجيل الدخول كصاحب البراند أو الماستر." });
+      }
+
       const slug = normalizeSlugKey(brand?.slug || tenant?.slug || brand?.id || idOrSlug);
+      const agentBrandId = brand?.id || tenant?.templateId || slug;
 
       const {
         name,
@@ -264,8 +385,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         socialConnections,
       } = req.body || {};
 
-      const allConfigs = readAllHubConfigs();
-      const prev = allConfigs[slug] || {};
+      const prev = await loadHubConfigPersistent(slug);
       const next = {
         ...prev,
         ...(name !== undefined ? { name } : {}),
@@ -279,10 +399,10 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         ...(socialConnections ? { socialConnections: { ...(prev.socialConnections || {}), ...socialConnections } } : {}),
         updatedAt: new Date().toISOString(),
       };
-      allConfigs[slug] = next;
-      writeAllHubConfigs(allConfigs);
 
-      // Sync identity updates straight to Tenant Cloud ERP storefrontSettings so app & printed invoices update live
+      const firestoreSaved = await saveHubConfigPersistent(slug, next);
+
+      // Sync identity updates straight to Tenant Cloud ERP storefrontSettings
       let erpSynced = false;
       if (name !== undefined || phone !== undefined || address !== undefined || primaryColor !== undefined) {
         try {
@@ -302,13 +422,74 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         } catch {}
       }
 
-      res.json({ ok: true, erpSynced, updatedAt: next.updatedAt, config: next });
+      // Push training / knowledge base straight to live T2 AI Agent so WhatsApp/Social replies use it immediately
+      let agentSynced = false;
+      if (agentConfig || knowledgeBase !== undefined) {
+        try {
+          await t2AgentApi.executeExternalAction(agentBrandId, "training", "update_brand_prompt", {
+            systemPrompt: knowledgeBase ?? next.knowledgeBase ?? "",
+            toneOfVoice: next.agentConfig?.tone || "",
+            shippingPolicy: next.agentConfig?.shippingPolicy || "",
+            forbiddenTopics: next.agentConfig?.forbiddenTopics || "",
+          });
+          agentSynced = true;
+        } catch {}
+      }
+
+      res.json({ ok: true, firestoreSaved, erpSynced, agentSynced, updatedAt: next.updatedAt, config: next });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || "Failed to update Brand Hub" });
     }
   });
 
-  // 4) POST Test Sales Agent Response with Brand's Training + Knowledge Base + Live Catalog
+  // 4) POST Send Manual Reply to a Real Customer Conversation via T2 AI Agent
+  app.post("/api/brand-hub/:idOrSlug/reply", async (req: Request, res: Response) => {
+    try {
+      const { idOrSlug } = req.params;
+      const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
+      if (!canMutateBrand(req, brand, tenant)) {
+        return res.status(403).json({ ok: false, error: "غير مصرح بإرسال ردود باسم هذا البراند." });
+      }
+      const { phone, message } = req.body || {};
+      if (!phone || !message) {
+        return res.status(400).json({ ok: false, error: "رقم العميل ونص الرسالة مطلوبان" });
+      }
+      const slug = normalizeSlugKey(brand?.slug || tenant?.slug || brand?.id || idOrSlug);
+      const agentBrandId = brand?.id || tenant?.templateId || slug;
+      const result = await t2AgentApi.sendManualReply(agentBrandId, String(phone), String(message));
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(502).json({ ok: false, error: err?.message || "تعذر إرسال الرد عبر T2 AI Agent" });
+    }
+  });
+
+  // 5) POST Save Playground Correction Directly to T2 AI Agent
+  app.post("/api/brand-hub/:idOrSlug/playground-correct", async (req: Request, res: Response) => {
+    try {
+      const { idOrSlug } = req.params;
+      const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
+      if (!canMutateBrand(req, brand, tenant)) {
+        return res.status(403).json({ ok: false, error: "غير مصرح بتدريب هذا البراند." });
+      }
+      const { question, botReply, correctedAnswer } = req.body || {};
+      if (!question || !correctedAnswer) {
+        return res.status(400).json({ ok: false, error: "السؤال والإجابة المصححة مطلوبان" });
+      }
+      const slug = normalizeSlugKey(brand?.slug || tenant?.slug || brand?.id || idOrSlug);
+      const agentBrandId = brand?.id || tenant?.templateId || slug;
+      const result = await t2AgentApi.correctPlaygroundReply(
+        agentBrandId,
+        String(question),
+        String(botReply || ""),
+        String(correctedAnswer)
+      );
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(502).json({ ok: false, error: err?.message || "تعذر حفظ التصحيح في T2 AI Agent" });
+    }
+  });
+
+  // 6) POST Test Sales Agent Response with Brand's Training + Knowledge Base + Live Catalog
   app.post("/api/brand-hub/:idOrSlug/test-agent", async (req: Request, res: Response) => {
     try {
       const { idOrSlug } = req.params;
@@ -319,7 +500,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
 
       const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
       const slug = normalizeSlugKey(brand?.slug || tenant?.slug || brand?.id || idOrSlug);
-      const savedHub = readAllHubConfigs()[slug] || {};
+      const savedHub = await loadHubConfigPersistent(slug);
       const erpState = await loadTenantErpState(slug).catch(() => null);
       const products = Array.isArray(erpState?.products) && erpState.products.length > 0
         ? erpState.products

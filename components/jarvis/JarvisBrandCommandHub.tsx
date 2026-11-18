@@ -77,10 +77,28 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   const [faq, setFaq] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState('');
 
-  // Live Agent Tester
+  // Live Agent Tester & Playground Correction & Manual Reply
   const [testInput, setTestInput] = useState('عندكم تيل فرامل أو فلتر زيت وبكام التوصيل؟');
   const [testingAgent, setTestingAgent] = useState(false);
   const [testReply, setTestReply] = useState<string | null>(null);
+  const [correctedAnswer, setCorrectedAnswer] = useState('');
+  const [savingCorrection, setSavingCorrection] = useState(false);
+  const [replyTargetPhone, setReplyTargetPhone] = useState<string | null>(null);
+  const [manualReplyText, setManualReplyText] = useState('');
+  const [sendingManualReply, setSendingManualReply] = useState(false);
+
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    try {
+      const { getAuth } = await import('firebase/auth');
+      const user = getAuth().currentUser;
+      if (user) {
+        const token = await user.getIdToken();
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      }
+    } catch {}
+    return headers;
+  };
 
   const loadHub = useCallback(async () => {
     if (!brandId) return;
@@ -138,9 +156,10 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     setSaving(true);
     setSaveMessage(null);
     try {
+      const headers = await getAuthHeaders();
       const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/update`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name,
           phone,
@@ -153,11 +172,16 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
       });
       const data = await res.json();
       if (data?.ok) {
+        const flags = [
+          data.firestoreSaved ? 'Firestore' : null,
+          data.erpSynced ? 'التطبيق والفواتير' : null,
+          data.agentSynced ? 'T2 AI Agent' : null,
+        ]
+          .filter(Boolean)
+          .join(' + ');
         setSaveMessage(
           customSuccessMsg ||
-            (data.erpSynced
-              ? 'تم الحفظ والمزامنة الفورية مع التطبيق والفواتير والأجنت ✅'
-              : 'تم حفظ التعديلات وتحديث ذاكرة البراند ✅')
+            (flags ? `تم الحفظ والمزامنة الفورية مع (${flags}) ✅` : 'تم حفظ التعديلات وتحديث ذاكرة البراند ✅')
         );
         await loadHub();
       } else {
@@ -167,6 +191,62 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
       setSaveMessage(err?.message || 'خطأ في الاتصال بالخادم');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSavePlaygroundCorrection = async () => {
+    if (!testInput.trim() || !correctedAnswer.trim()) return;
+    setSavingCorrection(true);
+    setSaveMessage(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/playground-correct`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          question: testInput,
+          botReply: testReply || '',
+          correctedAnswer,
+        }),
+      });
+      const data = await res.json();
+      if (data?.ok) {
+        setSaveMessage('تم تدريب T2 AI Agent على الإجابة المصححة بنجاح ✅');
+        setCorrectedAnswer('');
+      } else {
+        setSaveMessage(data?.error || 'تعذر حفظ التصحيح في الأجنت');
+      }
+    } catch (err: any) {
+      setSaveMessage(err?.message || 'خطأ في الاتصال');
+    } finally {
+      setSavingCorrection(false);
+    }
+  };
+
+  const handleSendManualReply = async (phoneTarget: string) => {
+    if (!phoneTarget || !manualReplyText.trim()) return;
+    setSendingManualReply(true);
+    setSaveMessage(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/reply`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ phone: phoneTarget, message: manualReplyText }),
+      });
+      const data = await res.json();
+      if (data?.ok) {
+        setSaveMessage(`تم إرسال ردك للعميل (${phoneTarget}) عبر T2 Agent ✅`);
+        setManualReplyText('');
+        setReplyTargetPhone(null);
+        await loadHub();
+      } else {
+        setSaveMessage(data?.error || 'تعذر إرسال الرد');
+      }
+    } catch (err: any) {
+      setSaveMessage(err?.message || 'خطأ في إرسال الرد');
+    } finally {
+      setSendingManualReply(false);
     }
   };
 
@@ -599,10 +679,18 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
             </div>
 
             <div className="p-4 rounded-2xl bg-[#04091a]/90 border border-white/10 space-y-3">
-              <h4 className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
-                <MessageSquare className="w-4 h-4" />
-                اختبار رد الأجنت وشات العملاء
-              </h4>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h4 className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4" />
+                  تجربة وتدريب T2 Agent + شات العملاء الفعلي
+                </h4>
+                <button
+                  onClick={() => window.open(brandData?.agentPortalUrl || 'https://khedr-bot-agent.onrender.com/dashboard', '_blank', 'noopener,noreferrer')}
+                  className="text-[11px] font-bold text-purple-300 hover:underline cursor-pointer"
+                >
+                  فتح شاشة T2 Agent الكاملة ↗
+                </button>
+              </div>
 
               <div className="flex gap-2">
                 <input
@@ -623,24 +711,75 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
               </div>
 
               {testReply && (
-                <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-400/35 text-xs text-white leading-relaxed">
-                  <div className="text-[10px] font-bold text-cyan-300 mb-1">رد وكيل المبيعات التجريبي:</div>
-                  {testReply}
+                <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-400/35 text-xs text-white space-y-2 leading-relaxed">
+                  <div className="text-[10px] font-bold text-cyan-300">رد وكيل المبيعات التجريبي:</div>
+                  <div>{testReply}</div>
+                  <div className="pt-2 border-t border-white/10 flex gap-2">
+                    <input
+                      value={correctedAnswer}
+                      onChange={(e) => setCorrectedAnswer(e.target.value)}
+                      placeholder="لو الرد محتاج تعديل: اكتب الإجابة الصح هنا لتدريب T2 Agent..."
+                      className="flex-1 px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-white text-[11px] focus:border-emerald-400 focus:outline-none"
+                    />
+                    <button
+                      onClick={handleSavePlaygroundCorrection}
+                      disabled={savingCorrection || !correctedAnswer.trim()}
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-[11px] font-black cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {savingCorrection ? '...' : 'حفظ التدريب'}
+                    </button>
+                  </div>
                 </div>
               )}
 
-              <div className="pt-2 border-t border-white/10 space-y-2 max-h-44 overflow-y-auto">
-                <div className="text-[10px] font-bold text-white/50">آخر محادثات العملاء:</div>
-                {(brandData?.recentConversations || []).map((c: any) => (
-                  <div key={c.id} className="p-2.5 rounded-xl bg-black/45 border border-white/10 space-y-1 text-[11px]">
-                    <div className="flex items-center justify-between text-white/60 text-[10px]">
-                      <span className="font-bold text-cyan-300">{c.customerName} ({c.channel})</span>
-                      <span>{c.time}</span>
+              <div className="pt-2 border-t border-white/10 space-y-2 max-h-56 overflow-y-auto">
+                <div className="flex items-center justify-between text-[10px] font-bold text-white/60">
+                  <span>
+                    محادثات العملاء ({brandData?.liveAgentSource === 't2_ai_agent_live' ? 'مربوط حياً مع T2 Agent ✅' : 'متصل عند تشغيل T2 Agent'})
+                  </span>
+                  <span>{(brandData?.recentConversations || []).length} محادثة</span>
+                </div>
+                {(brandData?.recentConversations || []).length === 0 ? (
+                  <p className="text-[11px] text-white/45 py-3 text-center">لا توجد محادثات مسجلة لهذا البراند في T2 Agent حالياً.</p>
+                ) : (
+                  (brandData?.recentConversations || []).map((c: any) => (
+                    <div key={c.id} className="p-2.5 rounded-xl bg-black/45 border border-white/10 space-y-1.5 text-[11px]">
+                      <div className="flex items-center justify-between text-white/60 text-[10px]">
+                        <span className="font-bold text-cyan-300">{c.customerName} ({c.channel})</span>
+                        <div className="flex items-center gap-2">
+                          <span>{c.time}</span>
+                          {c.phone && (
+                            <button
+                              onClick={() => setReplyTargetPhone(replyTargetPhone === c.phone ? null : c.phone)}
+                              className="text-emerald-300 hover:underline font-bold cursor-pointer"
+                            >
+                              رد يدوي
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {c.lastMessage && <div className="text-white/90">العميل: {c.lastMessage}</div>}
+                      {c.agentReply && <div className="text-emerald-300/90">الأجنت: {c.agentReply}</div>}
+                      {replyTargetPhone === c.phone && c.phone && (
+                        <div className="flex gap-1.5 pt-1">
+                          <input
+                            value={manualReplyText}
+                            onChange={(e) => setManualReplyText(e.target.value)}
+                            placeholder="اكتب ردك المباشر على واتساب/سوشيال العميل..."
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-black/70 border border-emerald-400/40 text-white text-[11px] focus:outline-none"
+                          />
+                          <button
+                            onClick={() => handleSendManualReply(c.phone)}
+                            disabled={sendingManualReply || !manualReplyText.trim()}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-[11px] font-black cursor-pointer disabled:opacity-50"
+                          >
+                            {sendingManualReply ? '...' : 'إرسال'}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="text-white/90">العميل: {c.lastMessage}</div>
-                    <div className="text-emerald-300/90">الأجنت: {c.agentReply}</div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
