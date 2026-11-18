@@ -125,6 +125,32 @@ export const AdminBrandRegistryPanel: React.FC = () => {
     }
   };
 
+  const handleSafeConnectAgent = async (brand: RegistryBrand) => {
+    setBusyId(brand.id);
+    setStatusMsg(null);
+    try {
+      const headers = await getAdminHeaders();
+      const res = await fetch('/api/admin/brands/connect-agent-safe', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ brandId: brand.canonicalId || brand.id }),
+      });
+      const data = await res.json();
+      if (data?.ok) {
+        setStatusMsg({ type: 'ok', text: data.message });
+        if (data.dashboardUrl) {
+          window.open(data.dashboardUrl, '_blank', 'noopener,noreferrer');
+        }
+      } else {
+        setStatusMsg({ type: 'err', text: data?.error || 'تعذر الفحص الآمن للربط' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: 'err', text: err?.message || 'خطأ في الاتصال' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const counts = {
     all: brands.length,
     active_client: brands.filter((b) => b.lifecycleStage === 'active_client').length,
@@ -306,14 +332,24 @@ export const AdminBrandRegistryPanel: React.FC = () => {
                       className="w-full bg-black/60 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-mono text-emerald-300"
                     />
                   </div>
-                  <button
-                    onClick={() => saveBrandEntry(b)}
-                    disabled={isBusy}
-                    className="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>{isBusy ? 'جاري الحفظ...' : 'حفظ الربط الموحد'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSafeConnectAgent(b)}
+                      disabled={isBusy}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 hover:bg-emerald-500/30 text-emerald-200 text-xs font-black disabled:opacity-50"
+                      title="فحص آمن بدون مسح أي بيانات حية + فتح صفحة مسح QR وميتا"
+                    >
+                      <span>🤖 ربط واتساب وميتا بأمان</span>
+                    </button>
+                    <button
+                      onClick={() => saveBrandEntry(b)}
+                      disabled={isBusy}
+                      className="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black disabled:opacity-50"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isBusy ? 'حفظ...' : 'حفظ الربط'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );

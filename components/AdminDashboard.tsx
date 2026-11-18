@@ -40,11 +40,29 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   const [isListening, setIsListening] = useState<'rules' | 'broadcast' | null>(null);
   const [showOSArchHub, setShowOSArchHub] = useState(false);
   
-  // Exclude system/admin accounts for accurate metrics
-  const realProfiles = profiles.filter(p => {
-      const emailLower = (p.email || '').toLowerCase();
-      return emailLower !== 'tito' && emailLower !== 'guest' && !emailLower.includes('admin');
-  });
+  // Exclude system/admin & fake/demo accounts for accurate metrics
+  const ADMIN_EXCLUDED_EMAILS = new Set([
+      'tito', 'guest', 'ahm.atya@gmail.com', 'ahmed.atya.daif@gmail.com', 'tito@shadow.com', 'admin@shadow.com'
+  ]);
+  const isFakeOrSystemAccount = (p: UserProfile) => {
+      const emailLower = (p.email || '').trim().toLowerCase();
+      if (!emailLower) return true;
+      if (ADMIN_EXCLUDED_EMAILS.has(emailLower)) return true;
+      if (emailLower.includes('admin') || emailLower.includes('demo') || emailLower.includes('fake') || emailLower.includes('mock')) return true;
+      return false;
+  };
+  const isGenuineActivatedSubscriber = (p: UserProfile) => {
+      if (p.status !== 'active') return false;
+      const anyP = p as any;
+      return (
+          anyP.activationSource === 'admin_manual' ||
+          anyP.activationSource === 'paymob_verified' ||
+          anyP.activatedByAdmin === true ||
+          Boolean(anyP.paymobOrderId)
+      );
+  };
+  const realProfiles = profiles.filter(p => !isFakeOrSystemAccount(p));
+  const verifiedActiveSubscribers = realProfiles.filter(isGenuineActivatedSubscriber);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [globalRules, setGlobalRules] = useState('');
@@ -81,16 +99,12 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   };
 
   const calculateTotalExpectedProfit = () => {
-      // Base calculation on active members and their billing cycle
+      // Dynamic revenue ONLY from verified Paymob payments or Admin manual activations (zero hardcoded values)
       let total = 0;
-      realProfiles.forEach(p => {
-          if (p.status === 'active') {
-              if (p.subscriptionCycle === 'yearly') {
-                  total += 8000; // Assuming 20% discount on 10000 for yearly as mentioned in Payment.tsx
-              } else {
-                  total += 1000; // Monthly assuming Elite
-              }
-          }
+      verifiedActiveSubscribers.forEach(p => {
+          const anyP = p as any;
+          const amount = Number(anyP.paidAmountEgp || anyP.planAmountEgp || anyP.monthlySubscriptionEgp || 0);
+          if (amount > 0) total += amount;
       });
       return total;
   };
@@ -213,8 +227,21 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
             await shadowDB.registerReferral(profile.referredBy, amount);
             profile.commissionPaid = true; 
         }
-        await shadowDB.saveProfile({ ...profile, status });
-        setProfiles(prev => prev.map(p => p.email === email ? { ...p, status } : p));
+        const updatedProfile: any = {
+            ...profile,
+            status,
+            ...(status === 'active'
+                ? {
+                    activationSource: (profile as any).paymobOrderId ? 'paymob_verified' : 'admin_manual',
+                    activatedByAdmin: true,
+                    activatedByAdminAt: Date.now(),
+                  }
+                : {
+                    activatedByAdmin: false,
+                  }),
+        };
+        await shadowDB.saveProfile(updatedProfile);
+        setProfiles(prev => prev.map(p => p.email === email ? updatedProfile : p));
     }
   };
 
@@ -378,13 +405,17 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                               <div className="flex items-center gap-2">
                                 <h4 className="font-bold text-sm text-white">{u.name}</h4>
                                 <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-bold ${
-                                  u.status === 'active'
+                                  isGenuineActivatedSubscriber(u)
                                     ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                                     : u.status === 'pending'
                                       ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                                       : 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
                                 }`}>
-                                  {u.status === 'active' ? 'عميل نشط' : u.status === 'pending' ? 'بانتظار التفعيل' : 'تجربة / مستخدم'}
+                                  {isGenuineActivatedSubscriber(u)
+                                    ? ((u as any).activationSource === 'paymob_verified' || (u as any).paymobOrderId ? '💳 دفع عميل موثق' : '🛡️ تفعيل يدوي (أدمن)')
+                                    : u.status === 'pending'
+                                      ? 'بانتظار التفعيل'
+                                      : 'حساب غير مفعّل (بدون دفع)'}
                                 </span>
                               </div>
                               <p className="text-[10px] opacity-50">{u.email}</p>
@@ -414,6 +445,9 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                                     <Globe className="w-4 h-4" />
                                 </button>
                             </div>
+                            {!isGenuineActivatedSubscriber(u) && (
+                                <button onClick={() => handleStatusUpdate(u.email, 'active')} className="text-emerald-400 text-[10px] font-bold border border-emerald-500/40 px-3 py-1 rounded-full hover:bg-emerald-500/20">تفعيل يدوي</button>
+                            )}
                             <button onClick={() => handleStatusUpdate(u.email, 'blocked')} className="text-red-500 text-[10px] font-bold border border-red-500/30 px-3 py-1 rounded-full hover:bg-red-900/20">تجميد</button>
                         </div>
                     </div>
@@ -764,9 +798,9 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                     </div>
                     <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">الأعضاء النشطين</h4>
+                        <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">المشتركين المفعّلين فعلياً (دفع أو يدوي)</h4>
                         <div className="text-2xl font-black text-emerald-400 flex items-center gap-2">
-                            {realProfiles.filter(p => p.status === 'active').length} <CheckCircle className="w-4 h-4 text-emerald-500/30" />
+                            {verifiedActiveSubscribers.length} <CheckCircle className="w-4 h-4 text-emerald-500/30" />
                         </div>
                     </div>
                     <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">

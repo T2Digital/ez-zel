@@ -827,6 +827,86 @@ async function startServer() {
       }
   });
 
+  app.post("/api/admin/brands/connect-agent-safe", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const brandId = String(req.body?.brandId || req.body?.canonicalId || "").trim();
+          if (!brandId) return res.status(400).json({ ok: false, error: "brandId is required" });
+
+          const brand: any = getUnifiedGrowthBrands().find(
+              (b: any) => b.id === brandId || b.canonicalId === brandId || b.slug === brandId
+          );
+          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found in unified registry" });
+
+          const { t2AgentApi, getT2AgentBaseUrl } = await import("./services/t2AgentApiClient");
+          const agentBase = getT2AgentBaseUrl().replace(/\/+$/, "");
+          const targetAgentId = String(brand.agentBrandId || brand.slug || brand.id);
+
+          // 1. Read-only check on T2 Agent first (NEVER overwrite existing live sessions!)
+          let alreadyExists = false;
+          let liveStatus = "UNKNOWN";
+          try {
+              const healthRes: any = await t2AgentApi.getAllBrandsHealth();
+              const list = Array.isArray(healthRes?.brands) ? healthRes.brands : (Array.isArray(healthRes) ? healthRes : []);
+              const found = list.find((item: any) => item.id === targetAgentId || item.slug === targetAgentId || item.id === brand.id);
+              if (found) {
+                  alreadyExists = true;
+                  liveStatus = String(found.status || found.whatsappStatus || "EXISTS");
+              }
+          } catch {}
+
+          // 2. Additive-only creation if missing (with botPaused: true for 100% safety before QR scan)
+          let created = false;
+          let agentCreateNote = "";
+          if (!alreadyExists) {
+              try {
+                  const adminKey = process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || "";
+                  const headers: Record<string, string> = { "Content-Type": "application/json" };
+                  if (adminKey) headers["x-admin-key"] = adminKey;
+                  const createResp = await fetch(`${agentBase}/api/admin/brands`, {
+                      method: "POST",
+                      headers,
+                      body: JSON.stringify({
+                          id: targetAgentId,
+                          name: brand.name,
+                          businessType: brand.businessType || "خدمات وأعمال",
+                          phone: brand.phone || "",
+                          notificationWhatsApp: brand.whatsapp || brand.phone || "",
+                          metaPageId: brand.metaPageId || "",
+                          botPaused: true,
+                      }),
+                      signal: AbortSignal.timeout(8000),
+                  });
+                  created = createResp.ok;
+                  if (!createResp.ok) {
+                      agentCreateNote = `T2 Agent status ${createResp.status} (يمكنك مسح QR مباشرة من لوحة الأيجنت)`;
+                  }
+              } catch (e: any) {
+                  agentCreateNote = e?.message || "تعذر الاتصال التلقائي، افتح رابط الأيجنت مباشرة";
+              }
+          }
+
+          res.json({
+              ok: true,
+              alreadyExists,
+              created,
+              liveStatus,
+              agentBrandId: targetAgentId,
+              dashboardUrl: `${agentBase}/dashboard?brandId=${encodeURIComponent(targetAgentId)}`,
+              crmEmbedUrl: `${agentBase}/embed/crm?brandId=${encodeURIComponent(targetAgentId)}&embed=1`,
+              metaConnected: Boolean(brand.metaConnected || brand.metaPageId),
+              message: alreadyExists
+                  ? `البراند (${brand.name}) موجود مسبقاً على تيتو أجنت بحالة (${liveStatus}) — لم يتم تعديل أو مسح أي بيانات حية`
+                  : created
+                    ? `تم إنشاء سلوت آمن لـ (${brand.name}) على تيتو أجنت بوضع الإيقاف المؤقت (Paused) لحين مسح QR ومراجعة ميتا`
+                    : `جاهز للربط اليدوي الآمن على تيتو أجنت (${agentCreateNote})`,
+          });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   app.post("/api/admin/brands/repair-auto-house", async (req, res) => {
       try {
           const auth = await verifyAdminRequest(req);
