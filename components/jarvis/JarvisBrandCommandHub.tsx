@@ -3,8 +3,11 @@ import {
   ExternalLink, Activity, Smartphone, Share2, Bot, Brain,
   CheckCircle2, AlertTriangle, XCircle, RefreshCw, Save,
   Copy, Check, ArrowRight, Send, MessageSquare, Globe,
-  Calendar, ShieldCheck, Palette, Phone, MapPin, Link2
+  Calendar, ShieldCheck, Palette, Phone, MapPin, Link2, Box, Search
 } from 'lucide-react';
+import { hybridMemory } from '../../services/hybridMemoryService';
+
+const WorkspaceExplorer = React.lazy(() => import('../WorkspaceExplorer'));
 
 interface JarvisBrandCommandHubProps {
   brandId: string;
@@ -86,6 +89,12 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   const [replyTargetPhone, setReplyTargetPhone] = useState<string | null>(null);
   const [manualReplyText, setManualReplyText] = useState('');
   const [sendingManualReply, setSendingManualReply] = useState(false);
+
+  // 1) 3D Workspace Media Vault & 2) Semantic Memory Verification State
+  const [isMediaVaultOpen, setIsMediaVaultOpen] = useState(false);
+  const [semanticQuery, setSemanticQuery] = useState('');
+  const [semanticHits, setSemanticHits] = useState<Array<{ text: string; score: number }>>([]);
+  const [searchingSemantic, setSearchingSemantic] = useState(false);
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -174,10 +183,30 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
       });
       const data = await res.json();
       if (data?.ok) {
+        if (knowledgeBase && knowledgeBase.trim().length > 8) {
+          try {
+            const scopeId = `brand:${brandId}`;
+            const segments = knowledgeBase
+              .split(/\n+/)
+              .map((s) => s.trim())
+              .filter((s) => s.length > 5)
+              .slice(0, 8);
+            for (const seg of segments) {
+              await hybridMemory.storeVectorChunk({
+                userId: scopeId,
+                text: seg,
+                source: 'brand_brain',
+                l0_summary: seg.slice(0, 120),
+              });
+              await hybridMemory.extractAndStoreTriples(seg);
+            }
+          } catch {}
+        }
         const flags = [
           data.firestoreSaved ? 'Firestore' : null,
           data.erpSynced ? 'التطبيق والفواتير' : null,
           data.agentSynced ? 'T2 AI Agent' : null,
+          knowledgeBase?.trim() ? 'الذاكرة الدلالية' : null,
         ]
           .filter(Boolean)
           .join(' + ');
@@ -193,6 +222,19 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
       setSaveMessage(err?.message || 'خطأ في الاتصال بالخادم');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSemanticSearch = async () => {
+    if (!semanticQuery.trim()) return;
+    setSearchingSemantic(true);
+    try {
+      const results = await hybridMemory.querySemanticVectors(semanticQuery, `brand:${brandId}`, 3);
+      setSemanticHits(results.map((r) => ({ text: r.chunk.text, score: Math.round(r.score * 100) })));
+    } catch {
+      setSemanticHits([]);
+    } finally {
+      setSearchingSemantic(false);
     }
   };
 
@@ -579,7 +621,14 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                 <h4 className="text-xs font-black text-cyan-300">حالة القنوات والمنصات المتصلة</h4>
                 <p className="text-[11px] text-white/60">تأكد من جاهزية كل منصة قبل النشر أو تشغيل الرد الآلي</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setIsMediaVaultOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 border border-purple-400/45 text-purple-200 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(168,85,247,0.25)]"
+                >
+                  <Box className="w-3.5 h-3.5" />
+                  <span>معرض الميديا 3D (Workspace)</span>
+                </button>
                 {onOpenMetaModal && (
                   <button
                     onClick={() => onOpenMetaModal(brandId)}
@@ -808,16 +857,75 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
               className="w-full p-3 rounded-xl bg-black/55 border border-white/15 text-white text-xs leading-relaxed focus:border-amber-400 focus:outline-none"
             />
             <button
-              onClick={() => handleSaveChanges('تم تحديث بنك المعرفة وتغذية الأجنت والاستوديو ✅')}
+              onClick={() => handleSaveChanges('تم تحديث بنك المعرفة وفهرسته في الذاكرة الدلالية ✅')}
               disabled={saving}
               className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{saving ? 'جاري التحديث...' : 'حفظ وتغذية المنظومة'}</span>
+              <span>{saving ? 'جاري التحديث...' : 'حفظ وفهرسة في الذاكرة الدلالية'}</span>
             </button>
+
+            {/* Semantic Memory Search Verification */}
+            <div className="pt-3 border-t border-white/10 space-y-2">
+              <div className="text-[11px] font-bold text-cyan-300">اختبار الذاكرة الدلالية (Vector Search) للبراند:</div>
+              <div className="flex gap-2">
+                <input
+                  value={semanticQuery}
+                  onChange={(e) => setSemanticQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSemanticSearch()}
+                  placeholder="اسأل بأي صياغة للتأكد من استرجاع المعلومة دلالياً..."
+                  className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-white text-xs focus:border-cyan-400 focus:outline-none"
+                />
+                <button
+                  onClick={handleSemanticSearch}
+                  disabled={searchingSemantic}
+                  className="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/40 text-cyan-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>{searchingSemantic ? '...' : 'بحث دلالي'}</span>
+                </button>
+              </div>
+              {semanticHits.length > 0 && (
+                <div className="space-y-1.5">
+                  {semanticHits.map((h, i) => (
+                    <div key={i} className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/25 text-[11px] text-white flex items-center justify-between gap-2">
+                      <span className="truncate">{h.text}</span>
+                      <span className="text-[10px] font-mono text-emerald-300 shrink-0">{h.score}% تطابق</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {/* 3D WORKSPACE MEDIA VAULT OVERLAY */}
+      {isMediaVaultOpen && (
+        <div className="fixed inset-0 z-[260] bg-black/95 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 bg-[#020614] border-b border-purple-500/40">
+            <span className="text-xs sm:text-sm font-black text-purple-200 flex items-center gap-2">
+              <Box className="w-4 h-4 text-purple-400" />
+              معرض ميديا وأصول البراند في الفضاء ثلاثي الأبعاد (Workspace 3D)
+            </span>
+            <button
+              onClick={() => setIsMediaVaultOpen(false)}
+              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/40 text-rose-200 text-xs font-bold cursor-pointer"
+            >
+              إغلاق ✕
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 relative">
+            <React.Suspense fallback={<div className="p-10 text-center text-purple-300 text-xs">جاري فتح الفضاء ثلاثي الأبعاد...</div>}>
+              <WorkspaceExplorer
+                userId={brandId}
+                onItemSelect={() => {}}
+                onBack={() => setIsMediaVaultOpen(false)}
+              />
+            </React.Suspense>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
