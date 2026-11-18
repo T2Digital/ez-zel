@@ -671,7 +671,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     const activeInitial = savedTrialBrand?.id ? 'trial' : (initialPersona || persona);
     if (savedTrialBrand?.id) {
-      setObsidianBrands(prev => (prev.some(b => b.id === savedTrialBrand.id) ? prev : [savedTrialBrand, ...prev]));
+      setAllBrandsList(prev => (prev.some(b => b.id === savedTrialBrand.id) ? prev : [savedTrialBrand, ...prev]));
       setSelectedBrandId(prev => prev || savedTrialBrand.id);
       if (persona === 'visitor') setPersona('trial');
     } else if (initialPersona && initialPersona !== persona) {
@@ -2076,7 +2076,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 onSwitchToAdmin={isMasterAdmin ? () => setPersona('tito') : undefined}
                 onComplete={(createdBrand?: any) => {
                   if (createdBrand?.id) {
-                    setObsidianBrands(prev => [createdBrand, ...prev.filter(b => b.id !== createdBrand.id)]);
+                    setAllBrandsList(prev => [createdBrand, ...prev.filter(b => b.id !== createdBrand.id)]);
                     setSelectedBrandId(createdBrand.id);
                     try { localStorage.setItem('t2_active_trial_brand', JSON.stringify(createdBrand)); } catch {}
                   }

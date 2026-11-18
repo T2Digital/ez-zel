@@ -2,6 +2,7 @@ import { getEzZelPersonalClients, getUnifiedGrowthBrands } from './obsidianVault
 import { mirrorStateToFirestore, restoreStateFromFirestore } from './persistentStorage';
 import { getLiveTelemetrySummary } from './liveTelemetryService';
 import { buildFlagshipTenantUrl } from './tenantAppRenderer';
+import { readPaymobSubscriptions } from './paymobService';
 
 export type SwarmRole = 'MASTER_ADMIN' | 'BRAND_OWNER' | 'VISITOR';
 
@@ -245,7 +246,7 @@ export async function runJarvisSwarm(input: {
       ...(role === 'MASTER_ADMIN'
         ? {
             totalBrandsCount: brands.length,
-            totalSubscribersCount: Array.isArray(stats?.paymobSubscriptions) ? stats.paymobSubscriptions.length : 0,
+            totalSubscribersCount: readPaymobSubscriptions().length,
             activeTrialsCount
           }
         : {})

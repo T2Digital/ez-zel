@@ -140,8 +140,106 @@ export function resolveBrandPlanSpec(brand: any): SaasPlanSpec {
   return SAAS_PLANS.trial_7d;
 }
 
+import { readPersistentJson, savePersistentJson } from './persistentStorage';
+
 export function resolveBrandAppAccessMode(brand: any): 'full_app' | 'landing_page' {
   if (brand?.forceFullApp === true) return 'full_app';
   const plan = resolveBrandPlanSpec(brand);
   return plan.appAccessMode;
+}
+
+export interface BrandQuotaUsageRecord {
+  brandId: string;
+  monthKey: string;
+  designsUsed: number;
+  videosUsed: number;
+  updatedAt: string;
+}
+
+const QUOTA_STORE_FILE = 't2_brand_monthly_quotas.json';
+
+function currentMonthKey(): string {
+  return new Date().toISOString().slice(0, 7); // YYYY-MM
+}
+
+function normalizeQuotaBrandId(brandOrId: any): string {
+  const raw = typeof brandOrId === 'string' ? brandOrId : (brandOrId?.id || brandOrId?.slug || 'default');
+  return String(raw || 'default').trim().toLowerCase();
+}
+
+export function getBrandMonthlyQuotaStatus(brand: any): {
+  brandId: string;
+  monthKey: string;
+  planId: SaasPlanId;
+  planNameAr: string;
+  appAccessMode: 'full_app' | 'landing_page';
+  designsQuota: number;
+  designsUsed: number;
+  designsRemaining: number;
+  videosQuota: number;
+  videosUsed: number;
+  videosRemaining: number;
+} {
+  const brandId = normalizeQuotaBrandId(brand);
+  const monthKey = currentMonthKey();
+  const plan = resolveBrandPlanSpec(brand);
+  const store = readPersistentJson<Record<string, BrandQuotaUsageRecord>>(QUOTA_STORE_FILE, {});
+  const key = `${brandId}:${monthKey}`;
+  const rec = store[key] || { brandId, monthKey, designsUsed: 0, videosUsed: 0, updatedAt: '' };
+  const designsRemaining = plan.monthlyDesignsQuota < 0 ? 9999 : Math.max(0, plan.monthlyDesignsQuota - rec.designsUsed);
+  const videosRemaining = plan.monthlyVideosQuota < 0 ? 9999 : Math.max(0, plan.monthlyVideosQuota - rec.videosUsed);
+  return {
+    brandId,
+    monthKey,
+    planId: plan.id,
+    planNameAr: plan.nameAr,
+    appAccessMode: resolveBrandAppAccessMode(brand),
+    designsQuota: plan.monthlyDesignsQuota,
+    designsUsed: rec.designsUsed,
+    designsRemaining,
+    videosQuota: plan.monthlyVideosQuota,
+    videosUsed: rec.videosUsed,
+    videosRemaining,
+  };
+}
+
+export function consumeBrandMonthlyQuota(
+  brand: any,
+  kind: 'design' | 'video',
+  amount = 1
+): { allowed: boolean; status: ReturnType<typeof getBrandMonthlyQuotaStatus>; reason?: string } {
+  const status = getBrandMonthlyQuotaStatus(brand);
+  const count = Math.max(1, Number(amount) || 1);
+
+  if (kind === 'design' && status.designsQuota >= 0 && status.designsUsed + count > status.designsQuota) {
+    return {
+      allowed: false,
+      status,
+      reason: `تم استهلاك حصة التصميمات الشهرية لباقة ${status.planNameAr} (${status.designsUsed}/${status.designsQuota}). قم بالترقية لزيادة الحصة.`,
+    };
+  }
+  if (kind === 'video' && status.videosQuota >= 0 && status.videosUsed + count > status.videosQuota) {
+    return {
+      allowed: false,
+      status,
+      reason: `تم استهلاك حصة الفيديوهات الشهرية لباقة ${status.planNameAr} (${status.videosUsed}/${status.videosQuota}). قم بالترقية لزيادة الحصة.`,
+    };
+  }
+
+  const store = readPersistentJson<Record<string, BrandQuotaUsageRecord>>(QUOTA_STORE_FILE, {});
+  const key = `${status.brandId}:${status.monthKey}`;
+  const current = store[key] || {
+    brandId: status.brandId,
+    monthKey: status.monthKey,
+    designsUsed: 0,
+    videosUsed: 0,
+    updatedAt: new Date().toISOString(),
+  };
+  if (kind === 'design') current.designsUsed += count;
+  else current.videosUsed += count;
+  current.updatedAt = new Date().toISOString();
+  store[key] = current;
+  savePersistentJson('t2_brand_monthly_quotas', QUOTA_STORE_FILE, store);
+
+  return { allowed: true, status: getBrandMonthlyQuotaStatus(brand) };
 }

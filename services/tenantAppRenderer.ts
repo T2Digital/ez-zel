@@ -193,6 +193,41 @@ export function renderTenantAppHtml(brand: any): string {
   </style>
 </head>`;
 
+  const accessMode = resolveBrandAppAccessMode(brand);
+  if (accessMode === 'landing_page') {
+    const landingItems = catalog.slice(0, 4).map((item: any) => `
+      <div class="card">
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:4px;">${escapeHtml(item?.name || 'عرض مميز')}</div>
+          <div style="font-size:12px;color:#94a3b8;line-height:1.6;">${escapeHtml(item?.description || '')}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <span style="font-size:14px;font-weight:900;color:var(--primary);">${escapeHtml(item?.price || (item?.numericPrice ? `${item.numericPrice} ج.م` : 'تواصل للسعر'))}</span>
+          <a href="https://wa.me/${waNumber}?text=${encodeURIComponent(`مرحباً ${brand.name}، أرغب في الاستفسار عن: ${item?.name || 'العرض'}`)}" target="_blank" class="btn-sm" style="text-decoration:none;">اطلب عبر واتساب</a>
+        </div>
+      </div>`).join('');
+
+    return `${commonHead}
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">صفحة هبوط تحويلية • Landing Page (باقة الانطلاق 2,500 ج.م)</div>
+      ${logoHtml}
+      <h1 style="margin:6px 0 4px;font-size:24px;font-weight:900;color:#fff;">${escapeHtml(brand.name)}</h1>
+      <p style="margin:0;color:#cbd5e1;font-size:13.5px;line-height:1.7;">${escapeHtml(seoDesc)}</p>
+      <a href="https://wa.me/${waNumber}?text=${encodeURIComponent(`مرحباً ${brand.name}، أريد حجز / طلب الآن`)}" target="_blank" class="btn-wa" style="margin-top:14px;">💬 تواصل وحجز فوري على واتساب</a>
+    </div>
+    <h3 style="margin:14px 2px 10px;font-size:15px;color:#e2e8f0;">أبرز العروض والخدمات</h3>
+    <div class="grid">${landingItems}</div>
+    <div class="box" style="text-align:center;">
+      <div style="font-size:13px;font-weight:800;color:#38bdf8;margin-bottom:6px;">🚀 هل تريد فتح المتجر الكامل + سلة الشراء + فواتير ERP؟</div>
+      <div style="font-size:12px;color:#94a3b8;line-height:1.6;">متاح تلقائياً عند الترقية إلى باقة النمو (5,000 ج.م) أو أعلى من لوحة T2OS.</div>
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
   if (template === 'products_erp') {
     const productsJson = JSON.stringify(catalog).replace(/</g, '\\u003c');
     return `${commonHead}

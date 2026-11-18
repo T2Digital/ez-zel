@@ -145,18 +145,15 @@ export async function sendZeroTouchOnboardingPacket(input: {
 
   try {
     const { titoStudioApi } = await import('./titoStudioApiClient');
-    if (input.phone) {
-      await titoStudioApi.sendWhatsApp({
-        clinicId: input.brandId,
-        to: input.phone,
-        message
-      }).then(() => { whatsappSent = true; }).catch(() => {});
+    const { t2AgentApi } = await import('./t2AgentApiClient');
+    if (input.phone && typeof (t2AgentApi as any)?.sendManualReply === 'function') {
+      await t2AgentApi.sendManualReply(input.brandId, input.phone, message)
+        .then(() => { whatsappSent = true; })
+        .catch(() => {});
     }
-    await titoStudioApi.sendAlert({
-      clinicId: input.brandId,
-      message,
-      type: 'onboarding'
-    }).then(() => { telegramSent = true; }).catch(() => {});
+    await titoStudioApi.sendAlertTest(input.brandId, message, 'onboarding')
+      .then(() => { telegramSent = true; })
+      .catch(() => {});
   } catch {}
 
   return { whatsappSent, telegramSent };

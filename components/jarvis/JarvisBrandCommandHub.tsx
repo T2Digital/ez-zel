@@ -195,8 +195,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
               await hybridMemory.storeVectorChunk({
                 userId: scopeId,
                 text: seg,
-                source: 'brand_brain',
-                l0_summary: seg.slice(0, 120),
+                category: 'fact',
               });
               await hybridMemory.extractAndStoreTriples(seg);
             }
@@ -229,8 +228,8 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     if (!semanticQuery.trim()) return;
     setSearchingSemantic(true);
     try {
-      const results = await hybridMemory.querySemanticVectors(semanticQuery, `brand:${brandId}`, 3);
-      setSemanticHits(results.map((r) => ({ text: r.chunk.text, score: Math.round(r.score * 100) })));
+      const results = await hybridMemory.querySemanticVectors(semanticQuery, `brand:${brandId}`, { topK: 3 });
+      setSemanticHits(results.map((r) => ({ text: r.text, score: Math.round(r.score * 100) })));
     } catch {
       setSemanticHits([]);
     } finally {

@@ -652,15 +652,33 @@ async function startServer() {
       }
   });
 
+  app.get("/api/saas/quota/:brandId", async (req, res) => {
+      try {
+          const brandId = String(req.params.brandId || "").trim();
+          const brand = getUnifiedGrowthBrands().find((b: any) => b.id === brandId || b.slug === brandId) || { id: brandId };
+          const { getBrandMonthlyQuotaStatus } = await import("./services/saasPlansService");
+          res.json({ ok: true, quota: getBrandMonthlyQuotaStatus(brand) });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   app.post("/api/studio/generate-week-plan", async (req, res) => {
       try {
           const { brandId } = req.body || {};
+          const targetId = brandId || 'el_baraka';
+          const brand = getUnifiedGrowthBrands().find((b: any) => b.id === targetId || b.slug === targetId) || { id: targetId };
+          const { consumeBrandMonthlyQuota } = await import("./services/saasPlansService");
+          const quotaCheck = consumeBrandMonthlyQuota(brand, 'design', 1);
+          if (!quotaCheck.allowed) {
+              return res.status(402).json({ success: false, quotaExceeded: true, quota: quotaCheck.status, error: quotaCheck.reason });
+          }
           const result = await executeRealJarvisEcosystemAction({
               actionType: 'GENERATE_WEEK_CONTENT_PLAN',
-              brandId: brandId || 'el_baraka',
+              brandId: targetId,
               payload: req.body || {}
           });
-          res.json(result);
+          res.json({ ...(result as any), quota: quotaCheck.status });
       } catch (err: any) {
           res.status(500).json({ success: false, error: err?.message });
       }
@@ -1669,8 +1687,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
       if (!brand) {
           try {
-              const { listProvisionedTenants } = await import("./services/tenantFactory");
-              const t = listProvisionedTenants().find((x: any) =>
+              const { getDeployedTenants } = await import("./services/tenantFactory");
+              const t: any = getDeployedTenants().find((x: any) =>
                   String(x.slug || "").toLowerCase().replace(/[-_]+/g, "-") === slugNorm || String(x.id || "") === slug
               );
               if (t) {
@@ -3419,7 +3437,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.post("/api/system/jarvis-conversation", async (req, res) => {
       let effectivePersona = req.body?.persona || 'visitor';
       try {
-          const { message, history, persona = 'visitor', selectedBrandId = '', recentChatSummary = '' } = req.body;
+          const { message, history, persona = 'visitor', selectedBrandId = '', recentChatSummary = '', skipTts = false, includeAudio } = req.body;
           if (!message) return res.status(400).json({ error: "Message is required" });
 
           effectivePersona = persona;
@@ -3436,6 +3454,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               persona: effectivePersona,
               selectedBrandId,
               recentChatSummary,
+              skipTts: Boolean(skipTts) || includeAudio === false,
               ai: getServerAI(),
               stats: getRealEcosystemStats(),
               synthesizeSpeech: synthesizeSovereignSpeech

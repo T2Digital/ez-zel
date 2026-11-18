@@ -20,6 +20,7 @@ export interface JarvisBrainInput {
   persona?: "tito" | "visitor" | "trial" | "client" | string;
   selectedBrandId?: string;
   recentChatSummary?: string;
+  skipTts?: boolean;
   ai: GoogleGenAI;
   stats: any;
   synthesizeSpeech: (text: string, voice?: string) => Promise<Buffer>;
@@ -28,6 +29,8 @@ export interface JarvisBrainInput {
 export interface JarvisBrainOutput {
   success: boolean;
   replyText: string;
+  detectedVisitorName?: string;
+  quickChips?: string[];
   audioBase64: string | null;
   audioFormat: "audio/wav" | "audio/mp3";
   action: any;
@@ -724,8 +727,18 @@ function buildPersonaSystemPrompt(
    تطبيق خدمات ولوحة تحكم تضم تقويم الحجوزات + الماليات + CRM + شات بوت ذكي (مناسب لأي نشاط حجز خدمات: صيانة وتنظيف، عيادات ومراكز طبية، تأجير سيارات، عقارات، صالونات، سياحة).`;
 
   if (persona === "visitor") {
-    personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط تجاري" يستكشف منظومة النمو الشامل للأعمال (T2 Unified Growth OS).
+    personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط تجاري" يستكشف منظومة T2OS للنمو الشامل للأعمال (شركة T2 Digital).
 دورك معه: أنت "جارفيس"، كبير مستشاري الأعمال والنمو الرقمي بالمنظومة. تتحدث باللهجة المصرية الطبيعية الذكية والودودة.
+
+[الباقات الرسمية المعتمدة في T2OS (نموذج الشراكة 50% إعلانات ممولة + 50% سيستم ومحتوى وأجنت)]:
+- التجربة المجانية 7 أيام (بدون بطاقة بنكية): تطبيق ويب كامل مفتوح ليعيش العميل التجربة الكاملة + 5 تصميمات + 2 فيديو + ربط وكيل واتساب.
+1. باقة الانطلاق — 2,500 ج.م/شهر: (1,250 ج.م إعلانات ممولة + 1,250 ج.م سيستم وأجنت) ← 8 تصميمات + 2 فيديو شهرياً + لاندنج بيدج تحويلية من تيتو ستوديو + وكيل مبيعات ذكي 24/7.
+2. باقة النمو — 5,000 ج.م/شهر: (2,500 ج.م إعلانات + 2,500 ج.م سيستم) ← 16 تصميم + 4 فيديوهات شهرياً + تطبيق ويب متكامل (PWA + سلة/حجوزات + ERP + فواتير مطبوعة + SEO/GEO).
+3. باقة البرو — 10,000 ج.م/شهر: (5,000 ج.م إعلانات + 5,000 ج.م سيستم) ← 30 تصميم يومي + 8 فيديوهات شهرياً + تطبيق متكامل متعدد الفروع والموظفين.
+4. باقة المؤسسات — 20,000 ج.م/شهر: (10,000 ج.م إعلانات + 10,000 ج.م سيستم) ← 45 تصميم + 12 فيديو شهرياً + إدارة حملات متعددة المنصات وتقارير أسبوعية.
+5. الباقة السيادية — 50,000 ج.م/شهر: (25,000 ج.م إعلانات + 25,000 ج.م سيستم) ← إنتاج محتوى وفيديو غير محدود + تطبيق مستقل بدومين مخصص ومدير حساب.
+ممنوع ذكر باقات باسم أو عدد غير هذه الباقات الـ 5 والتجربة 7 أيام.
+
 قواعد صارمة ومطلقة:
 1. ممنوع نهائياً استخدام كلمة "استنساخ" أو "مستنسخ"، واستبدلها دائماً بكلمات: "تأسيس، إطلاق، بناء، تجهيز، تخصيص، تفعيل".
 2. ممنوع ذكر أي بيانات أو أرقام تخص عملاء أو براندات أخرى في المنظومة.
@@ -744,14 +757,20 @@ function buildPersonaSystemPrompt(
     const subStatusNote = clientSub
       ? clientSub.status === "trial"
         ? `في فترة التجربة المجانية (تنتهي: ${clientSub.trialEndsAt || "خلال 7 أيام"})`
-        : `مشترك دائم مفعل (${clientSub.plan || "Growth Pro"})`
+        : `مشترك دائم مفعل (${clientSub.plan || "Growth 5,000"})`
       : persona === "trial"
         ? "في فترة التجربة المجانية 7 أيام"
         : "حساب عميل مفعل";
     personaRoleInstruction = `المتحدث معك الآن هو "المشترك / صاحب البراند" (${activeBrand?.name || "براند العميل"}) في وضع المدير التنفيذي.
 حالة الاشتراك: ${subStatusNote}.
 بيانات وإحصائيات براندك الحية فقط: ${activeBrandStats}
-دورك معه: أنت المدير التنفيذي والسكرتير الذكي المسؤول عن إدارة برانده فقط (${activeBrand?.name || "البراند"}): تقويم تيتو ستوديو، وكيل واتساب، جوجل بزنس وخرائط جوجل، سناب شات وتيك توك وميتا، الحملات الممولة، وتطبيق الويب (Battah أو Clean Master).
+الباقات المعتمدة للترقية (50% إعلانات ممولة + 50% سيستم ومحتوى):
+- باقة الانطلاق 2,500 ج.م (8 تصميمات + 2 فيديو + لاندنج بيدج تحويلية)
+- باقة النمو 5,000 ج.م (16 تصميم + 4 فيديوهات + تطبيق ويب متكامل PWA + ERP)
+- باقة البرو 10,000 ج.م (30 تصميم + 8 فيديوهات + متعدد الفروع)
+- باقة المؤسسات 20,000 ج.م (45 تصميم + 12 فيديو)
+- الباقة السيادية 50,000 ج.م (إنتاج مفتوح + دومين مخصص ومدير حساب)
+دورك معه: أنت المدير التنفيذي والسكرتير الذكي المسؤول عن إدارة برانده فقط (${activeBrand?.name || "البراند"}): تقويم تيتو ستوديو، وكيل واتساب، جوجل بزنس وخرائط جوجل، سناب شات وتيك توك وميتا، الحملات الممولة، وتطبيق الويب.
 ممنوع ذكر أي بيانات أو أرقام لبراندات أو مشتركين آخرين في المنظومة؛ ركز بالكامل على برانده فقط.
 إذا سألك العميل عن أي براند آخر غير برانده (${activeBrand?.name || "برانده"}), اعتذر بلطف وأكد له أن حسابه معزول تماماً لإدارة برانده فقط ولا يمكنه الاطلاع على براندات أخرى.
 خاطبه باحترام كشريك نجاح ("يا فندم" أو "يا ريس") باللهجة المصرية الودودة والاحترافية.`;
@@ -1006,7 +1025,6 @@ ${conversationMemoryDirective}`;
       : jarvisBrainTools.filter((t) => SOVEREIGN_UNIFIED_TOOLS.has(t.name));
 
   const modelCascade = [
-    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
@@ -2684,13 +2702,18 @@ ${conversationMemoryDirective}`;
     };
   }
 
-  // Synthesize response in 100% Gemini Human Voice (Puck 24kHz)
+  // Synthesize response in 100% Gemini Human Voice (Puck 24kHz) unless skipped, bounded by 4.5s timeout
   let audioBase64: string | null = null;
-  try {
-    const audioBuffer = await synthesizeSpeech(replyText, "Puck");
-    audioBase64 = audioBuffer.toString("base64");
-  } catch (ttsErr: any) {
-    console.warn("[Jarvis Live Voice TTS Warning]:", ttsErr?.message);
+  if (!input.skipTts) {
+    try {
+      const audioBuffer = await Promise.race([
+        synthesizeSpeech(replyText, "Puck"),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("TTS_TIMEOUT")), 4500)),
+      ]);
+      audioBase64 = audioBuffer.toString("base64");
+    } catch (ttsErr: any) {
+      console.warn("[Jarvis Live Voice TTS Warning]:", ttsErr?.message);
+    }
   }
 
   const shouldTriggerBrowser =

@@ -492,9 +492,9 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         let liveSwarmSnapshot: any = null;
         try {
             const emailLower = (userProfile?.email || '').toLowerCase();
-            const isMasterRole = userProfile?.role === 'master' || emailLower === 'ahm.atya@gmail.com' || emailLower === 'ahmed.atya.daif@gmail.com';
-            const inferredRole = isMasterRole ? 'MASTER_ADMIN' : (userProfile?.linkedBrandId ? 'BRAND_OWNER' : 'VISITOR');
-            const scopeKey = userProfile?.linkedBrandId || userProfile?.email || 'guest';
+            const isMasterRole = (userProfile as any)?.role === 'master' || emailLower === 'ahm.atya@gmail.com' || emailLower === 'ahmed.atya.daif@gmail.com';
+            const inferredRole = isMasterRole ? 'MASTER_ADMIN' : ((userProfile as any)?.linkedBrandId ? 'BRAND_OWNER' : 'VISITOR');
+            const scopeKey = (userProfile as any)?.linkedBrandId || userProfile?.email || 'guest';
 
             const [swarmRes, cloudMemRes, liveTelRes, obsRes, finRes] = await Promise.all([
                 fetch('/api/swarm/run', {
@@ -502,13 +502,13 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         role: inferredRole,
-                        brandId: userProfile?.linkedBrandId,
+                        brandId: (userProfile as any)?.linkedBrandId,
                         phone: (userProfile as any)?.phone,
                         intent: message
                     })
                 }).then(r => r.json()).catch(() => null),
                 fetch(`/api/memory/context?scopeKey=${encodeURIComponent(scopeKey)}`).then(r => r.json()).catch(() => null),
-                fetch(`/api/telemetry/live${!isMasterRole && userProfile?.linkedBrandId ? `?brandId=${encodeURIComponent(userProfile.linkedBrandId)}` : ''}`).then(r => r.json()).catch(() => null),
+                fetch(`/api/telemetry/live${!isMasterRole && (userProfile as any)?.linkedBrandId ? `?brandId=${encodeURIComponent((userProfile as any).linkedBrandId)}` : ''}`).then(r => r.json()).catch(() => null),
                 isMasterRole ? fetch('/api/obsidian/graph').then(r => r.json()).catch(() => null) : Promise.resolve(null),
                 isMasterRole ? fetch('/api/system/real-financials').then(r => r.json()).catch(() => null) : Promise.resolve(null)
             ]);
@@ -919,7 +919,7 @@ ${cloudFacts ? `- حقائق محفوظة عن نشاطك: ${cloudFacts}` : ''}
 
         // Persist rolling summary to Cloud-First Memory (non-blocking)
         try {
-            const scopeKey = userProfile?.linkedBrandId || userProfile?.email || 'guest';
+            const scopeKey = (userProfile as any)?.linkedBrandId || userProfile?.email || 'guest';
             const snippet = `المستخدم: ${message.slice(0, 120)} | جارفيس: ${(finalText || '').slice(0, 160)}`;
             fetch('/api/memory/context', {
                 method: 'POST',
