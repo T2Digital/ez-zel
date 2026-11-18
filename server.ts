@@ -652,6 +652,27 @@ async function startServer() {
       }
   });
 
+  app.get("/api/saas/plans", async (_req, res) => {
+      try {
+          const { getDynamicSaasPlans } = await import("./services/saasPlansService");
+          res.json({ ok: true, plans: getDynamicSaasPlans() });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/saas/plans", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { saveDynamicSaasPlans } = await import("./services/saasPlansService");
+          const plans = saveDynamicSaasPlans(req.body?.plans || req.body || {});
+          res.json({ ok: true, plans, message: "تم حفظ تحديثات الباقات والأسعار والحصص في Firestore بنجاح" });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   app.get("/api/saas/quota/:brandId", async (req, res) => {
       try {
           const brandId = String(req.params.brandId || "").trim();

@@ -118,26 +118,55 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
   },
 };
 
+export function getDynamicSaasPlans(): Record<string, SaasPlanSpec> {
+  const overrides = readPersistentJson<Record<string, Partial<SaasPlanSpec>>>('t2_saas_plans_override.json', {});
+  const merged: Record<string, SaasPlanSpec> = { ...SAAS_PLANS };
+  if (overrides && typeof overrides === 'object') {
+    for (const [key, patch] of Object.entries(overrides)) {
+      if (!patch || typeof patch !== 'object') continue;
+      if (merged[key]) {
+        merged[key] = { ...merged[key], ...patch };
+      } else if (patch.id && patch.nameAr) {
+        merged[key] = patch as SaasPlanSpec;
+      }
+    }
+  }
+  return merged;
+}
+
+export function saveDynamicSaasPlans(updates: Record<string, Partial<SaasPlanSpec>>): Record<string, SaasPlanSpec> {
+  const currentOverrides = readPersistentJson<Record<string, Partial<SaasPlanSpec>>>('t2_saas_plans_override.json', {});
+  const nextOverrides: Record<string, Partial<SaasPlanSpec>> = { ...currentOverrides };
+  for (const [planId, patch] of Object.entries(updates || {})) {
+    if (!patch || typeof patch !== 'object') continue;
+    nextOverrides[planId] = { ...(nextOverrides[planId] || {}), ...patch };
+  }
+  savePersistentJson('t2_saas_plans_override', 't2_saas_plans_override.json', nextOverrides);
+  return getDynamicSaasPlans();
+}
+
 export function resolveBrandPlanSpec(brand: any): SaasPlanSpec {
+  const plans = getDynamicSaasPlans();
   const rawPlan = String(brand?.planId || brand?.subscriptionPlan || '').toLowerCase();
   const amount = Number(brand?.planAmount || brand?.monthlyRevenue || 0);
 
-  if (rawPlan.includes('sovereign') || rawPlan.includes('50000') || amount >= 50000) {
-    return SAAS_PLANS.sovereign_50000;
+  if (rawPlan && plans[rawPlan]) return plans[rawPlan];
+  if (rawPlan.includes('sovereign') || rawPlan.includes('50000') || amount >= (plans.sovereign_50000?.priceEgp || 50000)) {
+    return plans.sovereign_50000 || SAAS_PLANS.sovereign_50000;
   }
-  if (rawPlan.includes('enterprise') || rawPlan.includes('20000') || (amount >= 20000 && amount < 50000)) {
-    return SAAS_PLANS.enterprise_20000;
+  if (rawPlan.includes('enterprise') || rawPlan.includes('20000') || (amount >= (plans.enterprise_20000?.priceEgp || 20000) && amount < (plans.sovereign_50000?.priceEgp || 50000))) {
+    return plans.enterprise_20000 || SAAS_PLANS.enterprise_20000;
   }
-  if (rawPlan.includes('pro') || rawPlan.includes('10000') || (amount >= 10000 && amount < 20000)) {
-    return SAAS_PLANS.pro_10000;
+  if (rawPlan.includes('pro') || rawPlan.includes('10000') || (amount >= (plans.pro_10000?.priceEgp || 10000) && amount < (plans.enterprise_20000?.priceEgp || 20000))) {
+    return plans.pro_10000 || SAAS_PLANS.pro_10000;
   }
-  if (rawPlan.includes('growth') || rawPlan.includes('5000') || (amount >= 5000 && amount < 10000)) {
-    return SAAS_PLANS.growth_5000;
+  if (rawPlan.includes('growth') || rawPlan.includes('5000') || (amount >= (plans.growth_5000?.priceEgp || 5000) && amount < (plans.pro_10000?.priceEgp || 10000))) {
+    return plans.growth_5000 || SAAS_PLANS.growth_5000;
   }
-  if (rawPlan.includes('starter') || rawPlan.includes('2500') || (amount > 0 && amount < 5000)) {
-    return SAAS_PLANS.starter_2500;
+  if (rawPlan.includes('starter') || rawPlan.includes('2500') || (amount > 0 && amount < (plans.growth_5000?.priceEgp || 5000))) {
+    return plans.starter_2500 || SAAS_PLANS.starter_2500;
   }
-  return SAAS_PLANS.trial_7d;
+  return plans.trial_7d || SAAS_PLANS.trial_7d;
 }
 
 import { readPersistentJson, savePersistentJson } from './persistentStorage';

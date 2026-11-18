@@ -13,7 +13,7 @@ import { saveGeneratedMedia } from "./mediaStorageService";
 import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./brandingForgeService";
 import { resolveFlagshipTemplate, FLAGSHIP_TEMPLATES } from "./tenantFactory";
 import { readPersistentJson, savePersistentJson } from "./persistentStorage";
-import { SAAS_PLANS } from "./saasPlansService";
+import { getDynamicSaasPlans } from "./saasPlansService";
 import { readPaymobSubscriptions } from "./paymobService";
 
 export interface JarvisBrainInput {
@@ -728,8 +728,8 @@ function buildPersonaSystemPrompt(
 2. قالب حجز الخدمات الشامل (${FLAGSHIP_TEMPLATES.clean_master.repoUrl} — Live: ${FLAGSHIP_TEMPLATES.clean_master.referenceLiveUrl}):
    تطبيق خدمات ولوحة تحكم تضم تقويم الحجوزات + الماليات + CRM + شات بوت ذكي (مناسب لأي نشاط حجز خدمات: صيانة وتنظيف، عيادات ومراكز طبية، تأجير سيارات، عقارات، صالونات، سياحة).`;
 
-  // 100% Dynamic Runtime Plan Catalog from SAAS_PLANS (Zero Hardcoded Pricing/Quotas)
-  const dynamicPlansBlock = Object.values(SAAS_PLANS)
+  // 100% Dynamic Runtime Plan Catalog from Firestore/Persistent Overrides + Defaults (Zero Hardcoded Pricing/Quotas)
+  const dynamicPlansBlock = Object.values(getDynamicSaasPlans())
     .map((p) => {
       const designsLabel = p.monthlyDesignsQuota < 0 ? "غير محدود" : `${p.monthlyDesignsQuota} تصميم`;
       const videosLabel = p.monthlyVideosQuota < 0 ? "غير محدود" : `${p.monthlyVideosQuota} فيديو`;
@@ -2642,7 +2642,7 @@ ${conversationMemoryDirective}`;
       const disconnectMatch = String(liveDbContext || "").match(/براندات واتساب منفصلة الآن[^:]*:\s*([^\n.]+)/);
 
       if (wantsPlans) {
-        const dynamicPlansSpeech = Object.values(SAAS_PLANS)
+        const dynamicPlansSpeech = Object.values(getDynamicSaasPlans())
           .map((p) => `${p.nameAr} (${p.appAccessMode === "landing_page" ? "لاندنج بيدج" : "تطبيق كامل"})`)
           .join("، ");
         replyText = `الباقات المتاحة حالياً في النظام هي: ${dynamicPlansSpeech}. تحب نفعّل أي باقة؟`;
@@ -2652,11 +2652,11 @@ ${conversationMemoryDirective}`;
           : " جميع جلسات واتساب المسجلة مستقرة.";
         replyText = `يا ماستر تيتو، المنظومة تدير حالياً ${unifiedBrands.length} براند.${disconnectNote}`;
       } else {
-        const trialDaysCount = Object.values(SAAS_PLANS).filter((p) => p.priceEgp > 0).length;
+        const paidPlansCount = Object.values(getDynamicSaasPlans()).filter((p) => p.priceEgp > 0).length;
         replyText =
           persona === "tito"
             ? `يا ماستر تيتو، حصّة مفاتيح Gemini وصلت للحد اللحظي (429)، لكن كل أنظمة المنظومة (${unifiedBrands.length} براند) شغالة. قولي اسم البراند أو الأمر التنفيذي وهنفذه فوراً.`
-            : `أهلاً بحضرتك يا فندم! حالياً فيه ضغط لحظي على محرك الذكاء الاصطناعي، قولي اسم نشاطك أو اسألني عن الباقات (${trialDaysCount} باقات متاحة + تجربة مجانية) وهعرضهالك فوراً.`;
+            : `أهلاً بحضرتك يا فندم! حالياً فيه ضغط لحظي على محرك الذكاء الاصطناعي، قولي اسم نشاطك أو اسألني عن الباقات (${paidPlansCount} باقات متاحة + تجربة مجانية) وهعرضهالك فوراً.`;
       }
     }
   }
