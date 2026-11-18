@@ -632,7 +632,14 @@ async function startServer() {
   app.get("/api/obsidian/graph", (_req, res) => {
       try {
           const snapshot = syncAndBuildObsidianVault();
-          res.json({ success: true, ...snapshot });
+          const allBrands = Array.isArray(snapshot.growthAgencyBrands) ? snapshot.growthAgencyBrands : [];
+          const activeBrands = allBrands.filter((b: any) => b?.lifecycleStage !== "paused_archive");
+          res.json({
+              success: true,
+              ...snapshot,
+              growthAgencyBrands: activeBrands,
+              allGrowthAgencyBrands: allBrands,
+          });
       } catch (err: any) {
           res.status(500).json({ error: err?.message });
       }
@@ -747,6 +754,74 @@ async function startServer() {
           const payload = { customDirective, updatedAt: new Date().toISOString() };
           savePersistentJson("t2_dynamic_brain_config", "t2_dynamic_brain_config.json", payload);
           res.json({ ok: true, config: payload, message: "تم تحديث توجيهات عقل جارفس الديناميكية بنجاح" });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/admin/brands/registry", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const brands = getUnifiedGrowthBrands();
+          res.json({
+              ok: true,
+              brands: brands.map((b: any) => ({
+                  id: b.id,
+                  canonicalId: b.canonicalId || b.id,
+                  slug: b.slug || b.id,
+                  name: b.name || b.id,
+                  businessType: b.businessType || "",
+                  phone: b.phone || "",
+                  lifecycleStage: b.lifecycleStage || "paused_archive",
+                  appTemplate: b.appTemplate || "services_booking",
+                  titoStudioClinicId: b.titoStudioClinicId || b.id,
+                  agentBrandId: b.agentBrandId || b.id,
+                  catalogCount: Array.isArray(b.productsCatalog) ? b.productsCatalog.length : 0,
+                  status: b.status || "متوقف",
+                  registrySynced: Boolean(b.registrySynced),
+              })),
+          });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/admin/brands/registry", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { canonicalId, slug, name, lifecycleStage, appTemplate, titoStudioClinicId, agentBrandId, mergedFromIds } = req.body || {};
+          if (!canonicalId) return res.status(400).json({ ok: false, error: "canonicalId is required" });
+          const { upsertBrandRegistryEntry } = await import("./services/brandRegistryService");
+          const entry = upsertBrandRegistryEntry(String(canonicalId), {
+              ...(slug ? { slug: String(slug) } : {}),
+              ...(name ? { name: String(name) } : {}),
+              ...(lifecycleStage ? { lifecycleStage } : {}),
+              ...(appTemplate ? { appTemplate } : {}),
+              ...(titoStudioClinicId ? { titoStudioClinicId: String(titoStudioClinicId) } : {}),
+              ...(agentBrandId ? { agentBrandId: String(agentBrandId) } : {}),
+              ...(Array.isArray(mergedFromIds) ? { mergedFromIds } : {}),
+          });
+          const { upsertBrandToTitoStudioFirestore } = await import("./services/titoStudioFirestoreBridge");
+          const matched = getUnifiedGrowthBrands().find((b: any) => b.id === canonicalId || b.canonicalId === canonicalId);
+          if (matched) {
+              await upsertBrandToTitoStudioFirestore(matched).catch(() => {});
+          }
+          res.json({ ok: true, entry, message: `تم تحديث تصنيف وهوية (${entry.name || entry.canonicalId}) في Firestore بنجاح` });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/admin/brands/registry/bulk-pause", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { bulkSetBrandLifecycle } = await import("./services/brandRegistryService");
+          const allBrands = getUnifiedGrowthBrands();
+          const state = bulkSetBrandLifecycle(allBrands.map((b: any) => b.id), "paused_archive");
+          res.json({ ok: true, count: Object.keys(state.brands).length, message: "تم تحويل جميع البراندات إلى (متوقف/أرشيف) كوضع افتراضي موحد" });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });
       }

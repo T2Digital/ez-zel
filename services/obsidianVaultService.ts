@@ -396,7 +396,8 @@ export function getUnifiedGrowthBrands(): any[] {
         };
     });
 
-    return finalBrands;
+    const { applyRegistryToBrands } = require('./brandRegistryService');
+    return applyRegistryToBrands(finalBrands);
 }
 
 /**
