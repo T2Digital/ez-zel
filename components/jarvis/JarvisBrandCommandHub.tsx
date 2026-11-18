@@ -104,7 +104,8 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     if (!brandId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}`, { headers });
       const data = await res.json();
       if (data?.ok && data.brand) {
         const b = data.brand;
@@ -131,9 +132,10 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     if (!brandId) return;
     setCheckingHealth(true);
     try {
+      const headers = await getAuthHeaders();
       const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/health-check`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
       });
       const data = await res.json();
       if (data?.ok) {
@@ -255,9 +257,10 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     setTestingAgent(true);
     setTestReply(null);
     try {
+      const headers = await getAuthHeaders();
       const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/test-agent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ customerMessage: testInput }),
       });
       const data = await res.json();
