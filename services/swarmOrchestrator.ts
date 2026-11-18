@@ -245,7 +245,7 @@ export async function runJarvisSwarm(input: {
       ...(role === 'MASTER_ADMIN'
         ? {
             totalBrandsCount: brands.length,
-            totalSubscribersCount: clients.length,
+            totalSubscribersCount: Array.isArray(stats?.paymobSubscriptions) ? stats.paymobSubscriptions.length : 0,
             activeTrialsCount
           }
         : {})

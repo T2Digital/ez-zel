@@ -123,7 +123,35 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   // Two-Way Live Conversation State
   const [isListening, setIsListening] = useState(false);
   const [voiceSocketState, setVoiceSocketState] = useState<VoiceSocketState>('disconnected');
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState(() => {
+    try {
+      return localStorage.getItem('ezzel_last_jarvis_transcript') || '';
+    } catch {
+      return '';
+    }
+  });
+  useEffect(() => {
+    if (transcript) {
+      try { localStorage.setItem('ezzel_last_jarvis_transcript', transcript); } catch {}
+    }
+  }, [transcript]);
+  useEffect(() => {
+    if (!isOpen) return;
+    const syncSpeaking = () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis?.speaking) {
+        setIsPlayingVoice(true);
+        isPlayingVoiceRef.current = true;
+      }
+    };
+    syncSpeaking();
+    const t = setInterval(() => {
+      if (typeof window !== 'undefined' && isPlayingVoiceRef.current && !window.speechSynthesis?.speaking && !activeAudioRef.current) {
+        setIsPlayingVoice(false);
+        isPlayingVoiceRef.current = false;
+      }
+    }, 600);
+    return () => clearInterval(t);
+  }, [isOpen]);
   const transcriptRef = useRef<string>('');
   const streamTimerRef = useRef<any>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);

@@ -135,19 +135,21 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
     }
 
+    const alreadyInChat = typeof window !== 'undefined' && (window.location.pathname === '/chat' || get().view === 'chat');
+
     if (profile.email === 'admin@shadow.com') {
-        set({ view: 'admin', isAppLocked: false });
+        set({ view: alreadyInChat ? 'chat' : 'admin', isAppLocked: false });
         // NOTE: Admin sets `isAppLocked: false`, bypassing SecurityGate
         return;
     }
 
     if (profile.tier === 'lite' && profile.affiliate?.isMarketer) {
-         set({ view: 'dashboard', isAppLocked: false });
+         set({ view: alreadyInChat ? 'chat' : 'dashboard', isAppLocked: false });
          return;
     }
 
     if (profile.status === 'active') {
-        set({ view: 'dashboard', isAppLocked: false });
+        set({ view: alreadyInChat ? 'chat' : 'dashboard', isAppLocked: false });
     } else if (profile.status === 'pending') {
         if (profile.paymentProof) set({ view: 'pending_review' });
         else set({ view: 'payment' });
@@ -228,7 +230,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isCheckingStatus: true });
       const updatedProfile = await shadowDB.getProfile(user.email);
       if (updatedProfile && updatedProfile.status === 'active') {
-          set({ user: updatedProfile, view: 'dashboard' });
+          const keepCurrentView = typeof window !== 'undefined' && ['/chat', '/admin', '/affiliate', '/workspace'].includes(window.location.pathname);
+          set({ user: updatedProfile, view: keepCurrentView ? get().view : 'dashboard' });
       }
       setTimeout(() => set({ isCheckingStatus: false }), 1000);
   }

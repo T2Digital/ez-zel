@@ -242,23 +242,24 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         ctx.stroke();
       });
 
-      // Core Hub Glow
-      const centerProj = project3D(0, 0, 0);
-      const coreGrad = ctx.createRadialGradient(centerProj.px, centerProj.py, 4, centerProj.px, centerProj.py, 52 * centerProj.scale);
-      coreGrad.addColorStop(0, '#ffffff');
-      coreGrad.addColorStop(0.25, '#00f0ff');
-      coreGrad.addColorStop(0.65, 'rgba(37, 99, 235, 0.4)');
-      coreGrad.addColorStop(1, 'rgba(2, 6, 23, 0)');
-      ctx.fillStyle = coreGrad;
-      ctx.beginPath();
-      ctx.arc(centerProj.px, centerProj.py, 52 * centerProj.scale, 0, Math.PI * 2);
-      ctx.fill();
+      // Core Hub Glow & Label (only render canvas default core when no React centerCore is embedded)
+      if (!centerCore) {
+        const centerProj = project3D(0, 0, 0);
+        const coreGrad = ctx.createRadialGradient(centerProj.px, centerProj.py, 4, centerProj.px, centerProj.py, 52 * centerProj.scale);
+        coreGrad.addColorStop(0, '#ffffff');
+        coreGrad.addColorStop(0.25, '#00f0ff');
+        coreGrad.addColorStop(0.65, 'rgba(37, 99, 235, 0.4)');
+        coreGrad.addColorStop(1, 'rgba(2, 6, 23, 0)');
+        ctx.fillStyle = coreGrad;
+        ctx.beginPath();
+        ctx.arc(centerProj.px, centerProj.py, 52 * centerProj.scale, 0, Math.PI * 2);
+        ctx.fill();
 
-      // Core Label
-      ctx.font = 'bold 9px monospace';
-      ctx.fillStyle = '#00f0ff';
-      ctx.textAlign = 'center';
-      ctx.fillText('SOVEREIGN SECOND BRAIN', centerProj.px, centerProj.py + 4);
+        ctx.font = 'bold 9px monospace';
+        ctx.fillStyle = '#00f0ff';
+        ctx.textAlign = 'center';
+        ctx.fillText('SOVEREIGN SECOND BRAIN', centerProj.px, centerProj.py + 4);
+      }
       ctx.restore();
 
       // 2. Project Nodes and Sort by Z-depth
