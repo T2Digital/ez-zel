@@ -131,7 +131,7 @@ export const JarvisExecutiveSummaryDrawer: React.FC<JarvisExecutiveSummaryDrawer
                 </span>
                 {snapshot?.latencyMs !== undefined && (
                   <span className="text-[9px] font-mono text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
-                    5 Agents • {snapshot.latencyMs}ms
+                    4 Engines • {snapshot.latencyMs}ms
                   </span>
                 )}
               </div>
