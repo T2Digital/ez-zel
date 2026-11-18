@@ -2198,10 +2198,18 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               return res.status(400).json({ error: "prompt is required" });
           }
           const ai = getServerAI();
-          const op = await ai.models.generateVideos({
-              model: "veo-3.1-generate-preview",
-              prompt,
-          });
+          const veoModels = ["veo-2.0-generate-001", "veo-3.0-generate-001", "veo-3.1-generate-preview"];
+          let op: any = null;
+          let lastErr: any = null;
+          for (const model of veoModels) {
+              try {
+                  op = await ai.models.generateVideos({ model, prompt });
+                  if (op) break;
+              } catch (mErr: any) {
+                  lastErr = mErr;
+              }
+          }
+          if (!op) throw lastErr || new Error("No Veo model available");
           res.json(op);
       } catch (err: any) {
           console.error("[Gemini Video Generation Error]:", err?.message || err);
