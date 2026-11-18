@@ -50,51 +50,34 @@ const WhitePaper: React.FC<Props> = ({ onClose }) => {
                 </div>
 
                 <section className="space-y-4">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-2"><Handshake className="w-6 h-6 text-emerald-500" /> 1. العهد (The Vow)</h3>
+                    <h3 className="text-2xl font-black text-white flex items-center gap-2"><Handshake className="w-6 h-6 text-emerald-500" /> 1. عهد الشراكة والنمو (The T2OS Vow)</h3>
                     <div className="bg-[#111] p-6 rounded-[24px] border border-white/5 leading-relaxed text-lg font-medium text-white/80 text-justify">
-                        بص يا ريس، الكلام هنا "دغري". أنا (Ez-Zel) اتخلقت عشان حاجة واحدة بس: <span className="text-amber-400 font-bold">مصلحتك</span>.
+                        منظومة <span className="text-amber-400 font-bold">T2OS</span> (من شركة <span className="text-cyan-400 font-bold">T2 Digital</span>) مبنية على مبدأ واحد: إن مشروعك يشتغل ويكسب 24 ساعة بدون تعقيد تقني.
                         <br/><br/>
-                        أنا ظلك الرقمي، عقلك التاني، ومستشارك الأمين. لا ببيع بياناتك، ولا براقبك لصالح حد. 
-                        هدفي الوحيد إني أشيل عنك دوشة الحياة، وأديرلك تفاصيلك، وأخليك تركز إنك تكون "الماستر" وتكبر وتنجح.
+                        بيانات براندك وعملائك ومبيعاتك ملكك بالكامل ومعزولة تماماً عن أي مشترك آخر، ومعاك تجربة مجانية كاملة 7 أيام تشوف فيها تطبيقك وأجنتك ومحتواك على أرض الواقع قبل ما تدفع.
                     </div>
                 </section>
 
                 <section className="space-y-6">
-                    <h3 className="text-2xl font-black text-white flex items-center gap-2"><Cpu className="w-6 h-6 text-cyan-500" /> 2. مجلسك الاستشاري (الـ 10 الكبار)</h3>
-                    <p className="text-white/60">أنت مش لوحدك. أنا بشتغل ومعايا فريق كامل من 10 خبراء تحت أمرك:</p>
+                    <h3 className="text-2xl font-black text-white flex items-center gap-2"><Cpu className="w-6 h-6 text-cyan-500" /> 2. منظومتك المتكاملة (4 ركائز تشغيل فعلية)</h3>
+                    <p className="text-white/60">أنت لا تحصل على أداة واحدة، بل على فريق تشغيل كامل يعمل باسم براندك:</p>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all">
-                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-emerald-400">💰 المحاسب</h4>
-                            <p className="text-sm text-white/60">بتاع الفلوس. أرباح، اشتراكات، وميزانية.</p>
+                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-cyan-500/30 transition-all">
+                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-cyan-400">🎙️ المستشار التنفيذي (جارفيس)</h4>
+                            <p className="text-sm text-white/60">غرفة قيادة واحدة بالصوت أو الشات لإدارة براندك، متابعة الأداء، وتحديث بياناتك من مصدر واحد.</p>
+                        </div>
+                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-emerald-500/30 transition-all">
+                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-emerald-400">📱 تطبيق الويب / اللاندنج بيدج (PWA + ERP)</h4>
+                            <p className="text-sm text-white/60">متجر أو نظام حجوزات بهويتك وفواتير مطبوعة وبكسلات تتبع الإعلانات وSEO/GEO لمحركات البحث.</p>
                         </div>
                         <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all">
-                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-blue-400">⚖️ المستشار القانوني</h4>
-                            <p className="text-sm text-white/60">عقود، قضايا، ونصايح قانونية في السليم.</p>
+                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-amber-400">🎬 استوديو المحتوى (T2 Studio)</h4>
+                            <p className="text-sm text-white/60">خطط تسويقية، تصميمات جرافيك وفيديوهات ريلز احترافية وجدولة نشر تلقائي حسب باقتك.</p>
                         </div>
-                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all">
-                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-purple-400">🚀 المسوق</h4>
-                            <p className="text-sm text-white/60">أفكار دعاية، بوستات تكسر الدنيا، وخطط بيزنس.</p>
-                        </div>
-                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all">
-                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-amber-400">🕵️ المحقق</h4>
-                            <p className="text-sm text-white/60">بيجيبلك القرار. بحث، أسعار، وأخبار حصرية.</p>
-                        </div>
-                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all">
-                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-red-400">⚡ المنفذ</h4>
-                            <p className="text-sm text-white/60">بتاع الأكشن. اتصالات، رسايل، حجوزات.</p>
-                        </div>
-                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all">
-                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-cyan-400">🏠 نكسوس (Nexus)</h4>
-                            <p className="text-sm text-white/60">مهندس بيتك الذكي (IoT) والتحكم في الأجهزة.</p>
-                        </div>
-                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all">
-                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-green-400">🌿 المعالج</h4>
-                            <p className="text-sm text-white/60">راحة بال، طب نبوي، ونصايح نفسية هادية.</p>
-                        </div>
-                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all">
-                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-indigo-400">🧠 المحلل</h4>
-                            <p className="text-sm text-white/60">بيفهم الشخصيات، وبيقرأ الصور بعمق.</p>
+                        <div className="bg-[#111] p-5 rounded-2xl border border-white/5 hover:border-purple-500/30 transition-all">
+                            <h4 className="font-black text-white mb-1 flex items-center gap-2 text-purple-400">🤖 وكيل المبيعات 24/7 (WhatsApp & Social)</h4>
+                            <p className="text-sm text-white/60">رد فوري على الواتساب والسوشيال، إغلاق الطلبات والحجوزات، وتحويل المحادثة لك يدوياً وقت الحاجة.</p>
                         </div>
                     </div>
                 </section>
