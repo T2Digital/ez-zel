@@ -912,7 +912,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   type="button"
                   onClick={() => {
                     const bId = generatedBrand?.studioBrandId || generatedBrand?.id || generatedBrand?.slug || 'clean_master';
-                    window.open(`https://t2-studio.onrender.com/?brandId=${encodeURIComponent(bId)}&tab=settings`, '_blank', 'noopener,noreferrer');
+                    window.open(`https://t2-studio.onrender.com/?view=clientPortal&brandId=${encodeURIComponent(bId)}&embed=1`, '_blank', 'noopener,noreferrer');
                   }}
                   className="flex-1 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/45 text-blue-200 border border-blue-400/50 text-[10px] font-black transition"
                 >
@@ -995,7 +995,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   type="button"
                   onClick={() => {
                     const bId = generatedBrand?.studioBrandId || generatedBrand?.id || generatedBrand?.slug || 'clean_master';
-                    window.open(`https://t2-studio.onrender.com/?brandId=${encodeURIComponent(bId)}&tab=settings`, '_blank', 'noopener,noreferrer');
+                    window.open(`https://t2-studio.onrender.com/?view=clientPortal&brandId=${encodeURIComponent(bId)}&embed=1`, '_blank', 'noopener,noreferrer');
                   }}
                   className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 text-[10px] font-black shrink-0"
                 >

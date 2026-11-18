@@ -495,15 +495,68 @@ async function startServer() {
           const slug = String(req.params.slug || "").toLowerCase();
           const { getUnifiedGrowthBrands } = await import("./services/obsidianVaultService");
           const brands = getUnifiedGrowthBrands();
-          const brand = brands.find(
+          const brand: any = brands.find(
               (b: any) =>
                   String(b.slug || "").toLowerCase() === slug ||
                   String(b.id || "").toLowerCase() === slug
           );
           if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
-          res.json({ ok: true, brand });
+          const { resolveBrandPlanSpec, resolveBrandAppAccessMode, getBrandMonthlyQuotaStatus } = await import("./services/saasPlansService");
+          const planSpec = resolveBrandPlanSpec(brand);
+          const appAccessMode = resolveBrandAppAccessMode(brand);
+          const quota = getBrandMonthlyQuotaStatus(brand);
+          const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
+          const agentBase = (process.env.T2_AGENT_URL || "https://khedr-bot-agent.onrender.com").replace(/\/+$/, "");
+          const brandKey = String(brand.slug || brand.id);
+          const studioClinicKey = String(brand.titoStudioClinicId || brand.studioBrandId || brandKey);
+          const agentBrandKey = String(brand.agentBrandId || brandKey);
+          const studioLandingPageUrl = brand.studioLandingPageUrl || brand.landingPageUrl || `${studioBase}/landing/${encodeURIComponent(brandKey)}`;
+          const storefrontUrl = appAccessMode === "landing_page"
+              ? studioLandingPageUrl
+              : (brand.vercelUrl || brand.deployedUrl || `/store/${encodeURIComponent(brandKey)}`);
+          res.json({
+              ok: true,
+              brand,
+              planSpec,
+              appAccessMode,
+              quota,
+              portals: {
+                  studioShowroomUrl: `${studioBase}/?view=clientPortal&brandId=${encodeURIComponent(brandKey)}&clinicId=${encodeURIComponent(studioClinicKey)}&embed=1`,
+                  agentDashboardUrl: `${agentBase}/embed/crm?brandId=${encodeURIComponent(agentBrandKey)}&embed=1`,
+                  agentFullDashboardUrl: `${agentBase}/dashboard?brandId=${encodeURIComponent(agentBrandKey)}`,
+                  storefrontUrl,
+                  studioLandingPageUrl,
+              }
+          });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message || "Portal error" });
+      }
+  });
+
+  app.post("/api/client-portal/:slug/account-manager", async (req, res) => {
+      try {
+          const slug = String(req.params.slug || "").toLowerCase();
+          const userMsg = String(req.body?.message || "").trim();
+          if (!userMsg) return res.status(400).json({ ok: false, error: "Message is required" });
+          const { getUnifiedGrowthBrands } = await import("./services/obsidianVaultService");
+          const brand: any = getUnifiedGrowthBrands().find(
+              (b: any) =>
+                  String(b.slug || "").toLowerCase() === slug ||
+                  String(b.id || "").toLowerCase() === slug
+          );
+          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+          const { runJarvisBrainConversation } = await import("./services/jarvisBrainEngine");
+          const scopedPrompt = `[توجيه مدير الحساب المخصص للبراند "${brand.name}" (${brand.slug || brand.id}) فقط — لا تذكر بيانات أي براند آخر ولا صلاحيات الماستر]:\nرسالة العميل: ${userMsg}`;
+          const result = await runJarvisBrainConversation({
+              message: scopedPrompt,
+              history: Array.isArray(req.body?.history) ? req.body.history : [],
+              persona: "tito",
+              mode: "brand",
+              brandId: brand.id,
+          });
+          res.json({ ok: true, replyText: result?.replyText || "تم استلام طلبك وجاري المتابعة على حساب براندك." });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Account Manager error" });
       }
   });
 

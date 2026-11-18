@@ -203,7 +203,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
       res.json({
         ok: true,
         source: liveList.length > 0 ? "t2_ai_agent_live" : "unified_fallback",
-        agentPortalUrl: `${getT2AgentBaseUrl()}/dashboard`,
+        agentPortalUrl: `${getT2AgentBaseUrl()}/embed/crm?brandId=${encodeURIComponent(brand?.slug || slug)}&embed=1`,
         financials: financials || null,
         brands: liveList.length > 0 ? liveList : unified.map((b: any) => ({
           id: b.id,
@@ -299,7 +299,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         address: storefront.address || savedHub.address || brand?.address || "",
         appUrl,
         adminUrl: `${appUrl.replace(/\/$/, "")}/?admin=1`,
-        agentPortalUrl: `${getT2AgentBaseUrl()}/dashboard`,
+        agentPortalUrl: `${getT2AgentBaseUrl()}/embed/crm?brandId=${encodeURIComponent(brand?.slug || slug)}&embed=1`,
         catalogCount: catalog.length,
         productsCatalog: catalog.slice(0, 30),
         agentConfig: {

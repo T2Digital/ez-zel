@@ -128,16 +128,18 @@ export async function sendZeroTouchOnboardingPacket(input: {
   adminEmail: string;
   tempPassword: string;
 }): Promise<{ whatsappSent: boolean; telegramSent: boolean }> {
-  const studioPortalUrl = `https://t2-studio.onrender.com/?brandId=${encodeURIComponent(input.brandId)}`;
-  const agentPortalUrl = `https://khedr-bot-agent.onrender.com/dashboard`;
+  const studioPortalUrl = `https://t2-studio.onrender.com/?view=clientPortal&brandId=${encodeURIComponent(input.brandId)}&embed=1`;
+  const agentPortalUrl = `https://khedr-bot-agent.onrender.com/embed/crm?brandId=${encodeURIComponent(input.brandId)}&embed=1`;
+  const unifiedPortalUrl = `https://ez-zel.onrender.com/client/${encodeURIComponent(input.brandId)}`;
   const message =
     `🎉 *تم تفعيل وإطلاق منظومة ${input.brandName} بالكامل!*\n\n` +
+    `🧭 *بوابة العميل الموحدة (الشوروم + الأيجنت + مدير الحساب):*\n${unifiedPortalUrl}\n\n` +
     `🌐 *رابط المتجر وتطبيق الإدارة:*\n${input.liveAppUrl}\n\n` +
     `🔐 *بيانات دخول الإدارة الموثقة:*\n` +
     `• البريد الإلكتروني: \`${input.adminEmail}\`\n` +
     `• كلمة المرور المؤقتة: \`${input.tempPassword}\`\n` +
     `_(يُنصح بتغيير كلمة المرور فور الدخول من إعدادات النظام)_\n\n` +
-    `🎨 *استوديو المحتوى:* ${studioPortalUrl}\n` +
+    `🎨 *صالة العرض والاعتماد (Showroom):* ${studioPortalUrl}\n` +
     `🤖 *لوحة الوكيل الذكي:* ${agentPortalUrl}`;
 
   let whatsappSent = false;
