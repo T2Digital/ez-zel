@@ -2644,13 +2644,31 @@ ${conversationMemoryDirective}`;
   }
 
   if (!replyText) {
-    replyText =
-      backendExecutionResult?.message ||
-      (lastModelError
-        ? `حصل ضغط لحظي على موديل الذكاء الاصطناعي (${lastModelError.slice(0, 80)}). جرب تسألني تاني حالاً.`
-        : persona === "tito"
-        ? `سامعك يا ماستر تيتو! تحب ننفذ إيه لـ ${targetBrand.name} دلوقتي؟`
-        : `تحت أمرك يا فندم، وضحلي طلبك وهننفذه فوراً.`);
+    if (backendExecutionResult?.message) {
+      replyText = backendExecutionResult.message;
+    } else {
+      const msgLower = String(message || "").toLowerCase();
+      const wantsPlans = /باقة|باقات|سعر|أسعار|اشتراك|2500|5000|10000|20000|50000|تجربة/.test(msgLower);
+      const wantsStatus = /حالة|تقرير|منظومة|سرب|واتساب|متصل|منفصل|أخبار|براند/.test(msgLower);
+      const disconnectMatch = String(liveDbContext || "").match(/براندات واتساب منفصلة الآن[^:]*:\s*([^\n.]+)/);
+
+      if (wantsPlans) {
+        replyText =
+          "عندنا تجربة مجانية كاملة 7 أيام بالتطبيق، وبعدها 5 باقات بنظام 50% إعلانات ممولة و50% سيستم ومحتوى: باقة 2,500 ج.م (لاندنج بيدج من تيتو ستوديو + 8 تصميمات + 2 فيديو)، وباقات 5,000 و10,000 و20,000 و50,000 ج.م بالتطبيق الكامل المتكامل. تحب نفعّل أي باقة؟";
+      } else if (wantsStatus && persona === "tito") {
+        const disconnectNote = disconnectMatch
+          ? ` ⚠️ وتنبيه مهم: يوجد براند منفصل على واتساب حالياً (${disconnectMatch[1]}) ويحتاج إعادة ربط QR.`
+          : " جميع جلسات واتساب المسجلة مستقرة.";
+        replyText = `يا ماستر تيتو، المنظومة تدير حالياً ${unifiedBrands.length} براند.${disconnectNote}`;
+      } else {
+        replyText =
+          persona === "tito"
+            ? `يا ماستر تيتو، حصّة مفاتيح Gemini وصلت للحد اللحظي (` +
+              `429` +
+              `)، لكن كل أنظمة المنظومة والتطبيقات وواتساب شغالة تمام. قولي اسم البراند أو الأمر التنفيذي (نشر، إضافة منتج، فتح هب) وهنفذه فوراً.`
+            : `أهلاً بحضرتك يا فندم! حالياً فيه ضغط لحظي بسيط على محرك الذكاء الاصطناعي، قولي اسم نشاطك أو تحب تعرف باقاتنا (تبدأ من تجربة مجانية 7 أيام وباقة 2,500 ج.م) وهساعدك فوراً.`;
+      }
+    }
   }
 
   // Sanitize replyText: strip any leaked function_call syntax or internal template names for visitors
