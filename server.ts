@@ -1772,6 +1772,11 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       };
       const planSpec = resolveBrandPlanSpec(effectiveBrandForPlan);
       const appAccessMode = resolveBrandAppAccessMode(effectiveBrandForPlan);
+      const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
+      const studioLandingPageUrl =
+          (brand as any).studioLandingPageUrl ||
+          (brand as any).landingPageUrl ||
+          `${studioBase}/landing/${encodeURIComponent(brand.slug || brand.id)}`;
 
       res.json({
           ok: true,
@@ -1793,6 +1798,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               planId: planSpec.id,
               planNameAr: planSpec.nameAr,
               appAccessMode,
+              studioLandingPageUrl,
               subscriptionStatus,
               trialEndsAt,
               trialDaysLeft,
@@ -2847,13 +2853,23 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           }
 
           const { resolveFlagshipTemplate } = await import("./services/tenantFactory");
+          const { resolveBrandAppAccessMode } = await import("./services/saasPlansService");
           const flagship = resolveFlagshipTemplate(`${templateId || ''} ${businessName} ${pricingNotes || ''}`);
           const rawSlug = (subdomain || businessName).toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
           const slug = rawSlug && rawSlug.length > 2 ? rawSlug : `app-${Date.now().toString(36)}`;
           const tenantId = `tenant_${Date.now()}`;
           const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
-          const hasAutoVercelDeploy = Boolean(process.env.VERCEL_TOKEN && process.env.GITHUB_TOKEN);
-          const liveUrl = hasAutoVercelDeploy ? `https://t2-tenant-${slug}.vercel.app` : `${publicBase}/app/${slug}`;
+          const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
+          const requestedAccessMode = resolveBrandAppAccessMode({
+              planId: req.body?.planId,
+              planAmount: req.body?.planAmount,
+          });
+          const isStarterLandingOnly = requestedAccessMode === 'landing_page';
+          const hasAutoVercelDeploy = !isStarterLandingOnly && Boolean(process.env.VERCEL_TOKEN && process.env.GITHUB_TOKEN);
+          const studioLandingUrl = `${studioBase}/landing/${slug}`;
+          const liveUrl = isStarterLandingOnly
+              ? studioLandingUrl
+              : (hasAutoVercelDeploy ? `https://t2-tenant-${slug}.vercel.app` : `${publicBase}/app/${slug}`);
           const repoName = `t2-tenant-${slug}`;
           const githubUrl = `https://github.com/T2Digital/${repoName}`;
 
