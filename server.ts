@@ -673,6 +673,68 @@ async function startServer() {
       }
   });
 
+  app.get("/api/jarvis/brain-config", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { readPersistentJson } = await import("./services/persistentStorage");
+          const cfg = readPersistentJson<{ customDirective?: string; updatedAt?: string }>("t2_dynamic_brain_config.json", {});
+          res.json({ ok: true, config: { customDirective: cfg?.customDirective || "", updatedAt: cfg?.updatedAt || "" } });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/jarvis/brain-config", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { savePersistentJson } = await import("./services/persistentStorage");
+          const customDirective = String(req.body?.customDirective ?? "").trim();
+          const payload = { customDirective, updatedAt: new Date().toISOString() };
+          savePersistentJson("t2_dynamic_brain_config", "t2_dynamic_brain_config.json", payload);
+          res.json({ ok: true, config: payload, message: "تم تحديث توجيهات عقل جارفس الديناميكية بنجاح" });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/admin/brands/repair-auto-house", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { upsertBrandToTitoStudioFirestore } = await import("./services/titoStudioFirestoreBridge");
+          const brand = getUnifiedGrowthBrands().find((b: any) => b.slug === "auto-house" || b.id === "brand_1794892093806") || {
+              id: "brand_1794892093806",
+              slug: "auto-house",
+              name: "أوتو هاوس لقطع غيار السيارات",
+              phone: "01013373634",
+              whatsapp: "201013373634",
+              businessType: "قطع غيار السيارات والخدمات الميكانيكية",
+          };
+          const defaultCatalog = [
+              { id: "ah_oil_filter", name: "فلتر زيت أصلي OEM (تويوتا / هيونداي / كيا)", price: "280 ج.م", numericPrice: 280, category: "فلاتر وصيانة دورية", description: "فلتر زيت معتمد لضمان نقاء دورة التزييت وحماية المحرك" },
+              { id: "ah_brake_pads", name: "طقم تيل فرامل أمامي سيراميك أصلي", price: "1450 ج.م", numericPrice: 1450, category: "الفرامل والعفشة", description: "تيل فرامل بدون صوت أو تراب مع ضمان ضد التآكل السريع" },
+              { id: "ah_spark_plugs", name: "طقم بوجيهات إيريديوم (4 قطع)", price: "920 ج.م", numericPrice: 920, category: "كهرباء وإشعال", description: "احتراق مثالي وتوفير في استهلاك البنزين" },
+              { id: "ah_engine_oil", name: "زيت محرك تخليقي بالكامل 5W-30 (4 لتر)", price: "1650 ج.م", numericPrice: 1650, category: "زيوت وسوائل", description: "زيت تخليقي عالي الأداء لمسافات حتى 10,000 كم" },
+              { id: "ah_air_filter", name: "فلتر هواء موتور أصلي", price: "390 ج.م", numericPrice: 390, category: "فلاتر وصيانة دورية", description: "تنقية هواء السحب وتحسين عزم المحرك" }
+          ];
+          const existingCatalog = Array.isArray(brand.productsCatalog) && brand.productsCatalog.length > 0 ? brand.productsCatalog : defaultCatalog;
+          const repaired = {
+              ...brand,
+              appTemplate: "products_erp",
+              productsCatalog: existingCatalog,
+              updatedAt: new Date().toISOString()
+          };
+          brand.appTemplate = "products_erp";
+          brand.productsCatalog = existingCatalog;
+          await upsertBrandToTitoStudioFirestore(repaired).catch(() => {});
+          res.json({ ok: true, brand: repaired, message: "تم تصحيح سجل auto-house إلى products_erp وتحديث الكتالوج بنجاح" });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   app.get("/api/saas/quota/:brandId", async (req, res) => {
       try {
           const brandId = String(req.params.brandId || "").trim();
@@ -1816,6 +1878,15 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   }));
               }
           } catch {}
+      }
+      if (resolvedCatalog.length === 0 && (brand.slug === "auto-house" || brand.id === "brand_1794892093806")) {
+          resolvedCatalog = [
+              { id: "ah_oil_filter", name: "فلتر زيت أصلي OEM (تويوتا / هيونداي / كيا)", price: "280 ج.م", numericPrice: 280, category: "فلاتر وصيانة دورية", description: "فلتر زيت معتمد لضمان نقاء دورة التزييت وحماية المحرك" },
+              { id: "ah_brake_pads", name: "طقم تيل فرامل أمامي سيراميك أصلي", price: "1450 ج.م", numericPrice: 1450, category: "الفرامل والعفشة", description: "تيل فرامل بدون صوت أو تراب مع ضمان ضد التآكل السريع" },
+              { id: "ah_spark_plugs", name: "طقم بوجيهات إيريديوم (4 قطع)", price: "920 ج.م", numericPrice: 920, category: "كهرباء وإشعال", description: "احتراق مثالي وتوفير في استهلاك البنزين" },
+              { id: "ah_engine_oil", name: "زيت محرك تخليقي بالكامل 5W-30 (4 لتر)", price: "1650 ج.م", numericPrice: 1650, category: "زيوت وسوائل", description: "زيت تخليقي عالي الأداء لمسافات حتى 10,000 كم" },
+              { id: "ah_air_filter", name: "فلتر هواء موتور أصلي", price: "390 ج.م", numericPrice: 390, category: "فلاتر وصيانة دورية", description: "تنقية هواء السحب وتحسين عزم المحرك" }
+          ];
       }
 
       res.json({

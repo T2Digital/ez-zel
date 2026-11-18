@@ -2,13 +2,17 @@ export type TenantAppTemplate = 'products_erp' | 'services_booking';
 import { resolveBrandAppAccessMode } from './saasPlansService';
 
 export function resolveBrandTemplate(brand: any): TenantAppTemplate {
+  const slugLower = String(brand?.slug || brand?.id || '').toLowerCase();
+  if (slugLower === 'auto-house' || slugLower.includes('auto_house')) {
+    return 'products_erp';
+  }
   if (brand?.appTemplate === 'products_erp' || brand?.appTemplate === 'services_booking') {
     return brand.appTemplate;
   }
   const text = `${brand?.businessType || ''} ${brand?.industry || ''} ${brand?.name || ''}`.toLowerCase();
   const productKeywords = [
-    'متجر', 'تجارة', 'أزياء', 'ملابس', 'منتج', 'مبيعات', 'بيع', 'إلكترونيات',
-    'سوبرماركت', 'مطعم', 'كافيه', 'أثاث', 'مفروشات', 'إكسسوار', 'store', 'shop', 'ecommerce', 'pos', 'retail'
+    'متجر', 'تجارة', 'أزياء', 'ملابس', 'منتج', 'مبيعات', 'بيع', 'إلكترونيات', 'قطع غيار',
+    'سوبرماركت', 'مطعم', 'كافيه', 'أثاث', 'مفروشات', 'إكسسوار', 'store', 'shop', 'ecommerce', 'pos', 'retail', 'parts'
   ];
   return productKeywords.some((kw) => text.includes(kw)) ? 'products_erp' : 'services_booking';
 }

@@ -9,6 +9,7 @@ import { SovereignOSArchitectureHub } from './SovereignOSArchitectureHub';
 import { TenantFactoryView } from './TenantFactoryView';
 import { AdminLiveStudioPanel, AdminLiveAgentPanel } from './AdminLivePanels';
 import { AdminGovernanceRibbon, AdminMemberFilter } from './AdminGovernanceRibbon';
+import { AdminSaaSAndBrainPanel } from './AdminSaaSAndBrainPanel';
 
 interface Props {
     onLogout: () => void;
@@ -27,7 +28,7 @@ interface AgentInfo {
 }
 
 const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavigateTo }) => {
-  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings' | 'architecture' | 'factory' | 'studio' | 'agent_platform'>('analytics');
+  const [activeView, setActiveView] = useState<'members' | 'marketers' | 'feedback' | 'requests' | 'chat' | 'core' | 'broadcast' | 'payouts' | 'coupons' | 'analytics' | 'settings' | 'architecture' | 'factory' | 'studio' | 'agent_platform' | 'saas_brain'>('analytics');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [feedbacks, setFeedbacks] = useState<DBFeedback[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -819,6 +820,10 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
         {activeView === 'agent_platform' && (
             <AdminLiveAgentPanel onOpenBrandInJarvis={() => { if (onNavigateTo) onNavigateTo('chat'); }} />
         )}
+        {activeView === 'saas_brain' && (
+            <AdminSaaSAndBrainPanel />
+        )}
+
       </div>
 
       <nav className="fixed bottom-[32px] left-0 w-full bg-black/95 border-t border-white/10 z-[100] rounded-t-[40px]">
@@ -837,6 +842,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
 
             <div className="flex-1 flex items-center justify-end overflow-x-auto gap-3 sm:gap-4 scrollbar-none min-w-0">
                 <button onClick={() => setActiveView('agent_platform')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'agent_platform' ? 'text-emerald-400 scale-110' : 'text-white/40 hover:text-emerald-400'}`}><Bot className="w-5 h-5 text-emerald-400" /><span className="text-[8px] font-bold text-emerald-400">الأجنت</span></button>
+                <button onClick={() => setActiveView('saas_brain')} className={`flex flex-col items-center flex-shrink-0 min-w-[54px] gap-1 transition-all ${activeView === 'saas_brain' ? 'text-cyan-400 scale-110' : 'text-white/40 hover:text-cyan-400'}`}><Brain className="w-5 h-5 text-cyan-400" /><span className="text-[8px] font-bold text-cyan-400">الباقات والعقل</span></button>
                 <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'settings' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Settings className="w-5 h-5" /><span className="text-[8px] font-bold">المفاتيح</span></button>
                 <button onClick={() => setActiveView('feedback')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'feedback' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><MessageCircle className="w-5 h-5" /><span className="text-[8px] font-bold">الآراء</span></button>
                 <button onClick={() => setActiveView('coupons')} className={`flex flex-col items-center flex-shrink-0 min-w-[46px] gap-1 transition-all ${activeView === 'coupons' ? 'text-white scale-110' : 'text-white/30 hover:text-white/60'}`}><Tag className="w-5 h-5" /><span className="text-[8px] font-bold">كوبونات</span></button>
