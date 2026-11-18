@@ -541,20 +541,22 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         </button>
       </div>
 
-      {/* 3D WebGL / Canvas Space */}
-      <canvas
-        ref={canvasRef}
-        className="w-full flex-1 cursor-grab active:cursor-grabbing"
-      />
+      {/* 3D WebGL / Canvas Space + Exact Centered Core Wrapper */}
+      <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full block cursor-grab active:cursor-grabbing"
+        />
 
-      {/* Integrated Jarvis Luminescent Core inside Constellation Center */}
-      {centerCore && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-10">
-          <div className="pointer-events-auto scale-[0.65] sm:scale-[0.75] drop-shadow-[0_0_35px_rgba(0,240,255,0.45)]">
-            {centerCore}
+        {/* Integrated Jarvis Luminescent Core inside Exact Canvas Center */}
+        {centerCore && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-10">
+            <div className="pointer-events-auto scale-[0.65] sm:scale-[0.75] drop-shadow-[0_0_35px_rgba(0,240,255,0.45)]">
+              {centerCore}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Floating Stark Holographic HUD Details Popover */}
       {hoveredNode && (
