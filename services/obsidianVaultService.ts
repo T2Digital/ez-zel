@@ -865,14 +865,18 @@ export async function executeRealJarvisEcosystemAction(input: {
             let liveQrDataUrl: string | null = null;
             let liveBaileysConnected = false;
 
+            const adminKey = process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || '';
+            const agentHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (adminKey) agentHeaders['x-admin-key'] = adminKey;
+
             for (const baseUrl of candidateAgentUrls) {
                 try {
                     const cleanBase = baseUrl.replace(/\/$/, '');
                     const pairResp = await fetch(`${cleanBase}/api/brands/${encodeURIComponent(brandId)}/pair-phone`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: agentHeaders,
                         body: JSON.stringify({ phoneNumber: intlPhone }),
-                        signal: AbortSignal.timeout(5500)
+                        signal: AbortSignal.timeout(7000)
                     });
                     if (pairResp.ok) {
                         const pairJson: any = await pairResp.json();
@@ -883,22 +887,35 @@ export async function executeRealJarvisEcosystemAction(input: {
                     }
                     const qrResp = await fetch(`${cleanBase}/api/brands/${encodeURIComponent(brandId)}/qr`, {
                         method: 'GET',
-                        signal: AbortSignal.timeout(3500)
+                        headers: agentHeaders,
+                        signal: AbortSignal.timeout(4000)
                     });
                     if (qrResp.ok) {
                         const qrJson: any = await qrResp.json();
-                        if (qrJson?.pairingCode && !livePairingCode) livePairingCode = qrJson.pairingCode;
+                        if (qrJson?.pairingCode && !livePairingCode) {
+                            livePairingCode = qrJson.pairingCode;
+                            liveBaileysConnected = true;
+                        }
                         if (qrJson?.qr) liveQrDataUrl = qrJson.qr;
                     }
                     if (livePairingCode || liveQrDataUrl) break;
                 } catch {}
             }
 
-            const codePart1 = rawPhone.slice(-4).padStart(4, '7');
-            const codePart2 = Math.floor(1000 + Math.random() * 9000);
-            const pairingCode = livePairingCode || `T2-${codePart1}-${codePart2}`;
-            const qrPayload = `https://wa.me/${intlPhone}?text=${encodeURIComponent(`تفعيل ربط وكيل T2 الذكي للبراند ${brandId}`)}`;
-            const qrDataUrl = liveQrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(qrPayload)}`;
+            if (!livePairingCode && !liveQrDataUrl) {
+                return {
+                    success: false,
+                    brandId,
+                    phone: rawPhone,
+                    pairingCode: '',
+                    liveBaileysConnected: false,
+                    qrDataUrl: '',
+                    message: `تعذر استخراج كود اقتران واتساب الحي من خادم T2 Agent لرقم (${rawPhone}) حالياً. يرجى التأكد من صيغة الرقم أو المحاولة بعد ثوانٍ.`
+                };
+            }
+
+            const pairingCode = livePairingCode || '';
+            const qrDataUrl = liveQrDataUrl || '';
 
             broadcastGatewayEvent('WHATSAPP_PAIRING_READY', {
                 brandId,
@@ -915,9 +932,9 @@ export async function executeRealJarvisEcosystemAction(input: {
                 pairingCode,
                 liveBaileysConnected,
                 qrDataUrl,
-                message: liveBaileysConnected
+                message: pairingCode
                     ? `تم استخراج كود اقتران واتساب الرسمي الحي (${pairingCode}) من محرك Baileys لرقم (${rawPhone})! افتح واتساب > الأجهزة المرتبطة > الربط برقم الهاتف وأدخل الكود فوراً.`
-                    : `تم تجهيز قناة ربط واتساب لرقم (${rawPhone}) بكود (${pairingCode}) وربطها بعقدة أوبسيديان وتيتو أجنت!`
+                    : `تم تجهيز رمز QR الحي من محرك Baileys لرقم (${rawPhone})! امسحه من واتساب > الأجهزة المرتبطة.`
             };
         }
 

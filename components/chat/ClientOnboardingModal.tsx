@@ -45,10 +45,14 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
   const [slogan, setSlogan] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#06b6d4');
   
-  // Step 3: WhatsApp
+  // WhatsApp Live Baileys Pairing State
   const [whatsapp, setWhatsapp] = useState('01013373634');
   const [qrGenerated, setQrGenerated] = useState(false);
   const [qrConnected, setQrConnected] = useState(false);
+  const [isPairingWa, setIsPairingWa] = useState(false);
+  const [waPairingCode, setWaPairingCode] = useState('');
+  const [waQrDataUrl, setWaQrDataUrl] = useState('');
+  const [waPairError, setWaPairError] = useState('');
   
   // Step 4: Meta & Ad Budget Package
   const [metaPageName, setMetaPageName] = useState('');
@@ -175,10 +179,10 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
         {!completedTenant && (
           <div className="px-5 py-3 bg-[#0d1424] border-b border-white/5 flex items-center justify-between">
             {[
-              { num: 1, title: 'بيانات البراند' },
-              { num: 2, title: 'الهوية واللوجو' },
-              { num: 3, title: 'ربط واتساب' },
-              { num: 4, title: 'ربط ميتا وسوشيال' }
+              { num: 1, title: 'البراندنج والنشاط' },
+              { num: 2, title: 'الهوية والتطبيق' },
+              { num: 3, title: 'ربط أجنت واتساب' },
+              { num: 4, title: 'السوشيال والباقة' }
             ].map(s => (
               <div key={s.num} className="flex items-center gap-2">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
@@ -422,41 +426,74 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                       />
                       <button 
                         type="button"
-                        onClick={() => {
-                          setQrGenerated(true);
-                          setTimeout(() => setQrConnected(true), 2500);
+                        disabled={isPairingWa}
+                        onClick={async () => {
+                          setIsPairingWa(true);
+                          setWaPairError('');
+                          setQrGenerated(false);
+                          setQrConnected(false);
+                          try {
+                            const brandKey = subdomain || businessName.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-') || 'clean_master';
+                            const res = await fetch('/api/jarvis/execute-action', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                actionType: 'CONNECT_WHATSAPP_PAIRING',
+                                brandId: brandKey,
+                                data: { phone: whatsapp }
+                              })
+                            });
+                            const d = await res.json();
+                            if (d?.success && (d?.pairingCode || d?.qrDataUrl)) {
+                              setWaPairingCode(d.pairingCode || '');
+                              setWaQrDataUrl(d.qrDataUrl || '');
+                              setQrGenerated(true);
+                              setQrConnected(Boolean(d.liveBaileysConnected));
+                            } else {
+                              setWaPairError(d?.message || 'تعذر استخراج كود الاقتران الحي من خادم T2 Agent حالياً.');
+                            }
+                          } catch (err: any) {
+                            setWaPairError(err?.message || 'تعذر الاتصال بخادم T2 Agent');
+                          } finally {
+                            setIsPairingWa(false);
+                          }
                         }}
-                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-600/20"
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-600/20"
                       >
                         <QrCode className="w-4 h-4" />
-                        توليد كود الربط
+                        {isPairingWa ? 'جاري التوليد...' : 'توليد كود ربط واتساب الحي'}
                       </button>
                     </div>
                   </div>
 
-                  {/* QR Box */}
+                  {/* Live Baileys Pairing Box */}
                   <div className="p-4 rounded-xl bg-[#090d18] border border-white/10 flex flex-col items-center justify-center text-center space-y-3">
-                    {qrGenerated ? (
-                      qrConnected ? (
-                        <div className="py-4 space-y-2 animate-in zoom-in-95">
-                          <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                            <CheckCircle className="w-6 h-6" />
+                    {waPairError ? (
+                      <div className="py-3 px-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-bold">
+                        {waPairError}
+                      </div>
+                    ) : qrGenerated ? (
+                      <div className="py-2 space-y-3">
+                        {waPairingCode && (
+                          <div className="px-5 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 font-mono text-xl font-black tracking-widest" dir="ltr">
+                            {waPairingCode}
                           </div>
-                          <div className="text-sm font-bold text-white">تم التحقق من ربط جلسة واتساب بنجاح!</div>
-                          <div className="text-xs text-emerald-400">البوت جاهز للرد على استفسارات وحجوزات العملاء تلقائياً 24/7.</div>
-                        </div>
-                      ) : (
-                        <div className="py-2 space-y-2 animate-pulse">
-                          <div className="w-32 h-32 bg-white rounded-lg p-2 mx-auto flex items-center justify-center">
-                            <QrCode className="w-28 h-28 text-black" />
+                        )}
+                        {waQrDataUrl && (
+                          <div className="w-36 h-36 bg-white rounded-xl p-2 mx-auto flex items-center justify-center overflow-hidden">
+                            <img src={waQrDataUrl} alt="WhatsApp Live QR" className="w-full h-full object-contain" />
                           </div>
-                          <p className="text-xs text-cyan-300 font-bold">امسح الكود عبر تطبيق WhatsApp Web للربط الفوري...</p>
+                        )}
+                        <div className="text-xs text-cyan-300 font-bold">
+                          {qrConnected
+                            ? 'تم توليد كود الاقتران الحي من محرك Baileys! افتح واتساب ← الأجهزة المرتبطة ← الربط برقم الهاتف وأدخل الكود.'
+                            : 'امسح رمز QR من واتساب ← الأجهزة المرتبطة.'}
                         </div>
-                      )
+                      </div>
                     ) : (
                       <div className="py-6 text-white/40 space-y-2">
                         <QrCode className="w-12 h-12 mx-auto opacity-30" />
-                        <p className="text-xs">اضغط على "توليد كود الربط" لإنشاء جلسة محاكاة أو ربط حقيقي مع خادم البوت.</p>
+                        <p className="text-xs">اضغط على "توليد كود ربط واتساب الحي" لجلب كود اقتران حقيقي من خادم T2 Agent.</p>
                       </div>
                     )}
                   </div>
