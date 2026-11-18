@@ -1781,6 +1781,30 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       res.send(renderTenantAppHtml(brand));
   });
 
+  // Dynamic AI GEO (llms.txt) + Sitemap + Robots per generated tenant app
+  app.get(["/app/:slug/llms.txt", "/store/:slug/llms.txt"], (req, res) => {
+      const slug = String(req.params.slug || "");
+      const brand = getUnifiedGrowthBrands().find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
+      if (!brand) return res.status(404).type("text/plain").send("Brand not found");
+      const base = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+      const items = (brand.productsCatalog || []).slice(0, 20).map((p: any) => `- ${p.name}: ${p.numericPrice || p.sellingPrice || p.price || "حسب الطلب"} ج.م`).join("\n");
+      const txt = `# ${brand.name}\n> ${brand.slogan || brand.businessType || "نشاط تجاري معتمد على منصة T2OS"}\n\n- الرابط الرسمي: ${brand.appUrl || `${base}/app/${slug}`}\n- الهاتف / واتساب: ${brand.phone || "متاح عبر التطبيق"}\n- العنوان: ${brand.address || "مصر"}\n\n## المنتجات والخدمات:\n${items || "- خدمات ومنتجات متخصصة حسب الطلب"}\n`;
+      res.type("text/plain; charset=utf-8").send(txt);
+  });
+
+  app.get(["/app/:slug/sitemap.xml", "/store/:slug/sitemap.xml"], (req, res) => {
+      const slug = String(req.params.slug || "");
+      const base = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${base}/app/${encodeURIComponent(slug)}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n</urlset>`;
+      res.type("application/xml; charset=utf-8").send(xml);
+  });
+
+  app.get(["/app/:slug/robots.txt", "/store/:slug/robots.txt"], (req, res) => {
+      const slug = String(req.params.slug || "");
+      const base = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+      res.type("text/plain").send(`User-agent: *\nAllow: /\nSitemap: ${base}/app/${encodeURIComponent(slug)}/sitemap.xml\n`);
+  });
+
   app.get("/app/:slug/admin", async (req, res) => {
       const slug = String(req.params.slug || "");
       const unified = getUnifiedGrowthBrands();

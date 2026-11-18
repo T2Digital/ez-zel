@@ -72,12 +72,100 @@ export function renderTenantAppHtml(brand: any): string {
     ? `<img src="${escapeHtml(brand.logoUrl)}" alt="${escapeHtml(brand.name)}" style="width:68px;height:68px;border-radius:18px;object-fit:cover;border:2px solid ${primary};margin:0 auto 10px;display:block;background:#0f172a;" />`
     : `<div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,${primary},#3b82f6);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#020617;margin:0 auto 10px;">${escapeHtml((brand?.name || 'T2').slice(0, 2))}</div>`;
 
+  const publicBase = (process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com').replace(/\/+$/, '');
+  const canonicalUrl = brand?.appUrl || brand?.vercelUrl || brand?.liveUrl || `${publicBase}/app/${slug}`;
+  const seoTitle = `${brand.name} | ${brand?.slogan || (template === 'products_erp' ? 'المتجر الإلكتروني المعتمد والطلب الفوري' : 'الخدمات المعتمدة وحجز المواعيد أونلاين')}`;
+  const seoDesc = brand?.directKnowledge || `${brand.name} — ${brand?.businessType || (template === 'products_erp' ? 'متجر إلكتروني' : 'مركز خدمات')} في ${brand?.address || 'مصر'}. تصفح الكتالوج والأسعار واطلب أو احجز مباشرة عبر الويب أو واتساب ${brand?.phone || ''}.`;
+  const keywords = [
+    brand.name,
+    brand?.businessType,
+    brand?.address,
+    template === 'products_erp' ? 'متجر إلكتروني, تسوق أونلاين, أسعار, طلب فوري' : 'حجز مواعيد, خدمات معتمدة, أسعار',
+    ...catalog.slice(0, 6).map((c: any) => c?.name).filter(Boolean)
+  ].filter(Boolean).join(', ');
+
+  const initialChar = escapeHtml((brand?.name || 'T').trim().slice(0, 1) || 'T');
+  const svgFavicon = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="${primary}"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="34" fill="#ffffff">${initialChar}</text></svg>`)}`;
+  const faviconHref = brand?.logoUrl ? escapeHtml(brand.logoUrl) : svgFavicon;
+  const ogImage = brand?.logoUrl ? escapeHtml(brand.logoUrl) : 'https://i.ibb.co/fYp5VRYb/1000053833.jpg';
+
+  const offerItems = catalog.slice(0, 10).map((item: any) => ({
+    '@type': 'Offer',
+    name: item?.name || 'خدمة/منتج',
+    price: Number(item?.numericPrice || item?.sellingPrice || String(item?.price || '').replace(/[^\d.]/g, '')) || 0,
+    priceCurrency: 'EGP',
+    availability: 'https://schema.org/InStock',
+    description: item?.description || ''
+  }));
+
+  const geoJsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': template === 'products_erp' ? 'Store' : 'LocalBusiness',
+        name: brand.name,
+        description: seoDesc,
+        url: canonicalUrl,
+        image: ogImage,
+        telephone: brand?.phone || '',
+        address: brand?.address ? { '@type': 'PostalAddress', streetAddress: brand.address, addressCountry: 'EG' } : undefined,
+        hasOfferCatalog: {
+          '@type': 'OfferCatalog',
+          name: `كتالوج ${brand.name}`,
+          itemListElement: offerItems
+        }
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: [
+          {
+            '@type': 'Question',
+            name: `ما هي خدمات ومنتجات ${brand.name}؟`,
+            acceptedAnswer: { '@type': 'Answer', text: seoDesc }
+          },
+          {
+            '@type': 'Question',
+            name: `كيف أتواصل أو أطلب من ${brand.name}؟`,
+            acceptedAnswer: { '@type': 'Answer', text: `يمكنك الطلب مباشرة من التطبيق على ${canonicalUrl} أو عبر واتساب على الرقم ${brand?.phone || 'المتاح في التطبيق'}.` }
+          }
+        ]
+      }
+    ]
+  }).replace(/</g, '\\u003c');
+
   const commonHead = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(brand.name)} | ${template === 'products_erp' ? 'المتجر الإلكتروني ونظام الطلبات' : 'تطبيق الخدمات وحجز المواعيد'}</title>
+  <title>${escapeHtml(seoTitle)}</title>
+  <meta name="description" content="${escapeHtml(seoDesc)}" />
+  <meta name="keywords" content="${escapeHtml(keywords)}" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="theme-color" content="${escapeHtml(primary)}" />
+  <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+  <link rel="alternate" hreflang="ar-EG" href="${escapeHtml(canonicalUrl)}" />
+  <link rel="icon" href="${faviconHref}" />
+  <link rel="apple-touch-icon" href="${faviconHref}" />
+
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ar_EG" />
+  <meta property="og:site_name" content="${escapeHtml(brand.name)}" />
+  <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+  <meta property="og:title" content="${escapeHtml(seoTitle)}" />
+  <meta property="og:description" content="${escapeHtml(seoDesc)}" />
+  <meta property="og:image" content="${ogImage}" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${escapeHtml(seoTitle)}" />
+  <meta name="twitter:description" content="${escapeHtml(seoDesc)}" />
+  <meta name="twitter:image" content="${ogImage}" />
+
+  <!-- GEO (Generative Engine Optimization) JSON-LD -->
+  <script type="application/ld+json">${geoJsonLd}</script>
+
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <style>
     :root { --primary: ${primary}; }
