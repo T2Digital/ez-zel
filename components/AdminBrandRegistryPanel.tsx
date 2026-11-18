@@ -3,6 +3,17 @@ import { CheckCircle2, Database, PauseCircle, RefreshCw, Save, Search, Sparkles 
 
 type LifecycleStage = 'active_client' | 'trial' | 'paused_archive' | 'self_growth';
 
+interface BrandReadiness {
+  score: number;
+  identityReady: boolean;
+  studioReady: boolean;
+  metaReady: boolean;
+  agentReady: boolean;
+  agentStatus: 'CONNECTED' | 'DISCONNECTED' | 'NOT_CREATED';
+  planReady: boolean;
+  missingItems: string[];
+}
+
 interface RegistryBrand {
   id: string;
   canonicalId: string;
@@ -16,6 +27,7 @@ interface RegistryBrand {
   agentBrandId: string;
   catalogCount: number;
   status: string;
+  readiness?: BrandReadiness;
 }
 
 async function getAdminHeaders(): Promise<Record<string, string>> {
@@ -300,6 +312,45 @@ export const AdminBrandRegistryPanel: React.FC = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* 5-Pillar Live Readiness Matrix */}
+                {b.readiness && (
+                  <div className="bg-black/40 border border-white/5 rounded-xl p-2.5 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded-md font-bold ${b.readiness.identityReady ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
+                          {b.readiness.identityReady ? '✅' : '⚠️'} الهوية والكتالوج ({b.catalogCount})
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md font-bold ${b.readiness.studioReady ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
+                          {b.readiness.studioReady ? '✅' : '⚠️'} الاستوديو
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md font-bold ${b.readiness.metaReady ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}>
+                          {b.readiness.metaReady ? '✅' : '❌'} ميتا
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md font-bold ${
+                          b.readiness.agentStatus === 'CONNECTED'
+                            ? 'bg-emerald-500/15 text-emerald-300'
+                            : b.readiness.agentStatus === 'DISCONNECTED'
+                              ? 'bg-amber-500/15 text-amber-300'
+                              : 'bg-rose-500/15 text-rose-300'
+                        }`}>
+                          {b.readiness.agentStatus === 'CONNECTED' ? '✅ واتساب متصل' : b.readiness.agentStatus === 'DISCONNECTED' ? '⚠️ واتساب مفصول (QR)' : '❌ غير منشأ بالأيجنت'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md font-bold ${b.readiness.planReady ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
+                          {b.readiness.planReady ? '✅' : '⚠️'} الباقة
+                        </span>
+                      </div>
+                      <span className={`font-black ${b.readiness.score >= 80 ? 'text-emerald-400' : b.readiness.score >= 40 ? 'text-amber-300' : 'text-rose-300'}`}>
+                        جاهزية {b.readiness.score}%
+                      </span>
+                    </div>
+                    {b.readiness.missingItems.length > 0 && (
+                      <div className="text-[10px] text-amber-200/80">
+                        الناقص: {b.readiness.missingItems.join(' • ')}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Unified IDs & Template Mapping */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-2 border-t border-white/5 items-end">

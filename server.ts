@@ -764,23 +764,80 @@ async function startServer() {
           const auth = await verifyAdminRequest(req);
           if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
           const brands = getUnifiedGrowthBrands();
+          let agentBrands: any[] = [];
+          try {
+              const { t2AgentApi } = await import("./services/t2AgentApiClient");
+              const healthRes: any = await Promise.race([
+                  t2AgentApi.getAllBrandsHealth(),
+                  new Promise((resolve) => setTimeout(() => resolve(null), 4500)),
+              ]);
+              agentBrands = Array.isArray(healthRes?.brands) ? healthRes.brands : (Array.isArray(healthRes) ? healthRes : []);
+          } catch {}
+
           res.json({
               ok: true,
-              brands: brands.map((b: any) => ({
-                  id: b.id,
-                  canonicalId: b.canonicalId || b.id,
-                  slug: b.slug || b.id,
-                  name: b.name || b.id,
-                  businessType: b.businessType || "",
-                  phone: b.phone || "",
-                  lifecycleStage: b.lifecycleStage || "paused_archive",
-                  appTemplate: b.appTemplate || "services_booking",
-                  titoStudioClinicId: b.titoStudioClinicId || b.id,
-                  agentBrandId: b.agentBrandId || b.id,
-                  catalogCount: Array.isArray(b.productsCatalog) ? b.productsCatalog.length : 0,
-                  status: b.status || "متوقف",
-                  registrySynced: Boolean(b.registrySynced),
-              })),
+              brands: brands.map((b: any) => {
+                  const catalogCount = Array.isArray(b.productsCatalog) ? b.productsCatalog.length : 0;
+                  const targetAgentId = String(b.agentBrandId || b.slug || b.id).toLowerCase();
+                  const agentMatch = agentBrands.find(
+                      (ab: any) =>
+                          String(ab.id || "").toLowerCase() === targetAgentId ||
+                          String(ab.slug || "").toLowerCase() === targetAgentId ||
+                          String(ab.id || "").toLowerCase() === String(b.id || "").toLowerCase()
+                  );
+                  const rawAgentStatus = String(agentMatch?.status || agentMatch?.whatsappStatus || "").toUpperCase();
+                  const agentWhatsappConnected = Boolean(
+                      agentMatch &&
+                      (agentMatch.connected === true || rawAgentStatus === "CONNECTED" || rawAgentStatus === "OPEN" || rawAgentStatus === "READY")
+                  );
+                  const agentStatus: "CONNECTED" | "DISCONNECTED" | "NOT_CREATED" = !agentMatch
+                      ? "NOT_CREATED"
+                      : agentWhatsappConnected
+                        ? "CONNECTED"
+                        : "DISCONNECTED";
+
+                  const identityReady = Boolean(b.name && b.appTemplate && catalogCount > 0);
+                  const studioReady = Boolean(b.titoStudioClinicId && Array.isArray(b.weekContentPlan) && b.weekContentPlan.length > 0);
+                  const metaReady = Boolean(b.metaConnected || b.metaPageId);
+                  const agentReady = agentStatus === "CONNECTED";
+                  const planReady = Boolean(b.planId || b.subscriptionPlan);
+
+                  const checks = [identityReady, studioReady, metaReady, agentReady, planReady];
+                  const readinessScore = Math.round((checks.filter(Boolean).length / checks.length) * 100);
+                  const missingItems: string[] = [];
+                  if (!identityReady) missingItems.push(catalogCount === 0 ? "الكتالوج فارغ" : "القالب/الهوية");
+                  if (!studioReady) missingItems.push("ربط تيتو استوديو");
+                  if (!metaReady) missingItems.push("ربط ميتا");
+                  if (agentStatus === "NOT_CREATED") missingItems.push("غير منشأ في الأيجنت");
+                  else if (agentStatus === "DISCONNECTED") missingItems.push("واتساب مفصول (QR)");
+                  if (!planReady) missingItems.push("الباقة");
+
+                  return {
+                      id: b.id,
+                      canonicalId: b.canonicalId || b.id,
+                      slug: b.slug || b.id,
+                      name: b.name || b.id,
+                      businessType: b.businessType || "",
+                      phone: b.phone || "",
+                      lifecycleStage: b.lifecycleStage || "paused_archive",
+                      appTemplate: b.appTemplate || "services_booking",
+                      titoStudioClinicId: b.titoStudioClinicId || b.id,
+                      agentBrandId: b.agentBrandId || b.id,
+                      catalogCount,
+                      status: b.status || "متوقف",
+                      registrySynced: Boolean(b.registrySynced),
+                      readiness: {
+                          score: readinessScore,
+                          identityReady,
+                          studioReady,
+                          metaReady,
+                          agentReady,
+                          agentStatus,
+                          planReady,
+                          missingItems,
+                      },
+                  };
+              }),
           });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });
@@ -3234,6 +3291,18 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           const list = getPersistedTenants();
           list.unshift(newTenant);
           savePersistedTenants(list);
+
+          try {
+              const { upsertBrandRegistryEntry } = await import("./services/brandRegistryService");
+              upsertBrandRegistryEntry(slug, {
+                  slug,
+                  name: businessName,
+                  lifecycleStage: req.body?.selfGrowth ? "self_growth" : "trial",
+                  appTemplate: flagship.archetype === "products_erp" ? "products_erp" : "services_booking",
+                  titoStudioClinicId: slug,
+                  agentBrandId: slug,
+              });
+          } catch {}
 
           let deployResult: any = null;
           if (hasAutoVercelDeploy) {
