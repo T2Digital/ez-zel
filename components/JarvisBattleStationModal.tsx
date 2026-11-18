@@ -280,15 +280,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [studioCategory, setStudioCategory] = useState<string>('all');
   const [brandSearch, setBrandSearch] = useState<string>('');
   
-  // Real-time active states for bots in fleet
-  const [botStates, setBotStates] = useState<Record<string, boolean>>({
-    clean_master: true,
-    besho: true,
-    alkhedr_car_rental: false,
-    battah_system: false,
-    baraka_motors: false,
-    t2_digital: false
-  });
+  // Real-time active states for bots in fleet (populated dynamically from real backend/T2 Agent)
+  const [botStates, setBotStates] = useState<Record<string, boolean>>({});
 
   // Copied state indicator
   const [copiedKey, setCopiedKey] = useState<string | null>(null);

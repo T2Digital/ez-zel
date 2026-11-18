@@ -8,6 +8,7 @@ import { ArchitectureMap } from './ArchitectureMap';
 import { SovereignOSArchitectureHub } from './SovereignOSArchitectureHub';
 import { TenantFactoryView } from './TenantFactoryView';
 import { AdminLiveStudioPanel, AdminLiveAgentPanel } from './AdminLivePanels';
+import { AdminGovernanceRibbon } from './AdminGovernanceRibbon';
 
 interface Props {
     onLogout: () => void;
@@ -270,28 +271,14 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
 
       <div className="flex-1 p-6 space-y-8 relative z-10">
         {activeView !== 'core' && activeView !== 'broadcast' && activeView !== 'architecture' && (
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-3 relative z-10">
-                {councilAgents.map(agent => {
-                    const colorMap: Record<string, string> = {
-                        purple: "text-purple-400 group-hover:bg-purple-500/10 group-hover:border-purple-500/30",
-                        blue: "text-blue-400 group-hover:bg-blue-500/10 group-hover:border-blue-500/30",
-                        emerald: "text-emerald-400 group-hover:bg-emerald-500/10 group-hover:border-emerald-500/30",
-                        amber: "text-amber-400 group-hover:bg-amber-500/10 group-hover:border-amber-500/30",
-                        cyan: "text-cyan-400 group-hover:bg-cyan-500/10 group-hover:border-cyan-500/30",
-                        red: "text-red-400 group-hover:bg-red-500/10 group-hover:border-red-500/30",
-                        green: "text-green-400 group-hover:bg-green-500/10 group-hover:border-green-500/30",
-                        orange: "text-orange-400 group-hover:bg-orange-500/10 group-hover:border-orange-500/30",
-                        pink: "text-pink-400 group-hover:bg-pink-500/10 group-hover:border-pink-500/30"
-                    };
-                    const colorClass = colorMap[agent.color] || "text-white group-hover:bg-white/10";
-                    return (
-                        <div key={agent.id} onClick={() => handleAgentClick(agent)} className={`p-4 rounded-2xl border border-white/5 bg-[#080808]/80 backdrop-blur-md flex flex-col items-center cursor-pointer transition-all group ${colorClass}`}>
-                            <div className={`p-3 rounded-full bg-white/5 mb-2 group-hover:scale-110 transition-transform ${colorMap[agent.color] ? colorMap[agent.color].split(' ')[0] : 'text-white'}`}>{agent.icon}</div>
-                            <span className="text-[9px] font-black uppercase text-white/40 group-hover:text-white transition-colors">{agent.name}</span>
-                        </div>
-                    );
-                })}
-            </div>
+            <AdminGovernanceRibbon
+              realProfiles={realProfiles}
+              pendingRequestsCount={pendingRequests.length}
+              activeMembersCount={activeMembers.length}
+              marketersList={marketersList}
+              onSelectView={(v) => setActiveView(v)}
+              onOpenJarvis={() => { if (onNavigateTo) onNavigateTo('chat'); }}
+            />
         )}
 
         {/* --- MARKETERS VIEW RESTORED --- */}
