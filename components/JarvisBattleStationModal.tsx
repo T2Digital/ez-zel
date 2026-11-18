@@ -27,6 +27,7 @@ import { JarvisAgentFleetDeck } from './jarvis/JarvisAgentFleetDeck';
 import { JarvisArcReactorCore } from './jarvis/JarvisArcReactorCore';
 import { JarvisDynamicWidgetHUD } from './jarvis/JarvisDynamicWidgetHUD';
 import { JarvisConnectionModals } from './jarvis/JarvisConnectionModals';
+import { JarvisBrandCommandHub, resolveBrandWebUrl } from './jarvis/JarvisBrandCommandHub';
 import { jarvisVoiceSocket, VoiceSocketState } from '../services/jarvisVoiceSocketService';
 import { BRAND_VAULT } from '../services/brandVault';
 import { shadowDB } from '../services/dbService';
@@ -237,8 +238,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 });
   const [isClickingCursor, setIsClickingCursor] = useState(false);
 
-  // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview'
-  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview'>('obsidian_graph');
+  // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'
+  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(initialPersona === 'client' ? 'brand_hub' : 'obsidian_graph');
   const [isExecutingAutonomousAgency, setIsExecutingAutonomousAgency] = useState<boolean>(false);
   const [autonomousAgencyData, setAutonomousAgencyData] = useState<any>(null);
   const [activeDynamicWidget, setActiveDynamicWidget] = useState<{ widgetType: string; data: any } | null>(null);
@@ -1455,6 +1456,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               ...(upd.hasSocialPages !== undefined ? { hasSocialPages: upd.hasSocialPages } : {}),
               ...(upd.phone ? { phone: upd.phone } : {})
             }));
+          } else if ((data.action.type === 'SWITCH_BRAND' || data.action.type === 'OPEN_BRAND_HUB') && persona !== 'visitor') {
+            if (data.action.brandId) {
+              handleSelectBrand(data.action.brandId);
+              handleInspectObsidianNode(data.action.brandId);
+            }
+            setIsBrandSuperWindowOpen(false);
+            setActiveDeckTab('brand_hub');
           } else if (data.action.type === 'OPEN_BRAND_SUPER_WINDOW' && persona !== 'visitor') {
             if (data.action.brandId) {
               handleSelectBrand(data.action.brandId);
@@ -2248,7 +2256,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       handleSelectBrand(id);
                       handleInspectObsidianNode(id);
                     }}
-                    onOpenStore={(slug) => window.open('/store/' + slug, '_blank')}
+                    onOpenStore={(slug) => {
+                      const matched = allBrandsList.find((item: any) => item.slug === slug || item.id === slug);
+                      window.open(resolveBrandWebUrl(matched || { slug }), '_blank', 'noopener,noreferrer');
+                    }}
                     onOpenChat={() => handleOpenWhatsAppConnectModal()}
                     onOpenStudio={() => window.open('https://t2-studio.vercel.app', '_blank')}
                     className="!bg-transparent !border-cyan-400/15 !shadow-none"
@@ -2277,6 +2288,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button
+                        onClick={() => setActiveDeckTab('brand_hub')}
+                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-[10px] font-black flex items-center gap-1 transition shadow-[0_0_15px_rgba(0,240,255,0.35)] cursor-pointer"
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>إدارة البراند (4 أركان)</span>
+                      </button>
+                      <button
                         onClick={() => setActiveDeckTab('studio_calendar')}
                         className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 text-[10px] font-bold flex items-center gap-1 transition shadow-[0_0_10px_rgba(0,240,255,0.25)] cursor-pointer"
                       >
@@ -2291,11 +2309,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <span>وكيل واتساب</span>
                       </button>
                       <button
-                        onClick={() => window.open(`/store/${selectedBrand.slug || selectedBrand.id}`, '_blank')}
+                        onClick={() => window.open(resolveBrandWebUrl(selectedBrand), '_blank', 'noopener,noreferrer')}
                         className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/50 text-blue-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
-                        <span>متجر PWA</span>
+                        <span>فتح التطبيق</span>
                       </button>
                       <button
                         onClick={() => setSelectedBrandId('')}
@@ -2309,6 +2327,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 )}
 
               </div>
+            )}
+
+            {/* TAB 0B: UNIFIED 4-PILLAR BRAND COMMAND HUB (IN-PLACE OVER CONSTELLATION) */}
+            {activeDeckTab === 'brand_hub' && (
+              <JarvisBrandCommandHub
+                brandId={selectedBrandId || currentSelectedBrand?.slug || currentSelectedBrand?.id || 'auto-house'}
+                initialBrand={currentSelectedBrand}
+                isMasterAdmin={isMasterAdmin}
+                onBackToGrid={() => setActiveDeckTab('obsidian_graph')}
+                onOpenStudioCalendar={() => setActiveDeckTab('studio_calendar')}
+                onOpenWhatsAppModal={(bId) => handleOpenWhatsAppConnectModal(bId)}
+                onOpenMetaModal={(bId) => handleOpenMetaConnectModal(bId)}
+              />
             )}
 
             {/* TAB 1: TITO STUDIO 7-DAY CONTENT CALENDAR (Modular Component) */}
@@ -3088,7 +3119,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   النافذة 1: متجر وتطبيق البراند الرسمي (PWA Storefront)
                 </span>
                 <button
-                  onClick={() => window.open(`/store/${currentSelectedBrand.slug || currentSelectedBrand.id}`, '_blank')}
+                  onClick={() => window.open(resolveBrandWebUrl(currentSelectedBrand), '_blank', 'noopener,noreferrer')}
                   className="px-2.5 py-1 rounded-xl bg-blue-500 hover:bg-blue-400 text-white text-[10px] font-black flex items-center gap-1 transition"
                 >
                   <ExternalLink className="w-3 h-3" />

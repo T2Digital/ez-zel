@@ -1766,6 +1766,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   const { registerTenantErpRoutes } = await import("./routes/tenantErpRoutes");
   registerTenantErpRoutes(app, { getUnifiedGrowthBrands, getClonedBrandByIdOrSlug });
 
+  const { registerBrandHubRoutes } = await import("./routes/brandHubRoutes");
+  registerBrandHubRoutes(app, { getUnifiedGrowthBrands, getPersistedTenants, getClonedBrandByIdOrSlug, getServerAI });
+
   // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
   app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
       const slug = String(req.params.slug || "");

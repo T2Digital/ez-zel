@@ -194,7 +194,7 @@ const jarvisBrainTools: FunctionDeclaration[] = [
   {
     name: "navigate_jarvis_ui",
     description:
-      "التحكم في واجهة جارفيس: استخدم SWITCH_BRAND عندما يطلب المستخدم الانتقال لبراند معين أو فتح براند كذا (بدون فتح نافذة منبثقة ثقيلة)، أو SWITCH_TAB لتبديل التبويب، أو OPEN_MODAL لربط واتساب/ميتا. لا تستخدم OPEN_BRAND_SUPER_WINDOW إلا إذا طلب المستخدم نافذة القيادة المتعددة (4 شاشات) بالاسم.",
+      "التحكم في واجهة جارفيس: استخدم SWITCH_BRAND عندما يطلب المستخدم الانتقال لبراند معين أو فتح شاشة/لوحة براند كذا (سيفتح شاشة البراند الشاملة ذات الأركان الأربعة في مربع العرض مكان الشبكة)، أو SWITCH_TAB لتبديل التبويب، أو OPEN_MODAL لربط واتساب/ميتا. لا تستخدم OPEN_BRAND_SUPER_WINDOW إلا إذا طلب المستخدم نافذة القيادة المتعددة بالاسم.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -1550,11 +1550,12 @@ ${conversationMemoryDirective}`;
               persona === "tito" && args.brandNameOrId
                 ? resolveBrandDynamically(String(args.brandNameOrId), message, unifiedBrands) || targetBrand
                 : targetBrand;
-            const switchId = targetSwitch?.id || brandId;
+            const switchId = targetSwitch?.slug || targetSwitch?.id || brandId;
             executedAction = {
               type: "SWITCH_BRAND",
               brandId: switchId,
               brandName: targetSwitch?.name || switchId,
+              openHub: true,
             };
           } else if (args.actionType === "OPEN_BRAND_SUPER_WINDOW") {
             executedAction = { type: "OPEN_BRAND_SUPER_WINDOW", brandId };
