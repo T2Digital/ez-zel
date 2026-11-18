@@ -863,10 +863,26 @@ async function fetchLiveEcosystemFromStudioAndAgent(persona: string, selectedBra
         ? agentHealthRes
         : [];
     if (agentBrands.length > 0) {
+      const isBrandConnected = (b: any) =>
+        b?.connected === true ||
+        String(b?.status || "").toUpperCase() === "CONNECTED" ||
+        String(b?.status || "").toUpperCase() === "OPEN" ||
+        String(b?.status || "").toUpperCase() === "READY";
+      const disconnectedList = agentBrands
+        .filter((b: any) => !isBrandConnected(b))
+        .map((b: any) => `${b.brandName || b.brandId || b.id} (${b.status || "DISCONNECTED"})`);
       lines.push(
         `• قاعدة بيانات تيتو أجنت الحية (${agentBrands.length} جلسة واتساب): ` +
-          agentBrands.slice(0, 15).map((b: any) => `${b.brandName || b.brandId || b.id} (${b.status || b.connected ? "متصل" : "غير متصل"})`).join("، ")
+          agentBrands
+            .slice(0, 15)
+            .map((b: any) => `${b.brandName || b.brandId || b.id} (${isBrandConnected(b) ? "متصل ✅" : `غير متصل ❌ [${b.status || "DISCONNECTED"}]`})`)
+            .join("، ")
       );
+      if (disconnectedList.length > 0) {
+        lines.push(
+          `• ⚠️ تنبيه عاجل للماستر تيتو — براندات واتساب منفصلة الآن وتحتاج إعادة ربط QR/Pairing (${disconnectedList.length}): ${disconnectedList.join("، ")}. نبّه الماستر تيتو عليها بوضوح عند سؤاله عن حالة المنظومة أو البراندات.`
+        );
+      }
     }
 
     const bookings = Array.isArray((brandBookingsRes as any)?.bookings)
