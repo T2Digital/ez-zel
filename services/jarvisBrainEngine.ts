@@ -778,6 +778,13 @@ ${dynamicPlansBlock}
     const trialList = trialClients.slice(0, 8).map((c: any) => `${c.name} (ينتهي ${c.trialEndsAt || "-"})`).join("، ") || "لا يوجد";
     const paidList = paidClients.slice(0, 8).map((c: any) => `${c.name} (${c.monthlySubscriptionEgp || 2500} ج.م)`).join("، ") || "لا يوجد";
     const mrrEgp = paidClients.reduce((s: number, c: any) => s + (Number(c.monthlySubscriptionEgp) || 0), 0);
+    const allUnifiedNow = getUnifiedGrowthBrands();
+    const regCounts = {
+      active: allUnifiedNow.filter((b: any) => b.lifecycleStage === "active_client").length,
+      trial: allUnifiedNow.filter((b: any) => b.lifecycleStage === "trial").length,
+      self: allUnifiedNow.filter((b: any) => b.lifecycleStage === "self_growth").length,
+      paused: allUnifiedNow.filter((b: any) => b.lifecycleStage === "paused_archive").length,
+    };
     personaRoleInstruction = `المتحدث معك الآن هو الماستر "تيتو" — المالك والمدير العام لمنظومة T2OS.
 دورك: أنت "جارفيس"، العقل التنفيذي الموحد المتصل لحظياً بقواعد البيانات (بدون أي أرقام محفوظة مسبقاً — كل بياناتك من الحقائق الحية أدناه فقط).
 
@@ -786,8 +793,9 @@ ${dynamicPlansBlock}
 
 [البيانات الحية الآن من قواعد المنظومة]:
 1. المشتركون المسجلون (${ezzelClients.length}): مدفوعون (${paidClients.length} بقيمة ${mrrEgp} ج.م: ${paidList}) | تجارب (${trialClients.length}: ${trialList}) | Paymob: ${paymobSubs.length}.
-2. البراندات الحية على الشبكة (${unifiedBrands.length}): ${allBrandsBrief}
-3. البراند المحدد حالياً: ${activeBrand ? activeBrandStats : "العرض العام للمنظومة"}.
+2. السجل الموحد للبراندات (توحيد البراندات): شغّال: ${regCounts.active} | تجربة: ${regCounts.trial} | تسويق للظل: ${regCounts.self} | متوقف/أرشيف: ${regCounts.paused}.
+3. البراندات النشطة على الشبكة (${unifiedBrands.length}): ${allBrandsBrief || "لا توجد براندات نشطة حالياً (كلها في الأرشيف حتى يتم تشغيلها)"}
+4. البراند المحدد حالياً: ${activeBrand ? activeBrandStats : "العرض العام للمنظومة"}.
 ${dynamicBrainOverride ? `\n[توجيهات إضافية محدثة]: ${dynamicBrainOverride}` : ""}`;
   }
 
@@ -857,8 +865,22 @@ async function fetchLiveEcosystemFromStudioAndAgent(persona: string, selectedBra
         String(b?.status || "").toUpperCase() === "CONNECTED" ||
         String(b?.status || "").toUpperCase() === "OPEN" ||
         String(b?.status || "").toUpperCase() === "READY";
+      const registryBrands = getUnifiedGrowthBrands();
+      const nonPausedKeys = new Set<string>();
+      registryBrands
+        .filter((rb: any) => rb?.lifecycleStage !== "paused_archive")
+        .forEach((rb: any) => {
+          [rb.id, rb.slug, rb.canonicalId, rb.agentBrandId].filter(Boolean).forEach((k: any) =>
+            nonPausedKeys.add(String(k).toLowerCase())
+          );
+        });
+      const isPausedInRegistry = (b: any) => {
+        if (nonPausedKeys.size === 0) return true;
+        const keys = [b?.brandId, b?.id, b?.slug].filter(Boolean).map((k: any) => String(k).toLowerCase());
+        return !keys.some((k: string) => nonPausedKeys.has(k));
+      };
       const disconnectedList = agentBrands
-        .filter((b: any) => !isBrandConnected(b))
+        .filter((b: any) => !isBrandConnected(b) && !isPausedInRegistry(b))
         .map((b: any) => `${b.brandName || b.brandId || b.id} (${b.status || "DISCONNECTED"})`);
       lines.push(
         `• قاعدة بيانات تيتو أجنت الحية (${agentBrands.length} جلسة واتساب): ` +
@@ -869,7 +891,11 @@ async function fetchLiveEcosystemFromStudioAndAgent(persona: string, selectedBra
       );
       if (disconnectedList.length > 0) {
         lines.push(
-          `• ⚠️ تنبيه عاجل للماستر تيتو — براندات واتساب منفصلة الآن وتحتاج إعادة ربط QR/Pairing (${disconnectedList.length}): ${disconnectedList.join("، ")}. نبّه الماستر تيتو عليها بوضوح عند سؤاله عن حالة المنظومة أو البراندات.`
+          `• ⚠️ تنبيه عاجل للماستر تيتو — براندات واتساب نشطة ومنفصلة الآن وتحتاج إعادة ربط QR/Pairing (${disconnectedList.length}): ${disconnectedList.join("، ")}. نبّه الماستر تيتو عليها بوضوح عند سؤاله عن حالة المنظومة أو البراندات.`
+        );
+      } else if (nonPausedKeys.size === 0) {
+        lines.push(
+          `• ملاحظة السجل الموحد: جميع البراندات مصنفة حالياً كـ (متوقف/أرشيف) حتى يتم تفعيل المطلوب من شاشة "توحيد البراندات".`
         );
       }
     }
@@ -907,6 +933,7 @@ export async function runJarvisBrainConversation(
   } = input;
 
   const unifiedBrands = getUnifiedGrowthBrands();
+  const activeUnifiedBrands = unifiedBrands.filter((b: any) => b?.lifecycleStage !== "paused_archive");
   const ezzelClients = getEzZelPersonalClients();
 
   // Strict Role-Based Brand Isolation:
@@ -943,7 +970,7 @@ export async function runJarvisBrainConversation(
   const systemPrompt = buildPersonaSystemPrompt(
     persona,
     resolvedBrand,
-    unifiedBrands,
+    persona === "tito" ? activeUnifiedBrands : unifiedBrands,
     ezzelClients,
     combinedMemory
   );

@@ -63,6 +63,11 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   };
   const realProfiles = profiles.filter(p => !isFakeOrSystemAccount(p));
   const verifiedActiveSubscribers = realProfiles.filter(isGenuineActivatedSubscriber);
+  const [paymobRevenueSummary, setPaymobRevenueSummary] = useState<{
+      paidCount: number;
+      totalPaymobRevenueEgp: number;
+      paidSubscriptions: Array<{ orderId?: string; brandId?: string; amountEgp?: number }>;
+  }>({ paidCount: 0, totalPaymobRevenueEgp: 0, paidSubscriptions: [] });
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [globalRules, setGlobalRules] = useState('');
@@ -98,10 +103,20 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
     return data;
   };
 
+  const paidOrderIdsSet = new Set(
+      (paymobRevenueSummary.paidSubscriptions || []).map(s => String(s?.orderId || '')).filter(Boolean)
+  );
+  const manualOrExtraSubscribers = verifiedActiveSubscribers.filter(p => {
+      const anyP = p as any;
+      if (anyP.paymobOrderId && paidOrderIdsSet.has(String(anyP.paymobOrderId))) return false;
+      if (anyP.activationSource === 'paymob_verified' && paymobRevenueSummary.paidCount > 0 && !anyP.paymobOrderId) return false;
+      return true;
+  });
+
   const calculateTotalExpectedProfit = () => {
-      // Dynamic revenue ONLY from verified Paymob payments or Admin manual activations (zero hardcoded values)
-      let total = 0;
-      verifiedActiveSubscribers.forEach(p => {
+      // Dynamic revenue ONLY from verified Paymob payments or Admin manual activations (zero hardcoded values, no double counting)
+      let total = Number(paymobRevenueSummary.totalPaymobRevenueEgp || 0);
+      manualOrExtraSubscribers.forEach(p => {
           const anyP = p as any;
           const amount = Number(anyP.paidAmountEgp || anyP.planAmountEgp || anyP.monthlySubscriptionEgp || 0);
           if (amount > 0) total += amount;
@@ -109,6 +124,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       return total;
   };
 
+  const totalVerifiedActiveCount = manualOrExtraSubscribers.length + Number(paymobRevenueSummary.paidCount || 0);
   const expectedProfit = calculateTotalExpectedProfit();
   const growthData = getGrowthData();
 
@@ -149,6 +165,26 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
               const allCoupons = await shadowDB.getAllCoupons?.() || [];
               setCoupons(allCoupons);
           } catch(e) {}
+
+          // Fetch live Paymob revenue summary for Admin Analytics
+          try {
+              const headers: Record<string, string> = {};
+              const { getAuth } = await import('firebase/auth');
+              const user = getAuth().currentUser;
+              if (user) {
+                  const token = await user.getIdToken();
+                  if (token) headers['Authorization'] = `Bearer ${token}`;
+              }
+              const revResp = await fetch('/api/admin/revenue/summary', { headers });
+              const revJson = await revResp.json().catch(() => null);
+              if (revJson?.ok) {
+                  setPaymobRevenueSummary({
+                      paidCount: Number(revJson.paidCount || 0),
+                      totalPaymobRevenueEgp: Number(revJson.totalPaymobRevenueEgp || 0),
+                      paidSubscriptions: Array.isArray(revJson.paidSubscriptions) ? revJson.paidSubscriptions : [],
+                  });
+              }
+          } catch {}
 
           shadowDB.subscribeToAdminFeed((updated) => { if(updated.length > 0) setProfiles(updated); }, (updated) => { if(updated.length > 0) setFeedbacks(updated.reverse()); });
       };
@@ -800,7 +836,10 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">المشتركين المفعّلين فعلياً (دفع أو يدوي)</h4>
                         <div className="text-2xl font-black text-emerald-400 flex items-center gap-2">
-                            {verifiedActiveSubscribers.length} <CheckCircle className="w-4 h-4 text-emerald-500/30" />
+                            {totalVerifiedActiveCount} <CheckCircle className="w-4 h-4 text-emerald-500/30" />
+                        </div>
+                        <div className="text-[10px] text-white/40 mt-1">
+                            يدوي: {manualOrExtraSubscribers.length} | Paymob: {paymobRevenueSummary.paidCount}
                         </div>
                     </div>
                     <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">

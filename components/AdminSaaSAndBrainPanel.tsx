@@ -6,9 +6,9 @@ interface SaasPlanItem {
   nameAr: string;
   priceEgp: number;
   adsBudgetEgp: number;
-  systemShareEgp: number;
-  monthlyDesigns: number;
-  monthlyVideos: number;
+  systemFeeEgp: number;
+  monthlyDesignsQuota: number;
+  monthlyVideosQuota: number;
   appAccessMode: 'landing_page' | 'full_app';
   durationDays?: number;
 }
@@ -292,8 +292,8 @@ export const AdminSaaSAndBrainPanel: React.FC = () => {
                     <label className="block text-[10px] text-white/50 mb-1">حصة النظام</label>
                     <input
                       type="number"
-                      value={plan.systemShareEgp ?? 0}
-                      onChange={(e) => updatePlanField(plan.id, 'systemShareEgp', Number(e.target.value) || 0)}
+                      value={plan.systemFeeEgp ?? 0}
+                      onChange={(e) => updatePlanField(plan.id, 'systemFeeEgp', Number(e.target.value) || 0)}
                       className="w-full bg-[#18181b] border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-amber-300 font-bold"
                     />
                   </div>
@@ -301,20 +301,20 @@ export const AdminSaaSAndBrainPanel: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] text-white/50 mb-1">تصاميم / شهر</label>
+                    <label className="block text-[10px] text-white/50 mb-1">تصاميم / شهر (-1 = لا محدود)</label>
                     <input
                       type="number"
-                      value={plan.monthlyDesigns ?? 0}
-                      onChange={(e) => updatePlanField(plan.id, 'monthlyDesigns', Number(e.target.value) || 0)}
+                      value={plan.monthlyDesignsQuota ?? 0}
+                      onChange={(e) => updatePlanField(plan.id, 'monthlyDesignsQuota', Number(e.target.value) || 0)}
                       className="w-full bg-[#18181b] border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white font-bold"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-white/50 mb-1">فيديوهات / شهر</label>
+                    <label className="block text-[10px] text-white/50 mb-1">فيديوهات / شهر (-1 = لا محدود)</label>
                     <input
                       type="number"
-                      value={plan.monthlyVideos ?? 0}
-                      onChange={(e) => updatePlanField(plan.id, 'monthlyVideos', Number(e.target.value) || 0)}
+                      value={plan.monthlyVideosQuota ?? 0}
+                      onChange={(e) => updatePlanField(plan.id, 'monthlyVideosQuota', Number(e.target.value) || 0)}
                       className="w-full bg-[#18181b] border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white font-bold"
                     />
                   </div>

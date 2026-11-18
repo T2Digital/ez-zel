@@ -546,13 +546,20 @@ async function startServer() {
           );
           if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
           const { runJarvisBrainConversation } = await import("./services/jarvisBrainEngine");
-          const scopedPrompt = `[توجيه مدير الحساب المخصص للبراند "${brand.name}" (${brand.slug || brand.id}) فقط — لا تذكر بيانات أي براند آخر ولا صلاحيات الماستر]:\nرسالة العميل: ${userMsg}`;
+          const rawHistory = Array.isArray(req.body?.history) ? req.body.history : [];
+          const normalizedHistory = rawHistory.map((m: any) => ({
+              role: (m?.role === "assistant" || m?.role === "model" ? "model" : "user") as "user" | "model",
+              text: String(m?.text || m?.content || ""),
+          })).filter((m: any) => m.text);
+          const scopedPrompt = `[توجيه مدير الحساب المخصص للبراند "${brand.name}" (${brand.slug || brand.id}) فقط — ركز على هذا البراند بالكامل وممنوع ذكر أي براند آخر]:\nرسالة العميل: ${userMsg}`;
           const result = await runJarvisBrainConversation({
               message: scopedPrompt,
-              history: Array.isArray(req.body?.history) ? req.body.history : [],
-              persona: "tito",
-              mode: "brand",
-              brandId: brand.id,
+              history: normalizedHistory,
+              persona: "client",
+              selectedBrandId: brand.slug || brand.id,
+              skipTts: true,
+              ai: getServerAI(),
+              stats: getRealEcosystemStats(),
           });
           res.json({ ok: true, replyText: result?.replyText || "تم استلام طلبك وجاري المتابعة على حساب براندك." });
       } catch (err: any) {
@@ -964,6 +971,24 @@ async function startServer() {
       }
   });
 
+  app.get("/api/admin/revenue/summary", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const subs = readPaymobSubscriptions();
+          const paidSubscriptions = subs.filter((s: any) => String(s?.status || "").toLowerCase() === "paid");
+          const totalPaymobRevenueEgp = paidSubscriptions.reduce((sum: number, s: any) => sum + (Number(s?.amountEgp || 0) || 0), 0);
+          res.json({
+              ok: true,
+              paidCount: paidSubscriptions.length,
+              totalPaymobRevenueEgp,
+              paidSubscriptions,
+          });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   app.post("/api/admin/brands/repair-auto-house", async (req, res) => {
       try {
           const auth = await verifyAdminRequest(req);
@@ -1225,29 +1250,71 @@ async function startServer() {
               return res.status(403).json({ ok: false, error: "Invalid Paymob HMAC signature" });
           }
           const isSuccess = obj.success === true || obj.success === "true" || req.body?.status === "paid";
-          const brandId = obj.extras?.brandId || obj.payment_key_claims?.extra?.brandId || req.body?.brandId || 'el_baraka';
-          const planId = obj.extras?.planId || req.body?.planId || 'growth_pro';
+          const brandId = String(obj.extras?.brandId || obj.payment_key_claims?.extra?.brandId || req.body?.brandId || 'el_baraka').trim();
+          const rawPlanId = String(obj.extras?.planId || req.body?.planId || 'growth_5000').trim();
           const orderId = String(obj.order?.id || obj.special_reference || req.body?.orderId || `PM_${Date.now()}`);
+          const rawAmountEgp = Number(obj.amount_cents ? Number(obj.amount_cents) / 100 : (obj.amountEgp || req.body?.amountEgp || 0));
+
+          const { resolveBrandPlanSpec, resolveBrandAppAccessMode } = await import("./services/saasPlansService");
+          const planSpec = resolveBrandPlanSpec({ planId: rawPlanId, planAmount: rawAmountEgp });
+          const appAccessMode = resolveBrandAppAccessMode({ planId: planSpec.id, planAmount: rawAmountEgp || planSpec.priceEgp });
+          const amountEgp = rawAmountEgp > 0 ? rawAmountEgp : planSpec.priceEgp;
 
           if (isSuccess) {
               savePaymobSubscriptionRecord({
                   orderId,
                   brandId,
-                  planId,
+                  planId: planSpec.id,
+                  amountEgp,
+                  appAccessMode,
+                  activationSource: 'paymob_verified',
                   status: 'paid',
                   paidAt: new Date().toISOString()
               });
+
+              try {
+                  const { upsertBrandRegistryEntry } = await import("./services/brandRegistryService");
+                  upsertBrandRegistryEntry(brandId, {
+                      slug: brandId,
+                      lifecycleStage: 'active_client',
+                  });
+              } catch {}
+
+              try {
+                  const { persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
+                  persistBrandUpdateAcrossEcosystem(brandId, {
+                      planId: planSpec.id,
+                      planAmount: amountEgp,
+                      appAccessMode,
+                      subscriptionStatus: 'active',
+                      paymobOrderId: orderId,
+                      activationSource: 'paymob_verified',
+                  });
+              } catch {}
+
               await executeRealJarvisEcosystemAction({
                   actionType: 'ACTIVATE_PAYMOB_SUBSCRIPTION',
                   brandId,
-                  payload: { planId, orderId }
+                  payload: { planId: planSpec.id, orderId, amountEgp, appAccessMode }
               });
-              // Auto-provision dedicated GitHub repo + Vercel deployment for paid subscriber
-              import("./services/dedicatedDeployService")
-                  .then(({ provisionDedicatedRepoAndVercel }) => provisionDedicatedRepoAndVercel({ brandId }))
-                  .catch(() => {});
+
+              // ONLY provision dedicated GitHub repo + Vercel full_app when plan unlocks full_app (never for starter_2500 landing_page)
+              if (appAccessMode === 'full_app') {
+                  import("./services/dedicatedDeployService")
+                      .then(({ provisionDedicatedRepoAndVercel }) => provisionDedicatedRepoAndVercel({ brandId }))
+                      .catch(() => {});
+              }
           }
-          res.json({ ok: true, activated: isSuccess, brandId, orderId });
+          res.json({
+              ok: true,
+              activated: isSuccess,
+              brandId,
+              orderId,
+              planId: planSpec.id,
+              appAccessMode,
+              amountEgp,
+              clientPortalUrl: `/client/${encodeURIComponent(brandId)}`,
+          });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });
       }
