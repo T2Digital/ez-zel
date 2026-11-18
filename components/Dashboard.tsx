@@ -16,7 +16,8 @@ import { BrainRouterModal } from './dashboard/BrainRouterModal';
 import { ProactiveReportsModal } from './dashboard/ProactiveReportsModal';
 import { SocialMatrixModal } from './dashboard/SocialMatrixModal';
 import { ContactsManagerModal } from './dashboard/ContactsManagerModal';
-import { TafraDashboard } from './TafraDashboard';
+const TafraDashboard = React.lazy(() => import('./TafraDashboard').then(m => ({ default: m.TafraDashboard })));
+const JarvisBrandCommandHub = React.lazy(() => import('./jarvis/JarvisBrandCommandHub').then(m => ({ default: m.JarvisBrandCommandHub })));
 import { Network, ActivitySquare, Share2, Orbit, Users, Phone } from 'lucide-react';
 import { ResearchCenterModal, AdvisoryBoardModal, HologramModal } from './dashboard/MissingFeaturesModals';
 import { AutonomousManager } from './AutonomousManager';
@@ -384,33 +385,24 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       await shadowDB.saveProfile({ ...user, iotActions: updatedActions });
   };
 
-  // Define available items based on auth
+  // Define streamlined SaaS orbital items (Customer: 7 focused action pillars; Master Admin: extra system tools)
   const allItems = [
       ...(user.phone !== 'GUEST' ? [
-          { id: 'tasks', icon: Target, label: "المهام الشغالة", value: tasks.filter(t => t.status === 'pending').length, colorClass: "text-amber-500", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: () => setShowTasksModal(true) },
-          { id: 'phone_agent', icon: Phone, label: "هاتف الظل والحجز الذاتي 📞", colorClass: "text-cyan-400 animate-pulse", bgClass: "bg-cyan-500/20", borderClass: "border-cyan-500/50", onClick: () => setShowAutonomousManager(true) },
-          { id: 'memory', icon: Database, label: "الذاكرة والأسرار", value: memory.length, colorClass: "text-purple-500", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowMemoryModal(true) },
-          { id: 'contacts', icon: Phone, label: "جهات الاتصال (كاسبو)", colorClass: "text-emerald-500", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowContacts(true) },
-          { id: 'brands', icon: Briefcase, label: "إدارة البراندات", value: undefined, colorClass: "text-pink-500", bgClass: "bg-pink-500/10", borderClass: "border-pink-500/30", onClick: () => setShowBrandsModal(true) },
-          { id: 'live', icon: Mic, label: "الجلسة الحية المتصلة 🎙️", colorClass: "text-blue-500", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowLiveModal(true) },
-          { id: 'social', icon: Share2, label: "الشبكة العنكبوتية (Social Matrix)", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowSocialModal(true) },
-          { id: 'vault', icon: Shield, label: "مفاتيح API", colorClass: "text-red-500", bgClass: "bg-red-500/10", borderClass: "border-red-500/30", onClick: () => setShowApiVault(true) },
-          { id: 'sync', icon: Activity, label: "تزامن النظام", value: liveSync + '%', colorClass: "text-cyan-500", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30" },
-          { id: 'tafra', icon: Cpu, label: "تحديث الطفرة ⚡", colorClass: "text-purple-400 animate-pulse", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowTafraDashboard(true) },
+          { id: 'brands', icon: Briefcase, label: "غرفة قيادة براندي", value: undefined, colorClass: "text-cyan-400", bgClass: "bg-cyan-500/15", borderClass: "border-cyan-500/40", onClick: () => setShowBrandsModal(true) },
+          { id: 'live', icon: Mic, label: "المستشار الصوتي (جارفيس)", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowLiveModal(true) },
       ] : []),
       { id: 'identity', icon: identity.icon, label: identity.label, colorClass: identity.color, bgClass: identity.bg, borderClass: identity.border, onClick: () => setShowVault(true) },
       { id: 'affiliate', icon: user.phone === 'GUEST' ? Megaphone : DollarSign, label: user.phone === 'GUEST' ? "سوق للظل واربح" : "بيزنس العيلة (تسويق)", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: user.phone === 'GUEST' ? onStartAffiliate : onOpenAffiliate },
-      ...((user.tier === 'sovereign' || user.phone === 'TITO') ? [
-          { id: 'brains', icon: Network, label: "محرك العقول الشامل", colorClass: "text-indigo-400", bgClass: "bg-indigo-500/10", borderClass: "border-indigo-500/30", onClick: () => setShowBrainRouter(true) },
-          { id: 'reports', icon: ActivitySquare, label: "الوعي الزمني (التقارير)", colorClass: "text-green-400", bgClass: "bg-green-500/10", borderClass: "border-green-500/30", onClick: () => setShowProactiveReports(true) },
-      ] : [
-          { id: 'upgrade', icon: Crown, label: "انضم للنخبة (ترقية)", colorClass: "text-white", bgClass: "bg-white/10", borderClass: "border-white/30", onClick: onUpgrade }
-      ]),
-      { id: 'human_voice', icon: Mic, label: "نبرة صوت الظل البشري 🎙️", colorClass: "text-emerald-300", bgClass: "bg-emerald-500/20", borderClass: "border-emerald-400/50 shadow-[0_0_20px_rgba(16,185,129,0.35)]", onClick: () => setShowHumanVoiceModal(true) },
-      { id: 'voice', icon: voiceStatus === 'playing' ? Pause : Play, label: "رسالة التوجيه (صوت الظل)", colorClass: voiceStatus === 'playing' ? 'text-amber-500' : 'text-white/40', bgClass: voiceStatus === 'playing' ? 'bg-amber-500/20' : 'bg-white/5', borderClass: voiceStatus === 'playing' ? 'border-amber-500/50' : 'border-white/10', onClick: toggleVoice },
+      ...(user.tier !== 'sovereign' ? [
+          { id: 'upgrade', icon: Crown, label: "الباقة والترقية", colorClass: "text-amber-300", bgClass: "bg-amber-500/15", borderClass: "border-amber-500/35", onClick: onUpgrade }
+      ] : []),
+      { id: 'human_voice', icon: Mic, label: "نبرة صوت الظل 🎙️", colorClass: "text-emerald-300", bgClass: "bg-emerald-500/15", borderClass: "border-emerald-400/40", onClick: () => setShowHumanVoiceModal(true) },
       ...(isAdmin ? [
-          { id: 'override', icon: Terminal, label: "النظام الداخلي (Override)", colorClass: "text-red-500", bgClass: "bg-red-900/20", borderClass: "border-red-500/30", onClick: () => setPendingSecureAction('admin') },
-          { id: 'workspace', icon: FolderOpen, label: "مساحة العمل (Workspace)", colorClass: "text-purple-500", bgClass: "bg-purple-900/20", borderClass: "border-purple-500/30", onClick: onOpenWorkspace }
+          { id: 'override', icon: Terminal, label: "لوحة الحوكمة (Admin HQ)", colorClass: "text-red-400", bgClass: "bg-red-900/20", borderClass: "border-red-500/35", onClick: () => setPendingSecureAction('admin') },
+          { id: 'tafra', icon: Cpu, label: "مختبر الطفرة ⚡", colorClass: "text-purple-400", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowTafraDashboard(true) },
+          { id: 'brains', icon: Network, label: "توجيه العقول", colorClass: "text-indigo-400", bgClass: "bg-indigo-500/10", borderClass: "border-indigo-500/30", onClick: () => setShowBrainRouter(true) },
+          { id: 'vault', icon: Shield, label: "مفاتيح API", colorClass: "text-rose-400", bgClass: "bg-rose-500/10", borderClass: "border-rose-500/30", onClick: () => setShowApiVault(true) },
+          { id: 'workspace', icon: FolderOpen, label: "مساحة العمل", colorClass: "text-purple-400", bgClass: "bg-purple-900/20", borderClass: "border-purple-500/30", onClick: onOpenWorkspace }
       ] : []),
       { id: 'logout', icon: LogOut, label: "خروج مؤقت", colorClass: "text-gray-400", bgClass: "bg-white/5", borderClass: "border-white/10", onClick: onLogout }
   ];
@@ -648,7 +640,22 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
         )}
 
         {showBrandsModal && (
-            <BrandManagerModal user={user} onClose={() => setShowBrandsModal(false)} />
+            <div className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-5">
+                <div className="w-full max-w-5xl max-h-[92vh] bg-[#020614] border border-cyan-500/40 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-[0_0_60px_rgba(0,240,255,0.2)]">
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/10">
+                        <h3 className="text-sm sm:text-base font-black text-white">غرفة قيادة البراند الموحدة (4 أركان)</h3>
+                        <button onClick={() => setShowBrandsModal(false)} className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/25 text-white cursor-pointer">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                    <React.Suspense fallback={<div className="p-8 text-center text-cyan-300 text-xs">جاري تحميل غرفة قيادة البراند...</div>}>
+                        <JarvisBrandCommandHub
+                            brandId={(user as any).brandSlug || (user as any).brandId || 'auto-house'}
+                            isMasterAdmin={isAdmin}
+                        />
+                    </React.Suspense>
+                </div>
+            </div>
         )}
 
         {showWalletModal && (
@@ -684,7 +691,9 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
         )}
 
         {showTafraDashboard && (
-            <TafraDashboard onClose={() => setShowTafraDashboard(false)} />
+            <React.Suspense fallback={<div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center text-white text-xs">جاري تحميل مختبر الطفرة...</div>}>
+                <TafraDashboard onClose={() => setShowTafraDashboard(false)} />
+            </React.Suspense>
         )}
 
         {showAutonomousManager && (
