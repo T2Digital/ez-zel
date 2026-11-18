@@ -8,7 +8,7 @@ import { ArchitectureMap } from './ArchitectureMap';
 import { SovereignOSArchitectureHub } from './SovereignOSArchitectureHub';
 import { TenantFactoryView } from './TenantFactoryView';
 import { AdminLiveStudioPanel, AdminLiveAgentPanel } from './AdminLivePanels';
-import { AdminGovernanceRibbon } from './AdminGovernanceRibbon';
+import { AdminGovernanceRibbon, AdminMemberFilter } from './AdminGovernanceRibbon';
 
 interface Props {
     onLogout: () => void;
@@ -249,6 +249,16 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   const filteredProfiles = realProfiles.filter(p => (p.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || (p.email || '').toLowerCase().includes((searchQuery || '').toLowerCase()));
   const pendingRequests = realProfiles.filter(p => p.status === 'pending' && p.paymentProof);
   const activeMembers = filteredProfiles.filter(p => p.status === 'active');
+  const trialAndFreeMembers = filteredProfiles.filter(p => p.status !== 'active' && p.status !== 'pending');
+  const [memberFilter, setMemberFilter] = useState<AdminMemberFilter>('all');
+  const displayedMembers =
+    memberFilter === 'active'
+      ? activeMembers
+      : memberFilter === 'trial'
+        ? trialAndFreeMembers
+        : memberFilter === 'pending'
+          ? pendingRequests
+          : filteredProfiles;
   const marketersList = filteredProfiles.filter(p => p.affiliate && (p.affiliate.isMarketer || (p.affiliate.payoutHistory && p.affiliate.payoutHistory.length > 0) || p.affiliate.referralCode));
 
   return (
@@ -276,6 +286,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
               pendingRequestsCount={pendingRequests.length}
               activeMembersCount={activeMembers.length}
               marketersList={marketersList}
+              activeFilter={memberFilter}
+              onFilterMembers={setMemberFilter}
               onSelectView={(v) => setActiveView(v)}
               onOpenJarvis={() => { if (onNavigateTo) onNavigateTo('chat'); }}
             />
@@ -344,12 +356,37 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
         {/* ACTIVE MEMBERS */}
         {activeView === 'members' && (
             <>
-                <h3 className="text-sm font-black text-purple-500 mb-4 flex items-center gap-2"><Users className="w-4 h-4" /> الأعضاء النشطين ({activeMembers.length})</h3>
-                {activeMembers.map(u => (
-                    <div key={u.email} className="p-4 bg-[#111] rounded-2xl border border-white/5 flex justify-between items-center mb-2 hover:border-purple-500/30 transition-all">
+                <h3 className="text-sm font-black text-cyan-400 mb-4 flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span>
+                    {memberFilter === 'active'
+                      ? `العملاء النشطين (${displayedMembers.length})`
+                      : memberFilter === 'trial'
+                        ? `المجربين والمستخدمين (${displayedMembers.length})`
+                        : memberFilter === 'pending'
+                          ? `طلبات التفعيل (${displayedMembers.length})`
+                          : `جميع الحسابات المسجلة (${displayedMembers.length})`}
+                  </span>
+                </h3>
+                {displayedMembers.map(u => (
+                    <div key={u.email} className="p-4 bg-[#0b101d] rounded-2xl border border-white/10 flex justify-between items-center mb-2 hover:border-cyan-500/40 transition-all">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center font-bold text-purple-400">{u.name[0]}</div>
-                            <div><h4 className="font-bold text-sm">{u.name}</h4><p className="text-[10px] opacity-40">{u.email}</p></div>
+                            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center font-black text-cyan-300">{(u.name || 'U')[0]}</div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-sm text-white">{u.name}</h4>
+                                <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-bold ${
+                                  u.status === 'active'
+                                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                                    : u.status === 'pending'
+                                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                      : 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                                }`}>
+                                  {u.status === 'active' ? 'عميل نشط' : u.status === 'pending' ? 'بانتظار التفعيل' : 'تجربة / مستخدم'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] opacity-50">{u.email}</p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="flex gap-2 border-r border-white/10 pr-4">

@@ -1635,7 +1635,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400 shadow-[0_0_12px_#00f0ff]" />
               </span>
-              <span className="font-mono text-xs md:text-sm font-black text-cyan-300 tracking-wider">
+              <span className="hidden sm:inline font-mono text-xs md:text-sm font-black text-cyan-300 tracking-wider">
                 {currentTime || '20:43:37.41'}
               </span>
             </div>
@@ -1780,57 +1780,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           {/* ========================================================= */}
           <div className={`w-full flex flex-col items-center gap-1.5 py-0 mx-auto font-['Cairo'] ${activeDeckTab === 'obsidian_graph' && !activeDynamicWidget ? 'flex-1 min-h-0 justify-between' : 'shrink-0 justify-start'}`}>
             
-            {/* Triage Persona Switcher (Top of Center) - Protected for Master Admin */}
-            {isMasterAdmin ? (
-              <div className="bg-[#03091e]/90 border border-cyan-500/40 p-1.5 rounded-2xl flex items-center gap-1.5 shadow-[0_0_20px_rgba(6,182,212,0.2)] flex-wrap justify-center">
-                <span className="text-[9.5px] text-amber-400 font-bold px-2 py-0.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                  لوحة الماستر للمعاينة:
-                </span>
-                <button
-                  onClick={() => { setPersona('tito'); handlePlayPersonaGreeting('tito'); }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                    persona === 'tito'
-                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  👑 الماستر تيتو
-                </button>
-
-                <button
-                  onClick={() => { setPersona('client'); handlePlayPersonaGreeting('client'); }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                    persona === 'client'
-                      ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  🏢 عميل حالي
-                </button>
-
-                <button
-                  onClick={() => { setPersona('trial'); handlePlayPersonaGreeting('trial'); }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                    persona === 'trial'
-                      ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  ⏳ فترة التجربة (7 أيام)
-                </button>
-
-                <button
-                  onClick={() => { setPersona('visitor'); handlePlayPersonaGreeting('visitor'); }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
-                    persona === 'visitor'
-                      ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-black shadow-[0_0_15px_rgba(0,240,255,0.5)]'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                >
-                  🌐 وضع الزائر (0→1)
-                </button>
-              </div>
-            ) : (
+            {/* Visitor Mode Banner (Preview Switcher removed to keep Jarvis strictly tied to real authenticated account) */}
+            {persona === 'visitor' && (
               <div className="bg-[#03091e]/90 border border-cyan-500/40 px-4 py-1.5 rounded-2xl flex items-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.25)]">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
                 <span className="text-xs font-black text-cyan-300">

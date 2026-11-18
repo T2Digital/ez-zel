@@ -194,7 +194,9 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const cosY = Math.cos(ry);
       const sinY = Math.sin(ry);
 
-      const responsiveFovBase = Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
+      const responsiveFovBase = canvas.width < 520
+        ? Math.min(340, Math.max(250, canvas.width * 0.72))
+        : Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
       const fov = responsiveFovBase * zoomRef.current;
 
       // 3D Point Projection Helper
@@ -393,12 +395,17 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           ctx.textAlign = 'center';
           ctx.shadowColor = '#000000';
           ctx.shadowBlur = 5;
-          ctx.fillText(node.brand.name.slice(0, 18), node.px, node.py + radius + 14);
+          const rawName = String(node.brand.name || '').trim();
+          const safeName = /^\d{6,}$/.test(rawName)
+            ? (node.brand.slug || node.brand.businessType || 'براند نشط')
+            : rawName;
+          const clampedX = Math.max(54, Math.min(canvas.width - 54, node.px));
+          ctx.fillText(safeName.slice(0, 18), clampedX, node.py + radius + 14);
 
           // Subtitle badge
           ctx.font = '8px Cairo, sans-serif';
           ctx.fillStyle = node.isSelected ? '#00f0ff' : '#94a3b8';
-          ctx.fillText(node.brand.businessType || 'نشاط رسمي', node.px, node.py + radius + 25);
+          ctx.fillText(node.brand.businessType || 'نشاط رسمي', clampedX, node.py + radius + 25);
         }
 
         ctx.restore();
@@ -419,7 +426,9 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const sinX = Math.sin(rotationRef.current.x);
       const cosY = Math.cos(rotationRef.current.y);
       const sinY = Math.sin(rotationRef.current.y);
-      const responsiveFovBase = Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
+      const responsiveFovBase = canvas.width < 520
+        ? Math.min(340, Math.max(250, canvas.width * 0.72))
+        : Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
       const fov = responsiveFovBase * zoomRef.current;
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
