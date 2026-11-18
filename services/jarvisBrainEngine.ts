@@ -962,7 +962,7 @@ ${conversationMemoryDirective}`;
 
   const structuredContents = [
     ...(hasPriorTurns
-      ? history.slice(-8).map((h: any) => ({
+      ? history.slice(-20).map((h: any) => ({
           role: h.role === "user" ? "user" : "model",
           parts: [{ text: String(h.text || "") }],
         }))
@@ -2640,13 +2640,21 @@ ${conversationMemoryDirective}`;
         embedUrl: titoStudioApi.buildStudioEmbedUrl("generator", cid),
         actionExecuted: "ui.navigate",
       };
-    } else if (/افتح.*براند|انقل.*براند/i.test(message) && resolvedBrand?.id) {
+    } else if (/افتح|افتحلي|افتح لى|اعرض|وريني|شغل|انقل/i.test(message) && resolvedBrand?.id) {
       executedAction = {
         type: "SWITCH_BRAND",
-        brandId: resolvedBrand.id,
+        brandId: resolvedBrand.slug || resolvedBrand.id,
         brandName: resolvedBrand.name,
+        openHub: true,
       };
     }
+  } else if (persona === "client" && !executedAction && /افتح|اعرض|وريني|لوحة|براندي/i.test(message) && resolvedBrand?.id) {
+    executedAction = {
+      type: "SWITCH_BRAND",
+      brandId: resolvedBrand.slug || resolvedBrand.id,
+      brandName: resolvedBrand.name,
+      openHub: true,
+    };
   }
 
   // Detect existing business name mentioned by visitor to auto-sync onboarding card

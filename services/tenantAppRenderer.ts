@@ -1,4 +1,5 @@
 export type TenantAppTemplate = 'products_erp' | 'services_booking';
+import { resolveBrandAppAccessMode } from './saasPlansService';
 
 export function resolveBrandTemplate(brand: any): TenantAppTemplate {
   if (brand?.appTemplate === 'products_erp' || brand?.appTemplate === 'services_booking') {

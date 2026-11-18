@@ -225,7 +225,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
 
   app.post("/api/brand-hub/:idOrSlug/toggle-bot", async (req: Request, res: Response) => {
     try {
-      const { idOrSlug } = req.params;
+      const idOrSlug = String(req.params.idOrSlug || "");
       const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
       if (!canMutateBrand(req, brand, tenant)) {
         return res.status(403).json({ ok: false, error: "غير مصرح بتغيير حالة البوت لهذا البراند" });
@@ -242,7 +242,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
   // 1) GET Unified Brand Hub Payload (App + Social + REAL T2 AI Agent Status & Conversations + Firestore Config)
   app.get("/api/brand-hub/:idOrSlug", async (req: Request, res: Response) => {
     try {
-      const { idOrSlug } = req.params;
+      const idOrSlug = String(req.params.idOrSlug || "");
       const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
       if (!brand && !tenant) {
         return res.status(404).json({ ok: false, error: "Brand not found" });
@@ -332,7 +332,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
   // 2) POST Live Health Check (App URL Ping + Cloud ERP + Real T2 AI Agent Status & Social Platforms)
   app.post("/api/brand-hub/:idOrSlug/health-check", async (req: Request, res: Response) => {
     try {
-      const { idOrSlug } = req.params;
+      const idOrSlug = String(req.params.idOrSlug || "");
       const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
       if (!brand && !tenant) {
         return res.status(404).json({ ok: false, error: "Brand not found" });
@@ -418,7 +418,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
   // 3) POST Update Unified Brand Hub (Firestore + Cloud ERP + Push Training Directly to T2 AI Agent)
   app.post("/api/brand-hub/:idOrSlug/update", async (req: Request, res: Response) => {
     try {
-      const { idOrSlug } = req.params;
+      const idOrSlug = String(req.params.idOrSlug || "");
       const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
       if (!canMutateBrand(req, brand, tenant)) {
         return res.status(403).json({ ok: false, error: "غير مصرح بتعديل إعدادات هذا البراند — يلزم تسجيل الدخول كصاحب البراند أو الماستر." });
@@ -499,7 +499,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
   // 4) POST Send Manual Reply to a Real Customer Conversation via T2 AI Agent
   app.post("/api/brand-hub/:idOrSlug/reply", async (req: Request, res: Response) => {
     try {
-      const { idOrSlug } = req.params;
+      const idOrSlug = String(req.params.idOrSlug || "");
       const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
       if (!canMutateBrand(req, brand, tenant)) {
         return res.status(403).json({ ok: false, error: "غير مصرح بإرسال ردود باسم هذا البراند." });
@@ -520,7 +520,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
   // 5) POST Save Playground Correction Directly to T2 AI Agent
   app.post("/api/brand-hub/:idOrSlug/playground-correct", async (req: Request, res: Response) => {
     try {
-      const { idOrSlug } = req.params;
+      const idOrSlug = String(req.params.idOrSlug || "");
       const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
       if (!canMutateBrand(req, brand, tenant)) {
         return res.status(403).json({ ok: false, error: "غير مصرح بتدريب هذا البراند." });
@@ -546,7 +546,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
   // 6) POST Test Sales Agent Response with Brand's Training + Knowledge Base + Live Catalog
   app.post("/api/brand-hub/:idOrSlug/test-agent", async (req: Request, res: Response) => {
     try {
-      const { idOrSlug } = req.params;
+      const idOrSlug = String(req.params.idOrSlug || "");
       const { customerMessage } = req.body || {};
       if (!customerMessage || !String(customerMessage).trim()) {
         return res.status(400).json({ ok: false, error: "يرجى كتابة رسالة العميل للاختبار" });

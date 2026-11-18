@@ -214,6 +214,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   });
   const voiceChatEndRef = useRef<HTMLDivElement>(null);
+  const conversationHistoryRef = useRef(conversationHistory);
+  useEffect(() => {
+    conversationHistoryRef.current = conversationHistory;
+  }, [conversationHistory]);
 
   useEffect(() => {
     try {
@@ -1312,7 +1316,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         headers,
         body: JSON.stringify({
           message: commandText,
-          history: conversationHistory,
+          history: conversationHistoryRef.current,
           persona,
           selectedBrandId: currentSelectedBrand.id,
           recentChatSummary
@@ -1407,9 +1411,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           if (data.action.type === 'OPEN_INVOICE_PRINT' && data.action.url) {
             window.open(data.action.url, '_blank', 'noopener,noreferrer');
           }
-          if (data.action.type === 'SWITCH_BRAND' && data.action.brandId && persona !== 'visitor') {
-            handleSelectBrand(data.action.brandId);
-            handleInspectObsidianNode(data.action.brandId);
+          if ((data.action.type === 'SWITCH_BRAND' || data.action.type === 'OPEN_BRAND_HUB') && persona !== 'visitor') {
+            if (data.action.brandId) {
+              handleSelectBrand(data.action.brandId);
+              handleInspectObsidianNode(data.action.brandId);
+            }
+            setIsBrandSuperWindowOpen(false);
+            setActiveDeckTab('brand_hub');
           }
           if (data.action.type === 'STUDIO_EMBED_VIEW' && data.action.embedUrl && persona !== 'visitor') {
             setStudioEmbed({
