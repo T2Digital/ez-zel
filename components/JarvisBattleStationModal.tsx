@@ -28,6 +28,7 @@ import { JarvisArcReactorCore } from './jarvis/JarvisArcReactorCore';
 import { JarvisDynamicWidgetHUD } from './jarvis/JarvisDynamicWidgetHUD';
 import { JarvisConnectionModals } from './jarvis/JarvisConnectionModals';
 import { JarvisBrandCommandHub, resolveBrandWebUrl } from './jarvis/JarvisBrandCommandHub';
+const AdkVentureArchitectModal = React.lazy(() => import('./jarvis/AdkVentureArchitectModal').then(m => ({ default: m.AdkVentureArchitectModal })));
 import { jarvisVoiceSocket, VoiceSocketState } from '../services/jarvisVoiceSocketService';
 import { BRAND_VAULT } from '../services/brandVault';
 import { shadowDB } from '../services/dbService';
@@ -69,6 +70,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isAdkVentureOpen, setIsAdkVentureOpen] = useState(false);
+  const [adkPresetName, setAdkPresetName] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [isBrandSuperWindowOpen, setIsBrandSuperWindowOpen] = useState(false);
   const [graphFilter, setGraphFilter] = useState<'all' | 'studio' | 'agent' | 'ezzel'>('all');
@@ -1747,6 +1750,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </button>
 
                 <button
+                  onClick={() => setIsAdkVentureOpen(true)}
+                  title="مخترع المشاريع الذكي (ADK 0→1) — دراسة سوق وكتالوج وخطة 30 يوم"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border border-amber-400/45 font-bold text-xs transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>اختراع مشروع</span>
+                </button>
+
+                <button
                   onClick={() => setIsOnboardingOpen(true)}
                   className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs transition-all cursor-pointer"
                 >
@@ -3027,11 +3039,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       <ClientOnboardingModal
         isOpen={isOnboardingOpen}
         onClose={() => setIsOnboardingOpen(false)}
+        initialBusinessName={adkPresetName}
         onSuccess={() => {
           setIsOnboardingOpen(false);
+          setAdkPresetName('');
           playShadowVoice("تم تسجيل البراند بنجاح وإدراجه في الخزنة الموحدة للشركات، وربطه بمحرك المحتوى وتطبيق الأجنت!", 'male');
         }}
       />
+
+      {/* ADK Venture Architect (0 -> 1 Business Invention & Feasibility Study) */}
+      <React.Suspense fallback={null}>
+        <AdkVentureArchitectModal
+          isOpen={isAdkVentureOpen}
+          onClose={() => setIsAdkVentureOpen(false)}
+          onLaunchBusiness={(venture) => {
+            setAdkPresetName(venture?.recommendedBrandName || '');
+            setIsAdkVentureOpen(false);
+            setIsOnboardingOpen(true);
+            playShadowVoice(`رائع! تم اعتماد دراسة مشروع ${venture?.recommendedBrandName || 'البراند الجديد'} — أكمل خطوات التأسيس لإطلاق التطبيق فوراً.`, 'male');
+          }}
+        />
+      </React.Suspense>
 
             {/* AUXILIARY CONNECTION MODALS (Modular Component) */}
       <JarvisConnectionModals

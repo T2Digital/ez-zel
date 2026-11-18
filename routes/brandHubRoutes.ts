@@ -619,4 +619,104 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
       res.status(500).json({ ok: false, error: err?.message || "Agent test failed" });
     }
   });
+
+  // 7) ADK Venture Architect (0 -> 1 Business Invention & Feasibility Blueprint)
+  app.post("/api/adk/invent-business", async (req: Request, res: Response) => {
+    try {
+      const { niche, budgetEgp = 50000, city = "القاهرة والجيزة" } = req.body || {};
+      if (!niche || !String(niche).trim()) {
+        return res.status(400).json({ ok: false, error: "يرجى كتابة مجال أو فكرة المشروع" });
+      }
+
+      const ai = deps.getServerAI();
+      let blueprint: any = null;
+
+      if (ai) {
+        try {
+          const prompt = `أنت مهندس مشاريع وخبير اقتصاديات أسواق (ADK Venture Architect) في منظومة T2OS.
+المطلوب اختراع مشروع تجاري واقعي ومحكم بناءً على:
+- المجال/الفكرة: "${niche}"
+- رأس المال التقريبي: ${budgetEgp} ج.م
+- السوق المستهدف: ${city}
+
+أرجع JSON صالحاً فقط (بدون Markdown) بهذه البنية الدقيقة:
+{
+  "recommendedBrandName": "اسم عربي/عالمي قوي وجذاب للمشروع",
+  "alternativeNames": ["اسم بديل 1", "اسم بديل 2"],
+  "slogan": "سلوجان قصير بياع جداً",
+  "businessModel": "products_erp أو services_booking",
+  "marketStudy": {
+    "opportunity": "تحليل مختصر للفجوة السوقية والطلب في ${city}",
+    "targetAudience": "وصف دقيق للعميل المستهدف",
+    "usp": "الميزة التنافسية التي تجعل العميل يشتري منك"
+  },
+  "unitEconomics": {
+    "avgOrderValueEgp": 650,
+    "estimatedMarginPct": 38,
+    "breakEvenOrders": 28
+  },
+  "recommendedSaasPlan": "باقة 2,500 ج أو باقة 5,000 ج أو باقة 10,000 ج",
+  "starterCatalog": [
+    { "name": "منتج/خدمة 1", "numericPrice": 450, "description": "وصف مختصر مقنع" },
+    { "name": "منتج/خدمة 2", "numericPrice": 850, "description": "وصف مختصر مقنع" },
+    { "name": "منتج/خدمة 3", "numericPrice": 1200, "description": "وصف مختصر مقنع" },
+    { "name": "باقة VIP 4", "numericPrice": 1950, "description": "وصف مختصر مقنع" }
+  ],
+  "launchRoadmap30Days": [
+    { "week": "الأسبوع 1", "focus": "تأسيس الهوية والتطبيق وربط واتساب" },
+    { "week": "الأسبوع 2", "focus": "إطلاق محتوى تيتو ستوديو وبداية الحملات" },
+    { "week": "الأسبوع 3", "focus": "تحسين التحويل بالبكسل وإغلاق العملاء عبر الأجنت" },
+    { "week": "الأسبوع 4", "focus": "مراجعة العائد وتوسيع المنتجات الأعلى ربحاً" }
+  ]
+}`;
+          const aiRes = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+          });
+          const raw = String(aiRes?.text || "").replace(/```json|```/gi, "").trim();
+          const parsed = JSON.parse(raw);
+          if (parsed?.recommendedBrandName) blueprint = parsed;
+        } catch {}
+      }
+
+      if (!blueprint) {
+        const cleanNiche = String(niche).trim();
+        const isProduct = /متجر|بيع|منتج|قطع|ملابس|قهوة|عطور|أكل|سوبر/i.test(cleanNiche);
+        const budget = Number(budgetEgp) || 50000;
+        blueprint = {
+          recommendedBrandName: `${cleanNiche} برو`,
+          alternativeNames: [`نخبة ${cleanNiche}`, `${cleanNiche} هب`],
+          slogan: `جودة مضمونة وسرعة تنفيذ في ${city}`,
+          businessModel: isProduct ? "products_erp" : "services_booking",
+          marketStudy: {
+            opportunity: `طلب متنامٍ في ${city} على ${cleanNiche} مع سرعة رد عبر واتساب وطلب إلكتروني مباشر بدون تعقيد.`,
+            targetAudience: `العملاء الباحثون عن جودة موثوقة وسرعة توصيل/حجز داخل ${city}.`,
+            usp: `متجر وتطبيق فوري + متابعة واتساب 24/7 + ضمان جودة واضح.`,
+          },
+          unitEconomics: {
+            avgOrderValueEgp: isProduct ? 750 : 950,
+            estimatedMarginPct: isProduct ? 35 : 48,
+            breakEvenOrders: Math.max(15, Math.round(budget / 2500)),
+          },
+          recommendedSaasPlan: budget >= 50000 ? "باقة النمو 5,000 ج (تطبيق ويب كامل + 50% إعلانات)" : "باقة الانطلاق 2,500 ج (لاندنج بيدج + 50% إعلانات)",
+          starterCatalog: [
+            { name: `باقة البداية — ${cleanNiche}`, numericPrice: 450, description: "أفضل خيار لتجربة الخدمة أو المنتج لأول مرة" },
+            { name: `الباقة الأكثر طلباً — ${cleanNiche}`, numericPrice: 890, description: "توازن ممتاز بين السعر والقيمة المضافة" },
+            { name: `باقة التوفير العائلية`, numericPrice: 1450, description: "خصم 15% مع أولوية تنفيذ وتوصيل" },
+            { name: `إصدار VIP الشامل`, numericPrice: 2200, description: "تجربة متكاملة مع متابعة مستمرة وضمان ممتد" },
+          ],
+          launchRoadmap30Days: [
+            { week: "الأسبوع 1", focus: "تأسيس الهوية والتطبيق وربط كود واتساب Baileys" },
+            { week: "الأسبوع 2", focus: "نشر محتوى تيتو ستوديو وإطلاق أول حملة بـ 50% من الباقة" },
+            { week: "الأسبوع 3", focus: "تتبع البيكسل وتحسين ردود وكيل المبيعات على الأسئلة المتكررة" },
+            { week: "الأسبوع 4", focus: "مراجعة صافي الربح وتوسيع الكتالوج الأكثر مبيعاً" },
+          ],
+        };
+      }
+
+      res.json({ ok: true, blueprint });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || "ADK venture invention failed" });
+    }
+  });
 }
