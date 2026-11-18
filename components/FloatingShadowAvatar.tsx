@@ -492,7 +492,7 @@ export const FloatingShadowAvatar: React.FC<FloatingShadowAvatarProps> = React.m
             dragMomentum={false}
             onDragStart={() => { isDragging.current = true; }}
             onDragEnd={() => { setTimeout(() => { isDragging.current = false; }, 50); }}
-            style={{ touchAction: 'none', bottom: '130px', left: 'calc(50% - 36px)' }}
+            style={{ touchAction: 'none', bottom: '24px', left: '24px' }}
             initial={{ x: 0, y: 0 }}
             className="fixed z-[9999] flex flex-col items-center font-['Cairo'] no-canvas-pan"
         >

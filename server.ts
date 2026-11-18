@@ -3566,8 +3566,13 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.use('/assets', express.static(path.join(distPath, 'assets'), { maxAge: '1y', immutable: true }));
+    app.use('/assets', (_req, res) => {
+      res.status(404).type('text/plain').send('Asset not found');
+    });
+    app.use(express.static(distPath, { index: false }));
+    app.get('*all', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
