@@ -633,7 +633,7 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
       let aiPowered = false;
 
       if (ai) {
-        for (const modelName of ["gemini-3.8-flash", "gemini-omni-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+        for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"]) {
           try {
             const prompt = `أنت مهندس مشاريع وخبير اقتصاديات أسواق (ADK Venture Architect) في منظومة T2OS.
 المطلوب اختراع مشروع تجاري واقعي ومحكم بناءً على:
@@ -671,11 +671,14 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
     { "week": "الأسبوع 4", "focus": "مراجعة العائد وتوسيع المنتجات الأعلى ربحاً" }
   ]
 }`;
-            const aiRes = await ai.models.generateContent({
-              model: modelName,
-              contents: prompt,
-              config: { responseMimeType: "application/json", temperature: 0.45 },
-            });
+            const aiRes = await Promise.race([
+              ai.models.generateContent({
+                model: modelName,
+                contents: prompt,
+                config: { responseMimeType: "application/json", temperature: 0.45 },
+              }),
+              new Promise<never>((_, rej) => setTimeout(() => rej(new Error("ADK_TIMEOUT")), 8000)),
+            ]);
             const raw = String(aiRes?.text || "").replace(/```json|```/gi, "").trim();
             const parsed = JSON.parse(raw);
             if (parsed?.recommendedBrandName) {

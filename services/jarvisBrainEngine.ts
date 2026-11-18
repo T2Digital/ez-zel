@@ -1041,11 +1041,14 @@ ${conversationMemoryDirective}`;
       : jarvisBrainTools.filter((t) => SOVEREIGN_UNIFIED_TOOLS.has(t.name));
 
   const modelCascade = [
-    "gemini-3.8-flash",
-    "gemini-omni-flash-preview",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-omni-flash-preview",
   ];
+
+  const withModelTimeout = <T>(p: Promise<T>, ms = 9000): Promise<T> =>
+    Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`MODEL_TIMEOUT_${ms}ms`)), ms))]);
 
   let chat: any = null;
   let lastModelError = "";
@@ -1053,7 +1056,7 @@ ${conversationMemoryDirective}`;
   // 1. Try with Native Function Calling tools across active models
   for (const modelName of modelCascade) {
     try {
-      chat = await ai.models.generateContent({
+      chat = await withModelTimeout(ai.models.generateContent({
         model: modelName,
         contents: structuredContents,
         config: {
@@ -1061,7 +1064,7 @@ ${conversationMemoryDirective}`;
           tools: [{ functionDeclarations: activeTools }],
           temperature: 0.4,
         },
-      });
+      }), 9000);
       if (chat) break;
     } catch (err: any) {
       lastModelError = err?.message || String(err);
@@ -1073,14 +1076,14 @@ ${conversationMemoryDirective}`;
   if (!chat) {
     for (const modelName of modelCascade) {
       try {
-        chat = await ai.models.generateContent({
+        chat = await withModelTimeout(ai.models.generateContent({
           model: modelName,
           contents: structuredContents,
           config: {
             systemInstruction: { parts: [{ text: fullSystemInstruction }] },
             temperature: 0.5,
           },
-        });
+        }), 7000);
         if (chat) break;
       } catch (err: any) {
         lastModelError = err?.message || String(err);
