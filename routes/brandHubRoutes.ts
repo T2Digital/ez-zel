@@ -633,7 +633,7 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
       let aiPowered = false;
 
       if (ai) {
-        for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+        for (const modelName of ["gemini-3.8-flash", "gemini-omni-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
           try {
             const prompt = `أنت مهندس مشاريع وخبير اقتصاديات أسواق (ADK Venture Architect) في منظومة T2OS.
 المطلوب اختراع مشروع تجاري واقعي ومحكم بناءً على:

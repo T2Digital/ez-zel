@@ -1041,9 +1041,10 @@ ${conversationMemoryDirective}`;
       : jarvisBrainTools.filter((t) => SOVEREIGN_UNIFIED_TOOLS.has(t.name));
 
   const modelCascade = [
+    "gemini-3.8-flash",
+    "gemini-omni-flash-preview",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
   ];
 
   let chat: any = null;

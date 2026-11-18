@@ -1765,6 +1765,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
 
       const { resolveBrandPlanSpec, resolveBrandAppAccessMode } = await import("./services/saasPlansService");
+      const { resolveBrandTemplate } = await import("./services/tenantAppRenderer");
+      const { loadTenantErpState, normalizeSlugKey } = await import("./services/tenantErpStoreService");
       const effectiveBrandForPlan = {
           ...brand,
           planId: (paidSub as any)?.planId || (brand as any)?.planId || linkedClient?.plan,
@@ -1777,6 +1779,23 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           (brand as any).studioLandingPageUrl ||
           (brand as any).landingPageUrl ||
           `${studioBase}/landing/${encodeURIComponent(brand.slug || brand.id)}`;
+      const resolvedTemplate = resolveBrandTemplate(brand);
+      let resolvedCatalog = Array.isArray(brand.productsCatalog) ? brand.productsCatalog : [];
+      if (resolvedCatalog.length === 0) {
+          try {
+              const erpState = await loadTenantErpState(normalizeSlugKey(brand.slug || brand.id));
+              if (Array.isArray(erpState?.products) && erpState.products.length > 0) {
+                  resolvedCatalog = erpState.products.slice(0, 20).map((p: any) => ({
+                      id: p.id,
+                      name: p.name,
+                      numericPrice: p.sellingPrice || p.price || 0,
+                      price: p.sellingPrice ? `${p.sellingPrice} ج.م` : undefined,
+                      category: p.category || '',
+                      description: p.description || '',
+                  }));
+              }
+          } catch {}
+      }
 
       res.json({
           ok: true,
@@ -1793,8 +1812,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               whatsapp: wa,
               businessType: brand.businessType || "",
               directKnowledge: brand.directKnowledge || "",
-              appTemplate: brand.appTemplate || "services_booking",
-              productsCatalog: Array.isArray(brand.productsCatalog) ? brand.productsCatalog : [],
+              appTemplate: resolvedTemplate,
+              productsCatalog: resolvedCatalog,
               planId: planSpec.id,
               planNameAr: planSpec.nameAr,
               appAccessMode,
