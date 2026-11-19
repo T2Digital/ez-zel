@@ -4,8 +4,25 @@ import crypto from 'crypto';
 import { getTitoStudioAuthToken } from './titoStudioFirestoreBridge';
 
 const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || 't2-content-studio';
-const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+const FIRESTORE_SETTINGS_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/agency_settings`;
 const LOCAL_DIR = path.join(process.cwd(), 'data', 'tenant_erp_state');
+
+const SHARD_KEYS = {
+  catalog: ['products', 'broadcasts', 'discountCodes', 'storefrontSettings', 'settings', 'counters', 'appCustomization'] as const,
+  orders: ['orders', 'notifications'] as const,
+  sales: ['dailySales', 'treasury', 'expenses', 'dailyReview'] as const,
+  ops: [
+    'employees',
+    'advances',
+    'attendance',
+    'payroll',
+    'suppliers',
+    'purchaseOrders',
+    'payments',
+    'stockTransfers',
+    'users',
+  ] as const,
+};
 
 function ensureLocalDir() {
   if (!fs.existsSync(LOCAL_DIR)) fs.mkdirSync(LOCAL_DIR, { recursive: true });
@@ -35,6 +52,56 @@ export function verifyPasswordHash(password: string, hash: string, salt: string)
   }
 }
 
+async function readShardDoc(docId: string): Promise<Record<string, any> | null> {
+  try {
+    const token = await getTitoStudioAuthToken().catch(() => null);
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const res = await fetch(`${FIRESTORE_SETTINGS_URL}/${encodeURIComponent(docId)}`, {
+      headers,
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) return null;
+    const doc: any = await res.json();
+    const rawJson = doc?.fields?.stateJson?.stringValue;
+    if (!rawJson) return null;
+    const parsed = JSON.parse(rawJson);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeShardDoc(docId: string, key: string, shard: string, data: Record<string, any>): Promise<void> {
+  try {
+    const token = await getTitoStudioAuthToken().catch(() => null);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+    await fetch(`${FIRESTORE_SETTINGS_URL}/${encodeURIComponent(docId)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        fields: {
+          slug: { stringValue: key },
+          shard: { stringValue: shard },
+          updatedAt: { stringValue: new Date().toISOString() },
+          stateJson: { stringValue: JSON.stringify(data) }
+        }
+      }),
+      signal: AbortSignal.timeout(6000)
+    });
+  } catch {}
+}
+
+function pickShardKeys(source: Record<string, any>, keys: readonly string[]): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const k of keys) {
+    if (k in source && source[k] !== undefined) out[k] = source[k];
+  }
+  return out;
+}
+
 export async function loadTenantErpState(slug: string): Promise<Record<string, any>> {
   const key = normalizeSlugKey(slug);
   ensureLocalDir();
@@ -45,21 +112,27 @@ export async function loadTenantErpState(slug: string): Promise<Record<string, a
   }
 
   try {
-    const token = await getTitoStudioAuthToken();
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-    const res = await fetch(`${FIRESTORE_BASE_URL}/tenant_erp_state/${encodeURIComponent(key)}`, {
-      headers,
-      signal: AbortSignal.timeout(5000)
-    });
-    if (res.ok) {
-      const doc: any = await res.json();
-      const rawJson = doc?.fields?.stateJson?.stringValue;
-      if (rawJson) {
-        const parsed = JSON.parse(rawJson);
-        const merged = { ...localData, ...parsed };
+    const [catalog, orders, sales, ops, authRec] = await Promise.all([
+      readShardDoc(`t2_erp_${key}__catalog`),
+      readShardDoc(`t2_erp_${key}__orders`),
+      readShardDoc(`t2_erp_${key}__sales`),
+      readShardDoc(`t2_erp_${key}__ops`),
+      readShardDoc(`t2_erp_${key}__auth`),
+    ]);
+
+    if (catalog || orders || sales || ops || authRec) {
+      const merged: Record<string, any> = {
+        ...localData,
+        ...(catalog || {}),
+        ...(orders || {}),
+        ...(sales || {}),
+        ...(ops || {}),
+        ...(authRec ? { __auth: authRec } : {}),
+      };
+      try {
         fs.writeFileSync(localPath, JSON.stringify(merged, null, 2), 'utf8');
-        return merged;
-      }
+      } catch {}
+      return merged;
     }
   } catch {}
 
@@ -81,30 +154,34 @@ export async function saveTenantErpState(slug: string, partialState: Record<stri
     fs.writeFileSync(localPath, JSON.stringify(nextState, null, 2), 'utf8');
   } catch {}
 
-  try {
-    const token = await getTitoStudioAuthToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    };
-    await fetch(`${FIRESTORE_BASE_URL}/tenant_erp_state/${encodeURIComponent(key)}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({
-        fields: {
-          slug: { stringValue: key },
-          updatedAt: { stringValue: nextState.updatedAt },
-          stateJson: { stringValue: JSON.stringify(nextState) }
-        }
-      }),
-      signal: AbortSignal.timeout(6000)
-    });
-  } catch {}
+  const writes: Promise<void>[] = [];
+  for (const [shardName, shardKeyList] of Object.entries(SHARD_KEYS) as Array<[keyof typeof SHARD_KEYS, readonly string[]]>) {
+    const incomingForShard = pickShardKeys(partialState, shardKeyList);
+    if (Object.keys(incomingForShard).length > 0) {
+      const mergedShard = {
+        ...pickShardKeys(existing, shardKeyList),
+        ...incomingForShard,
+      };
+      writes.push(writeShardDoc(`t2_erp_${key}__${shardName}`, key, shardName, mergedShard));
+    }
+  }
+  if (partialState.__auth && typeof partialState.__auth === 'object') {
+    writes.push(writeShardDoc(`t2_erp_${key}__auth`, key, 'auth', partialState.__auth));
+  }
+
+  if (writes.length > 0) {
+    await Promise.all(writes);
+  }
 
   return nextState;
 }
 
 export async function getTenantPasswordRecord(slug: string): Promise<{ hash: string; salt: string; updatedAt?: string } | null> {
+  const key = normalizeSlugKey(slug);
+  const remoteAuth = await readShardDoc(`t2_erp_${key}__auth`);
+  if (remoteAuth?.hash && remoteAuth?.salt) {
+    return remoteAuth as { hash: string; salt: string; updatedAt?: string };
+  }
   const state = await loadTenantErpState(slug);
   if (state?.__auth?.hash && state?.__auth?.salt) {
     return state.__auth;
@@ -113,10 +190,11 @@ export async function getTenantPasswordRecord(slug: string): Promise<{ hash: str
 }
 
 export async function setTenantPasswordRecord(slug: string, newPassword: string): Promise<void> {
+  const key = normalizeSlugKey(slug);
   const { hash, salt } = hashPassword(newPassword);
-  await saveTenantErpState(slug, {
-    __auth: { hash, salt, updatedAt: new Date().toISOString() }
-  });
+  const authRec = { hash, salt, updatedAt: new Date().toISOString() };
+  await writeShardDoc(`t2_erp_${key}__auth`, key, 'auth', authRec);
+  await saveTenantErpState(slug, { __auth: authRec });
 }
 
 export async function sendZeroTouchOnboardingPacket(input: {
