@@ -431,3 +431,62 @@ export function verifyPaymobWebhookHmac(obj: any, receivedHmac?: string): boolea
         return false;
     }
 }
+
+export function isPaymobOrderAlreadyProcessed(orderId: string): boolean {
+    const target = String(orderId || '').trim();
+    if (!target) return false;
+    const list = readPaymobSubscriptions();
+    return list.some(
+        (r: any) =>
+            String(r?.orderId || '').trim() === target &&
+            String(r?.status || '').toLowerCase() === 'paid'
+    );
+}
+
+export function isSubscriptionActiveNow(sub: any): boolean {
+    if (!sub || String(sub?.status || '').toLowerCase() !== 'paid') return false;
+    if (sub.expiresAt) {
+        const expMs = new Date(sub.expiresAt).getTime();
+        if (!Number.isNaN(expMs) && expMs <= Date.now()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+export function markPaymobSubscriptionRefundedOrRevoked(
+    orderId: string,
+    brandId: string,
+    reason: string
+): boolean {
+    try {
+        const list = readPaymobSubscriptions();
+        const targetOrder = String(orderId || '').trim();
+        const targetBrand = String(brandId || '').trim().toLowerCase();
+        let changed = false;
+        const next = list.map((r: any) => {
+            const matchOrder = targetOrder && String(r?.orderId || '').trim() === targetOrder;
+            const matchBrandPaid =
+                !targetOrder &&
+                targetBrand &&
+                String(r?.brandId || '').trim().toLowerCase() === targetBrand &&
+                String(r?.status || '').toLowerCase() === 'paid';
+            if (matchOrder || matchBrandPaid) {
+                changed = true;
+                return {
+                    ...r,
+                    status: 'refunded',
+                    revokedAt: new Date().toISOString(),
+                    revokeReason: reason || 'paymob_refund_or_void',
+                };
+            }
+            return r;
+        });
+        if (changed) {
+            savePersistentJson('paymob_subscriptions', 'paymob_subscriptions.json', next);
+        }
+        return changed;
+    } catch {
+        return false;
+    }
+}

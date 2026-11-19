@@ -57,7 +57,7 @@ const VAULT_ROOT = path.join(process.cwd(), 'obsidian_vault');
 const BRANDS_JSON_PATH = path.join(process.cwd(), 'data', 'brands.json');
 const TENANTS_JSON_PATH = path.join(process.cwd(), 'data', 'tenants.json');
 const EZZEL_CLIENTS_PATH = path.join(process.cwd(), 'data', 'ezzel_clients.json');
-const T2_AGENT_BRANDS_PATH = 'D:/new new/t2-agent-nov-1-2026-5-06-22-pm/data/brands.json';
+const T2_AGENT_BRANDS_PATH = process.env.T2_AGENT_BRANDS_PATH || '';
 
 function ensureVaultDirectories() {
     const dirs = [
@@ -270,8 +270,8 @@ export function getUnifiedGrowthBrands(): any[] {
         } catch {}
     }
 
-    // 3. Overlay from T2-Agent brands.json if available
-    if (fs.existsSync(T2_AGENT_BRANDS_PATH)) {
+    // 3. Overlay from T2-Agent brands.json if configured via T2_AGENT_BRANDS_PATH
+    if (T2_AGENT_BRANDS_PATH && fs.existsSync(T2_AGENT_BRANDS_PATH)) {
         try {
             const agentBrands = JSON.parse(fs.readFileSync(T2_AGENT_BRANDS_PATH, 'utf8'));
             Object.values(agentBrands).forEach((ab: any) => {
@@ -692,9 +692,9 @@ export function persistBrandUpdateAcrossEcosystem(brandId: string, updates: Reco
         fs.writeFileSync(BRANDS_JSON_PATH, JSON.stringify(rawBrands, null, 2), 'utf8');
     } catch {}
 
-    // 2. Save to T2-Agent data/brands.json if accessible
+    // 2. Save to T2-Agent brands.json if explicitly configured via T2_AGENT_BRANDS_PATH
     try {
-        if (fs.existsSync(T2_AGENT_BRANDS_PATH)) {
+        if (T2_AGENT_BRANDS_PATH && fs.existsSync(T2_AGENT_BRANDS_PATH)) {
             const agentBrands = JSON.parse(fs.readFileSync(T2_AGENT_BRANDS_PATH, 'utf8'));
             agentBrands[cleanId] = {
                 ...(agentBrands[cleanId] || {}),

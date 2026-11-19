@@ -272,3 +272,29 @@ export function consumeBrandMonthlyQuota(
 
   return { allowed: true, status: getBrandMonthlyQuotaStatus(brand) };
 }
+
+/**
+ * Rolls back consumed monthly quota if content/image/video generation fails or times out.
+ */
+export function refundBrandMonthlyQuota(
+  brand: any,
+  kind: 'design' | 'video',
+  amount = 1
+): ReturnType<typeof getBrandMonthlyQuotaStatus> {
+  const status = getBrandMonthlyQuotaStatus(brand);
+  const count = Math.max(1, Number(amount) || 1);
+  const store = readPersistentJson<Record<string, BrandQuotaUsageRecord>>(QUOTA_STORE_FILE, {});
+  const key = `${status.brandId}:${status.monthKey}`;
+  const current = store[key];
+  if (current) {
+    if (kind === 'design') {
+      current.designsUsed = Math.max(0, (Number(current.designsUsed) || 0) - count);
+    } else {
+      current.videosUsed = Math.max(0, (Number(current.videosUsed) || 0) - count);
+    }
+    current.updatedAt = new Date().toISOString();
+    store[key] = current;
+    savePersistentJson('t2_brand_monthly_quotas', QUOTA_STORE_FILE, store);
+  }
+  return getBrandMonthlyQuotaStatus(brand);
+}

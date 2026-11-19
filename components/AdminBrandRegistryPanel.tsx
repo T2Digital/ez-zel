@@ -163,6 +163,29 @@ export const AdminBrandRegistryPanel: React.FC = () => {
     }
   };
 
+  const handleCopyPortalLink = async (brand: RegistryBrand) => {
+    setBusyId(brand.id);
+    setStatusMsg(null);
+    try {
+      const headers = await getAdminHeaders();
+      const targetSlug = encodeURIComponent(brand.slug || brand.canonicalId || brand.id);
+      const res = await fetch(`/api/admin/brands/${targetSlug}/portal-link`, { headers });
+      const data = await res.json();
+      if (data?.ok && data?.portalUrl) {
+        try {
+          await navigator.clipboard.writeText(data.portalUrl);
+        } catch {}
+        setStatusMsg({ type: 'ok', text: `تم نسخ رابط بوابة العميل الموثق لـ (${brand.name}): ${data.portalUrl}` });
+      } else {
+        setStatusMsg({ type: 'err', text: data?.error || 'تعذر إنشاء رابط البوابة الموثق' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: 'err', text: err?.message || 'خطأ في الاتصال' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const counts = {
     all: brands.length,
     active_client: brands.filter((b) => b.lifecycleStage === 'active_client').length,
@@ -383,14 +406,22 @@ export const AdminBrandRegistryPanel: React.FC = () => {
                       className="w-full bg-black/60 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-mono text-emerald-300"
                     />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      onClick={() => handleCopyPortalLink(b)}
+                      disabled={isBusy}
+                      className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl bg-purple-500/20 border border-purple-500/40 hover:bg-purple-500/30 text-purple-200 text-xs font-black disabled:opacity-50"
+                      title="نسخ رابط بوابة العميل الموقّع بتوكن دخول (الشوروم + الأيجنت + مدير الحساب)"
+                    >
+                      <span>🔗 رابط العميل</span>
+                    </button>
                     <button
                       onClick={() => handleSafeConnectAgent(b)}
                       disabled={isBusy}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 hover:bg-emerald-500/30 text-emerald-200 text-xs font-black disabled:opacity-50"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 hover:bg-emerald-500/30 text-emerald-200 text-xs font-black disabled:opacity-50"
                       title="فحص آمن بدون مسح أي بيانات حية + فتح صفحة مسح QR وميتا"
                     >
-                      <span>🤖 ربط واتساب وميتا بأمان</span>
+                      <span>🤖 واتساب وميتا</span>
                     </button>
                     <button
                       onClick={() => saveBrandEntry(b)}
@@ -398,7 +429,7 @@ export const AdminBrandRegistryPanel: React.FC = () => {
                       className="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black disabled:opacity-50"
                     >
                       <Save className="w-3.5 h-3.5" />
-                      <span>{isBusy ? 'حفظ...' : 'حفظ الربط'}</span>
+                      <span>{isBusy ? 'حفظ...' : 'حفظ'}</span>
                     </button>
                   </div>
                 </div>

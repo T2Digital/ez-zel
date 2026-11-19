@@ -128,9 +128,11 @@ export async function sendZeroTouchOnboardingPacket(input: {
   adminEmail: string;
   tempPassword: string;
 }): Promise<{ whatsappSent: boolean; telegramSent: boolean }> {
+  const { signClientPortalToken } = await import('../routes/tenantErpRoutes');
+  const portalToken = signClientPortalToken(input.brandId);
   const studioPortalUrl = `https://t2-studio.onrender.com/?view=clientPortal&brandId=${encodeURIComponent(input.brandId)}&embed=1`;
   const agentPortalUrl = `https://khedr-bot-agent.onrender.com/embed/crm?brandId=${encodeURIComponent(input.brandId)}&embed=1`;
-  const unifiedPortalUrl = `https://ez-zel.onrender.com/client/${encodeURIComponent(input.brandId)}`;
+  const unifiedPortalUrl = `https://ez-zel.onrender.com/client/${encodeURIComponent(input.brandId)}?token=${encodeURIComponent(portalToken)}`;
   const message =
     `🎉 *تم تفعيل وإطلاق منظومة ${input.brandName} بالكامل!*\n\n` +
     `🧭 *بوابة العميل الموحدة (الشوروم + الأيجنت + مدير الحساب):*\n${unifiedPortalUrl}\n\n` +

@@ -9,11 +9,17 @@ import {
   normalizeSlugKey,
 } from "../services/tenantErpStoreService";
 
-const getTenantAuthSecret = () =>
-  process.env.TENANT_AUTH_SECRET ||
-  process.env.ADMIN_API_SECRET ||
-  process.env.T2_REMOTE_API_KEY ||
-  "t2os-sovereign-tenant-secret-2026";
+const getTenantAuthSecret = () => {
+  const s = process.env.TENANT_AUTH_SECRET || process.env.ADMIN_API_SECRET || process.env.T2_REMOTE_API_KEY;
+  if (!s) {
+    if (!(globalThis as any).__t2TenantSecretWarned) {
+      (globalThis as any).__t2TenantSecretWarned = true;
+      console.warn("[Security] TENANT_AUTH_SECRET / ADMIN_API_SECRET is not set; using development fallback secret.");
+    }
+    return "t2os-sovereign-tenant-secret-2026";
+  }
+  return s;
+};
 
 export function signTenantToken(payloadObj: Record<string, any>): string {
   const payload = Buffer.from(JSON.stringify(payloadObj), "utf8").toString("base64url");
@@ -35,6 +41,20 @@ export function verifyTenantToken(token: string): Record<string, any> | null {
   } catch {
     return null;
   }
+}
+
+export function signClientPortalToken(slug: string, ttlDays = 30): string {
+  return signTenantToken({
+    scope: "client_portal",
+    slug: normalizeSlugKey(slug),
+    exp: Date.now() + ttlDays * 86400000,
+  });
+}
+
+export function verifyClientPortalToken(token: string, expectedSlug: string): boolean {
+  const data = verifyTenantToken(token);
+  if (!data || data.scope !== "client_portal" || !data.slug) return false;
+  return normalizeSlugKey(String(data.slug)) === normalizeSlugKey(String(expectedSlug || ""));
 }
 
 export function registerTenantErpRoutes(

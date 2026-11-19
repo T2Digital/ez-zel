@@ -19,6 +19,23 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
   const [planSpec, setPlanSpec] = useState<any>(null);
   const [appAccessMode, setAppAccessMode] = useState<'landing_page' | 'full_app'>('full_app');
   const [quota, setQuota] = useState<any>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'trial' | 'expired'>('active');
+  const [upgradeUrl, setUpgradeUrl] = useState<string>(`/pricing?brandId=${encodeURIComponent(slug)}`);
+  const [portalAuthValid, setPortalAuthValid] = useState<boolean>(true);
+  const [authBanner, setAuthBanner] = useState<string>('');
+  const [portalToken, setPortalToken] = useState<string>(() => {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('token') || '';
+      const storageKey = `t2_portal_token_${slug}`;
+      if (fromUrl) {
+        sessionStorage.setItem(storageKey, fromUrl);
+        return fromUrl;
+      }
+      return sessionStorage.getItem(storageKey) || '';
+    } catch {
+      return '';
+    }
+  });
   const [activeTab, setActiveTab] = useState<'showroom' | 'agent' | 'account_manager' | 'posts'>('showroom');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,7 +48,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
   const loadPortal = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/client-portal/${encodeURIComponent(slug)}`);
+      const headers: Record<string, string> = {};
+      if (portalToken) headers['x-portal-token'] = portalToken;
+      const res = await fetch(`/api/client-portal/${encodeURIComponent(slug)}`, { headers });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'تعذر تحميل بيانات البراند');
       setBrand(data.brand);
@@ -39,6 +58,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
       setPlanSpec(data.planSpec || null);
       setAppAccessMode(data.appAccessMode || 'full_app');
       setQuota(data.quota || null);
+      if (data.subscriptionStatus) setSubscriptionStatus(data.subscriptionStatus);
+      if (data.upgradeUrl) setUpgradeUrl(data.upgradeUrl);
+      setPortalAuthValid(data.portalAuthValid !== false);
       if (chatHistory.length === 0) {
         setChatHistory([
           {
@@ -60,18 +82,26 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
 
   const handleDecision = async (postIndex: number, decision: 'approved' | 'revision_requested') => {
     setBusyIdx(postIndex);
+    setAuthBanner('');
     try {
       const feedback =
         decision === 'revision_requested'
           ? window.prompt('اكتب التعديل المطلوب على هذا المنشور:') || 'يرجى تعديل الصياغة'
           : '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (portalToken) headers['x-portal-token'] = portalToken;
       const res = await fetch(`/api/client-portal/${encodeURIComponent(slug)}/approve-post`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postIndex, decision, feedback }),
+        headers,
+        body: JSON.stringify({ postIndex, decision, feedback, portalToken }),
       });
       const data = await res.json();
-      if (data.ok && data.brand) setBrand(data.brand);
+      if (res.status === 401 || res.status === 402) {
+        setAuthBanner(data?.error || 'الرابط غير موثق أو انتهت صلاحية الاشتراك.');
+        if (data?.upgradeUrl) setUpgradeUrl(data.upgradeUrl);
+      } else if (data.ok && data.brand) {
+        setBrand(data.brand);
+      }
     } finally {
       setBusyIdx(null);
     }
@@ -85,16 +115,24 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
     setChatHistory(nextHistory);
     setChatInput('');
     setChatSending(true);
+    setAuthBanner('');
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (portalToken) headers['x-portal-token'] = portalToken;
       const res = await fetch(`/api/client-portal/${encodeURIComponent(slug)}/account-manager`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           message: msg,
+          portalToken,
           history: nextHistory.map((m) => ({ role: m.role, content: m.text })),
         }),
       });
       const data = await res.json();
+      if (res.status === 401 || res.status === 402) {
+        setAuthBanner(data?.error || 'مطلوب رابط دخول موثق أو تجديد الاشتراك للتحدث مع مدير الحساب.');
+        if (data?.upgradeUrl) setUpgradeUrl(data.upgradeUrl);
+      }
       setChatHistory((prev) => [
         ...prev,
         {
@@ -190,6 +228,24 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
             </a>
           </div>
         </header>
+
+        {/* Subscription / Auth Banner */}
+        {(subscriptionStatus === 'expired' || authBanner || !portalAuthValid) && (
+          <div className="rounded-2xl bg-amber-500/15 border border-amber-400/40 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span className="font-bold text-amber-200">
+              {authBanner ||
+                (subscriptionStatus === 'expired'
+                  ? 'انتهت مدة التجربة/الاشتراك الحالية — يرجى تجديد الباقة لاستمرار النشر ومدير الحساب.'
+                  : 'هذا الرابط للمعاينة فقط — لإعتماد المنشورات أو محادثة مدير الحساب افتح الرابط الموثق (?token=...).')}
+            </span>
+            <a
+              href={upgradeUrl}
+              className="px-4 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black hover:bg-amber-300 transition"
+            >
+              ترقية وتفعيل الاشتراك الآن
+            </a>
+          </div>
+        )}
 
         {/* Navigation Tabs */}
         <div className="flex flex-wrap gap-2">

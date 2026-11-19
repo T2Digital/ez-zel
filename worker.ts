@@ -766,7 +766,23 @@ export async function processAgentTask(job: Job) {
                      }
                  } else if (call.name === 'adk_publish_social') {
                      const { platforms, content, media_urls, brand_id } = call.args as any;
-                     toolResult = `تم جدولة ونشر المحتوى بنجاح للبراند ${brand_id} على كل من: ${platforms.join(', ')}.`;
+                     const { enqueueSocialPublishJob, processDuePublishJobs } = await import('./services/publishQueueService');
+                     const job = enqueueSocialPublishJob({
+                         brandId: String(brand_id || 't2_digital_os'),
+                         platforms: Array.isArray(platforms) ? platforms : ['facebook'],
+                         content: String(content || ''),
+                         mediaUrls: Array.isArray(media_urls) ? media_urls : [],
+                     });
+                     const summary = await processDuePublishJobs();
+                     toolResult = JSON.stringify({
+                         ok: true,
+                         jobId: job.id,
+                         brandId: job.brandId,
+                         platforms: job.platforms,
+                         publishedNow: summary.published > 0,
+                         retryScheduled: summary.retryScheduled > 0,
+                         failed: summary.failed > 0,
+                     });
                  } else {
                      toolResult = "Tool not implemented.";
                  }

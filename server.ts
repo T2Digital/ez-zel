@@ -382,7 +382,7 @@ spawnWorker();
 
 async function startServer() {
   applyStoredEcosystemConfigOnBoot();
-  void hydrateCriticalStateOnBoot();
+  await hydrateCriticalStateOnBoot().catch((e: any) => console.warn("[Boot Hydration Warning]:", e?.message));
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
@@ -390,6 +390,10 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use("/api/", createRateLimiter(120, 60 * 1000, "api"));
   app.use("/api/gemini/", createRateLimiter(35, 60 * 1000, "gemini"));
+  app.use("/api/client-portal/", createRateLimiter(30, 60 * 1000, "client_portal"));
+  app.use("/api/studio/", createRateLimiter(25, 60 * 1000, "studio"));
+  app.use("/api/factory/provision", createRateLimiter(10, 60 * 1000, "factory_provision"));
+  app.use("/api/growth/track", createRateLimiter(60, 60 * 1000, "growth_track"));
   app.use(requireSovereignApiAccess);
   app.use('/uploads', express.static(path.join(process.cwd(), 'dist', 'uploads')));
   app.use('/media/generated', express.static(getGeneratedMediaDir()));
@@ -490,6 +494,63 @@ async function startServer() {
       }
   });
 
+  async function verifyClientPortalWriteAccess(req: express.Request, slug: string, brand?: any): Promise<{ ok: boolean; actor: 'admin' | 'client' }> {
+      const adminAuth = await verifyAdminRequest(req);
+      if (adminAuth.ok) return { ok: true, actor: 'admin' };
+      const authHeader = String(req.headers.authorization || "");
+      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+      const token = String(req.headers["x-portal-token"] || req.query.token || req.body?.portalToken || bearer || "").trim();
+      if (!token) return { ok: false, actor: 'client' };
+      const { verifyClientPortalToken } = await import("./routes/tenantErpRoutes");
+      const candidates = [slug, brand?.slug, brand?.id, brand?.canonicalId].filter(Boolean).map((s: any) => String(s));
+      const matched = candidates.some((c: string) => verifyClientPortalToken(token, c));
+      return { ok: matched, actor: 'client' };
+  }
+
+  function resolveBrandSubscriptionWindow(brand: any) {
+      const clients = getEzZelPersonalClients();
+      const linkedClient = clients.find(
+          (c: any) => c.linkedBrandId === brand.id || c.linkedBrandId === brand.slug
+      );
+      const subs = readPaymobSubscriptions();
+      const paidSub = subs.find(
+          (s: any) =>
+              (s.brandId === brand.id || s.brandId === brand.slug) &&
+              String(s.status || "").toLowerCase() === "paid"
+      );
+      const { isSubscriptionActiveNow } = require("./services/paymobService");
+      let subscriptionStatus: "active" | "trial" | "expired" = "active";
+      let trialEndsAt = linkedClient?.trialEndsAt || "";
+      let expiresAt = paidSub?.expiresAt || "";
+      if (paidSub) {
+          subscriptionStatus = isSubscriptionActiveNow(paidSub) ? "active" : "expired";
+      } else if (linkedClient?.status === "trial" && trialEndsAt) {
+          subscriptionStatus = new Date(trialEndsAt).getTime() <= Date.now() ? "expired" : "trial";
+      } else if ((brand as any).subscriptionStatus === "expired" || (brand as any).subscriptionStatus === "revoked") {
+          subscriptionStatus = "expired";
+      }
+      return { subscriptionStatus, trialEndsAt, expiresAt, paidSub, linkedClient };
+  }
+
+  app.get("/api/admin/brands/:slug/portal-link", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const slug = String(req.params.slug || "").trim();
+          const { signClientPortalToken } = await import("./routes/tenantErpRoutes");
+          const token = signClientPortalToken(slug);
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          res.json({
+              ok: true,
+              slug,
+              token,
+              portalUrl: `${publicBase}/client/${encodeURIComponent(slug)}?token=${encodeURIComponent(token)}`,
+          });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   app.get("/api/client-portal/:slug", async (req, res) => {
       try {
           const slug = String(req.params.slug || "").toLowerCase();
@@ -505,6 +566,8 @@ async function startServer() {
           const planSpec = resolveBrandPlanSpec(brand);
           const appAccessMode = resolveBrandAppAccessMode(brand);
           const quota = getBrandMonthlyQuotaStatus(brand);
+          const subWindow = resolveBrandSubscriptionWindow(brand);
+          const accessCheck = await verifyClientPortalWriteAccess(req, slug, brand);
           const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
           const agentBase = (process.env.T2_AGENT_URL || "https://khedr-bot-agent.onrender.com").replace(/\/+$/, "");
           const brandKey = String(brand.slug || brand.id);
@@ -514,12 +577,18 @@ async function startServer() {
           const storefrontUrl = appAccessMode === "landing_page"
               ? studioLandingPageUrl
               : (brand.vercelUrl || brand.deployedUrl || `/store/${encodeURIComponent(brandKey)}`);
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
           res.json({
               ok: true,
               brand,
               planSpec,
               appAccessMode,
               quota,
+              subscriptionStatus: subWindow.subscriptionStatus,
+              trialEndsAt: subWindow.trialEndsAt,
+              expiresAt: subWindow.expiresAt,
+              portalAuthValid: accessCheck.ok,
+              upgradeUrl: `${publicBase}/pricing?brandId=${encodeURIComponent(brandKey)}`,
               portals: {
                   studioShowroomUrl: `${studioBase}/?view=clientPortal&brandId=${encodeURIComponent(brandKey)}&clinicId=${encodeURIComponent(studioClinicKey)}&embed=1`,
                   agentDashboardUrl: `${agentBase}/embed/crm?brandId=${encodeURIComponent(agentBrandKey)}&embed=1`,
@@ -545,6 +614,22 @@ async function startServer() {
                   String(b.id || "").toLowerCase() === slug
           );
           if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+
+          const access = await verifyClientPortalWriteAccess(req, slug, brand);
+          if (!access.ok) {
+              return res.status(401).json({ ok: false, error: "غير مصرح — يرجى فتح بوابة العميل عبر الرابط الموثق (?token=...) للتحدث مع مدير الحساب." });
+          }
+          const subWindow = resolveBrandSubscriptionWindow(brand);
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          if (access.actor !== "admin" && subWindow.subscriptionStatus === "expired") {
+              return res.status(402).json({
+                  ok: false,
+                  expired: true,
+                  upgradeUrl: `${publicBase}/pricing?brandId=${encodeURIComponent(brand.slug || brand.id)}`,
+                  error: "انتهت صلاحية الاشتراك/التجربة — يرجى التجديد لتفعيل مدير الحساب الذكي.",
+              });
+          }
+
           const { runJarvisBrainConversation } = await import("./services/jarvisBrainEngine");
           const rawHistory = Array.isArray(req.body?.history) ? req.body.history : [];
           const normalizedHistory = rawHistory.map((m: any) => ({
@@ -579,6 +664,21 @@ async function startServer() {
                   String(b.id || "").toLowerCase() === slug
           );
           if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+
+          const access = await verifyClientPortalWriteAccess(req, slug, brand);
+          if (!access.ok) {
+              return res.status(401).json({ ok: false, error: "غير مصرح — يرجى فتح بوابة العميل عبر الرابط الموثق (?token=...) لاعتماد المنشورات." });
+          }
+          const subWindow = resolveBrandSubscriptionWindow(brand);
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          if (access.actor !== "admin" && subWindow.subscriptionStatus === "expired") {
+              return res.status(402).json({
+                  ok: false,
+                  expired: true,
+                  upgradeUrl: `${publicBase}/pricing?brandId=${encodeURIComponent(brand.slug || brand.id)}`,
+                  error: "انتهت صلاحية الاشتراك/التجربة — يرجى التجديد لاعتماد المنشورات.",
+              });
+          }
 
           const plan = Array.isArray(brand.weekContentPlan) ? [...brand.weekContentPlan] : [];
           const idx = Number(postIndex);
@@ -1036,23 +1136,141 @@ async function startServer() {
       }
   });
 
+  app.post("/api/growth/track", async (req, res) => {
+      try {
+          const { recordAttributionEvent } = await import("./services/growthAttributionService");
+          const stageRaw = String(req.body?.stage || "visit");
+          const stage = stageRaw === "trial_started" || stageRaw === "paid_converted" ? stageRaw : "visit";
+          const evt = recordAttributionEvent({
+              leadId: req.body?.leadId,
+              brandId: req.body?.brandId,
+              stage,
+              utmSource: req.body?.utmSource,
+              utmMedium: req.body?.utmMedium,
+              utmCampaign: req.body?.utmCampaign,
+              utmContent: req.body?.utmContent,
+              revenueEgp: Number(req.body?.revenueEgp || 0),
+          });
+          res.json({ ok: true, event: evt });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/admin/growth/roas", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { getCampaignRoasSummary } = await import("./services/growthAttributionService");
+          res.json({ ok: true, ...getCampaignRoasSummary() });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/admin/growth/ad-spend", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { recordCampaignAdSpend } = await import("./services/growthAttributionService");
+          const rec = recordCampaignAdSpend(String(req.body?.utmCampaign || "self_growth_default"), Number(req.body?.adSpendEgp || 0), req.body?.note);
+          res.json({ ok: true, spend: rec });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/admin/lifecycle/run-sweep", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { runLifecycleAndTokenSweep } = await import("./services/lifecycleAutomationService");
+          const dryRun = req.body?.dryRun !== false;
+          const summary = await runLifecycleAndTokenSweep({
+              dryRun,
+              notifier: async (phone, message) => {
+                  await dispatchOmnichannelMessage({ channel: "whatsapp", to: phone, message });
+              },
+          });
+          res.json({ ok: true, summary });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.get("/api/admin/publish-queue", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { listSocialPublishJobs } = await import("./services/publishQueueService");
+          const brandId = req.query.brandId ? String(req.query.brandId) : undefined;
+          res.json({ ok: true, jobs: listSocialPublishJobs(brandId) });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/admin/publish-queue/enqueue", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { enqueueSocialPublishJob } = await import("./services/publishQueueService");
+          const job = enqueueSocialPublishJob({
+              brandId: String(req.body?.brandId || "t2_digital_os"),
+              platforms: Array.isArray(req.body?.platforms) ? req.body.platforms : ["facebook"],
+              content: String(req.body?.content || ""),
+              mediaUrls: Array.isArray(req.body?.mediaUrls) ? req.body.mediaUrls : [],
+              scheduledFor: req.body?.scheduledFor,
+          });
+          res.json({ ok: true, job });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/admin/publish-queue/process", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { processDuePublishJobs } = await import("./services/publishQueueService");
+          const summary = await processDuePublishJobs();
+          res.json({ ok: true, summary });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
   app.post("/api/studio/generate-week-plan", async (req, res) => {
+      let brand: any = null;
+      let quotaDeducted = false;
       try {
           const { brandId } = req.body || {};
           const targetId = brandId || 'el_baraka';
-          const brand = getUnifiedGrowthBrands().find((b: any) => b.id === targetId || b.slug === targetId) || { id: targetId };
-          const { consumeBrandMonthlyQuota } = await import("./services/saasPlansService");
+          brand = getUnifiedGrowthBrands().find((b: any) => b.id === targetId || b.slug === targetId) || { id: targetId };
+          const { consumeBrandMonthlyQuota, refundBrandMonthlyQuota } = await import("./services/saasPlansService");
           const quotaCheck = consumeBrandMonthlyQuota(brand, 'design', 1);
           if (!quotaCheck.allowed) {
               return res.status(402).json({ success: false, quotaExceeded: true, quota: quotaCheck.status, error: quotaCheck.reason });
           }
-          const result = await executeRealJarvisEcosystemAction({
+          quotaDeducted = true;
+          const result: any = await executeRealJarvisEcosystemAction({
               actionType: 'GENERATE_WEEK_CONTENT_PLAN',
               brandId: targetId,
               payload: req.body || {}
           });
+          if (!result || result.success === false) {
+              const rolledBackStatus = refundBrandMonthlyQuota(brand, 'design', 1);
+              quotaDeducted = false;
+              return res.status(502).json({ ...(result || { success: false }), quotaRolledBack: true, quota: rolledBackStatus });
+          }
           res.json({ ...(result as any), quota: quotaCheck.status });
       } catch (err: any) {
+          if (quotaDeducted && brand) {
+              try {
+                  const { refundBrandMonthlyQuota } = await import("./services/saasPlansService");
+                  refundBrandMonthlyQuota(brand, 'design', 1);
+              } catch {}
+          }
           res.status(500).json({ success: false, error: err?.message });
       }
   });
@@ -1086,17 +1304,21 @@ async function startServer() {
   });
 
   app.post("/api/studio/custom-post", async (req, res) => {
+      let brand: any = null;
+      let kind: 'design' | 'video' = 'design';
+      let quotaDeducted = false;
       try {
           const { brandId, topic, scheduleTime, mediaFormat, publishNow } = req.body || {};
           const targetId = brandId || 'clean_master';
-          const brand = getUnifiedGrowthBrands().find((b: any) => b.id === targetId || b.slug === targetId) || { id: targetId };
-          const { consumeBrandMonthlyQuota } = await import("./services/saasPlansService");
-          const kind = String(mediaFormat || 'image').toLowerCase() === 'video' ? 'video' : 'design';
+          brand = getUnifiedGrowthBrands().find((b: any) => b.id === targetId || b.slug === targetId) || { id: targetId };
+          const { consumeBrandMonthlyQuota, refundBrandMonthlyQuota } = await import("./services/saasPlansService");
+          kind = String(mediaFormat || 'image').toLowerCase() === 'video' ? 'video' : 'design';
           const quotaCheck = consumeBrandMonthlyQuota(brand, kind, 1);
           if (!quotaCheck.allowed) {
               return res.status(402).json({ success: false, quotaExceeded: true, quota: quotaCheck.status, error: quotaCheck.reason });
           }
-          const result = await executeRealJarvisEcosystemAction({
+          quotaDeducted = true;
+          const result: any = await executeRealJarvisEcosystemAction({
               actionType: 'CREATE_CUSTOM_STUDIO_POST',
               brandId: targetId,
               data: {
@@ -1106,8 +1328,19 @@ async function startServer() {
                   publishNow: !!publishNow
               }
           });
+          if (!result || result.success === false) {
+              const rolledBackStatus = refundBrandMonthlyQuota(brand, kind, 1);
+              quotaDeducted = false;
+              return res.status(502).json({ ...(result || { success: false }), quotaRolledBack: true, quota: rolledBackStatus });
+          }
           res.json({ ...(result as any), quota: quotaCheck.status });
       } catch (err: any) {
+          if (quotaDeducted && brand) {
+              try {
+                  const { refundBrandMonthlyQuota } = await import("./services/saasPlansService");
+                  refundBrandMonthlyQuota(brand, kind, 1);
+              } catch {}
+          }
           res.status(500).json({ success: false, error: err?.message });
       }
   });
@@ -1249,10 +1482,35 @@ async function startServer() {
           if (!verifyPaymobWebhookHmac(obj, hmac)) {
               return res.status(403).json({ ok: false, error: "Invalid Paymob HMAC signature" });
           }
-          const isSuccess = obj.success === true || obj.success === "true" || req.body?.status === "paid";
           const brandId = String(obj.extras?.brandId || obj.payment_key_claims?.extra?.brandId || req.body?.brandId || 'el_baraka').trim();
           const rawPlanId = String(obj.extras?.planId || req.body?.planId || 'growth_5000').trim();
           const orderId = String(obj.order?.id || obj.special_reference || req.body?.orderId || `PM_${Date.now()}`);
+
+          const isRefundOrVoid =
+              obj.is_refunded === true ||
+              obj.is_refunded === "true" ||
+              obj.is_voided === true ||
+              obj.is_voided === "true";
+
+          if (isRefundOrVoid) {
+              const { markPaymobSubscriptionRefundedOrRevoked } = await import("./services/paymobService");
+              markPaymobSubscriptionRefundedOrRevoked(orderId, brandId, "paymob_refund_or_void");
+              try {
+                  const { upsertBrandRegistryEntry } = await import("./services/brandRegistryService");
+                  upsertBrandRegistryEntry(brandId, { lifecycleStage: "paused_archive" });
+              } catch {}
+              try {
+                  const { persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
+                  persistBrandUpdateAcrossEcosystem(brandId, { subscriptionStatus: "revoked", botPaused: true });
+              } catch {}
+              try {
+                  const { t2AgentApi } = await import("./services/t2AgentApiClient");
+                  await t2AgentApi.togglePauseBot(brandId).catch(() => {});
+              } catch {}
+              return res.json({ ok: true, refunded: true, brandId, orderId });
+          }
+
+          const isSuccess = obj.success === true || obj.success === "true" || req.body?.status === "paid";
           const rawAmountEgp = Number(obj.amount_cents ? Number(obj.amount_cents) / 100 : (obj.amountEgp || req.body?.amountEgp || 0));
 
           const { resolveBrandPlanSpec, resolveBrandAppAccessMode } = await import("./services/saasPlansService");
@@ -1260,7 +1518,28 @@ async function startServer() {
           const appAccessMode = resolveBrandAppAccessMode({ planId: planSpec.id, planAmount: rawAmountEgp || planSpec.priceEgp });
           const amountEgp = rawAmountEgp > 0 ? rawAmountEgp : planSpec.priceEgp;
 
+          const { signClientPortalToken } = await import("./routes/tenantErpRoutes");
+          const portalToken = signClientPortalToken(brandId);
+          const signedPortalUrl = `/client/${encodeURIComponent(brandId)}?token=${encodeURIComponent(portalToken)}`;
+
           if (isSuccess) {
+              const { isPaymobOrderAlreadyProcessed } = await import("./services/paymobService");
+              if (isPaymobOrderAlreadyProcessed(orderId)) {
+                  return res.json({
+                      ok: true,
+                      activated: true,
+                      idempotentDuplicate: true,
+                      brandId,
+                      orderId,
+                      planId: planSpec.id,
+                      appAccessMode,
+                      amountEgp,
+                      clientPortalUrl: signedPortalUrl,
+                  });
+              }
+
+              const nowIso = new Date().toISOString();
+              const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
               savePaymobSubscriptionRecord({
                   orderId,
                   brandId,
@@ -1269,7 +1548,8 @@ async function startServer() {
                   appAccessMode,
                   activationSource: 'paymob_verified',
                   status: 'paid',
-                  paidAt: new Date().toISOString()
+                  paidAt: nowIso,
+                  expiresAt,
               });
 
               try {
@@ -1289,13 +1569,26 @@ async function startServer() {
                       subscriptionStatus: 'active',
                       paymobOrderId: orderId,
                       activationSource: 'paymob_verified',
+                      expiresAt,
+                      botPaused: false,
+                  });
+              } catch {}
+
+              try {
+                  const { recordAttributionEvent } = await import("./services/growthAttributionService");
+                  recordAttributionEvent({
+                      leadId: brandId,
+                      brandId,
+                      stage: 'paid_converted',
+                      utmCampaign: String(obj.extras?.utmCampaign || req.body?.utmCampaign || 'direct'),
+                      revenueEgp: amountEgp,
                   });
               } catch {}
 
               await executeRealJarvisEcosystemAction({
                   actionType: 'ACTIVATE_PAYMOB_SUBSCRIPTION',
                   brandId,
-                  payload: { planId: planSpec.id, orderId, amountEgp, appAccessMode }
+                  payload: { planId: planSpec.id, orderId, amountEgp, appAccessMode, expiresAt }
               });
 
               // ONLY provision dedicated GitHub repo + Vercel full_app when plan unlocks full_app (never for starter_2500 landing_page)
@@ -1313,7 +1606,7 @@ async function startServer() {
               planId: planSpec.id,
               appAccessMode,
               amountEgp,
-              clientPortalUrl: `/client/${encodeURIComponent(brandId)}`,
+              clientPortalUrl: signedPortalUrl,
           });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });
@@ -1706,6 +1999,27 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           }
       } catch {}
   }, 45000);
+
+  // Hourly Lifecycle Sweep (trial/paid expiry enforcement, 48h reminders, and Social Token expiry alerts)
+  setInterval(async () => {
+      try {
+          const { runLifecycleAndTokenSweep } = await import("./services/lifecycleAutomationService");
+          await runLifecycleAndTokenSweep({
+              dryRun: false,
+              notifier: async (phone, message) => {
+                  await dispatchOmnichannelMessage({ channel: "whatsapp", to: phone, message });
+              },
+          });
+      } catch {}
+  }, 60 * 60 * 1000);
+
+  // 60-Second Async Social Publish Queue Worker (retries failed scheduled posts with exponential backoff)
+  setInterval(async () => {
+      try {
+          const { processDuePublishJobs } = await import("./services/publishQueueService");
+          await processDuePublishJobs();
+      } catch {}
+  }, 60 * 1000);
 
   // --- REAL-TIME LIVE TELEMETRY WEBHOOKS (META + BATTAH + CLEAN-MASTER + T2 AGENT WHATSAPP) --- //
   app.get("/api/webhooks/meta", (req, res) => {
@@ -2168,11 +2482,15 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       const clients = getEzZelPersonalClients();
       const linkedClient = clients.find((c: any) => c.linkedBrandId === brand.id);
       const subs = readPaymobSubscriptions();
-      const paidSub = subs.find((s: any) => (s.brandId === brand.id || s.brandId === brand.slug) && s.status === "paid");
+      const anyPaidSub = subs.find((s: any) => (s.brandId === brand.id || s.brandId === brand.slug) && s.status === "paid");
+      const { isSubscriptionActiveNow } = await import("./services/paymobService");
+      const paidSub = isSubscriptionActiveNow(anyPaidSub) ? anyPaidSub : null;
       let subscriptionStatus: "active" | "trial" | "expired" = "active";
       let trialEndsAt = linkedClient?.trialEndsAt || "";
       let trialDaysLeft: number | null = null;
-      if (!paidSub && linkedClient?.status === "trial" && trialEndsAt) {
+      if (anyPaidSub && !paidSub) {
+          subscriptionStatus = "expired";
+      } else if (!paidSub && linkedClient?.status === "trial" && trialEndsAt) {
           const endMs = new Date(trialEndsAt).getTime();
           const diffDays = Math.ceil((endMs - Date.now()) / 86400000);
           trialDaysLeft = Math.max(0, diffDays);
@@ -2634,18 +2952,21 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   });
 
   app.post("/api/gemini/generate-image", async (req, res) => {
+      let quotaBrand: any = null;
+      let quotaDeducted = false;
       try {
           const { prompt, aspectRatio = "1:1", imageSize = "1K", brandId } = req.body || {};
           if (!prompt) {
               return res.status(400).json({ error: "prompt is required" });
           }
           if (brandId) {
-              const brand = getUnifiedGrowthBrands().find((b: any) => b.id === brandId || b.slug === brandId) || { id: brandId };
+              quotaBrand = getUnifiedGrowthBrands().find((b: any) => b.id === brandId || b.slug === brandId) || { id: brandId };
               const { consumeBrandMonthlyQuota } = await import("./services/saasPlansService");
-              const quotaCheck = consumeBrandMonthlyQuota(brand, 'design', 1);
+              const quotaCheck = consumeBrandMonthlyQuota(quotaBrand, 'design', 1);
               if (!quotaCheck.allowed) {
                   return res.status(402).json({ error: quotaCheck.reason, quotaExceeded: true, quota: quotaCheck.status });
               }
+              quotaDeducted = true;
           }
           const ai = getServerAI();
 
@@ -2701,14 +3022,25 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               }
           } catch {}
 
+          if (quotaDeducted && quotaBrand) {
+              try {
+                  const { refundBrandMonthlyQuota } = await import("./services/saasPlansService");
+                  refundBrandMonthlyQuota(quotaBrand, 'design', 1);
+                  quotaDeducted = false;
+              } catch {}
+          }
           if (lastErr) throw lastErr;
-          return res.status(502).json({ error: "No image generated by Gemini or T2 Studio" });
-
-          return res.status(502).json({ error: "No image generated by Gemini" });
+          return res.status(502).json({ error: "No image generated by Gemini or T2 Studio", quotaRolledBack: true });
       } catch (err: any) {
+          if (quotaDeducted && quotaBrand) {
+              try {
+                  const { refundBrandMonthlyQuota } = await import("./services/saasPlansService");
+                  refundBrandMonthlyQuota(quotaBrand, 'design', 1);
+              } catch {}
+          }
           console.error("[Gemini Image Generation Error]:", err?.message || err);
           const status = typeof err?.status === 'number' && err.status >= 400 && err.status < 600 ? err.status : 500;
-          res.status(status).json({ error: err?.message || "Gemini image generation failed" });
+          res.status(status).json({ error: err?.message || "Gemini image generation failed", quotaRolledBack: quotaDeducted });
       }
   });
 
@@ -3096,7 +3428,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   // --- AUTONOMOUS DEVELOPER ENGINE & UNIFIED BRANDS VAULT API ---
   const TENANTS_FILE = getPersistentFilePath("tenants.json");
-  const T2_AGENT_BRANDS_FILE = path.join("D:/new new/t2-agent-nov-1-2026-5-06-22-pm", "data", "brands.json");
+  const T2_AGENT_BRANDS_FILE = process.env.T2_AGENT_BRANDS_PATH || "";
 
   function getPersistedTenants(): any[] {
       let localList: any[] = [];
@@ -3111,54 +3443,29 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           console.error("Failed reading tenants.json", e);
       }
 
-      // If local list is empty, initialize base tenants
+      // Synthesize cleanly from Unified Registry (never fake hardcoded revenue numbers)
       if (!Array.isArray(localList) || localList.length === 0) {
-          localList = [
-              {
-                  id: "tenant_cm_01",
-                  clientName: "كلين ماستر مصر",
-                  businessName: "كلين ماستر لخدمات النظافة والتعقيم",
-                  templateName: "خدمات عامة وحجوزات",
-                  templateId: "clean_master",
-                  liveUrl: "https://cleanmaster-eg.com",
-                  githubUrl: "https://github.com/T2Digital/cleanmaster-app",
-                  whatsappBot: "01013373634",
-                  status: "active",
-                  deployedAt: "2026-11-01",
-                  monthlyRevenue: 15000
-              },
-              {
-                  id: "tenant_cr_02",
-                  clientName: "شركة الخضر لتأجير السيارات",
-                  businessName: "شركة الخضر لتأجير السيارات الفارهة",
-                  templateName: "تطبيق تأجير السيارات الذكي",
-                  templateId: "car_rental",
-                  liveUrl: "https://khedr-cars.vercel.app",
-                  githubUrl: "https://github.com/T2Digital/khedr-bot",
-                  whatsappBot: "+966112973666",
-                  status: "active",
-                  deployedAt: "2026-11-04",
-                  monthlyRevenue: 28000
-              },
-              {
-                  id: "tenant_sg_03",
-                  clientName: "Sale Gates Egypt",
-                  businessName: "منصة Sale Gates للتسويق العقاري",
-                  templateName: "تطبيق العقارات ووكيل مستشارك الذكي",
-                  templateId: "real_estate",
-                  liveUrl: "https://sales-gate.vercel.app",
-                  githubUrl: "https://github.com/T2Digital/sales-gate",
-                  whatsappBot: "011111462944",
-                  status: "active",
-                  deployedAt: "2026-11-05",
-                  monthlyRevenue: 35000
-              }
-          ];
+          localList = getUnifiedGrowthBrands()
+              .filter((b: any) => b?.lifecycleStage !== "paused_archive")
+              .map((b: any) => ({
+                  id: b.canonicalId || b.id,
+                  slug: b.slug || b.id,
+                  clientName: b.name || b.id,
+                  businessName: b.name || b.id,
+                  templateName: b.businessType || "تطبيق موحد",
+                  templateId: b.appTemplate || "services_booking",
+                  liveUrl: b.vercelUrl || b.deployedUrl || b.liveUrl || `/app/${b.slug || b.id}`,
+                  githubUrl: b.githubUrl || "",
+                  whatsappBot: b.whatsapp || b.phone || "",
+                  status: b.status || "شغال",
+                  deployedAt: b.updatedAt ? String(b.updatedAt).split("T")[0] : new Date().toISOString().split("T")[0],
+                  monthlyRevenue: Number(b.planAmount || 0) || 0,
+              }));
       }
 
-      // --- SOVEREIGN TRI-BRIDGE SYNC: Hydrate from T2-Agent's brands.json ---
+      // Optional overlay if T2_AGENT_BRANDS_PATH env var is explicitly configured
       try {
-          if (fs.existsSync(T2_AGENT_BRANDS_FILE)) {
+          if (T2_AGENT_BRANDS_FILE && fs.existsSync(T2_AGENT_BRANDS_FILE)) {
               const rawAgentBrands = JSON.parse(fs.readFileSync(T2_AGENT_BRANDS_FILE, "utf8"));
               Object.values(rawAgentBrands).forEach((ab: any) => {
                   if (ab && ab.id) {
@@ -3172,10 +3479,10 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                               templateId: ab.id,
                               liveUrl: ab.websiteUrl || `https://${ab.id}.vercel.app`,
                               githubUrl: `https://github.com/T2Digital/${ab.id}`,
-                              whatsappBot: ab.notificationWhatsApp || ab.bookingReceiverPhone || "01000000000",
-                              status: "active",
-                              deployedAt: ab.createdAt ? ab.createdAt.split("T")[0] : "2026-11-01",
-                              monthlyRevenue: ab.financials?.totalRevenue || 12500
+                              whatsappBot: ab.notificationWhatsApp || ab.bookingReceiverPhone || "",
+                              status: ab.status || "متوقف",
+                              deployedAt: ab.createdAt ? ab.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+                              monthlyRevenue: Number(ab.financials?.totalRevenue || 0) || 0
                           });
                       }
                   }
@@ -3195,8 +3502,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           }
           savePersistentJson("tenants_vault", "tenants.json", list);
 
-          // Sync to T2-Agent brands.json as well for unified single source of truth
-          if (fs.existsSync(path.dirname(T2_AGENT_BRANDS_FILE))) {
+          if (T2_AGENT_BRANDS_FILE && fs.existsSync(path.dirname(T2_AGENT_BRANDS_FILE))) {
               let currentAgentBrands: any = {};
               if (fs.existsSync(T2_AGENT_BRANDS_FILE)) {
                   try { currentAgentBrands = JSON.parse(fs.readFileSync(T2_AGENT_BRANDS_FILE, "utf8")); } catch {}
@@ -3237,7 +3543,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           success: true,
           unifiedVault: true,
           syncStatus: "connected",
-          storageLocation: "D:\\new new\\t2-agent-nov-1-2026-5-06-22-pm\\data\\brands.json + D:\\ez-zel-\\data\\tenants.json",
+          storageLocation: "Firestore (system_state + clinics) + Persistent Disk",
           count: tenants.length,
           totalMRR,
           brands: tenants
@@ -3501,12 +3807,14 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   // --- REAL ECOSYSTEM FINANCIALS & UNIFIED CRM INTEGRATION ---
   function getRealEcosystemStats() {
       const localDataDir = path.join(process.cwd(), "data");
-      const extDataDir = "D:\\new new\\t2-agent-nov-1-2026-5-06-22-pm\\data";
+      const extDataDir = process.env.T2_AGENT_DATA_DIR || "";
       const resolveDataFile = (fileName: string) => {
           const p1 = path.join(localDataDir, fileName);
           if (fs.existsSync(p1)) return p1;
-          const p2 = path.join(extDataDir, fileName);
-          if (fs.existsSync(p2)) return p2;
+          if (extDataDir) {
+              const p2 = path.join(extDataDir, fileName);
+              if (fs.existsSync(p2)) return p2;
+          }
           return null;
       };
 
@@ -4148,8 +4456,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
     registerCommunicationsRoutes(app, autonomousQueue);
 
   // --- INTEGRATED APP MOUNT: T2-AGENT FULL PLATFORM DASHBOARDS ---
-  const t2AgentPublicPath = 'D:/new new/t2-agent-nov-1-2026-5-06-22-pm/public';
-  if (fs.existsSync(t2AgentPublicPath)) {
+  const t2AgentPublicPath = process.env.T2_AGENT_PUBLIC_DIR || '';
+  if (t2AgentPublicPath && fs.existsSync(t2AgentPublicPath)) {
       app.use('/apps/t2-agent', express.static(t2AgentPublicPath));
       app.get(['/admin/t2-agent', '/apps/t2-agent/admin'], (req, res) => {
           res.sendFile(path.join(t2AgentPublicPath, 'admin.html'));
