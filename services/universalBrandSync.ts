@@ -4,6 +4,7 @@ import { BRAND_VAULT } from './brandVault';
 import { broadcastGatewayEvent } from './microservicesGateway';
 import { upsertBrandToTitoStudioFirestore, readTitoStudioCacheSync, syncWeekPlanToTitoStudioFirestore } from './titoStudioFirestoreBridge';
 import { titoStudioApi } from './titoStudioApiClient';
+import { t2AgentApi } from './t2AgentApiClient';
 
 const EZ_ZEL_DATA_DIR = path.join(process.cwd(), 'data');
 const EZ_ZEL_BRANDS_FILE = path.join(EZ_ZEL_DATA_DIR, 'brands.json');
@@ -195,7 +196,7 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
         console.error('[Universal Sync] Error updating Ez-Zel tenants:', e?.message);
     }
 
-    // C. Sync to T2 Agent data/brands.json
+    // C. Sync to T2 Agent (Local disk if co-located + Cloud HTTP API / Firestore for Render production)
     let t2AgentOk = false;
     try {
         if (fs.existsSync(T2_AGENT_DATA_DIR) || fs.existsSync(path.dirname(T2_AGENT_BRANDS_FILE))) {
@@ -224,7 +225,41 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
             t2AgentOk = writeJsonSafe(T2_AGENT_BRANDS_FILE, agentBrands);
         }
     } catch (e: any) {
-        console.error('[Universal Sync] Error updating T2 Agent:', e?.message);
+        console.error('[Universal Sync] Error updating T2 Agent local disk:', e?.message);
+    }
+
+    // Cloud HTTP sync to T2 AI Agent (required on Render where Ez-Zel & Khedr-Bot are separate containers)
+    try {
+        await t2AgentApi.executeExternalAction(brandId, 'brands', 'update', {
+            name,
+            businessType,
+            websiteUrl: payload.websiteUrl || `https://${brandId}.t2-client.vercel.app`,
+            systemPrompt: defaultSystemPrompt,
+            knowledgeText: defaultSystemPrompt,
+            productsCatalog: catalog,
+            bookingReceiverPhone: cleanPhone,
+            notificationWhatsApp: cleanPhone,
+        });
+        t2AgentOk = true;
+    } catch {
+        try {
+            await t2AgentApi.executeExternalAction(brandId, 'brands', 'create', {
+                brandId,
+                name,
+                ownerEmail: payload.ownerEmail || 'ahm.atya@gmail.com',
+                businessType,
+                dialect: 'مصرية احترافية وسريعة',
+                websiteUrl: payload.websiteUrl || `https://${brandId}.t2-client.vercel.app`,
+                systemPrompt: defaultSystemPrompt,
+                knowledgeText: defaultSystemPrompt,
+                productsCatalog: catalog,
+                bookingReceiverPhone: cleanPhone,
+                notificationWhatsApp: cleanPhone,
+            });
+            t2AgentOk = true;
+        } catch (agentCloudErr: any) {
+            console.warn('[Universal Sync] T2 Agent Cloud HTTP sync warning:', agentCloudErr?.message);
+        }
     }
 
     // D. Sync to Tito Studio Firestore (/clinics + local cache)

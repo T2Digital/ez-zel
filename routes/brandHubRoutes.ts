@@ -479,15 +479,40 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
       // Push training / knowledge base straight to live T2 AI Agent so WhatsApp/Social replies use it immediately
       let agentSynced = false;
       if (agentConfig || knowledgeBase !== undefined) {
+        const composedSystemPrompt = [
+          knowledgeBase ?? next.knowledgeBase ?? "",
+          next.agentConfig?.tone ? `[نبرة الصوت]: ${next.agentConfig.tone}` : "",
+          next.agentConfig?.welcomeMessage ? `[رسالة الترحيب]: ${next.agentConfig.welcomeMessage}` : "",
+          next.agentConfig?.shippingPolicy ? `[سياسة الشحن]: ${next.agentConfig.shippingPolicy}` : "",
+          next.agentConfig?.forbiddenTopics ? `[محظورات الرد]: ${next.agentConfig.forbiddenTopics}` : "",
+          next.agentConfig?.faq ? `[الأسئلة الشائعة]: ${next.agentConfig.faq}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
         try {
-          await t2AgentApi.executeExternalAction(agentBrandId, "training", "update_brand_prompt", {
-            systemPrompt: knowledgeBase ?? next.knowledgeBase ?? "",
-            toneOfVoice: next.agentConfig?.tone || "",
-            shippingPolicy: next.agentConfig?.shippingPolicy || "",
-            forbiddenTopics: next.agentConfig?.forbiddenTopics || "",
+          await t2AgentApi.executeExternalAction(agentBrandId, "brands", "update", {
+            name: next.name || brand?.name || agentBrandId,
+            systemPrompt: composedSystemPrompt,
+            knowledgeText: composedSystemPrompt,
+            directKnowledge: knowledgeBase ?? next.knowledgeBase ?? "",
+            bookingReceiverPhone: next.phone || brand?.phone || "",
           });
           agentSynced = true;
-        } catch {}
+        } catch {
+          try {
+            await t2AgentApi.executeExternalAction(agentBrandId, "brands", "create", {
+              brandId: agentBrandId,
+              name: next.name || brand?.name || agentBrandId,
+              businessType: brand?.businessType || tenant?.templateName || "نشاط تجاري",
+              systemPrompt: composedSystemPrompt,
+              knowledgeText: composedSystemPrompt,
+              directKnowledge: knowledgeBase ?? next.knowledgeBase ?? "",
+              bookingReceiverPhone: next.phone || brand?.phone || "",
+            });
+            agentSynced = true;
+          } catch {}
+        }
       }
 
       res.json({ ok: true, firestoreSaved, erpSynced, agentSynced, updatedAt: next.updatedAt, config: next });

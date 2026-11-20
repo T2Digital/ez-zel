@@ -1,3 +1,5 @@
+import { readPersistentJson, savePersistentJson } from './persistentStorage';
+
 export type SaasPlanId =
   | 'trial_7d'
   | 'starter_2500'
@@ -45,9 +47,9 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     appAccessMode: 'landing_page',
     featuresAr: [
       '50% ميزانية إعلانات ممولة مُدارة (1,250 ج.م) + 50% سيستم وأجنت (1,250 ج.م)',
-      '8 تصميمات جرافيك احترافية شهرياً من تيتو ستوديو',
-      '2 فيديو إعلاني/ريلز شهرياً (Omni Flash / Veo)',
-      'لاندنج بيدج تحويلية احترافية من تيتو ستوديو مربوطة بواتساب والبيكسل',
+      '8 تصميمات سوشيال احترافية شهرياً عبر تيتو ستوديو',
+      '2 فيديو ريلز ترويجي شهرياً (Omni Flash)',
+      'صفحة هبوط بيعية تحويلية (Landing Page) احترافية من تيتو ستوديو مربوطة بواتساب والبيكسل',
       'وكيل مبيعات ذكي 24/7 (واتساب + سوشيال)',
     ],
   },
@@ -86,17 +88,17 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
   },
   enterprise_20000: {
     id: 'enterprise_20000',
-    nameAr: 'باقة المؤسسات (20,000 ج.م / شهر)',
-    priceEgp: 20000,
-    adsBudgetEgp: 10000,
-    systemFeeEgp: 10000,
+    nameAr: 'باقة المؤسسات والهيمنة VIP (25,000 ج.م / شهر)',
+    priceEgp: 25000,
+    adsBudgetEgp: 12500,
+    systemFeeEgp: 12500,
     monthlyDesignsQuota: 45,
-    monthlyVideosQuota: 12,
+    monthlyVideosQuota: 16,
     appAccessMode: 'full_app',
     featuresAr: [
-      '50% ميزانية إعلانات ممولة مُدارة (10,000 ج.م) + 50% سيستم وأجنت (10,000 ج.م)',
+      '50% ميزانية إعلانات ممولة مُدارة (12,500 ج.م) + 50% سيستم وأجنت (12,500 ج.م)',
       'تطبيق ويب متكامل + إدارة حملات متعددة المنصات',
-      '45 تصميم جرافيك شهرياً + 12 فيديو إعلاني',
+      '45 تصميم جرافيك شهرياً + 16 فيديو إعلاني',
       'تقارير أداء أسبوعية وأولوية دعم',
     ],
   },
@@ -111,7 +113,7 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     appAccessMode: 'full_app',
     featuresAr: [
       '50% ميزانية إعلانات ممولة مُدارة (25,000 ج.م) + 50% سيستم وأجنت (25,000 ج.م)',
-      'إنتاج محتوى وفيديو غير محدود حسب الطلب',
+      'إنتاج محتوى وفيديو غير محدود حسب الطلب — أولوية قصوى 60+ تصميم و32+ فيديو شهرياً',
       'تطبيق ويب مستقل بالكامل + دومين مخصص',
       'مدير حساب وفريق تشغيل مخصص',
     ],
@@ -154,10 +156,10 @@ export function resolveBrandPlanSpec(brand: any): SaasPlanSpec {
   if (rawPlan.includes('sovereign') || rawPlan.includes('50000') || amount >= (plans.sovereign_50000?.priceEgp || 50000)) {
     return plans.sovereign_50000 || SAAS_PLANS.sovereign_50000;
   }
-  if (rawPlan.includes('enterprise') || rawPlan.includes('25000') || rawPlan.includes('20000') || (amount >= (plans.enterprise_20000?.priceEgp || 20000) && amount < (plans.sovereign_50000?.priceEgp || 50000))) {
+  if (rawPlan.includes('enterprise') || rawPlan.includes('25000') || rawPlan.includes('20000') || (amount >= (plans.enterprise_20000?.priceEgp || 25000) && amount < (plans.sovereign_50000?.priceEgp || 50000))) {
     return plans.enterprise_20000 || SAAS_PLANS.enterprise_20000;
   }
-  if (rawPlan.includes('pro') || rawPlan.includes('10000') || (amount >= (plans.pro_10000?.priceEgp || 10000) && amount < (plans.enterprise_20000?.priceEgp || 20000))) {
+  if (rawPlan.includes('pro') || rawPlan.includes('10000') || (amount >= (plans.pro_10000?.priceEgp || 10000) && amount < (plans.enterprise_20000?.priceEgp || 25000))) {
     return plans.pro_10000 || SAAS_PLANS.pro_10000;
   }
   if (rawPlan.includes('growth') || rawPlan.includes('5000') || (amount >= (plans.growth_5000?.priceEgp || 5000) && amount < (plans.pro_10000?.priceEgp || 10000))) {
@@ -168,8 +170,6 @@ export function resolveBrandPlanSpec(brand: any): SaasPlanSpec {
   }
   return plans.trial_7d || SAAS_PLANS.trial_7d;
 }
-
-import { readPersistentJson, savePersistentJson } from './persistentStorage';
 
 export function resolveBrandAppAccessMode(brand: any): 'full_app' | 'landing_page' {
   if (brand?.forceFullApp === true) return 'full_app';

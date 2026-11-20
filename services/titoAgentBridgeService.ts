@@ -116,11 +116,36 @@ export async function getT2AgentPairingQr(brandId: string) {
 }
 
 export async function updateT2AgentInstructions(brandId: string, systemInstruction: string) {
-    broadcastGatewayEvent('AGENT_PROMPT_MUTATED', { brandId, systemInstruction });
+    let liveSynced = false;
+    try {
+        await t2AgentApi.executeExternalAction(brandId, 'brands', 'update', {
+            systemPrompt: systemInstruction,
+            knowledgeText: systemInstruction,
+        });
+        liveSynced = true;
+    } catch {
+        try {
+            const b = (BRAND_VAULT as Record<string, any>)[brandId];
+            await t2AgentApi.executeExternalAction(brandId, 'brands', 'create', {
+                brandId,
+                name: b?.name || brandId,
+                businessType: b?.category || 'خدمات وأعمال',
+                systemPrompt: systemInstruction,
+                knowledgeText: systemInstruction,
+            });
+            liveSynced = true;
+        } catch (err: any) {
+            console.warn(`[T2 Agent Bridge] Live instruction push skipped for ${brandId}:`, err?.message);
+        }
+    }
+    broadcastGatewayEvent('AGENT_PROMPT_MUTATED', { brandId, systemInstruction, liveSynced });
     return {
         success: true,
+        liveSynced,
         brandId,
-        message: 'تم بث تحديث التوجيهات للوكيل الذكي بنجاح.',
+        message: liveSynced
+            ? 'تم تحديث وتفعيل توجيهات الوكيل الذكي لحظياً على السيرفر الحي.'
+            : 'تم بث تحديث التوجيهات للوكيل الذكي محلياً (سيُزامن عند عودة اتصال السيرفر).',
     };
 }
 

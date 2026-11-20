@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { broadcastGatewayEvent } from './microservicesGateway';
 import { BRAND_VAULT } from './brandVault';
-import { writeJsonAtomic } from './persistentStorage';
+import { writeJsonAtomic, savePersistentJson, readPersistentJson } from './persistentStorage';
 
 export interface CampaignRequest {
     brandId: string;
@@ -211,7 +211,7 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
 }
 
 /**
- * BRIDGE 3: Autonomous Ad Campaign Launcher (Meta & TikTok Ads Funnel)
+ * BRIDGE 3: Autonomous Ad Campaign Launcher (Meta Marketing API + Studio Mirror + Persistent Storage)
  */
 export async function launchAdCampaign(params: CampaignRequest): Promise<any> {
     const brands = getBrandsMap();
@@ -220,10 +220,51 @@ export async function launchAdCampaign(params: CampaignRequest): Promise<any> {
         throw new Error(`البراند (${params.brandId}) غير موجود لإطلاق الحملة`);
     }
 
-    const campaignId = `camp_${Date.now()}`;
     const budget = params.budgetEgp || 2500;
-    const targetHook = params.customHook || brand.marketAnalysis?.irresistibleHooks?.[0] || `عرض حصري من ${brand.name} - احجز الآن بخصم 10%!`;
+    const dailyBudget = Math.round(budget / 7);
+    const targetHook = params.customHook || brand.marketAnalysis?.irresistibleHooks?.[0] || `عرض حصري من ${brand.name} - احجز الآن!`;
+    const targeting = {
+        country: 'EG',
+        locations: ['القاهرة الجديدة', 'الشيخ زايد', 'المعادي', 'الإسكندرية', 'المنصورة'],
+        ageRange: '24-55',
+        gender: 'ALL',
+        interests: [brand.businessType || 'خدمات وأعمال', 'تسوق إلكتروني']
+    };
+    const destination = `https://wa.me/2${(brand.phone || '01013373634').replace(/^0/, '')}?text=${encodeURIComponent(`أهلاً ${brand.name}، مهتم بالعرض الإعلاني وحابب أعرف التفاصيل`)}`;
 
+    let metaRes: any = null;
+    try {
+        const { createMetaAdCampaign } = await import('./metaAndCloudSuiteService');
+        metaRes = await createMetaAdCampaign({
+            token: brand.metaToken || brand.selectedMetaPage?.access_token || process.env.META_ACCESS_TOKEN,
+            adAccountId: brand.metaAdAccountId || process.env.META_AD_ACCOUNT_ID,
+            campaignName: `${brand.name} - ${params.objective || 'click_to_whatsapp'}`,
+            objective: params.objective === 'store_traffic' ? 'OUTCOME_TRAFFIC' : 'OUTCOME_LEADS',
+            dailyBudget,
+            currency: 'EGP',
+            targeting,
+            creative: { hook: targetHook, destination }
+        });
+    } catch (metaErr: any) {
+        console.warn('[Growth Engine] Meta Marketing API dispatch note:', metaErr?.message);
+    }
+
+    // Mirror campaign generation request to Tito Studio when online
+    let studioDispatched = false;
+    try {
+        const { titoStudioApi } = await import('./titoStudioApiClient');
+        await titoStudioApi.createMetaAdCampaign({
+            clinicId: brand.id,
+            campaignName: `${brand.name} - ${params.objective || 'click_to_whatsapp'}`,
+            dailyBudget,
+            objective: params.objective || 'click_to_whatsapp',
+            offerDetails: targetHook,
+            accessToken: brand.metaToken || process.env.META_ACCESS_TOKEN,
+        });
+        studioDispatched = true;
+    } catch {}
+
+    const campaignId = metaRes?.campaignId || `camp_${Date.now()}`;
     const campaignData = {
         id: campaignId,
         brandId: brand.id,
@@ -231,67 +272,126 @@ export async function launchAdCampaign(params: CampaignRequest): Promise<any> {
         platform: params.platform || 'meta',
         objective: params.objective || 'click_to_whatsapp',
         totalBudgetEgp: budget,
-        dailySpendEgp: Math.round(budget / 7),
+        dailySpendEgp: dailyBudget,
         durationDays: 7,
-        status: 'ACTIVE_LIVE',
+        status: metaRes?.liveMetaDispatched ? 'ACTIVE_LIVE' : 'PREPARED_PENDING_META_TOKEN',
+        liveMetaDispatched: Boolean(metaRes?.liveMetaDispatched),
+        studioDispatched,
+        metaCampaignId: metaRes?.campaignId,
         hook: targetHook,
-        targetAudience: {
-            country: 'EG',
-            locations: ['القاهرة الجديدة', 'الشيخ زايد', 'المعادي', 'الإسكندرية', 'المنصورة'],
-            ageRange: '24-55',
-            gender: 'ALL',
-            interests: [brand.businessType, 'خدمات متميزة', 'تسوق إلكتروني']
-        },
-        destination: `https://wa.me/2${(brand.phone || '01013373634').replace(/^0/, '')}?text=${encodeURIComponent(`أهلاً ${brand.name}، مهتم بالعرض الإعلاني وحابب أعرف التفاصيل`)}`,
+        targetAudience: targeting,
+        destination,
         estimatedReach: `${Math.round(budget * 8)} - ${Math.round(budget * 14)} عميل مهتم`,
         estimatedLeads: `${Math.round(budget / 45)} - ${Math.round(budget / 25)} محادثة واتساب مؤكدة`,
         createdAt: new Date().toISOString()
     };
 
-    // Save campaign into data/campaigns.json
     try {
-        const campPath = path.join(process.cwd(), 'data', 'campaigns.json');
-        let camps: any[] = [];
-        if (fs.existsSync(campPath)) {
-            camps = JSON.parse(fs.readFileSync(campPath, 'utf8'));
-        }
-        camps.unshift(campaignData);
-        fs.writeFileSync(campPath, JSON.stringify(camps.slice(0, 100), null, 2), 'utf8');
+        const camps = readPersistentJson<any[]>('campaigns.json', []);
+        const nextCamps = Array.isArray(camps) ? [campaignData, ...camps].slice(0, 100) : [campaignData];
+        savePersistentJson('t2_campaigns', 'campaigns.json', nextCamps);
     } catch (e: any) {
         console.warn('[Growth Engine] Error saving campaign:', e?.message);
     }
 
-    // Broadcast live event to Jarvis & dashboards
     broadcastGatewayEvent('CAMPAIGN_LAUNCHED', campaignData);
 
-    console.log(`🚀 [Growth Engine] Ad campaign launched for ${brand.name} with ${budget} EGP budget!`);
+    console.log(`🚀 [Growth Engine] Ad campaign dispatched for ${brand.name} (${campaignData.status}, ${budget} EGP)`);
     return campaignData;
 }
 
 /**
- * BRIDGE 4: Self-Optimizing Profit & Conversion Loop
+ * BRIDGE 4: Self-Optimizing Profit & Conversion Loop (Live Conversations + Gemini + Prompt Sync)
  */
 export async function runSelfOptimizingLoop(brandId: string): Promise<any> {
     const brands = getBrandsMap();
     const brand = brands[brandId];
     if (!brand) throw new Error('البراند غير موجود');
 
-    // Read bookings and performance
-    const bookingsPath = path.join(process.cwd(), 'data', 'bookings.json');
-    let bookings: any[] = [];
-    if (fs.existsSync(bookingsPath)) {
-        try { bookings = JSON.parse(fs.readFileSync(bookingsPath, 'utf8')); } catch {}
+    let brandConversations: any[] = [];
+    let brandBookings: any[] = [];
+    let dataSource: 't2_agent_live' | 'local_fallback' = 'local_fallback';
+
+    try {
+        const { t2AgentApi } = await import('./t2AgentApiClient');
+        const [convRes, bookRes] = await Promise.all([
+            t2AgentApi.getConversations(brandId).catch(() => null),
+            t2AgentApi.getBookings(brandId).catch(() => null),
+        ]);
+        const convList = Array.isArray(convRes?.conversations) ? convRes.conversations : Array.isArray(convRes) ? convRes : null;
+        const bookList = Array.isArray(bookRes?.bookings) ? bookRes.bookings : Array.isArray(bookRes) ? bookRes : null;
+        if (convList || bookList) {
+            brandConversations = convList || [];
+            brandBookings = bookList || [];
+            dataSource = 't2_agent_live';
+        }
+    } catch {}
+
+    if (dataSource === 'local_fallback') {
+        const localBookings = readPersistentJson<any[]>('bookings.json', []);
+        const localMsgs = readPersistentJson<any[]>('messages.json', []);
+        brandBookings = Array.isArray(localBookings) ? localBookings.filter((b: any) => b.brandId === brandId) : [];
+        brandConversations = Array.isArray(localMsgs) ? localMsgs.filter((m: any) => m.brandId === brandId) : [];
     }
-    const brandBookings = bookings.filter((b: any) => b.brandId === brandId);
+
+    const conversationsCount = brandConversations.length;
+    const bookingsCount = brandBookings.length;
+    const conversionPct = conversationsCount > 0 ? Number(((bookingsCount / conversationsCount) * 100).toFixed(1)) : 0;
+    const sampleCustomerQueries = brandConversations
+        .slice(0, 12)
+        .map((c: any) => c.lastMessage || c.lastUserMessage || c.message || c.text || '')
+        .filter(Boolean);
+
+    let topDetectedObjection = brand.marketAnalysis?.topObjections?.[0] || 'الاستفسار عن الأسعار ومواعيد التوصيل أو الحجز';
+    let newSuggestedHook = `اطلب الآن من ${brand.name} واستفد بسرعة التنفيذ والضمان المعتمد!`;
+    let newPromptRule = `[تحسين التحويل التلقائي]: أجب باختصار ووضوح على أسئلة السعر والشحن ثم اطلب الاسم والهاتف لتأكيد الطلب فوراً.`;
+
+    try {
+        const { createRotatingServerAI, loadGeminiKeysFromEnv } = await import('./geminiKeyPool');
+        if (loadGeminiKeysFromEnv().length > 0 && sampleCustomerQueries.length > 0) {
+            const ai = createRotatingServerAI();
+            const analysisPrompt = `حلل استفسارات عملاء "${brand.name}" (${brand.businessType || 'نشاط تجاري'}) التالية واقترح بصيغة JSON فقط بالحقول {topObjection, suggestedHook, promptRule}:\n${sampleCustomerQueries.join('\n- ')}`;
+            const resp: any = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: analysisPrompt,
+                config: { responseMimeType: 'application/json' }
+            });
+            const parsed = JSON.parse(resp?.text || '{}');
+            if (parsed.topObjection) topDetectedObjection = String(parsed.topObjection);
+            if (parsed.suggestedHook) newSuggestedHook = String(parsed.suggestedHook);
+            if (parsed.promptRule) newPromptRule = String(parsed.promptRule);
+        }
+    } catch {}
+
+    const basePrompt = String(brand.systemPrompt || `أنت المساعد الذكي الرسمي لـ ${brand.name}.`).trim();
+    const updatedSystemPrompt = `${basePrompt}\n${newPromptRule}`;
+
+    try {
+        const { persistBrandUpdateAcrossEcosystem } = await import('./obsidianVaultService');
+        persistBrandUpdateAcrossEcosystem(brand.id, {
+            systemPrompt: updatedSystemPrompt,
+            lastOptimizationHook: newSuggestedHook,
+        } as any);
+    } catch {}
+
+    let agentSynced = false;
+    try {
+        const { updateT2AgentInstructions } = await import('./titoAgentBridgeService');
+        const syncRes = await updateT2AgentInstructions(brand.id, updatedSystemPrompt);
+        agentSynced = Boolean(syncRes?.liveSynced);
+    } catch {}
 
     const optimizationResult = {
         brandId,
         brandName: brand.name,
-        analyzedBookingsCount: brandBookings.length,
-        currentConversionRate: brandBookings.length > 5 ? '24.5%' : '18.2%',
-        topDetectedObjection: brand.marketAnalysis?.topObjections?.[0] || 'الاستفسار عن موعد المعاينة وسداد العربون',
-        actionTaken: 'تم ضبط خطافات الرد السريع في برومبت الواتساب لتأكيد خصم الـ 10% فورياً عند دفع عربون الـ 25%',
-        newSuggestedHook: `وفر وقتك وفلوسك مع ${brand.name} - تأكيد فوري للحجز وضمان 100%!`,
+        dataSource,
+        analyzedConversationsCount: conversationsCount,
+        analyzedBookingsCount: bookingsCount,
+        currentConversionRate: conversationsCount > 0 ? `${conversionPct}%` : 'قيد جمع المحادثات الأولى',
+        topDetectedObjection,
+        actionTaken: newPromptRule,
+        newSuggestedHook,
+        agentSynced,
         optimizedAt: new Date().toISOString()
     };
 

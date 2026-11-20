@@ -151,8 +151,8 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   const tierPrices = {
     tier_2500: {
       name: 'الانطلاق (2,500 ج)',
-      monthly: { egp: '2,500', usd: '50', label: 'شهرياً • 1,250 ج إعلانات ممولة لنشاطك (نصف الباقة) + تطبيق PWA + وكيل واتساب الذكي', discount: '' },
-      yearly: { egp: '25,000', usd: '500', label: 'سنوياً • 12,500 ج إعلانات ممولة + تطبيق PWA', discount: 'وفر 5,000 ج.م' },
+      monthly: { egp: '2,500', usd: '50', label: 'شهرياً • 1,250 ج إعلانات ممولة لنشاطك (نصف الباقة) + صفحة هبوط بيعية + 8 تصاميم و2 فيديو + وكيل واتساب الذكي', discount: '' },
+      yearly: { egp: '25,000', usd: '500', label: 'سنوياً • 12,500 ج إعلانات ممولة + صفحة هبوط بيعية + وكيل واتساب الذكي', discount: 'وفر 5,000 ج.م' },
       adBadge: '1,250 ج.م إعلانات ممولة مباشرة',
       commissionMonthly: '250',
       commissionYearly: '2,500'
