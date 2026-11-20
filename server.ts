@@ -645,6 +645,7 @@ async function startServer() {
               skipTts: true,
               ai: getServerAI(),
               stats: getRealEcosystemStats(),
+              synthesizeSpeech: synthesizeSovereignSpeech,
           });
           res.json({ ok: true, replyText: result?.replyText || "تم استلام طلبك وجاري المتابعة على حساب براندك." });
       } catch (err: any) {
@@ -3671,7 +3672,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   slug,
                   name: businessName,
                   lifecycleStage: req.body?.selfGrowth ? "self_growth" : "trial",
-                  appTemplate: flagship.archetype === "products_erp" ? "products_erp" : "services_booking",
+                  appTemplate: flagship.archetype === "products_erp_pos" ? "products_erp" : "services_booking",
                   titoStudioClinicId: slug,
                   agentBrandId: slug,
               });
@@ -3683,7 +3684,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   const { provisionDedicatedRepoAndVercel } = await import("./services/dedicatedDeployService");
                   deployResult = await provisionDedicatedRepoAndVercel({
                       brandId: slug,
-                      appTemplate: flagship.archetype === 'products_erp' ? 'products_erp' : 'services_booking'
+                      appTemplate: flagship.archetype === 'products_erp_pos' ? 'products_erp' : 'services_booking'
                   });
                   if (deployResult?.dedicatedLiveUrl) {
                       newTenant.liveUrl = deployResult.dedicatedLiveUrl;

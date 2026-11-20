@@ -85,7 +85,7 @@ export async function processDuePublishJobs(
 
   const defaultExecutor = async (job: SocialPublishJob) => {
     const { titoStudioApi } = await import('./titoStudioApiClient');
-    const res: any = await titoStudioApi.executeAction('publish.multi_platform', {
+    const res: any = await titoStudioApi.executeRemoteAction('publish.multi_platform', job.brandId, {
       brandId: job.brandId,
       clinicId: job.brandId,
       platforms: job.platforms,

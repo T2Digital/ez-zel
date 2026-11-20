@@ -154,7 +154,7 @@ export function resolveBrandPlanSpec(brand: any): SaasPlanSpec {
   if (rawPlan.includes('sovereign') || rawPlan.includes('50000') || amount >= (plans.sovereign_50000?.priceEgp || 50000)) {
     return plans.sovereign_50000 || SAAS_PLANS.sovereign_50000;
   }
-  if (rawPlan.includes('enterprise') || rawPlan.includes('20000') || (amount >= (plans.enterprise_20000?.priceEgp || 20000) && amount < (plans.sovereign_50000?.priceEgp || 50000))) {
+  if (rawPlan.includes('enterprise') || rawPlan.includes('25000') || rawPlan.includes('20000') || (amount >= (plans.enterprise_20000?.priceEgp || 20000) && amount < (plans.sovereign_50000?.priceEgp || 50000))) {
     return plans.enterprise_20000 || SAAS_PLANS.enterprise_20000;
   }
   if (rawPlan.includes('pro') || rawPlan.includes('10000') || (amount >= (plans.pro_10000?.priceEgp || 10000) && amount < (plans.enterprise_20000?.priceEgp || 20000))) {

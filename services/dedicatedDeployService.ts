@@ -151,6 +151,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
           phone: brand.phone || '',
           whatsapp: (brand as any).whatsapp || brand.phone || '',
           adminEmail,
+          adminPin,
           primaryColor: (brand as any).primaryColor || '#06b6d4',
           accentColor: (brand as any).accentColor || '#0f172a',
           productsCatalog: Array.isArray((brand as any).productsCatalog) ? (brand as any).productsCatalog : [],
@@ -241,6 +242,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
     const envVarsToInject: Array<{ key: string; value: string }> = [
       { key: 'VITE_EZZEL_API_URL', value: process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com' },
       { key: 'VITE_TENANT_BRAND_ID', value: String(brand.slug || brand.id) },
+      { key: 'TENANT_ADMIN_PASSWORD', value: `T2@${adminPin}` },
       ...(rotatingGeminiKey
         ? [
             { key: 'VITE_GEMINI_API_KEY', value: rotatingGeminiKey },
