@@ -16,19 +16,28 @@ export interface TenantTemplate {
   sourceRepo?: string;
 }
 
-export type TemplateIdType = 
+export type FlagshipTemplateId =
   | 'battah'
   | 'clean_master'
+  | 'harb_restaurant'
+  | 'sehraya_cafe'
+  | 'master_key_car_rental'
+  | 'nile_real_estate';
+
+export type TemplateIdType =
+  | FlagshipTemplateId
   | 'products_erp_pos'
   | 'services_bookings_crm'
-  | 'car_rental' 
-  | 'real_estate' 
+  | 'restaurant'
+  | 'cafe'
+  | 'car_rental'
+  | 'real_estate'
   | 'ecommerce_store'
   | 'shipping_logistics'
   | 'medical_clinic';
 
 export interface FlagshipTemplateSpec {
-  templateKey: 'battah' | 'clean_master';
+  templateKey: FlagshipTemplateId;
   archetype: 'products_erp_pos' | 'services_bookings_crm';
   name: string;
   repoUrl: string;
@@ -43,7 +52,7 @@ export interface FlagshipTemplateSpec {
   };
 }
 
-export const FLAGSHIP_TEMPLATES: Record<'battah' | 'clean_master', FlagshipTemplateSpec> = {
+export const FLAGSHIP_TEMPLATES: Record<FlagshipTemplateId, FlagshipTemplateSpec> = {
   battah: {
     templateKey: 'battah',
     archetype: 'products_erp_pos',
@@ -62,7 +71,7 @@ export const FLAGSHIP_TEMPLATES: Record<'battah' | 'clean_master', FlagshipTempl
       customizableUiTheme: true,
       customizableInternalSettings: true,
       supportedRoles: ['Super Admin', 'Store Manager', 'Cashier (POS)', 'Inventory', 'Accountant'],
-      descriptionAr: 'مناسب لأي نشاط بيع منتجات (متاجر، قطع غيار، ملابس، سوبر ماركت، إلكترونيات، صيدليات، مطاعم) مع تغيير كامل للهوية والواجهة وإعدادات العمل الداخلية.'
+      descriptionAr: 'مناسب لأي نشاط بيع منتجات (متاجر، قطع غيار، ملابس، سوبر ماركت، إلكترونيات، صيدليات) مع تغيير كامل للهوية والواجهة وإعدادات العمل الداخلية.'
     }
   },
   clean_master: {
@@ -83,27 +92,168 @@ export const FLAGSHIP_TEMPLATES: Record<'battah' | 'clean_master', FlagshipTempl
       customizableUiTheme: true,
       customizableInternalSettings: true,
       supportedRoles: ['Super Admin', 'Operations Manager', 'Booking Coordinator', 'Technician/Doctor', 'Accountant'],
-      descriptionAr: 'مناسب لأي نشاط حجز خدمات (صيانة وتنظيف، عيادات ومراكز طبية، تأجير سيارات، سياحة، عقارات، صالونات تجميل، استشارات) مع تخصيص كامل للهوية وتقويم الحجوزات والماليات.'
+      descriptionAr: 'مناسب لأي نشاط حجز خدمات (صيانة وتنظيف، عيادات ومراكز طبية، صالونات تجميل، استشارات) مع تخصيص كامل للهوية وتقويم الحجوزات والماليات.'
+    }
+  },
+  harb_restaurant: {
+    templateKey: 'harb_restaurant',
+    archetype: 'products_erp_pos',
+    name: 'منظومة المطاعم والطلبات أونلاين (منيو + نادل ذكي AI + شاشة المطبخ + كاشير POS)',
+    repoUrl: 'https://github.com/T2Digital/harb-restaurant-template.git',
+    referenceLiveUrl: 'https://harb-restaurant.vercel.app',
+    modulesEnabled: [
+      'Digital Food Menu & Cart (منيو مطعم تفاعلي وسلة طلبات)',
+      'AI Waiter (نادل ذكي للرد على استفسارات المنيو واقتراح الوجبات)',
+      'Kitchen Display System (شاشة مطبخ لحظية KDS)',
+      'Driver Dispatch & POS (تتبع الطيارين ونقطة بيع كاشير)'
+    ],
+    adminCustomization: {
+      customizableIdentity: true,
+      customizableUiTheme: true,
+      customizableInternalSettings: true,
+      supportedRoles: ['Owner', 'Kitchen Chef', 'Cashier', 'Driver'],
+      descriptionAr: 'مصمم خصيصاً للمطاعم، المشويات، الوجبات السريعة، والسحابي مع شاشة مطبخ ودليفري.'
+    }
+  },
+  sehraya_cafe: {
+    templateKey: 'sehraya_cafe',
+    archetype: 'products_erp_pos',
+    name: 'منظومة الكافيهات وطلبات الطاولات QR (منيو طاولات + باريستا + كاشير وحسابات)',
+    repoUrl: 'https://github.com/T2Digital/sehraya-cafe-template.git',
+    referenceLiveUrl: 'https://sehraya-cafe.vercel.app',
+    modulesEnabled: [
+      'QR Table Ordering (/table/:tableNumber منيو وطلبات من الطاولة)',
+      'Captain & Barista Live Screen (شاشة الكابتن والباريستا والمطبخ)',
+      'Cashier & Shift Accounting (كاشير وتقفيل الورديات والحسابات)'
+    ],
+    adminCustomization: {
+      customizableIdentity: true,
+      customizableUiTheme: true,
+      customizableInternalSettings: true,
+      supportedRoles: ['Owner', 'Captain/Waiter', 'Barista', 'Cashier'],
+      descriptionAr: 'مخصص للكافيهات والمقاهي والحلويات مع نظام طلب من الطاولة عبر QR Code.'
+    }
+  },
+  master_key_car_rental: {
+    templateKey: 'master_key_car_rental',
+    archetype: 'services_bookings_crm',
+    name: 'منظومة تأجير السيارات والليموزين (أسطول + عقود رسمية مطبوعة + عدادات وصيانة)',
+    repoUrl: 'https://github.com/T2Digital/master-key-car-rental-template.git',
+    referenceLiveUrl: 'https://master-key-krm.vercel.app',
+    modulesEnabled: [
+      'Fleet & Booking Portal (معرض وحجز سيارات الأسطول أونلاين)',
+      'Printable Official Contracts (توليد وطباعة عقود الإيجار الرسمية)',
+      'Odometer, Maintenance & Financial Calculator (تتبع العدادات والصيانة والحاسبة المالية)'
+    ],
+    adminCustomization: {
+      customizableIdentity: true,
+      customizableUiTheme: true,
+      customizableInternalSettings: true,
+      supportedRoles: ['Fleet Admin', 'Booking Agent', 'Accountant'],
+      descriptionAr: 'نظام متكامل لشركات تأجير السيارات والليموزين والمعارض.'
+    }
+  },
+  nile_real_estate: {
+    templateKey: 'nile_real_estate',
+    archetype: 'services_bookings_crm',
+    name: 'منظومة العقارات والاستثمار العقاري (وحدات + مقارنة + حجز معاينة + مستشار AI)',
+    repoUrl: 'https://github.com/T2Digital/nile-real-estate-template.git',
+    referenceLiveUrl: 'https://nile-real-estate.vercel.app',
+    modulesEnabled: [
+      'Properties Catalog & Compare (عرض العقارات ومقارنة الوحدات والمفضلة)',
+      'Viewing Appointments Booking (حجز مواعيد المعاينة أونلاين)',
+      'AI Real Estate Advisor (مستشار عقاري ذكي 24/7)'
+    ],
+    adminCustomization: {
+      customizableIdentity: true,
+      customizableUiTheme: true,
+      customizableInternalSettings: true,
+      supportedRoles: ['Broker Admin', 'Sales Agent'],
+      descriptionAr: 'منصة شاملة لشركات التطوير والتسويق العقاري وعرض الفلل والشقق.'
     }
   }
 };
 
 /**
- * Classifies any commercial business activity or template choice into one of T2 Digital's 2 flagship repositories:
- * 1) https://github.com/T2Digital/battah.git -> Product Sales + ERP + CRM + POS
- * 2) https://github.com/T2Digital/clean-master-egy.git -> Service Bookings + Bookings Calendar + Financials
+ * Classifies any commercial business activity or template choice into one of T2 Digital's 6 Flagship Repositories.
  */
 export function resolveFlagshipTemplate(industryOrTemplate?: string): FlagshipTemplateSpec {
   const q = String(industryOrTemplate || '').toLowerCase();
+
+  if (
+    q.includes('sehraya') ||
+    q.includes('cafe') ||
+    q.includes('coffee') ||
+    q.includes('كافيه') ||
+    q.includes('كافية') ||
+    q.includes('قهوة') ||
+    q.includes('كوفي') ||
+    q.includes('مشروبات') ||
+    q.includes('باريستا') ||
+    q.includes('سهرايا')
+  ) {
+    return FLAGSHIP_TEMPLATES.sehraya_cafe;
+  }
+
+  if (
+    q.includes('harb') ||
+    q.includes('restaurant') ||
+    q.includes('food') ||
+    q.includes('grill') ||
+    q.includes('pizza') ||
+    q.includes('burger') ||
+    q.includes('مطعم') ||
+    q.includes('مشويات') ||
+    q.includes('مأكولات') ||
+    q.includes('وجبات') ||
+    q.includes('برجر') ||
+    q.includes('بيتزا') ||
+    q.includes('كشري') ||
+    q.includes('شاورما') ||
+    q.includes('فود')
+  ) {
+    return FLAGSHIP_TEMPLATES.harb_restaurant;
+  }
+
+  if (
+    q.includes('master_key') ||
+    q.includes('car_rental') ||
+    q.includes('car reent') ||
+    q.includes('limousine') ||
+    q.includes('rent a car') ||
+    q.includes('تأجير سيارات') ||
+    q.includes('ايجار سيارات') ||
+    q.includes('تأجير') ||
+    q.includes('ليموزين') ||
+    q.includes('أسطول')
+  ) {
+    return FLAGSHIP_TEMPLATES.master_key_car_rental;
+  }
+
+  if (
+    q.includes('nile_real_estate') ||
+    q.includes('real_estate') ||
+    q.includes('realestate') ||
+    q.includes('property') ||
+    q.includes('عقار') ||
+    q.includes('استثمار عقاري') ||
+    q.includes('تطوير عقاري') ||
+    q.includes('شقق') ||
+    q.includes('فلل') ||
+    q.includes('كمبوند')
+  ) {
+    return FLAGSHIP_TEMPLATES.nile_real_estate;
+  }
+
   const isProductBusiness =
     q.includes('battah') ||
     q.includes('products_erp_pos') ||
+    q.includes('products_erp') ||
     q.includes('ecommerce') ||
     q.includes('store') ||
     q.includes('retail') ||
     q.includes('pos') ||
     q.includes('erp') ||
-    q.includes('restaurant') ||
     q.includes('clothing') ||
     q.includes('shop') ||
     q.includes('منتج') ||
@@ -116,8 +266,6 @@ export function resolveFlagshipTemplate(industryOrTemplate?: string): FlagshipTe
     q.includes('سوبر ماركت') ||
     q.includes('سوبرماركت') ||
     q.includes('قطع غيار') ||
-    q.includes('مطعم') ||
-    q.includes('كافيه') ||
     q.includes('صيدلي') ||
     q.includes('موبايل') ||
     q.includes('إلكترون') ||
@@ -129,38 +277,10 @@ export function resolveFlagshipTemplate(industryOrTemplate?: string): FlagshipTe
     return FLAGSHIP_TEMPLATES.battah;
   }
 
-  // Default to Service Bookings & Calendar & Financials flagship unless clearly product/ERP/POS
-  if (
-    q.includes('clean') ||
-    q.includes('service') ||
-    q.includes('clinic') ||
-    q.includes('medical') ||
-    q.includes('dental') ||
-    q.includes('real_estate') ||
-    q.includes('car_rental') ||
-    q.includes('booking') ||
-    q.includes('خدم') ||
-    q.includes('حجز') ||
-    q.includes('تنظيف') ||
-    q.includes('صيان') ||
-    q.includes('عياد') ||
-    q.includes('طب') ||
-    q.includes('أسنان') ||
-    q.includes('عقار') ||
-    q.includes('سيار') ||
-    q.includes('تأجير') ||
-    q.includes('سياح') ||
-    q.includes('جميل') ||
-    q.includes('صالون') ||
-    q.includes('جيم') ||
-    q.includes('محاما') ||
-    q.includes('تدريب')
-  ) {
-    return FLAGSHIP_TEMPLATES.clean_master;
-  }
-
   return FLAGSHIP_TEMPLATES.clean_master;
 }
+
+export const selectFlagshipTemplate = resolveFlagshipTemplate;
 
 export interface TenantProvisionConfig {
   clientName: string;
@@ -224,24 +344,44 @@ export const TENANT_TEMPLATES: TenantTemplate[] = [
     sourceRepo: 'https://github.com/T2Digital/battah.git'
   },
   {
+    id: 'harb_restaurant',
+    name: 'منظومة المطاعم والطلبات أونلاين (منيو + نادل ذكي AI + شاشة مطبخ + كاشير)',
+    category: 'مطاعم ومأكولات ودليفري',
+    description: 'تطبيق مطاعم متكامل: منيو رقمي تفاعلي، نادل ذكي AI، شاشة مطبخ لحظية KDS، لوحة طيارين التوصيل، ونظام كاشير POS.',
+    icon: 'Utensils',
+    defaultPort: 3007,
+    features: ['منيو تفاعلي وسلة طلبات دليفري وتيك أواي', 'نادل ذكي AI للرد واقتراح الوجبات', 'شاشة المطبخ KDS ولوحة المناديب', 'ربط كامل مع WhatsApp AI Agent'],
+    sourceRepo: 'https://github.com/T2Digital/harb-restaurant-template.git'
+  },
+  {
+    id: 'sehraya_cafe',
+    name: 'منظومة الكافيهات وطلبات الطاولات QR (منيو طاولات + باريستا + كاشير)',
+    category: 'كافيهات ومشروبات وحلويات',
+    description: 'نظام كافيه متكامل مع طلب من الطاولة عبر QR Code (/table/:tableNumber)، شاشة الكابتن والباريستا، وحسابات الورديات.',
+    icon: 'Coffee',
+    defaultPort: 3008,
+    features: ['QR Code ذكي لطلبات كل طاولة مباشرة', 'شاشة الكابتن والباريستا والمطبخ اللحظية', 'تقفيل الورديات والحسابات والكاشير', 'هوية ديناميكية قابلة للتخصيص بالكامل'],
+    sourceRepo: 'https://github.com/T2Digital/sehraya-cafe-template.git'
+  },
+  {
     id: 'car_rental',
-    name: 'تطبيق تأجير السيارات والسياحة (مبني على Clean Master)',
+    name: 'منظومة تأجير السيارات والليموزين (أسطول + عقود رسمية + عدادات وصيانة)',
     category: 'سيارات ونقل VIP',
-    description: 'حجز الأسطول بتقويم الحجوزات والماليات وتخصيص الهوية وإعدادات العمل + تأكيد فوري عبر واتساب.',
+    description: 'حجز الأسطول، توليد وطباعة عقود الإيجار الرسمية، متابعة العدادات والصيانة والحاسبة المالية + تأكيد فوري عبر واتساب.',
     icon: 'Car',
     defaultPort: 3001,
-    features: ['كتالوج أسطول السيارات', 'تقويم الحجوزات اليومي والشهري والماليات', 'دفع العربون الإلكتروني', 'تأكيد الحجز التلقائي عبر T2 Agent'],
-    sourceRepo: 'https://github.com/T2Digital/clean-master-egy.git'
+    features: ['كتالوج أسطول السيارات وبوابة الحجز الذكية', 'توليد وطباعة عقود الإيجار الرسمية', 'متابعة العدادات والصيانة والفواتير', 'تأكيد الحجز التلقائي عبر T2 Agent'],
+    sourceRepo: 'https://github.com/T2Digital/master-key-car-rental-template.git'
   },
   {
     id: 'real_estate',
-    name: 'تطبيق العقارات وحجز المعاينات (مبني على Clean Master)',
+    name: 'منظومة العقارات وحجز المعاينات (وحدات + مقارنة + مستشار عقاري AI)',
     category: 'ريل إستيت واستثمار',
-    description: 'معاينة الوحدات، تقويم مواعيد المعاينات، الماليات والـ CRM، ومستشار عقاري ذكي بيكلم العميل 24/7.',
+    description: 'عرض الوحدات العقارية، مقارنة الوحدات والمفضلة، حجز مواعيد المعاينات، ومستشار عقاري ذكي بيكلم العميل 24/7.',
     icon: 'Building2',
     defaultPort: 3002,
-    features: ['مستشارك العقاري الذكي 24/7', 'تقويم حجز معاينات الفلل والشقق', 'حاسبة الأقساط والماليات', 'تخصيص كامل للهوية واللوحة'],
-    sourceRepo: 'https://github.com/T2Digital/clean-master-egy.git'
+    features: ['مستشارك العقاري الذكي 24/7', 'مقارنة الوحدات وحجز المعاينات أونلاين', 'لوحة إدارة العقارات والطلبات', 'تخصيص كامل للهوية واللوحة'],
+    sourceRepo: 'https://github.com/T2Digital/nile-real-estate-template.git'
   },
   {
     id: 'medical_clinic',

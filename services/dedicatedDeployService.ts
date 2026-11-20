@@ -1,5 +1,6 @@
 import { getUnifiedGrowthBrands, persistBrandUpdateAcrossEcosystem } from './obsidianVaultService';
 import { getNextHealthyGeminiKey } from './geminiKeyPool';
+import { FlagshipTemplateId, resolveFlagshipTemplate } from './tenantFactory';
 
 export interface DedicatedDeployResult {
   ok: boolean;
@@ -12,13 +13,23 @@ export interface DedicatedDeployResult {
   message: string;
 }
 
+const TEMPLATE_REPO_MAP: Record<FlagshipTemplateId, string> = {
+  battah: process.env.GITHUB_TEMPLATE_BATTAH || 'battah',
+  clean_master: process.env.GITHUB_TEMPLATE_CLEAN_MASTER || 'clean-master-egy',
+  harb_restaurant: process.env.GITHUB_TEMPLATE_HARB || 'harb-restaurant-template',
+  sehraya_cafe: process.env.GITHUB_TEMPLATE_SEHRAYA || 'sehraya-cafe-template',
+  master_key_car_rental: process.env.GITHUB_TEMPLATE_CAR_RENTAL || 'master-key-car-rental-template',
+  nile_real_estate: process.env.GITHUB_TEMPLATE_REAL_ESTATE || 'nile-real-estate-template',
+};
+
 /**
  * Provisions an independent GitHub repository and Vercel deployment
  * for paid subscribers using T2 Digital's platform GITHUB_TOKEN and VERCEL_TOKEN.
  */
 export async function provisionDedicatedRepoAndVercel(input: {
   brandId: string;
-  appTemplate?: 'products_erp' | 'services_booking';
+  appTemplate?: 'products_erp' | 'services_booking' | FlagshipTemplateId | string;
+  templateId?: FlagshipTemplateId;
 }): Promise<DedicatedDeployResult> {
   const brands = getUnifiedGrowthBrands();
   const needle = String(input.brandId || '').trim().toLowerCase();
@@ -77,10 +88,19 @@ export async function provisionDedicatedRepoAndVercel(input: {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40) || `t2-client-${Date.now()}`;
   const repoName = `t2-tenant-${slug}`;
-  const templateRepo =
-    (input.appTemplate || (brand as any).appTemplate) === 'products_erp'
-      ? (process.env.GITHUB_TEMPLATE_BATTAH || 'battah')
-      : (process.env.GITHUB_TEMPLATE_CLEAN_MASTER || 'clean-master-egy');
+  const requestedTemplate = (input.templateId || (brand as any).templateId) as FlagshipTemplateId | undefined;
+  let resolvedKey: FlagshipTemplateId;
+  if (requestedTemplate && TEMPLATE_REPO_MAP[requestedTemplate]) {
+    resolvedKey = requestedTemplate;
+  } else {
+    const inferred = resolveFlagshipTemplate(`${input.appTemplate || ''} ${brand.businessType || ''} ${brand.name || ''}`).templateKey;
+    if (inferred === 'clean_master' && (input.appTemplate || (brand as any).appTemplate) === 'products_erp') {
+      resolvedKey = 'battah';
+    } else {
+      resolvedKey = inferred;
+    }
+  }
+  const templateRepo = TEMPLATE_REPO_MAP[resolvedKey] || TEMPLATE_REPO_MAP.clean_master;
   const templateOwner = process.env.GITHUB_TEMPLATE_OWNER || 'T2Digital';
 
   try {
@@ -154,7 +174,13 @@ export async function provisionDedicatedRepoAndVercel(input: {
           adminPin,
           primaryColor: (brand as any).primaryColor || '#06b6d4',
           accentColor: (brand as any).accentColor || '#0f172a',
+          commercialRegister: (brand as any).commercialRegister || '',
+          taxCardNumber: (brand as any).taxCardNumber || '',
+          enableCash: typeof (brand as any).enableCash === 'boolean' ? (brand as any).enableCash : true,
+          shippingCost: (brand as any).shippingCost,
+          governorates: Array.isArray((brand as any).governorates) ? (brand as any).governorates : undefined,
           productsCatalog: Array.isArray((brand as any).productsCatalog) ? (brand as any).productsCatalog : [],
+          templateId: resolvedKey,
           appTemplate: input.appTemplate || (brand as any).appTemplate || 'services_booking',
           ezZelApiBase: process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com'
         },
@@ -188,7 +214,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
         const safeSlogan = String((brand as any).slogan || `متجر ونظام إدارة ${safeName}`).replace(/[<>]/g, '');
         const safeLogo = String((brand as any).logoUrl || '').trim();
         let rebrandedHtml = rawHtml
-          .replace(/بطاح الأصلي/g, safeName)
+          .replace(/بطاح الأصلي|كلين ماستر|مطعم حرب|كافيه سهرايا|ماستر كي لتأجير السيارات|النيل للاستثمار العقاري/g, safeName)
           .replace(/تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من [^."<]+/g, safeSlogan);
         if (safeLogo) {
           rebrandedHtml = rebrandedHtml.replace(/https:\/\/i\.ibb\.co\/LDdGwd87\/5-1\.png/g, safeLogo);

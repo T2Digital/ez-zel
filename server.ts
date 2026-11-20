@@ -2136,9 +2136,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.post("/api/deploy/dedicated-tenant", async (req, res) => {
       try {
           const { provisionDedicatedRepoAndVercel } = await import("./services/dedicatedDeployService");
-          const { brandId, appTemplate } = req.body || {};
+          const { brandId, appTemplate, templateId } = req.body || {};
           if (!brandId) return res.status(400).json({ ok: false, error: "brandId is required" });
-          const result = await provisionDedicatedRepoAndVercel({ brandId: String(brandId), appTemplate });
+          const result = await provisionDedicatedRepoAndVercel({ brandId: String(brandId), appTemplate, templateId });
           res.json(result);
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message || "Dedicated deploy failed" });
@@ -3684,7 +3684,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   const { provisionDedicatedRepoAndVercel } = await import("./services/dedicatedDeployService");
                   deployResult = await provisionDedicatedRepoAndVercel({
                       brandId: slug,
-                      appTemplate: flagship.archetype === 'products_erp_pos' ? 'products_erp' : 'services_booking'
+                      appTemplate: flagship.archetype === 'products_erp_pos' ? 'products_erp' : 'services_booking',
+                      templateId: flagship.templateKey
                   });
                   if (deployResult?.dedicatedLiveUrl) {
                       newTenant.liveUrl = deployResult.dedicatedLiveUrl;

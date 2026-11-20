@@ -168,6 +168,7 @@ export async function getMetaAdAccounts(token?: string) {
 
 /**
  * 3. POST /api/meta/ads/campaigns/create
+ * Full 3-Layer Meta Graph API Execution: Campaign -> AdSet -> AdCreative + Ad
  */
 export async function createMetaAdCampaign(payload: {
     token?: string;
@@ -176,34 +177,167 @@ export async function createMetaAdCampaign(payload: {
     objective?: string;
     dailyBudget?: number;
     currency?: string;
+    status?: 'ACTIVE' | 'PAUSED';
+    pageId?: string;
+    message?: string;
+    headline?: string;
+    linkUrl?: string;
+    imageUrl?: string;
+    countries?: string[];
+    ageMin?: number;
+    ageMax?: number;
     targeting?: any;
     creative?: any;
 }) {
     ensureDirs();
-    const campaignId = `2384${Date.now().toString().slice(-9)}`;
-    const adSetId = `2384${(Date.now() + 1).toString().slice(-9)}`;
-    const adId = `2384${(Date.now() + 2).toString().slice(-9)}`;
+    let campaignId = `2384${Date.now().toString().slice(-9)}`;
+    let adSetId = `2384${(Date.now() + 1).toString().slice(-9)}`;
+    let adCreativeId = '';
+    let adId = `2384${(Date.now() + 2).toString().slice(-9)}`;
 
     const metaToken = payload.token || process.env.META_ACCESS_TOKEN;
-    const adAccountId = payload.adAccountId || 'act_1029384756';
+    const rawAdAccountId = payload.adAccountId || process.env.META_AD_ACCOUNT_ID || '';
+    const formattedActId = rawAdAccountId
+        ? (rawAdAccountId.startsWith('act_') ? rawAdAccountId : `act_${rawAdAccountId}`)
+        : '';
 
+    const desiredStatus: 'ACTIVE' | 'PAUSED' = payload.status || 'PAUSED';
+    const dailyBudgetEgp = Number(payload.dailyBudget) || 450;
+    const warnings: string[] = [];
     let liveMetaDispatched = false;
-    if (metaToken && adAccountId) {
+    let rawGraphResponse: any = {};
+
+    if (
+        metaToken &&
+        formattedActId &&
+        !metaToken.startsWith('mock_') &&
+        !metaToken.startsWith('sim_') &&
+        !formattedActId.includes('1029384756')
+    ) {
         try {
-            const resp = await fetch(`https://graph.facebook.com/v19.0/${adAccountId}/campaigns`, {
+            // Layer 1: Create Campaign
+            const campResp = await fetch(`https://graph.facebook.com/v19.0/${formattedActId}/campaigns`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: payload.campaignName,
-                    objective: payload.objective || 'OUTCOME_LEADS',
-                    status: 'ACTIVE',
+                    objective: payload.objective || 'OUTCOME_TRAFFIC',
+                    status: desiredStatus,
                     special_ad_categories: ['NONE'],
-                    access_token: metaToken
-                })
+                    access_token: metaToken,
+                }),
             });
-            const d: any = await resp.json();
-            if (d.id) liveMetaDispatched = true;
+            const campData: any = await campResp.json();
+            rawGraphResponse.campaign = campData;
+
+            if (campData?.id) {
+                campaignId = String(campData.id);
+                liveMetaDispatched = true;
+
+                // Layer 2: Create AdSet inside Campaign
+                const countries = Array.isArray(payload.countries) && payload.countries.length > 0
+                    ? payload.countries
+                    : (Array.isArray(payload.targeting?.geo_locations?.countries)
+                        ? payload.targeting.geo_locations.countries
+                        : ['EG', 'SA', 'AE']);
+
+                const targetingSpec = {
+                    geo_locations: { countries },
+                    age_min: Number(payload.ageMin || payload.targeting?.age_min || 20),
+                    age_max: Number(payload.ageMax || payload.targeting?.age_max || 55),
+                };
+
+                try {
+                    const adSetResp = await fetch(`https://graph.facebook.com/v19.0/${formattedActId}/adsets`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: `${payload.campaignName} - AdSet`,
+                            campaign_id: campaignId,
+                            daily_budget: Math.round(dailyBudgetEgp * 100),
+                            billing_event: 'IMPRESSIONS',
+                            optimization_goal: 'LINK_CLICKS',
+                            bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+                            targeting: targetingSpec,
+                            status: desiredStatus,
+                            access_token: metaToken,
+                        }),
+                    });
+                    const adSetData: any = await adSetResp.json();
+                    rawGraphResponse.adSet = adSetData;
+                    if (adSetData?.id) {
+                        adSetId = String(adSetData.id);
+
+                        // Layer 3: Create AdCreative & Ad (when pageId is provided)
+                        const pageId = payload.pageId || payload.creative?.pageId || process.env.META_PAGE_ID;
+                        if (pageId) {
+                            const adMsg = payload.message || payload.creative?.message || payload.creative?.bodyText || payload.campaignName;
+                            const adHeadline = payload.headline || payload.creative?.headline || payload.campaignName;
+                            const destUrl = payload.linkUrl || payload.creative?.linkUrl || process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com';
+
+                            try {
+                                const creativeResp = await fetch(`https://graph.facebook.com/v19.0/${formattedActId}/adcreatives`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        name: `${payload.campaignName} - Creative`,
+                                        object_story_spec: {
+                                            page_id: String(pageId),
+                                            link_data: {
+                                                message: adMsg,
+                                                link: destUrl,
+                                                name: adHeadline,
+                                                ...(payload.imageUrl || payload.creative?.imageUrl
+                                                    ? { picture: payload.imageUrl || payload.creative?.imageUrl }
+                                                    : {}),
+                                            },
+                                        },
+                                        access_token: metaToken,
+                                    }),
+                                });
+                                const creativeData: any = await creativeResp.json();
+                                rawGraphResponse.adCreative = creativeData;
+
+                                if (creativeData?.id) {
+                                    adCreativeId = String(creativeData.id);
+                                    const adResp = await fetch(`https://graph.facebook.com/v19.0/${formattedActId}/ads`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            name: `${payload.campaignName} - Ad`,
+                                            adset_id: adSetId,
+                                            creative: { creative_id: adCreativeId },
+                                            status: desiredStatus,
+                                            access_token: metaToken,
+                                        }),
+                                    });
+                                    const adData: any = await adResp.json();
+                                    rawGraphResponse.ad = adData;
+                                    if (adData?.id) {
+                                        adId = String(adData.id);
+                                    } else if (adData?.error) {
+                                        warnings.push(`Ad step warning: ${adData.error.message}`);
+                                    }
+                                } else if (creativeData?.error) {
+                                    warnings.push(`Creative step warning: ${creativeData.error.message}`);
+                                }
+                            } catch (crErr: any) {
+                                warnings.push(`Creative/Ad error: ${crErr?.message}`);
+                            }
+                        } else {
+                            warnings.push('No pageId supplied — created Campaign + AdSet on Meta (Ad Creative skipped until Page ID is attached)');
+                        }
+                    } else if (adSetData?.error) {
+                        warnings.push(`AdSet step warning: ${adSetData.error.message}`);
+                    }
+                } catch (asErr: any) {
+                    warnings.push(`AdSet error: ${asErr?.message}`);
+                }
+            } else if (campData?.error) {
+                warnings.push(`Meta Campaign error: ${campData.error.error_user_msg || campData.error.message}`);
+            }
         } catch (err: any) {
+            warnings.push(`Meta API Warning: ${err?.message}`);
             console.warn('[Meta Campaign API Warning]:', err?.message);
         }
     }
@@ -217,15 +351,17 @@ export async function createMetaAdCampaign(payload: {
         id: campaignId,
         campaignId,
         adSetId,
+        adCreativeId: adCreativeId || undefined,
         adId,
         campaignName: payload.campaignName,
-        dailyBudget: payload.dailyBudget || 450,
+        dailyBudget: dailyBudgetEgp,
         currency: payload.currency || 'EGP',
-        status: 'ACTIVE',
-        targeting: payload.targeting || {},
-        creative: payload.creative || {},
+        status: desiredStatus,
+        targeting: payload.targeting || { countries: payload.countries || ['EG', 'SA', 'AE'] },
+        creative: payload.creative || { headline: payload.headline, message: payload.message, linkUrl: payload.linkUrl },
         createdAt: new Date().toISOString(),
-        liveMetaDispatched
+        liveMetaDispatched,
+        ...(warnings.length ? { warnings } : {}),
     };
     camps.unshift(campRecord);
     try { fs.writeFileSync(campsFile, JSON.stringify(camps.slice(0, 50), null, 2), 'utf8'); } catch {}
@@ -236,9 +372,15 @@ export async function createMetaAdCampaign(payload: {
         success: true,
         campaignId,
         adSetId,
+        ...(adCreativeId ? { adCreativeId } : {}),
         adId,
-        status: "ACTIVE",
-        message: "تم نشر الحملة وتفعيلها في Meta Ads بنجاح"
+        status: desiredStatus,
+        liveMetaDispatched,
+        ...(warnings.length ? { warnings } : {}),
+        raw: rawGraphResponse,
+        message: liveMetaDispatched
+            ? 'تم إنشاء الحملة ومجموعة الإعلانات في Meta Ads بنجاح'
+            : 'تم تجهيز الحملة وإدراجها في سجل النظام بنجاح',
     };
 }
 
