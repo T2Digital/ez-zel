@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Zap, UserCheck, Eye, Fingerprint, Sparkles, BrainCircuit, Shield, Mic, HardDrive, ArrowLeft, Calendar, Check, FileText, Terminal } from 'lucide-react';
-import CapabilitiesGuide from './CapabilitiesGuide';
-import WhitePaper from './WhitePaper';
-import { JarvisBattleStationModal } from './JarvisBattleStationModal';
 import { JarvisArcReactorCore } from './jarvis/JarvisArcReactorCore';
 import { playShadowVoice, stopVoice } from '../services/speechService';
+
+const CapabilitiesGuide = lazy(() => import('./CapabilitiesGuide'));
+const WhitePaper = lazy(() => import('./WhitePaper'));
+const JarvisBattleStationModal = lazy(() => import('./JarvisBattleStationModal').then(m => ({ default: m.JarvisBattleStationModal })));
 
 const JARVIS_WELCOME_SCRIPT =
   'أهلاً بيك في منظومة T2OS من شركة T2 Digital! أنا جارفيس، عقلك التنفيذي التاني اللي بيبني ويدير شغلك بالكامل بالذكاء الاصطناعي. لو بتبدأ فكرة جديدة، بنبتكرلك الاسم واللوجو والكتالوج ونبني تطبيقك في دقائق؛ ولو عندك بيزنس قائم، بنربط موقعك وهويتك وصفحاتك والواتساب في عقل واحد يصمم وينشر محتواك ويرد على عملاءك ويقفّل مبيعاتك 24 ساعة. عندك 7 أيام تجربة مجانية كاملة بكل المميزات بدون أي التزام — ادخل محطة جارفيس وجرّب بنفسك دلوقتي!';
@@ -118,32 +119,12 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
     );
   };
 
+  // Auto-greeting removed so /pricing never auto-downloads 1.59MB WAV audio on load.
+  // Greeting plays immediately when the user clicks the Jarvis orb button.
   useEffect(() => {
-    try {
-      if (localStorage.getItem('t2os_welcome_heard_v1') === '1') {
-        hasAutoGreetedRef.current = true;
-        return;
-      }
-    } catch {}
-    if (hasAutoGreetedRef.current) return;
-    const triggerAutoGreeting = () => {
-      if (hasAutoGreetedRef.current) return;
-      hasAutoGreetedRef.current = true;
-      try { localStorage.setItem('t2os_welcome_heard_v1', '1'); } catch {}
-      handlePlayJarvisWelcome();
-    };
-    const timer = setTimeout(triggerAutoGreeting, 900);
-    const onFirstInteraction = () => {
-      triggerAutoGreeting();
-      window.removeEventListener('pointerdown', onFirstInteraction);
-      window.removeEventListener('keydown', onFirstInteraction);
-    };
-    window.addEventListener('pointerdown', onFirstInteraction, { once: true });
-    window.addEventListener('keydown', onFirstInteraction, { once: true });
+    hasAutoGreetedRef.current = true;
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener('pointerdown', onFirstInteraction);
-      window.removeEventListener('keydown', onFirstInteraction);
+      stopVoice();
     };
   }, []);
   const [selectedTier, setSelectedTier] = useState<'tier_2500' | 'tier_5000' | 'tier_10000' | 'tier_25000' | 'tier_50000'>('tier_5000');
@@ -205,38 +186,45 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   };
 
   return (
-    <div className="min-h-screen w-full bg-transparent text-white overflow-y-auto overflow-x-hidden flex flex-col font-['Cairo'] relative selection:bg-purple-500/30">
+    <div className="min-h-screen w-full bg-transparent text-white overflow-y-auto overflow-x-hidden flex flex-col font-['Cairo'] relative selection:bg-purple-500/30 pb-12">
       
-      {showCapabilities && (
-        <CapabilitiesGuide 
-            onClose={() => setShowCapabilities(false)} 
-            onJoin={handleJoinFromGuide}
-            onAffiliate={handleAffiliateFromGuide}
-        />
-      )}
-
-      {showWhitePaper && (
-          <WhitePaper onClose={() => setShowWhitePaper(false)} />
-      )}
-
-      {showBattleStation && (
-          <JarvisBattleStationModal 
-              isOpen={showBattleStation} 
-              onClose={() => setShowBattleStation(false)} 
-              initialPersona="visitor" 
+      <Suspense fallback={null}>
+        {showCapabilities && (
+          <CapabilitiesGuide 
+              onClose={() => setShowCapabilities(false)} 
+              onJoin={handleJoinFromGuide}
+              onAffiliate={handleAffiliateFromGuide}
           />
-      )}
+        )}
 
-      {/* Deep Ambient Background */}
-      <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-purple-900/10 blur-[150px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] bg-amber-900/10 blur-[150px] rounded-full pointer-events-none"></div>
+        {showWhitePaper && (
+            <WhitePaper onClose={() => setShowWhitePaper(false)} />
+        )}
+
+        {showBattleStation && (
+            <JarvisBattleStationModal 
+                isOpen={showBattleStation} 
+                onClose={() => setShowBattleStation(false)} 
+                initialPersona="visitor" 
+            />
+        )}
+      </Suspense>
+
+      {/* Lightweight CSS Radial Ambient Background (zero GPU blur-[150px] filters) */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0"
+        style={{
+          background:
+            'radial-gradient(circle at 20% 15%, rgba(147,51,234,0.09) 0%, transparent 45%), radial-gradient(circle at 80% 85%, rgba(245,158,11,0.07) 0%, transparent 45%)',
+        }}
+      />
 
       {/* Main Container */}
-      <div className="flex-1 w-full max-w-lg mx-auto px-4 py-4 flex flex-col justify-center relative z-10 min-h-full">
+      <div className="flex-1 w-full max-w-2xl mx-auto px-4 py-6 flex flex-col justify-center relative z-10 min-h-full">
 
         {/* SINGLE UNIFIED GLASS TERMINAL CARD (Header + Jarvis Orb + Terminal + Tiers + Actions) */}
         <div className="flex-1 flex flex-col items-center justify-center relative py-2">
-            <div className="relative w-full p-5 pt-6 rounded-[32px] border border-cyan-500/25 bg-black/20 shadow-xl backdrop-blur-sm group hover:border-cyan-400/40 transition-colors">
+            <div className="relative w-full p-5 sm:p-6 rounded-[32px] border border-cyan-500/25 bg-[#060913]/85 shadow-xl group hover:border-cyan-400/40 transition-colors">
 
                 {/* 1. HEADER INSIDE TERMINAL CARD */}
                 <div className="flex flex-col items-center justify-center mb-3">
@@ -335,8 +323,8 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                     {/* UNIFIED PRICING TIERS, DETAILS & ACTIONS INSIDE THE CARD */}
                     <div className="mt-4 pt-4 border-t border-white/10 space-y-2.5 text-center">
                         {/* Tier Selector: 5 Official Tiers (2.5K - 5K - 10K - 25K - 50K) */}
-                        <div className="flex justify-center overflow-x-auto scrollbar-none py-0.5">
-                            <div className="bg-black/80 p-1 rounded-2xl border border-white/10 flex gap-1 text-[10px] font-black select-none max-w-full">
+                        <div className="flex justify-center py-0.5">
+                            <div className="bg-black/80 p-1.5 rounded-2xl border border-white/10 flex flex-wrap justify-center gap-1.5 text-[10px] font-black select-none max-w-full">
                                 {(['tier_2500', 'tier_5000', 'tier_10000', 'tier_25000', 'tier_50000'] as const).map((tierKey) => {
                                     const isSelected = selectedTier === tierKey;
                                     return (

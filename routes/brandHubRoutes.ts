@@ -4,6 +4,8 @@ import path from "path";
 import { loadTenantErpState, saveTenantErpState, normalizeSlugKey } from "../services/tenantErpStoreService";
 import { t2AgentApi, getT2AgentBaseUrl } from "../services/t2AgentApiClient";
 import { getTitoStudioAuthToken } from "../services/titoStudioFirestoreBridge";
+import { verifyAdminRequest } from "../services/serverAdminAuth";
+import { ACTIVE_GEMINI_TEXT_MODELS } from "../services/geminiKeyPool";
 
 const HUB_CONFIG_FILE = path.join(process.cwd(), "data", "brand_hub_configs.json");
 const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || "t2-content-studio";
@@ -186,11 +188,12 @@ function findBrandAndTenant(idOrSlug: string, deps: BrandHubDeps) {
 
 export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
   // 0) GET Live Fleet Overview from T2 AI Agent (agent.t2os.app)
-  app.get("/api/brand-hub/agent/fleet", async (_req: Request, res: Response) => {
+  app.get("/api/brand-hub/agent/fleet", async (req: Request, res: Response) => {
     try {
+      const adminAuth = await verifyAdminRequest(req);
       const [brandsHealth, financials] = await Promise.all([
         t2AgentApi.getAllBrandsHealth().catch(() => null),
-        t2AgentApi.getFinancialsSummary().catch(() => null),
+        adminAuth.ok ? t2AgentApi.getFinancialsSummary().catch(() => null) : Promise.resolve(null),
       ]);
       const unified = deps.getUnifiedGrowthBrands() || [];
       const tenants = deps.getPersistedTenants() || [];
@@ -199,6 +202,19 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         : Array.isArray(brandsHealth)
           ? brandsHealth
           : [];
+
+      if (!adminAuth.ok) {
+        const list = liveList.length > 0 ? liveList : unified;
+        const activeCount = list.filter((b: any) => b?.status !== "paused" && !b?.botPaused && !b?.isPaused).length;
+        return res.json({
+          ok: true,
+          restricted: true,
+          source: liveList.length > 0 ? "t2_ai_agent_live" : "unified_fallback",
+          brandsCount: list.length,
+          activeBotsCount: activeCount,
+          brands: [],
+        });
+      }
 
       res.json({
         ok: true,
@@ -615,7 +631,7 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
 رسالة العميل الآن: "${customerMessage}"
 اكتب رداً عملياً ومقنعاً بالمصري بناءً على المعلومات أعلاه فقط دون اختراع أسعار.`;
           const aiRes = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.5-flash-lite",
             contents: prompt,
           });
           replyText = aiRes?.text?.trim() || "";
@@ -658,7 +674,7 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
       let aiPowered = false;
 
       if (ai) {
-        for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"]) {
+        for (const modelName of ACTIVE_GEMINI_TEXT_MODELS) {
           try {
             const prompt = `أنت مهندس مشاريع وخبير اقتصاديات أسواق (ADK Venture Architect) في منظومة T2OS.
 المطلوب اختراع مشروع تجاري واقعي ومحكم بناءً على:

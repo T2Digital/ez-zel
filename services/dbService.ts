@@ -2,6 +2,28 @@ import { db, auth } from './firebaseConfig';
 import { doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, getDocsFromServer, updateDoc, addDoc, orderBy, deleteDoc, writeBatch, limit } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut, sendPasswordResetEmail, onAuthStateChanged, User } from "firebase/auth";
 import { encryptData, decryptData } from './cryptoService';
+import { isMasterAdminEmail } from './adminIdentity';
+
+async function exchangeAdminSession(payload: { email?: string; password?: string; idToken?: string }): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const resp = await fetch('/api/auth/admin-session', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json().catch(() => null);
+    if (resp.ok && data?.ok && data?.adminToken) {
+      try {
+        localStorage.setItem('t2os_admin_token', String(data.adminToken));
+        localStorage.setItem('tito_admin_master', 'true');
+      } catch {}
+      return true;
+    }
+  } catch {}
+  return false;
+}
 
 export interface DBMessage {
   id?: number;
@@ -363,6 +385,7 @@ class ShadowDB {
       if (auth) {
           return onAuthStateChanged(auth, callback);
       }
+      setTimeout(() => callback(null), 0);
       return () => {};
   }
 
@@ -372,7 +395,7 @@ class ShadowDB {
       const uid = userCredential.user.uid;
       
       const cleanEmail = email.toLowerCase();
-      const isAdmin = cleanEmail === 'admin@shadow.com';
+      const isAdmin = isMasterAdminEmail(cleanEmail);
       
       const newUser: UserProfile = {
           email: cleanEmail,
@@ -552,7 +575,7 @@ class ShadowDB {
 
           console.warn("[Shadow Core] Profile missing locally. Creating default/healing...");
           const namePart = email.split('@')[0];
-          const isAdmin = cleanEmail === 'admin@shadow.com';
+          const isAdmin = isMasterAdminEmail(cleanEmail);
           
           profile = {
               email: cleanEmail,
@@ -582,6 +605,15 @@ class ShadowDB {
       }
 
       if (!profile) throw new Error("Profile creation failed");
+
+      if (isMasterAdminEmail(cleanEmail)) {
+          profile.tier = 'sovereign';
+          profile.status = 'active';
+          try {
+              const idToken = await userCredential.user.getIdToken();
+              await exchangeAdminSession({ email: cleanEmail, idToken, password });
+          } catch {}
+      }
       
       if (!profile.shadowId) {
           profile.shadowId = 'SHADOW-' + Math.floor(100000 + Math.random() * 900000).toString();
@@ -603,17 +635,14 @@ class ShadowDB {
       const cleanEmail = (fbUser.email || `google_${fbUser.uid}@shadow.com`).toLowerCase();
       const displayName = fbUser.displayName || cleanEmail.split('@')[0];
 
-      // Master Tito email recognition
-      const isMasterTito =
-          cleanEmail === 'admin@shadow.com' ||
-          cleanEmail === 'ahm.atya@gmail.com' ||
-          cleanEmail === 'ahmed.atya.daif@gmail.com' ||
-          cleanEmail.includes('atya') ||
-          cleanEmail.includes('tito');
+      // Master Tito email recognition via single source of truth
+      const isMasterTito = isMasterAdminEmail(cleanEmail);
 
       if (isMasterTito) {
           try {
               localStorage.setItem('tito_admin_master', 'true');
+              const idToken = await fbUser.getIdToken();
+              await exchangeAdminSession({ idToken });
           } catch {}
       }
 
@@ -670,6 +699,15 @@ class ShadowDB {
   }
 
   async logout() {
+      try {
+          localStorage.removeItem('t2os_admin_token');
+          localStorage.removeItem('tito_admin_master');
+      } catch {}
+      try {
+          if (typeof window !== 'undefined') {
+              await fetch('/api/auth/admin-logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+          }
+      } catch {}
       if (auth) await signOut(auth);
   }
 

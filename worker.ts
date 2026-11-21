@@ -351,7 +351,7 @@ export async function processAgentTask(job: Job) {
         }
         
         try {
-            const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite'];
+            const CANDIDATE_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview'];
             let response: any = null;
             let lastErr: any = null;
 

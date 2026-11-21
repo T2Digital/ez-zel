@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getAdminAuthHeaders } from "../../services/adminIdentity";
 import {
   Activity,
   Bot,
@@ -53,9 +54,10 @@ export const LiveWindowCard: React.FC<{ card: any }> = ({ card }) => {
   const loadLiveData = async () => {
     setLoading(true);
     try {
+      const authHeaders = await getAdminAuthHeaders();
       const [hRes, fRes, brRes, stBrRes] = await Promise.allSettled([
         fetch("/api/system/ecosystem-health").then((r) => r.json()),
-        fetch("/api/system/real-financials").then((r) => r.json()),
+        fetch("/api/system/real-financials", { credentials: "include", headers: authHeaders }).then((r) => r.json()),
         fetch("/api/t2-agent/brands").then((r) => r.json()),
         fetch("/api/studio/live/brands").then((r) => r.json()),
       ]);

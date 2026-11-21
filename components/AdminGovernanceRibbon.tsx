@@ -4,6 +4,7 @@ import {
   AlertTriangle, CreditCard, Sparkles, Clock, ShieldCheck, Filter
 } from 'lucide-react';
 import { UserProfile } from '../services/dbService';
+import { getAdminAuthHeaders } from '../services/adminIdentity';
 
 export type AdminMemberFilter = 'all' | 'active' | 'trial' | 'pending';
 
@@ -35,10 +36,11 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
   const fetchGovernanceTelemetry = useCallback(async () => {
     setChecking(true);
     try {
-      const res = await fetch('/api/brand-hub/agent/fleet');
+      const headers = await getAdminAuthHeaders();
+      const res = await fetch('/api/brand-hub/agent/fleet', { credentials: 'include', headers });
       const data = await res.json();
       if (data?.ok) {
-        setLiveBrandsCount(Array.isArray(data.brands) ? data.brands.length : 0);
+        setLiveBrandsCount(typeof data.brandsCount === 'number' ? data.brandsCount : Array.isArray(data.brands) ? data.brands.length : 0);
         setAgentLiveOk(data.source === 't2_ai_agent_live');
       }
     } catch {

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Users, CreditCard, Activity, Search, CheckCircle, XCircle, Image as ImageIcon, ShieldCheck, Zap, X, Bot, Infinity, LogOut, DollarSign, Server, Eye, Database, Globe, Cpu, FolderOpen, Radio, MessageSquare, Mic, Save, Lock, LayoutGrid, Smartphone, Wallet, TrendingUp, Briefcase, Ban, Megaphone, Send, Heart, Feather, Bell, Settings, Edit3, Plus, Trash2, FileText, Brain, UploadCloud, Paperclip, Terminal, Tag, BarChart2, MessageCircle, ShoppingCart, GraduationCap, Palette, Film, Network } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { shadowDB, UserProfile, DBFeedback, AgentProfile } from '../services/dbService';
+import { getAdminAuthHeaders, MASTER_ADMIN_EMAILS } from '../services/adminIdentity';
 import ChatInterface from './ChatInterface';
 import { ArchitectureMap } from './ArchitectureMap';
 import { SovereignOSArchitectureHub } from './SovereignOSArchitectureHub';
@@ -41,9 +42,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   const [showOSArchHub, setShowOSArchHub] = useState(false);
   
   // Exclude system/admin & fake/demo accounts for accurate metrics
-  const ADMIN_EXCLUDED_EMAILS = new Set([
-      'tito', 'guest', 'ahm.atya@gmail.com', 'ahmed.atya.daif@gmail.com', 'tito@shadow.com', 'admin@shadow.com'
-  ]);
+  const ADMIN_EXCLUDED_EMAILS = new Set<string>(MASTER_ADMIN_EMAILS);
   const isFakeOrSystemAccount = (p: UserProfile) => {
       const emailLower = (p.email || '').trim().toLowerCase();
       if (!emailLower) return true;
@@ -168,14 +167,11 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
 
           // Fetch live Paymob revenue summary for Admin Analytics
           try {
-              const headers: Record<string, string> = {};
-              const { getAuth } = await import('firebase/auth');
-              const user = getAuth().currentUser;
-              if (user) {
-                  const token = await user.getIdToken();
-                  if (token) headers['Authorization'] = `Bearer ${token}`;
-              }
-              const revResp = await fetch('/api/admin/revenue/summary', { headers });
+              const headers = await getAdminAuthHeaders();
+              const revResp = await fetch('/api/admin/revenue/summary', {
+                  credentials: 'include',
+                  headers,
+              });
               const revJson = await revResp.json().catch(() => null);
               if (revJson?.ok) {
                   setPaymobRevenueSummary({

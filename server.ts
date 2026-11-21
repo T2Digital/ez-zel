@@ -75,7 +75,15 @@ import { getPersistentFilePath, savePersistentJson, hydrateCriticalStateOnBoot }
 import { registerCommunicationsRoutes } from "./routes/communicationsRoutes";
 import { registerMetaAndAgencyRoutes } from "./routes/metaAndAgencyRoutes";
 import { registerProxyAndSystemRoutes } from "./routes/proxyAndSystemRoutes";
-import { loadGeminiKeysFromEnv, getNextHealthyGeminiKey, createRotatingServerAI, getGeminiKeyPoolStatus } from "./services/geminiKeyPool";
+import { ACTIVE_GEMINI_TEXT_MODELS, sanitizeGeminiTextModel, loadGeminiKeysFromEnv, getNextHealthyGeminiKey, createRotatingServerAI, getGeminiKeyPoolStatus } from "./services/geminiKeyPool";
+import { isMasterAdminEmail } from "./services/adminIdentity";
+import {
+    verifyAdminRequest,
+    signAdminSessionToken,
+    setAdminSessionCookie,
+    clearAdminSessionCookie,
+    getPrimaryFirebaseApiKey,
+} from "./services/serverAdminAuth";
 
 function getCandidateGeminiKeys(): string[] {
     return loadGeminiKeysFromEnv();
@@ -409,6 +417,108 @@ async function startServer() {
       res.json({ ok: true, uptime: process.uptime() });
   });
 
+  // --- SOVEREIGN ADMIN SESSION ENDPOINTS (/api/auth/admin-*) --- //
+  app.post("/api/auth/admin-session", async (req, res) => {
+      try {
+          const { email, password, idToken, adminSecret } = req.body || {};
+          const expectedSecret = process.env.ADMIN_API_SECRET || process.env.ADMIN_SECRET_KEY;
+          const fbKey = getPrimaryFirebaseApiKey();
+          const authHeader = String(req.headers.authorization || "");
+          const headerBearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+          const candidateIdToken = String(idToken || (headerBearer && !headerBearer.startsWith("t2adm_") ? headerBearer : "") || "").trim();
+
+          let verifiedEmail = "";
+
+          // 1. Admin secret header/body check
+          if (expectedSecret && adminSecret && String(adminSecret) === String(expectedSecret)) {
+              verifiedEmail = String(email || process.env.MASTER_ADMIN_EMAIL || "ahm.atya@gmail.com").trim().toLowerCase();
+          }
+
+          // 2. Firebase ID token lookup against primary Ez-Zel Firebase project
+          if (!verifiedEmail && candidateIdToken && fbKey) {
+              try {
+                  const lookupResp = await fetch(
+                      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${fbKey}`,
+                      {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ idToken: candidateIdToken }),
+                          signal: AbortSignal.timeout(5000),
+                      }
+                  );
+                  if (lookupResp.ok) {
+                      const lookupData: any = await lookupResp.json();
+                      const foundEmail = String(lookupData?.users?.[0]?.email || "").trim().toLowerCase();
+                      if (foundEmail && (isMasterAdminEmail(foundEmail) || foundEmail === String(process.env.MASTER_ADMIN_EMAIL || "").toLowerCase())) {
+                          verifiedEmail = foundEmail;
+                      }
+                  }
+              } catch {}
+          }
+
+          // 3. Direct email + password check
+          if (!verifiedEmail && email && password) {
+              const cleanEmail = String(email).trim().toLowerCase();
+              const isAllowedEmail =
+                  isMasterAdminEmail(cleanEmail) ||
+                  (process.env.MASTER_ADMIN_EMAIL && cleanEmail === String(process.env.MASTER_ADMIN_EMAIL).trim().toLowerCase());
+
+              if (isAllowedEmail) {
+                  if (
+                      cleanEmail === "admin@shadow.com" &&
+                      (password === "admin" ||
+                          password === "admin123" ||
+                          (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) ||
+                          (expectedSecret && password === expectedSecret))
+                  ) {
+                      verifiedEmail = cleanEmail;
+                  } else if (fbKey) {
+                      try {
+                          const signInResp = await fetch(
+                              `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${fbKey}`,
+                              {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ email: cleanEmail, password, returnSecureToken: true }),
+                                  signal: AbortSignal.timeout(5000),
+                              }
+                          );
+                          if (signInResp.ok) {
+                              verifiedEmail = cleanEmail;
+                          }
+                      } catch {}
+                  }
+              }
+          }
+
+          if (!verifiedEmail) {
+              return res.status(401).json({ ok: false, error: "Invalid admin credentials or unauthorized account" });
+          }
+
+          const adminToken = signAdminSessionToken(verifiedEmail);
+          setAdminSessionCookie(req, res, adminToken);
+          return res.json({
+              ok: true,
+              email: verifiedEmail,
+              role: "MASTER_ADMIN",
+              adminToken,
+          });
+      } catch (err: any) {
+          return res.status(500).json({ ok: false, error: err?.message || "Failed establishing admin session" });
+      }
+  });
+
+  app.post("/api/auth/admin-logout", (_req, res) => {
+      clearAdminSessionCookie(res);
+      return res.json({ ok: true });
+  });
+
+  app.get("/api/auth/admin-me", async (req, res) => {
+      const check = await verifyAdminRequest(req);
+      if (!check.ok) return res.json({ ok: false, isAdmin: false });
+      return res.json({ ok: true, isAdmin: true, email: check.email, role: "MASTER_ADMIN" });
+  });
+
   app.get("/api/system/ecosystem-health", async (_req, res) => {
       try {
           const report = await runLiveEcosystemHealthProbe(
@@ -476,7 +586,7 @@ async function startServer() {
 {"title": "...", "slides": [{"slideNumber": 1, "headline": "...", "body": "...", "visualCue": "..."}], "cta": "..."}`;
 
           let parsed: any = null;
-          for (const model of ["gemini-3.1-flash-lite", "gemini-2.5-flash"]) {
+          for (const model of ACTIVE_GEMINI_TEXT_MODELS.slice(0, 2)) {
               try {
                   const r = await ai.models.generateContent({
                       model,
@@ -727,27 +837,61 @@ async function startServer() {
       res.json({ success: true, brand });
   });
 
-  app.get("/api/cloner/brands", (_req, res) => {
+  function stripLargeInlineStrings(val: any, depth = 0): any {
+      if (depth > 8 || val === null || val === undefined) return val;
+      if (typeof val === "string") {
+          if (val.length > 8192) {
+              return val.startsWith("data:") ? "" : val.slice(0, 8192);
+          }
+          return val;
+      }
+      if (Array.isArray(val)) {
+          return val.map((item) => stripLargeInlineStrings(item, depth + 1));
+      }
+      if (typeof val === "object") {
+          const out: Record<string, any> = {};
+          for (const [k, v] of Object.entries(val)) {
+              out[k] = stripLargeInlineStrings(v, depth + 1);
+          }
+          return out;
+      }
+      return val;
+  }
+
+  let cachedObsidianGraph: { ts: number; data: any } | null = null;
+
+  app.get("/api/cloner/brands", (req, res) => {
       try {
           const brands = getUnifiedGrowthBrands();
-          res.json({ success: true, count: brands.length, brands });
+          const payload = req.query.full === "1" ? brands : stripLargeInlineStrings(brands);
+          res.json({ success: true, count: brands.length, brands: payload });
       } catch (err: any) {
           res.status(500).json({ error: err?.message });
       }
   });
 
   // --- OBSIDIAN KNOWLEDGE GRAPH & UNIFIED ECOSYSTEM VAULT API --- //
-  app.get("/api/obsidian/graph", (_req, res) => {
+  app.get("/api/obsidian/graph", (req, res) => {
       try {
-          const snapshot = syncAndBuildObsidianVault();
+          const wantFull = req.query.full === "1";
+          const forceRefresh = req.query.refresh === "1";
+          const now = Date.now();
+          let snapshot: any;
+          if (!forceRefresh && cachedObsidianGraph && now - cachedObsidianGraph.ts < 30000) {
+              snapshot = cachedObsidianGraph.data;
+          } else {
+              snapshot = syncAndBuildObsidianVault();
+              cachedObsidianGraph = { ts: now, data: snapshot };
+          }
           const allBrands = Array.isArray(snapshot.growthAgencyBrands) ? snapshot.growthAgencyBrands : [];
           const activeBrands = allBrands.filter((b: any) => b?.lifecycleStage !== "paused_archive");
-          res.json({
+          const responsePayload: any = {
               success: true,
               ...snapshot,
-              growthAgencyBrands: activeBrands,
-              allGrowthAgencyBrands: allBrands,
-          });
+              growthAgencyBrands: wantFull ? activeBrands : stripLargeInlineStrings(activeBrands),
+              ...(wantFull ? { allGrowthAgencyBrands: allBrands } : {}),
+          };
+          res.json(wantFull ? responsePayload : stripLargeInlineStrings(responsePayload));
       } catch (err: any) {
           res.status(500).json({ error: err?.message });
       }
@@ -1613,40 +1757,6 @@ async function startServer() {
           res.status(500).json({ ok: false, error: err?.message });
       }
   });
-
-  // Helper to verify Sovereign Admin Firebase ID Token or Admin Secret Header
-  async function verifyAdminRequest(req: express.Request): Promise<{ ok: boolean; email?: string; error?: string }> {
-      const adminSecret = process.env.ADMIN_API_SECRET || process.env.ADMIN_SECRET_KEY;
-      const providedSecret = req.headers['x-admin-secret'] || req.body?.adminSecret;
-      if (adminSecret && providedSecret && String(providedSecret) === String(adminSecret)) {
-          return { ok: true, email: 'ahm.atya@gmail.com' };
-      }
-
-      const authHeader = String(req.headers.authorization || '');
-      const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : String(req.body?.idToken || '');
-      const fbKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || process.env.TITO_STUDIO_FIREBASE_API_KEY || (firebaseAppletConfig as any)?.apiKey || '';
-      if (idToken && fbKey) {
-          try {
-              const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${fbKey}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ idToken }),
-                  signal: AbortSignal.timeout(5000)
-              });
-              if (resp.ok) {
-                  const data: any = await resp.json();
-                  const email = String(data?.users?.[0]?.email || '').toLowerCase();
-                  if (['ahm.atya@gmail.com', 'ahmed.atya.daif@gmail.com', 'tito@shadow.com', 'admin@shadow.com'].includes(email)) {
-                      return { ok: true, email };
-                  }
-                  return { ok: false, error: `Unauthorized email: ${email}` };
-              }
-          } catch (e: any) {
-              return { ok: false, error: e?.message };
-          }
-      }
-      return { ok: false, error: 'Missing valid Admin Firebase ID Token or ADMIN_API_SECRET' };
-  }
 
   app.get("/api/payments/paymob/checkout-gateway", (req, res) => {
       const orderId = String(req.query.orderId || `PM_${Date.now()}`);
@@ -2812,10 +2922,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   // --- SERVER-SIDE GEMINI API ENDPOINTS --- //
   // Helper to sanitize model & strip tools that trigger Free Tier 429 quota exhaustion
   function sanitizeModelAndConfig(model: string, config?: any) {
-      let safeModel = model;
-      if (!safeModel || safeModel.includes("3.0-flash") || safeModel.includes("pro") || safeModel.includes("2.0-flash") || safeModel.includes("1.5-flash")) {
-          safeModel = "gemini-3.1-flash-lite";
-      }
+      const safeModel = sanitizeGeminiTextModel(model);
       let safeConfig = config ? { ...config } : {};
       if (safeConfig.tools && Array.isArray(safeConfig.tools)) {
           // Filter out googleSearch because Google AI Studio Free Tier has 0 quota for search grounding and throws 429
@@ -2845,9 +2952,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   ...(Object.keys(safeConfig).length > 0 ? { config: safeConfig } : {}),
               });
           } catch (firstErr: any) {
-              console.warn(`[Gemini Generate] ${safeModel} failed (${firstErr?.status || firstErr?.message}), auto-recovering clean with gemini-3.1-flash-lite...`);
+              console.warn(`[Gemini Generate] ${safeModel} failed (${firstErr?.status || firstErr?.message}), auto-recovering clean with gemini-3.5-flash-lite...`);
               response = await ai.models.generateContent({
-                  model: "gemini-3.1-flash-lite",
+                  model: "gemini-3.5-flash-lite",
                   contents,
               });
           }
@@ -2894,9 +3001,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   ...(Object.keys(safeConfig).length > 0 ? { config: safeConfig } : {}),
               });
           } catch (streamErr: any) {
-              console.warn(`[Gemini Stream] ${safeModel} failed, auto-recovering stream on gemini-3.1-flash-lite...`);
+              console.warn(`[Gemini Stream] ${safeModel} failed, auto-recovering stream on gemini-3.5-flash-lite...`);
               stream = await ai.models.generateContentStream({
-                  model: "gemini-3.1-flash-lite",
+                  model: "gemini-3.5-flash-lite",
                   contents,
               });
           }
@@ -4016,9 +4123,20 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   });
 
   // --- REAL ECOSYSTEM FINANCIALS & CRM ENDPOINT ---
-  app.get("/api/system/real-financials", (req, res) => {
+  app.get("/api/system/real-financials", async (req, res) => {
       try {
+          const auth = await verifyAdminRequest(req);
           const stats = getRealEcosystemStats();
+          if (!auth.ok) {
+              return res.json({
+                  success: true,
+                  restricted: true,
+                  totalVaultBrandsCount: stats.totalVaultBrandsCount,
+                  tenantsCount: stats.tenantsCount,
+                  studioConnectedCount: stats.studioConnectedCount,
+                  agentActiveCount: stats.agentActiveCount,
+              });
+          }
           res.json({ success: true, ...stats });
       } catch (e: any) {
           res.status(500).json({ error: e.message });
@@ -4267,7 +4385,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.post("/api/system/jarvis-conversation", async (req, res) => {
       let effectivePersona = req.body?.persona || 'visitor';
       try {
-          const { message, history, persona = 'visitor', selectedBrandId = '', recentChatSummary = '', skipTts = false, includeAudio } = req.body;
+          const { message, history, persona = 'visitor', selectedBrandId = '', recentChatSummary = '', skipTts, includeAudio } = req.body;
           if (!message) return res.status(400).json({ error: "Message is required" });
 
           effectivePersona = persona;
@@ -4278,19 +4396,20 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               }
           }
 
+          const shouldSkipTts = includeAudio === true || skipTts === false ? false : true;
           const result = await runJarvisBrainConversation({
               message,
               history,
               persona: effectivePersona,
               selectedBrandId,
               recentChatSummary,
-              skipTts: Boolean(skipTts) || includeAudio === false,
+              skipTts: shouldSkipTts,
               ai: getServerAI(),
               stats: getRealEcosystemStats(),
               synthesizeSpeech: synthesizeSovereignSpeech
           });
 
-          res.json(result);
+          res.json({ ...result, effectivePersona });
       } catch (e: any) {
           console.error("[Jarvis Conversation Error]:", e?.message || e);
           res.json({
@@ -4664,7 +4783,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   const ai = getServerAI();
 
                   const transcribeResp = await ai.models.generateContent({
-                      model: "gemini-2.0-flash",
+                      model: "gemini-3.5-flash-lite",
                       contents: [
                           {
                               role: "user",
@@ -4683,7 +4802,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   }
 
                   const replyResp = await ai.models.generateContent({
-                      model: "gemini-2.0-flash",
+                      model: "gemini-3.5-flash-lite",
                       contents: [
                           {
                               role: "user",
@@ -4726,7 +4845,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                       const text = data.text;
                       const ai = getServerAI();
                       const replyResp = await ai.models.generateContent({
-                          model: "gemini-2.0-flash",
+                          model: "gemini-3.5-flash-lite",
                           contents: [{ role: "user", parts: [{ text: `أنت جارفيس، المساعد الذكي لماستر تيتو. رد باقتضاب وسرعة وذكاء باللهجة المصرية.\n${text}` }] }]
                       });
                       const replyText = replyResp.text?.trim() || "تمام يا ماستر.";

@@ -95,7 +95,7 @@ export const analyzeMediaForArchive = async (base64Data: string, mimeType: strin
         const ai = getAI();
         const b64Str = base64Data.split(',')[1] || base64Data;
         const response = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
+            model: "gemini-3.5-flash-lite",
             contents: [
                 {
                     role: 'user',

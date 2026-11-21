@@ -137,11 +137,11 @@ async function synthesizeWithNodeEdgeTts(cleanText: string, isFemale: boolean, o
         const tts = new EdgeTTS({
             voice: edgeVoice,
             outputFormat: outputFormat || 'audio-24khz-48kbitrate-mono-mp3',
-            timeout: 12000
+            timeout: 6500
         });
         await Promise.race([
             tts.ttsPromise(cleanText, tmpMp3Path),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('EDGE_TTS_TIMEOUT')), 13000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('EDGE_TTS_TIMEOUT')), 7000))
         ]);
         if (fs.existsSync(tmpMp3Path)) {
             const buf = fs.readFileSync(tmpMp3Path);
@@ -201,10 +201,9 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         return await synthesizeWithNodeEdgeTts(cleanText, isFemale, wantRawPcm ? 'raw-24khz-16bit-mono-pcm' : undefined);
     }
 
-    // Latest verified Gemini Human TTS models (exact models powering T2 Agent human voice)
+    // Latest verified Gemini Human TTS models
     const geminiTtsModels = [
         'gemini-3.8-flash-lite-tts',
-        'gemini-3.8-flash-tts',
         'gemini-3.1-flash-tts-preview'
     ];
 
@@ -215,7 +214,7 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 9500);
+                const timeoutId = setTimeout(() => controller.abort(), 5500);
 
                 const resp = await fetch(url, {
                     method: 'POST',

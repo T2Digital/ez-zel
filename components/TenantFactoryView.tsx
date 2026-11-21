@@ -308,34 +308,40 @@ export const TenantFactoryView: React.FC = () => {
             </div>
 
             <div className="space-y-3 mt-4 max-h-[460px] overflow-y-auto pr-1">
-              {deployedTenants.map(item => (
-                <div key={item.id} className="p-3.5 bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 rounded-xl transition space-y-2">
+              {deployedTenants.map((item, idx) => {
+                const rawUrl = String(item?.liveUrl || (item as any)?.url || '').trim();
+                const displayUrl = rawUrl ? rawUrl.replace(/^https?:\/\//i, '') : 'قيد التجهيز';
+                const safeHref = rawUrl ? (/^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`) : '#';
+                return (
+                <div key={item?.id || `tenant_${idx}`} className="p-3.5 bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 rounded-xl transition space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-bold text-white">{item.businessName}</div>
-                      <div className="text-[11px] text-slate-400">{item.clientName} • {item.templateName}</div>
+                      <div className="text-xs font-bold text-white">{item?.businessName || (item as any)?.name || (item as any)?.slug || 'تطبيق عميل'}</div>
+                      <div className="text-[11px] text-slate-400">{item?.clientName || 'عميل T2OS'} • {item?.templateName || (item as any)?.templateId || 'PWA'}</div>
                     </div>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-mono">
-                      {item.status}
+                      {item?.status || 'active'}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[11px]">
                     <a 
-                      href={item.liveUrl} 
-                      target="_blank" 
+                      href={safeHref} 
+                      target={rawUrl ? "_blank" : undefined}
                       rel="noreferrer"
+                      dir="ltr"
                       className="text-amber-400 hover:text-amber-300 font-mono flex items-center gap-1"
                     >
-                      <span>{item.liveUrl.replace('https://', '')}</span>
+                      <span>{displayUrl}</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
                     <span className="text-slate-400 font-mono">
-                      واتساب: {item.whatsappBot}
+                      واتساب: {item?.whatsappBot || (item as any)?.phone || 'غير مربوط'}
                     </span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

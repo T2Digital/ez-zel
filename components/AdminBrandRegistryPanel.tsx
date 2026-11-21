@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Database, PauseCircle, RefreshCw, Save, Search, Sparkles } from 'lucide-react';
+import { getAdminAuthHeaders } from '../services/adminIdentity';
 
 type LifecycleStage = 'active_client' | 'trial' | 'paused_archive' | 'self_growth';
 
@@ -31,16 +32,7 @@ interface RegistryBrand {
 }
 
 async function getAdminHeaders(): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  try {
-    const { getAuth } = await import('firebase/auth');
-    const user = getAuth().currentUser;
-    if (user) {
-      const token = await user.getIdToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-    }
-  } catch {}
-  return headers;
+  return await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
 }
 
 const STAGE_META: Record<LifecycleStage, { label: string; badgeClass: string }> = {

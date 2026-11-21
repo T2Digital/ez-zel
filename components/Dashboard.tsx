@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Brain, Target, Zap, Activity, Clock, Database, CheckCircle2, Globe, BookOpen, Lightbulb, Play, Pause, DollarSign, MessageSquare, LogOut, ChevronRight, Fingerprint, Crown, User, Briefcase, Cpu, Link as LinkIcon, Save, X, Trash2, Megaphone, ExternalLink, Info, Shield, Terminal, FolderOpen, Wallet, Mic, Music } from 'lucide-react';
 import { shadowDB, DBTask, DBFact, UserProfile } from '../services/dbService';
+import { isMasterAdminEmail } from '../services/adminIdentity';
 import { playShadowVoice, stopVoice, getShadowVoice } from '../services/geminiService';
 import SovereignVault from './SovereignVault';
 import ApiKeysVault from './dashboard/ApiKeysVault';
@@ -150,11 +151,11 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const getIdentity = () => {
       if (user.phone === 'GUEST') return { label: 'زائر مؤقت', sub: 'Guest Access', color: 'text-white/60', bg: 'bg-white/10', border: 'border-white/10', icon: User };
       if (user.affiliate?.isMarketer && user.tier === 'lite') return { label: 'شريك نجاح', sub: 'Affiliate Partner', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: Briefcase };
-      if (user.email === 'admin@shadow.com') return { label: 'الماستر', sub: 'System Admin', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Crown };
+      if (isMasterAdminEmail(user.email)) return { label: 'الماستر', sub: 'System Admin', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Crown };
       return { label: 'عضو نخبة', sub: 'Sovereign Tier', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: Fingerprint };
   };
   const identity = getIdentity();
-  const isAdmin = user.email === 'admin@shadow.com' || user.email === 'TITO' || user.email === 'tito@shadow.com';
+  const isAdmin = isMasterAdminEmail(user.email);
 
   // ORBITAL DRAG & DROP STATE
   const [orbitMap, setOrbitMap] = useState<Record<string, number>>({
@@ -182,10 +183,7 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   useEffect(() => { activeDraggingId.current = draggingId; activeDragPos.current = dragPos; }, [draggingId, dragPos]);
 
   useEffect(() => {
-      let interval = setInterval(() => {
-         setLiveSync((syncRate + (Math.random() * 0.1) - 0.05).toFixed(2));
-      }, 500);
-      return () => clearInterval(interval);
+      setLiveSync(Number(syncRate || 0).toFixed(2));
   }, [syncRate]);
 
   useEffect(() => {

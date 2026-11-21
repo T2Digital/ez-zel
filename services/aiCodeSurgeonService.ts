@@ -135,7 +135,7 @@ export async function editTenantRepoCode(input: {
 
   // 2. Ask Gemini to generate surgical full-file update
   const genResp = await input.ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.5-flash-lite',
     contents: [
       {
         role: 'user',

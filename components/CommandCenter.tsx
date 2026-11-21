@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { UserProfile } from "../services/dbService";
+import { getAdminAuthHeaders } from "../services/adminIdentity";
 import {
   Bot,
   Briefcase,
@@ -76,10 +77,11 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
   const fetchOverview = async () => {
     setLoading(true);
     try {
+      const authHeaders = await getAdminAuthHeaders();
       const [hRes, bRes, fRes, brRes] = await Promise.allSettled([
         fetch("/api/system/ecosystem-health").then((r) => r.json()),
         fetch("/api/system/daily-executive-briefing?audio=false").then((r) => r.json()),
-        fetch("/api/system/real-financials").then((r) => r.json()),
+        fetch("/api/system/real-financials", { credentials: "include", headers: authHeaders }).then((r) => r.json()),
         fetch("/api/t2-agent/brands").then((r) => r.json()),
       ]);
       if (hRes.status === "fulfilled") {

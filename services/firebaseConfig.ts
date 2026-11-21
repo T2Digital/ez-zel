@@ -13,10 +13,10 @@ try {
         if (!getApps().length) {
             app = initializeApp(firebaseConfigData);
             setLogLevel('error');
-            // Initialize Firestore with memory cache to avoid IndexedDB corruption/assertion issues
+            // Initialize Firestore with memory cache and auto-detect long polling to avoid listen/terminate loops
             db = initializeFirestore(app, { 
                 localCache: memoryLocalCache(),
-                experimentalForceLongPolling: true
+                experimentalAutoDetectLongPolling: true
             }, (firebaseConfigData as any).firestoreDatabaseId);
         } else {
             app = getApp();

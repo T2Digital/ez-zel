@@ -1158,7 +1158,7 @@ export const processToolActions = async (
                            const ai = getAI();
                            const prompt = "أنت نموذج التنبؤ بالسلاسل الزمنية Google TimesFM. حلل اتجاه: " + args.target + " للنطاق: " + (args.timeframe || "يومي") + ". قدم تحليلاً حقيقياً دقيقاً يتضمن الاتجاه المتوقع، ونسبة الثقة، ومستويات الدعم والمقاومة بإيجاز شديد.";
                            const aiRes = await ai.models.generateContent({
-                               model: "gemini-3.8-flash",
+                               model: "gemini-3.5-flash-lite",
                                contents: [{ role: "user", parts: [{ text: prompt }] }]
                            });
                            const resultText = "[تحليل السلاسل الزمنية Google TimesFM 📈]\n" + (aiRes.text || "اكتمل تحليل TimesFM بنجاح.");

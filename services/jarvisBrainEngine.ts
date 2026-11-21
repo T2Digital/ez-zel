@@ -15,6 +15,7 @@ import { resolveFlagshipTemplate, FLAGSHIP_TEMPLATES } from "./tenantFactory";
 import { readPersistentJson, savePersistentJson } from "./persistentStorage";
 import { getDynamicSaasPlans } from "./saasPlansService";
 import { readPaymobSubscriptions } from "./paymobService";
+import { ACTIVE_GEMINI_TEXT_MODELS } from "./geminiKeyPool";
 
 export interface JarvisBrainInput {
   message: string;
@@ -1056,12 +1057,7 @@ ${conversationMemoryDirective}`;
         )
       : jarvisBrainTools.filter((t) => SOVEREIGN_UNIFIED_TOOLS.has(t.name));
 
-  const modelCascade = [
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-3.8-flash",
-    "gemini-omni-flash-preview",
-  ];
+  const modelCascade = [...ACTIVE_GEMINI_TEXT_MODELS];
 
   const withModelTimeout = <T>(p: Promise<T>, ms = 9000): Promise<T> =>
     Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`MODEL_TIMEOUT_${ms}ms`)), ms))]);
@@ -1462,7 +1458,7 @@ ${conversationMemoryDirective}`;
           let generatedIdeas: any[] = [];
           const loopPrompt = `أنت مدير تسويق مصري ذكي. حلل طبيعة نشاط "${b.name}" (${b.businessType || "خدمات رقمية"}) وتوقّع أهم 3 أسئلة بيسألها العملاء على الواتساب يومياً، وحوّل كل سؤال إلى بوست تسويقي جاهز باللهجة المصرية.
 أعد JSON فقط كمصفوفة: [{"question": "...", "hook": "...", "caption": "...", "contentType": "تصميم Feed (1:1)"}]`;
-          for (const m of ["gemini-3.1-flash-lite", "gemini-2.5-flash"]) {
+          for (const m of ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest"]) {
             try {
               const r = await ai.models.generateContent({
                 model: m,
@@ -2641,7 +2637,7 @@ ${conversationMemoryDirective}`;
   // If Gemini executed a tool and didn't produce spoken text in the same turn, generate a natural Egyptian Arabic confirmation
   let replyText = chat?.text?.trim() || "";
   if (!replyText && (backendExecutionResult || executedAction)) {
-    for (const modelName of ["gemini-3.1-flash-lite", "gemini-2.5-flash"]) {
+    for (const modelName of ACTIVE_GEMINI_TEXT_MODELS.slice(0, 3)) {
       try {
         const followUp = await ai.models.generateContent({
           model: modelName,
@@ -2757,9 +2753,9 @@ ${conversationMemoryDirective}`;
     };
   }
 
-  // Synthesize response in 100% Gemini Human Voice (Puck 24kHz) unless skipped, bounded by 4.5s timeout
+  // Synthesize response in 100% Gemini Human Voice (Puck 24kHz) ONLY when explicitly requested (skipTts defaults to true)
   let audioBase64: string | null = null;
-  if (!input.skipTts) {
+  if (input.skipTts === false) {
     try {
       const audioBuffer = await Promise.race([
         synthesizeSpeech(replyText, "Puck"),

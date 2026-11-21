@@ -341,7 +341,7 @@ class SwarmService {
                     Write in the Egyptian Arabic friend tone (الماستر تيتو). Ensure it is highly detailed and professional.`;
                     
                     const response = await ai.models.generateContent({
-                        model: 'gemini-3.8-flash',
+                        model: 'gemini-3.5-flash-lite',
                         contents: promptChain
                     });
                     

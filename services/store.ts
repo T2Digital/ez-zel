@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { UserProfile, DBMessage, shadowDB } from './dbService';
+import { isMasterAdminEmail } from './adminIdentity';
 
 export type ViewState = 'loading' | 'pricing' | 'auth' | 'payment' | 'dashboard' | 'chat' | 'admin' | 'blocked' | 'pending_review' | 'affiliate' | 'workspace' | 'widget';
 
@@ -88,9 +89,12 @@ export const useAppStore = create<AppState>((set, get) => ({
               } catch(e) {}
 
               if (profile.status === 'active') {
+                 if (isMasterAdminEmail(profile.email)) {
+                     try { localStorage.setItem('tito_admin_master', 'true'); } catch {}
+                 }
                  if (preserveChatView) {
                      set({ view: 'chat', isAppLocked: false });
-                 } else if (profile.email === 'admin@shadow.com' && currentPath === '/admin') {
+                 } else if (isMasterAdminEmail(profile.email) && currentPath === '/admin') {
                      set({ view: 'admin', isAppLocked: false });
                  } else {
                      set({ view: 'dashboard', isAppLocked: false });
@@ -110,6 +114,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (guestSession === 'true') {
         const guestUser: UserProfile = { email: 'GUEST', phone: 'GUEST', name: 'ضيف', tier: 'lite', status: 'active', joinedAt: Date.now() };
         set({ user: guestUser, view: preserveChatView ? 'chat' : 'dashboard', isAppLocked: false });
+        return;
+      }
+
+      // Preserve explicit route navigation on /auth, /admin (handled by route guard), /jarvis, or /client/:slug
+      if (
+        currentPath === '/auth' ||
+        currentPath === '/admin' ||
+        currentPath === '/jarvis' ||
+        currentPath.startsWith('/client/')
+      ) {
         return;
       }
       
@@ -137,7 +151,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const alreadyInChat = typeof window !== 'undefined' && (window.location.pathname === '/chat' || get().view === 'chat');
 
-    if (profile.email === 'admin@shadow.com') {
+    if (isMasterAdminEmail(profile.email)) {
+        try { localStorage.setItem('tito_admin_master', 'true'); } catch {}
         set({ view: alreadyInChat ? 'chat' : 'admin', isAppLocked: false });
         // NOTE: Admin sets `isAppLocked: false`, bypassing SecurityGate
         return;
@@ -162,6 +177,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       shadowDB.logout(); 
       localStorage.removeItem('shadow_guest_active');
       localStorage.removeItem('shadow_last_user');
+      localStorage.removeItem('t2os_admin_token');
+      localStorage.removeItem('tito_admin_master');
       set({ user: null, latestSystemMessage: null, view: 'pricing' });
   },
 

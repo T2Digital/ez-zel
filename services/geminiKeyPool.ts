@@ -1,9 +1,27 @@
 import { GoogleGenAI } from '@google/genai';
 
+export const ACTIVE_GEMINI_TEXT_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
+  'gemini-3-flash-preview',
+] as const;
+
+export function sanitizeGeminiTextModel(model?: string): string {
+  const m = String(model || '').trim();
+  if (!m) return 'gemini-3.5-flash-lite';
+  if (/tts|image|nano-banana|veo|embedding|live/i.test(m)) {
+    return m;
+  }
+  if (/gemini-2\.|gemini-1\.|gemini-3\.0|gemini-3\.7|gemini-3\.8|gemini-omni|gemini-flash-latest|gemini-3\.1-pro|pro-preview/i.test(m)) {
+    return 'gemini-3.5-flash-lite';
+  }
+  return m;
+}
+
 interface KeyHealth {
   key: string;
   masked: string;
-  cooldownUntil: number;
   invalidPermanent: boolean;
   successCount: number;
   failureCount: number;
@@ -11,6 +29,8 @@ interface KeyHealth {
 }
 
 const keyPool = new Map<string, KeyHealth>();
+// Cooldowns are isolated per (key::model) so a 429/503 on one model never poisons healthy models
+const modelCooldowns = new Map<string, number>();
 let roundRobinIdx = 0;
 
 function maskKey(k: string): string {
@@ -58,7 +78,6 @@ export function loadGeminiKeysFromEnv(): string[] {
           keyPool.set(p, {
             key: p,
             masked: maskKey(p),
-            cooldownUntil: 0,
             invalidPermanent: false,
             successCount: 0,
             failureCount: 0
@@ -70,14 +89,16 @@ export function loadGeminiKeysFromEnv(): string[] {
   return keys;
 }
 
-export function getNextHealthyGeminiKey(): string {
+export function getNextHealthyGeminiKey(model = 'gemini-3.5-flash-lite'): string {
   const keys = loadGeminiKeysFromEnv();
   if (keys.length === 0) return '';
 
+  const targetModel = sanitizeGeminiTextModel(model);
   const now = Date.now();
   const healthy = keys.filter((k) => {
     const info = keyPool.get(k);
-    return info && !info.invalidPermanent && info.cooldownUntil <= now;
+    const cd = modelCooldowns.get(`${k}::${targetModel}`) || 0;
+    return info && !info.invalidPermanent && cd <= now;
   });
 
   if (healthy.length > 0) {
@@ -86,25 +107,26 @@ export function getNextHealthyGeminiKey(): string {
     return chosen;
   }
 
-  // All non-permanent keys are in temporary cooldown; pick the one whose cooldown expires earliest
   const nonPermanent = keys.filter((k) => !keyPool.get(k)?.invalidPermanent);
   if (nonPermanent.length > 0) {
-    nonPermanent.sort((a, b) => (keyPool.get(a)?.cooldownUntil || 0) - (keyPool.get(b)?.cooldownUntil || 0));
+    nonPermanent.sort(
+      (a, b) => (modelCooldowns.get(`${a}::${targetModel}`) || 0) - (modelCooldowns.get(`${b}::${targetModel}`) || 0)
+    );
     return nonPermanent[0];
   }
 
   return keys[0];
 }
 
-export function markGeminiKeySuccess(key: string) {
+export function markGeminiKeySuccess(key: string, model = 'gemini-3.5-flash-lite') {
   const info = keyPool.get(key);
   if (info) {
     info.successCount += 1;
-    info.cooldownUntil = 0;
   }
+  modelCooldowns.delete(`${key}::${sanitizeGeminiTextModel(model)}`);
 }
 
-export function markGeminiKeyFailure(key: string, err: any) {
+export function markGeminiKeyFailure(key: string, err: any, model = 'gemini-3.5-flash-lite') {
   const info = keyPool.get(key);
   if (!info) return;
 
@@ -112,30 +134,39 @@ export function markGeminiKeyFailure(key: string, err: any) {
   info.failureCount += 1;
   info.lastError = msg.slice(0, 140);
 
-  if (/API_KEY_INVALID|API key not valid|expired|PERMISSION_DENIED/i.test(msg)) {
+  // Never poison key cooldown on 404 NOT_FOUND (model deprecation)
+  if (/404|NOT_FOUND|no longer available/i.test(msg)) {
+    return;
+  }
+
+  if (/API_KEY_INVALID|API key not valid|expired/i.test(msg)) {
     info.invalidPermanent = true;
     console.warn(`[GeminiKeyPool] Key ${info.masked} marked invalid permanently.`);
   } else {
-    // 429 / RESOURCE_EXHAUSTED / transient quota -> 60s cooldown
-    info.cooldownUntil = Date.now() + 60_000;
-    console.warn(`[GeminiKeyPool] Key ${info.masked} rotated to 60s cooldown (${info.lastError}).`);
+    const cdKey = `${key}::${model}`;
+    modelCooldowns.set(cdKey, Date.now() + 45_000);
+    console.warn(`[GeminiKeyPool] Key ${info.masked} (${model}) rotated to 45s cooldown (${info.lastError}).`);
   }
 }
 
 export function getGeminiKeyPoolStatus() {
   const keys = loadGeminiKeysFromEnv();
   const now = Date.now();
+  const primaryModel = ACTIVE_GEMINI_TEXT_MODELS[0];
   return {
     totalKeys: keys.length,
     healthyCount: keys.filter((k) => {
       const info = keyPool.get(k);
-      return info && !info.invalidPermanent && info.cooldownUntil <= now;
+      const cd = modelCooldowns.get(`${k}::${primaryModel}`) || 0;
+      return info && !info.invalidPermanent && cd <= now;
     }).length,
+    activeModels: [...ACTIVE_GEMINI_TEXT_MODELS],
     keys: keys.map((k) => {
       const info = keyPool.get(k)!;
+      const cd = modelCooldowns.get(`${k}::${primaryModel}`) || 0;
       return {
         masked: info.masked,
-        status: info.invalidPermanent ? 'INVALID' : info.cooldownUntil > now ? 'COOLDOWN' : 'HEALTHY',
+        status: info.invalidPermanent ? 'INVALID' : cd > now ? 'COOLDOWN' : 'HEALTHY',
         successCount: info.successCount,
         failureCount: info.failureCount,
         lastError: info.lastError
@@ -146,7 +177,7 @@ export function getGeminiKeyPoolStatus() {
 
 /**
  * Returns a GoogleGenAI-compatible client whose models.generateContent()
- * automatically rotates across all configured Gemini keys on quota/429/invalid-key errors.
+ * sanitizes deprecated models and rotates across all configured Gemini keys.
  */
 export function createRotatingServerAI(): GoogleGenAI {
   const keys = loadGeminiKeysFromEnv();
@@ -169,28 +200,30 @@ export function createRotatingServerAI(): GoogleGenAI {
   };
 
   const rotatingGenerateContent = async (params: any) => {
+    const safeModel = sanitizeGeminiTextModel(params?.model);
+    const safeParams = params?.model !== safeModel ? { ...params, model: safeModel } : params;
     const candidateKeys = loadGeminiKeysFromEnv();
     const maxAttempts = Math.max(1, candidateKeys.length);
     let lastErr: any = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const key = attempt === 0 ? primaryKey : getNextHealthyGeminiKey();
+      const key = getNextHealthyGeminiKey(safeModel);
       try {
         const client =
-          attempt === 0
+          key === primaryKey
             ? baseClient
             : new GoogleGenAI({
                 apiKey: key,
                 httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
               });
-        const res = await (attempt === 0
-          ? originalGenerateContent(params)
-          : client.models.generateContent(params));
-        markGeminiKeySuccess(key);
+        const res = await (key === primaryKey
+          ? originalGenerateContent(safeParams)
+          : client.models.generateContent(safeParams));
+        markGeminiKeySuccess(key, safeModel);
         return res;
       } catch (err: any) {
         lastErr = err;
-        markGeminiKeyFailure(key, err);
+        markGeminiKeyFailure(key, err, safeModel);
         if (!shouldRotateError(err) || attempt === maxAttempts - 1) {
           throw err;
         }
@@ -207,15 +240,15 @@ export function createRotatingServerAI(): GoogleGenAI {
       const maxAttempts = Math.max(1, candidateKeys.length);
       let lastErr: any = null;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const key = attempt === 0 ? primaryKey : getNextHealthyGeminiKey();
+        const key = getNextHealthyGeminiKey('image');
         try {
-          const client = attempt === 0 ? baseClient : new GoogleGenAI({ apiKey: key, httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
-          const res = await (attempt === 0 ? originalGenerateImages(params) : (client.models as any).generateImages(params));
-          markGeminiKeySuccess(key);
+          const client = key === primaryKey ? baseClient : new GoogleGenAI({ apiKey: key, httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
+          const res = await (key === primaryKey ? originalGenerateImages(params) : (client.models as any).generateImages(params));
+          markGeminiKeySuccess(key, 'image');
           return res;
         } catch (err: any) {
           lastErr = err;
-          markGeminiKeyFailure(key, err);
+          markGeminiKeyFailure(key, err, 'image');
           if (!shouldRotateError(err) || attempt === maxAttempts - 1) throw err;
         }
       }

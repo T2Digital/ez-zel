@@ -352,7 +352,7 @@ export async function runSelfOptimizingLoop(brandId: string): Promise<any> {
             const ai = createRotatingServerAI();
             const analysisPrompt = `حلل استفسارات عملاء "${brand.name}" (${brand.businessType || 'نشاط تجاري'}) التالية واقترح بصيغة JSON فقط بالحقول {topObjection, suggestedHook, promptRule}:\n${sampleCustomerQueries.join('\n- ')}`;
             const resp: any = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3.5-flash-lite',
                 contents: analysisPrompt,
                 config: { responseMimeType: 'application/json' }
             });

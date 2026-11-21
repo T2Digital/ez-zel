@@ -91,7 +91,7 @@ const App: React.FC = () => {
       <FloatingShadowAvatar 
         user={user} 
         onNavigateChat={() => useAppStore.setState({ view: "chat" })} 
-        hide={view === 'chat' || location.pathname === '/chat' || location.pathname.startsWith('/chat/')} 
+        hide={view === 'chat' || location.pathname === '/chat' || location.pathname.startsWith('/chat/') || location.pathname.startsWith('/admin')} 
       />
       <ProactiveNotification />
       <ZeroMistakeGuardrailModal />

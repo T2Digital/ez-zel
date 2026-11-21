@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from "re
 import { useAppStore } from "../services/store";
 import { Loader2, Fingerprint, ShieldCheck, Clock, LogOut, RefreshCw } from "lucide-react";
 import { shadowDB } from "../services/dbService";
+import { isMasterAdminEmail } from "../services/adminIdentity";
 
 const ChatInterface = lazy(() => import("./ChatInterface"));
 const Pricing = lazy(() => import("./Pricing"));
@@ -37,6 +38,7 @@ export const AppRoutes: React.FC = () => {
     isCheckingStatus,
     dashboardAction,
     isAppLocked,
+    isAuthReady,
     setView,
     setUser,
     setBillingCycle,
@@ -102,10 +104,18 @@ export const AppRoutes: React.FC = () => {
 
   // 2. React to Store view changes (only if it didn't originate from URL change)
   useEffect(() => {
-    if (isNavigatingRef.current || location.pathname.startsWith("/client/")) return;
+    if (
+      isNavigatingRef.current ||
+      view === "loading" ||
+      location.pathname.startsWith("/client/") ||
+      location.pathname === "/jarvis" ||
+      (view === "pricing" && (location.pathname === "/auth" || location.pathname === "/admin"))
+    ) {
+      return;
+    }
     const targetPath = pathMapping[view];
     if (targetPath && targetPath !== location.pathname) {
-      navigate(targetPath, { replace: view === "loading" || view === "dashboard" });
+      navigate(targetPath, { replace: view === "dashboard" });
     }
   }, [view, navigate, location.pathname]);
 
@@ -139,11 +149,7 @@ export const AppRoutes: React.FC = () => {
 
   const userEmailLower = (user?.email || "").toLowerCase();
   const isAdminUser = user
-    ? userEmailLower === "tito" ||
-      userEmailLower === "tito@shadow.com" ||
-      userEmailLower === "admin@shadow.com" ||
-      userEmailLower === "ahm.atya@gmail.com" ||
-      userEmailLower === "ahmed.atya.daif@gmail.com" ||
+    ? isMasterAdminEmail(userEmailLower) ||
       (user.tier === "sovereign" && user.name.includes("تيتو"))
     : false;
   const adminInUserMode = typeof window !== "undefined" && sessionStorage.getItem("t2_admin_user_mode") === "1";
@@ -277,8 +283,7 @@ export const AppRoutes: React.FC = () => {
               try {
                 const gUser = await shadowDB.loginWithGoogle();
                 if (gUser && gUser.status !== "blocked") {
-                  useAppStore.getState().setUser(gUser);
-                  navigateToView("dashboard");
+                  handleAuthSuccess(gUser);
                   return;
                 }
               } catch {}
@@ -290,20 +295,43 @@ export const AppRoutes: React.FC = () => {
               setAuthDefaultTab("register");
               navigateToView("auth");
             }}
-              onLoginClick={async () => {
-                try {
-                  const gUser = await shadowDB.loginWithGoogle();
-                  if (gUser && gUser.status !== "blocked") {
-                    useAppStore.getState().setUser(gUser);
-                    navigateToView("dashboard");
-                    return;
-                  }
-                } catch {}
-                setAuthDefaultTab("login");
-                navigateToView("auth");
-              }}
+            onLoginClick={() => {
+              setIsAffiliateRegistration(false);
+              setAuthDefaultTab("login");
+              navigateToView("auth");
+            }}
             />
           )
+        }
+      />
+
+      <Route
+        path="/jarvis"
+        element={
+          <Pricing
+            onSelectPlan={(plan, cycle) => {
+              setSelectedPlan(plan);
+              if (cycle) setBillingCycle(cycle);
+              setIsAffiliateRegistration(false);
+              setAuthDefaultTab("register");
+              navigateToView("auth");
+            }}
+            onTrialStart={() => {
+              setIsAffiliateRegistration(false);
+              setAuthDefaultTab("login");
+              navigateToView("auth");
+            }}
+            onAffiliateStart={() => {
+              setIsAffiliateRegistration(true);
+              setAuthDefaultTab("register");
+              navigateToView("auth");
+            }}
+            onLoginClick={() => {
+              setIsAffiliateRegistration(false);
+              setAuthDefaultTab("login");
+              navigateToView("auth");
+            }}
+          />
         }
       />
 
@@ -353,17 +381,25 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/admin"
         element={
-          <AdminDashboard
-            onLogout={handleLogout}
-            onSwitchToUserMode={() => {
-              try { sessionStorage.setItem("t2_admin_user_mode", "1"); } catch {}
-              navigateToView("dashboard");
-            }}
-            onNavigateTo={(v) => {
-              try { sessionStorage.removeItem("t2_admin_user_mode"); } catch {}
-              navigateToView(v);
-            }}
-          />
+          !isAuthReady && !user ? (
+            <div className="fixed inset-0 bg-transparent flex flex-col items-center justify-center text-white font-['Cairo']">
+              <Loader2 className="w-12 h-12 text-amber-400 animate-spin" />
+            </div>
+          ) : !user || !isAdminUser ? (
+            <Navigate to="/auth?next=/admin" replace />
+          ) : (
+            <AdminDashboard
+              onLogout={handleLogout}
+              onSwitchToUserMode={() => {
+                try { sessionStorage.setItem("t2_admin_user_mode", "1"); } catch {}
+                navigateToView("dashboard");
+              }}
+              onNavigateTo={(v) => {
+                try { sessionStorage.removeItem("t2_admin_user_mode"); } catch {}
+                navigateToView(v);
+              }}
+            />
+          )
         }
       />
 

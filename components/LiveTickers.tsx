@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { shadowDB, UserProfile } from '../services/dbService';
+import { auth } from '../services/firebaseConfig';
 import { DollarSign, UserPlus, ShieldCheck, Briefcase, Activity } from 'lucide-react';
 
 const maskName = (name: string) => {
@@ -17,7 +18,10 @@ const LiveTickers: React.FC = () => {
     const [pulses, setPulses] = useState<any[]>([]);
 
     useEffect(() => {
+        if (!auth?.currentUser) return;
+
         const loadStats = async () => {
+            if (!auth?.currentUser) return;
             const profiles = await shadowDB.getAllProfiles();
             const combinedItems: any[] = [];
 
@@ -71,6 +75,7 @@ const LiveTickers: React.FC = () => {
 
         // Listen to pulses
         const checkPulse = async () => {
+            if (!auth?.currentUser) return;
             const pulse = await shadowDB.getGlobalPulse();
             if (pulse && pulse.timestamp > Date.now() - 86400000) { // Only last 24h
                 setPulses(prev => {

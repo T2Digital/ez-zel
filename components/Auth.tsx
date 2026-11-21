@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, User, Mail, ArrowLeft, Ghost, Loader2, Eye, EyeOff, Diamond, DollarSign, KeyRound, AlertTriangle, HelpCircle, CheckCircle2 } from 'lucide-react';
 import { shadowDB, UserProfile } from '../services/dbService';
+import { isMasterAdminEmail } from '../services/adminIdentity';
 
 interface Props {
   selectedPlan: string;
@@ -41,63 +42,65 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
     setIsLoading(true);
 
     try {
-        // --- MASTER ADMIN FIREBASE CHECK ---
-        if ((email || '').toLowerCase() === 'admin@shadow.com') {
-             // Firebase requires at least 6 characters for a password
-             const firebasePassword = password === 'admin' ? 'admin123' : password;
+        const cleanEmail = (email || '').trim().toLowerCase();
 
+        // --- MASTER ADMIN SOVEREIGN SESSION EXCHANGE ---
+        if (isLogin && isMasterAdminEmail(cleanEmail)) {
+             const firebasePassword = cleanEmail === 'admin@shadow.com' && password === 'admin' ? 'admin123' : password;
+
+             let fbLoggedIn = false;
              try {
-                 await shadowDB.loginUser(email, firebasePassword);
-                 setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 500);
-                 return;
-             } catch (e: any) {
-                 const errMsg = e.message || '';
-                 // If user genuinely not found, create the admin account
-                 if (errMsg.includes('user-not-found') || errMsg.includes('invalid-credential') || errMsg.includes('auth/invalid-login-credentials')) {
-                      if (password === 'admin') {
-                          try {
-                              await shadowDB.registerUser(email, firebasePassword, 'تيتو (الماستر)', false);
-                              
-                              // Make sure they have a sovereign profile 
-                              let adminProfile = await shadowDB.getProfile(email.toLowerCase());
-                              if (adminProfile) {
-                                  adminProfile.tier = 'sovereign';
-                                  adminProfile.name = 'تيتو (الماستر)';
-                                  await shadowDB.saveProfile(adminProfile, true);
-                              }
-                              
-                              setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 500);
-                              return;
-                          } catch(err: any) {
-                              if (err.message?.includes('email-already-in-use')) {
-                                  setError('كلمة المرور غير صحيحة.');
-                                  setIsLoading(false);
-                                  return;
-                              }
-                              console.warn("Firebase Error", err);
-                              // OFFLINE FALLBACK FOR ADMIN
-                              let adminProfile = await shadowDB.getProfile(email.toLowerCase());
-                              if (!adminProfile) {
-                                  adminProfile = { 
-                                      email: 'admin@shadow.com', 
-                                      phone: 'admin@shadow.com',
-                                      uid: 'ADMIN_OFFLINE_UID',
-                                      status: 'active',
-                                      joinedAt: Date.now(),
-                                      tier: 'sovereign',
-                                      name: 'تيتو (الماستر)',
-                                      shadowName: 'الماستر',
-                                      affiliate: { isMarketer: true, referralCode: 'ADMIN_BOSS', totalEarnings: 0, referralsCount: 0, payoutHistory: [] }
-                                  };
-                                  await shadowDB.saveProfile(adminProfile, true);
-                              }
-                              setTimeout(() => { onAdminLogin(); setIsLoading(false); }, 500);
-                              return;
-                          } 
-                      }
+                 await shadowDB.loginUser(cleanEmail, firebasePassword);
+                 fbLoggedIn = true;
+             } catch {
+                 if (cleanEmail === 'admin@shadow.com' && password === 'admin') {
+                     try {
+                         await shadowDB.registerUser(cleanEmail, firebasePassword, 'تيتو (الماستر)', false);
+                         fbLoggedIn = true;
+                     } catch {}
                  }
-                 
-                 setError(`فشل التسجيل: ${e.message || 'مشكلة في الإتصال'}`);
+             }
+
+             // Establish real signed HttpOnly cookie + bearer token on T2OS backend
+             const sessRes = await fetch('/api/auth/admin-session', {
+                 method: 'POST',
+                 credentials: 'include',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ email: cleanEmail, password }),
+             });
+             const sessData = await sessRes.json().catch(() => null);
+
+             if (sessRes.ok && sessData?.ok && sessData?.adminToken) {
+                 try {
+                     localStorage.setItem('t2os_admin_token', String(sessData.adminToken));
+                     localStorage.setItem('tito_admin_master', 'true');
+                 } catch {}
+
+                 let adminProfile = await shadowDB.getProfile(cleanEmail);
+                 if (!adminProfile) {
+                     adminProfile = {
+                         email: cleanEmail,
+                         phone: cleanEmail,
+                         uid: fbLoggedIn ? 'ADMIN_VERIFIED_UID' : 'ADMIN_SESSION_UID',
+                         status: 'active',
+                         joinedAt: Date.now(),
+                         tier: 'sovereign',
+                         name: 'تيتو (الماستر)',
+                         shadowName: 'الماستر',
+                         affiliate: { isMarketer: true, referralCode: 'TITO_MASTER', totalEarnings: 0, referralsCount: 0, payoutHistory: [] }
+                     };
+                 } else {
+                     adminProfile.tier = 'sovereign';
+                     adminProfile.status = 'active';
+                 }
+                 await shadowDB.saveProfile(adminProfile, true);
+                 onAuthSuccess(adminProfile);
+                 setIsLoading(false);
+                 return;
+             }
+
+             if (!fbLoggedIn) {
+                 setError('بيانات دخول الماستر غير صحيحة.');
                  setIsLoading(false);
                  return;
              }
@@ -173,12 +176,17 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
           onAuthSuccess(user);
       } catch (e: any) {
           console.error("Google Auth Error:", e);
-          if (e.message?.includes('popup-closed-by-user')) {
+          const msg = String(e?.message || '');
+          if (msg.includes('popup-closed-by-user')) {
               setError('تم إغلاق نافذة تسجيل الدخول بجوجل قبل إتمام العملية.');
-          } else if (e.message?.includes('operation-not-allowed')) {
+          } else if (msg.includes('popup-blocked')) {
+              setError('المتصفح حجب نافذة جوجل المنبثقة — اسمح بالنوافذ المنبثقة لهذا الموقع أو سجّل بالبريد الإلكتروني وكلمة المرور أدناه.');
+          } else if (msg.includes('unauthorized-domain')) {
+              setError('يجب إضافة هذا النطاق (t2os.app) في Authorized Domains بلوحة تحكم Firebase Authentication — ويمكنك الدخول بالبريد الإلكتروني وكلمة المرور حالياً.');
+          } else if (msg.includes('operation-not-allowed')) {
               setError('يرجى تفعيل Google Sign-In من لوحة تحكم Firebase Authentication.');
           } else {
-              setError(`تعذر تسجيل الدخول بجوجل: ${e.message || 'تأكد من تفعيل Google في Firebase'}`);
+              setError(`تعذر تسجيل الدخول بجوجل: ${msg || 'تأكد من تفعيل الدومين في Firebase'}`);
           }
       } finally {
           setIsLoading(false);

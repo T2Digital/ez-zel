@@ -16,8 +16,8 @@
     <link rel="alternate" hreflang="ar-EG" href="https://t2os.app/">
     <link rel="alternate" hreflang="x-default" href="https://t2os.app/">
 
-    <!-- LameJS (MP3 Encoder) - Loaded synchronously to bypass Vite bundler issues -->
-    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    <!-- LameJS (MP3 Encoder) - Deferred so initial render is non-blocking -->
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" defer></script>
 
     <!-- Open Graph / Facebook / WhatsApp -->
     <meta property="og:type" content="website">
@@ -102,7 +102,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     
     <style>
-        html { scroll-behavior: smooth; }
+        html { scroll-behavior: auto; }
         body { font-family: 'Cairo', sans-serif; background-color: #020202; color: #e5e5e5; overflow-x: hidden; user-select: none; -webkit-user-select: none; }
         .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.05); }
         ::-webkit-scrollbar { width: 0px; }

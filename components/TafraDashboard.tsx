@@ -132,19 +132,16 @@ export const TafraDashboard: React.FC<Props> = ({ onClose }) => {
     };
   }, []);
 
-  // Update waveform simulation during playback
+  // Update waveform simulation ONLY during active audio playback (~15 FPS)
   useEffect(() => {
-    let animFrame: number;
-    const animateWaveform = () => {
-      if (isPlayingGenerated) {
-        setWaveformBars(prev => prev.map(() => Math.floor(Math.random() * 45) + 10));
-      } else {
-        setWaveformBars(Array(30).fill(10));
-      }
-      animFrame = requestAnimationFrame(animateWaveform);
-    };
-    animateWaveform();
-    return () => cancelAnimationFrame(animFrame);
+    if (!isPlayingGenerated) {
+      setWaveformBars(Array(30).fill(10));
+      return;
+    }
+    const timer = setInterval(() => {
+      setWaveformBars(Array.from({ length: 30 }, () => Math.floor(Math.random() * 45) + 10));
+    }, 66);
+    return () => clearInterval(timer);
   }, [isPlayingGenerated]);
 
   const addLog = (msg: string) => {

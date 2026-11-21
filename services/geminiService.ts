@@ -7,6 +7,7 @@ import { processOfflineCommand } from "./offlineEdgeService";
 import { actionTools } from './toolsConfig';
 import { localBrain } from './localBrainService';
 import { getContextData, analyzeEmotionFromText } from './sensorService';
+import { isMasterAdminEmail, getAdminAuthHeaders } from './adminIdentity';
 let isRequesting = false;
 
 import { getRelevantMemories } from "./ragService";
@@ -285,11 +286,12 @@ If the user mentions an interest (e.g. food, tech), suggest relevant options bas
     `;
 };
 
-// --- UPDATED MODERN MODEL CHAIN (2026 FLAGSHIP GENERATION) ---
+// --- UPDATED MODERN MODEL CHAIN (2026 VERIFIED LIVE MODELS) ---
 const MODEL_CHAIN = [
-    "gemini-3.1-flash-lite",             // 1. Primary Ultra Fast & Highly Available (~200ms)
-    "gemini-3.8-flash",                  // 2. Flagship Cognitive Power
-    "gemini-flash-latest"                // 3. High-speed Stable Flash Production
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3-flash-preview"
 ];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -325,7 +327,7 @@ ${userProfile.longTermMemory || 'لا توجد ذاكرة سابقة'}
 ${recentHistory}`;
         
         const result = await getAI().models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-3.5-flash-lite',
             contents: prompt
         });
         
@@ -492,10 +494,11 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         let liveSwarmSnapshot: any = null;
         try {
             const emailLower = (userProfile?.email || '').toLowerCase();
-            const isMasterRole = (userProfile as any)?.role === 'master' || emailLower === 'ahm.atya@gmail.com' || emailLower === 'ahmed.atya.daif@gmail.com';
+            const isMasterRole = (userProfile as any)?.role === 'master' || isMasterAdminEmail(emailLower);
             const inferredRole = isMasterRole ? 'MASTER_ADMIN' : ((userProfile as any)?.linkedBrandId ? 'BRAND_OWNER' : 'VISITOR');
             const scopeKey = (userProfile as any)?.linkedBrandId || userProfile?.email || 'guest';
 
+            const authHeaders = isMasterRole ? await getAdminAuthHeaders() : {};
             const [swarmRes, cloudMemRes, liveTelRes, obsRes, finRes] = await Promise.all([
                 fetch('/api/swarm/run', {
                     method: 'POST',
@@ -509,8 +512,8 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
                 }).then(r => r.json()).catch(() => null),
                 fetch(`/api/memory/context?scopeKey=${encodeURIComponent(scopeKey)}`).then(r => r.json()).catch(() => null),
                 fetch(`/api/telemetry/live${!isMasterRole && (userProfile as any)?.linkedBrandId ? `?brandId=${encodeURIComponent((userProfile as any).linkedBrandId)}` : ''}`).then(r => r.json()).catch(() => null),
-                isMasterRole ? fetch('/api/obsidian/graph').then(r => r.json()).catch(() => null) : Promise.resolve(null),
-                isMasterRole ? fetch('/api/system/real-financials').then(r => r.json()).catch(() => null) : Promise.resolve(null)
+                isMasterRole ? fetch('/api/obsidian/graph', { credentials: 'include', headers: authHeaders }).then(r => r.json()).catch(() => null) : Promise.resolve(null),
+                isMasterRole ? fetch('/api/system/real-financials', { credentials: 'include', headers: authHeaders }).then(r => r.json()).catch(() => null) : Promise.resolve(null)
             ]);
 
             const liveEventsLines = Array.isArray(liveTelRes?.latestEvents) && liveTelRes.latestEvents.length > 0
@@ -658,7 +661,7 @@ ${cloudFacts ? `- حقائق محفوظة عن نشاطك: ${cloudFacts}` : ''}
         }
 
         const effectiveModels = extraData?.type === 'audio' 
-            ? ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite']
+            ? ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest']
             : MODEL_CHAIN;
 
         for (const model of effectiveModels) {

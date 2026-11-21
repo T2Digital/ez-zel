@@ -338,17 +338,17 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-white/80 mb-1.5">الدومين والاسم الفرعي (Subdomain)</label>
-                    <div className="flex items-center gap-2 bg-[#141b2d] border border-white/10 rounded-xl px-4 py-2 text-sm">
-                      <span className="text-white/40 font-mono text-xs">.vercel.app</span>
+                    <div dir="ltr" className="flex items-center gap-1.5 bg-[#141b2d] border border-white/10 rounded-xl px-4 py-2 text-sm">
+                      <span className="text-white/40 font-mono text-xs shrink-0">https://</span>
                       <input 
                         type="text" 
                         value={subdomain}
                         onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^\w-]/g, ''))}
-                        className="flex-1 bg-transparent text-white focus:outline-none font-mono text-left"
+                        className="flex-1 bg-transparent text-white focus:outline-none font-mono text-left min-w-0"
                         dir="ltr"
                         placeholder="elbaron-store"
                       />
-                      <span className="text-white/40 font-mono text-xs">https://</span>
+                      <span className="text-white/40 font-mono text-xs shrink-0">.vercel.app</span>
                     </div>
                   </div>
                 </div>

@@ -462,7 +462,7 @@ export async function generateBrandMarketingStrategy(brand: {
   "keyHooks": ["هوك 1", "هوك 2", "هوك 3", "هوك 4", "هوك 5", "هوك 6", "هوك 7"]
 }`;
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3.5-flash-lite',
                 contents: prompt,
                 config: { responseMimeType: 'application/json' }
             });

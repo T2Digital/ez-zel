@@ -16,7 +16,6 @@ import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboard
 import { JarvisExecutiveSummaryDrawer } from './chat/JarvisExecutiveSummaryDrawer';
 import { LiveTelemetryNotifier } from './LiveTelemetryNotifier';
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
-import SpaceCanvas from './SpaceCanvas';
 import { ObsidianHolographicConstellation } from './ObsidianHolographicConstellation';
 import { JarvisGrowthRadarDeck } from './jarvis/JarvisGrowthRadarDeck';
 import { JarvisUnifiedCatalogModal } from './jarvis/JarvisUnifiedCatalogModal';
@@ -33,6 +32,24 @@ import { jarvisVoiceSocket, VoiceSocketState } from '../services/jarvisVoiceSock
 import { BRAND_VAULT } from '../services/brandVault';
 import { shadowDB } from '../services/dbService';
 import { useAppStore } from '../services/store';
+import { isMasterAdminEmail, getAdminAuthHeaders } from '../services/adminIdentity';
+
+const MissionClock: React.FC = React.memo(() => {
+  const [clock, setClock] = useState(() =>
+    new Date().toLocaleTimeString('en-GB', { hour12: false })
+  );
+  useEffect(() => {
+    const id = setInterval(() => {
+      setClock(new Date().toLocaleTimeString('en-GB', { hour12: false }));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className="hidden sm:inline font-mono text-xs md:text-sm font-black text-cyan-300 tracking-wider">
+      {clock}
+    </span>
+  );
+});
 
 const toast = {
   success: (msg: string) => console.log('[Toast Success]:', msg),
@@ -58,15 +75,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const storeUserEmail = (storeUser?.email || '').toLowerCase();
   const isMasterAdmin = typeof window !== 'undefined' && (
     localStorage.getItem('tito_admin_master') === 'true' ||
-    ['tito', 'tito@shadow.com', 'admin@shadow.com', 'ahm.atya@gmail.com', 'ahmed.atya.daif@gmail.com'].includes(storeUserEmail) ||
+    Boolean(localStorage.getItem('t2os_admin_token')) ||
+    isMasterAdminEmail(storeUserEmail) ||
     (storeUser?.tier === 'sovereign' && Boolean(storeUser?.name?.includes('تيتو')))
   );
 
   // Active Persona: Initialized to passed prop, or 'tito' for master admin, or 'visitor' for guests
   const [persona, setPersona] = useState<'visitor' | 'trial' | 'client' | 'tito'>(() => {
+    if (isMasterAdmin) return initialPersona === 'client' ? 'tito' : (initialPersona || 'tito');
     if (initialPersona) return initialPersona;
-    return isMasterAdmin ? 'tito' : 'visitor';
+    return 'visitor';
   });
+  const [textCommandInput, setTextCommandInput] = useState('');
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -77,8 +97,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [graphFilter, setGraphFilter] = useState<'all' | 'studio' | 'agent' | 'ezzel'>('all');
   const [graphZoom, setGraphZoom] = useState<number>(1);
   
-  // Real-time mission clock
-  const [currentTime, setCurrentTime] = useState('');
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [mobileActiveView, setMobileActiveView] = useState<'stage' | 'brands' | 'radar'>('stage');
   const [telemetryMode, setTelemetryMode] = useState<'human' | 'system'>('human');
@@ -395,9 +413,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     setIsWaConnectModalOpen(true);
     setIsConnectingChannel(true);
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/jarvis/execute-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({
           actionType: 'CONNECT_WHATSAPP_PAIRING',
           brandId: targetId,
@@ -423,9 +443,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const handleConfirmMetaConnect = async () => {
     setIsConnectingChannel(true);
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/jarvis/execute-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({
           actionType: 'CONNECT_META_OAUTH',
           brandId: currentSelectedBrand.id || 'clean_master',
@@ -479,9 +501,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     setIsSavingCatalog(true);
     try {
       const targetId = currentSelectedBrand.id || 'clean_master';
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/jarvis/execute-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({
           actionType: 'UPDATE_STORE_CATALOG',
           brandId: targetId,
@@ -512,9 +536,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     setIsSavingCatalog(true);
     try {
       const targetId = currentSelectedBrand.id || 'clean_master';
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/jarvis/execute-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({
           actionType: 'UPDATE_BOT_INSTRUCTIONS',
           brandId: targetId,
@@ -558,18 +584,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   }, [isOpen]);
 
-  // Update clock with high-precision time
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      const h = String(now.getHours()).padStart(2, '0');
-      const m = String(now.getMinutes()).padStart(2, '0');
-      const s = String(now.getSeconds()).padStart(2, '0');
-      const ms = String(Math.floor(now.getMilliseconds() / 10)).padStart(2, '0');
-      setCurrentTime(`${h}:${m}:${s}.${ms}`);
-    }, 50);
-    return () => clearInterval(timer);
-  }, []);
+  // Clock is now isolated inside <MissionClock /> to prevent 20Hz re-renders of the entire modal.
 
   // Real-time event log helper (Zero fake intervals)
   const appendLiveLog = (entry: string) => {
@@ -595,8 +610,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     };
   }, []);
 
-  const fetchDatabaseStats = () => {
-    fetch('/api/system/real-financials')
+  const fetchDatabaseStats = async () => {
+    const headers = await getAdminAuthHeaders();
+    fetch('/api/system/real-financials', { credentials: 'include', headers })
       .then(r => r.json())
       .then(d => {
         if (d.success) {
@@ -662,33 +678,36 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       })
       .catch(() => {});
 
-    // Preserve completed onboarding brand if visitor already created one
+    // Preserve completed onboarding brand ONLY for non-admin visitors
     let savedTrialBrand: any = null;
-    try {
-      const rawTrial = localStorage.getItem('t2_active_trial_brand');
-      if (rawTrial) savedTrialBrand = JSON.parse(rawTrial);
-    } catch {}
+    if (!isMasterAdmin) {
+      try {
+        const rawTrial = localStorage.getItem('t2_active_trial_brand');
+        if (rawTrial) savedTrialBrand = JSON.parse(rawTrial);
+      } catch {}
+    }
 
-    const activeInitial = savedTrialBrand?.id ? 'trial' : (initialPersona || persona);
-    if (savedTrialBrand?.id) {
+    const activeInitial = isMasterAdmin
+      ? 'tito'
+      : savedTrialBrand?.id
+      ? 'trial'
+      : initialPersona || persona;
+
+    if (isMasterAdmin) {
+      if (persona !== 'tito') setPersona('tito');
+    } else if (savedTrialBrand?.id) {
       setAllBrandsList(prev => (prev.some(b => b.id === savedTrialBrand.id) ? prev : [savedTrialBrand, ...prev]));
       setSelectedBrandId(prev => prev || savedTrialBrand.id);
       if (persona === 'visitor') setPersona('trial');
     } else if (initialPersona && initialPersona !== persona) {
       setPersona(initialPersona);
     }
-    let alreadyGreeted = false;
-    try { alreadyGreeted = localStorage.getItem('t2os_station_greeted_v1') === '1'; } catch {}
-    if (activeInitial === 'visitor' && !alreadyGreeted) {
-      try { localStorage.setItem('t2os_station_greeted_v1', '1'); } catch {}
-      handlePlayPersonaGreeting(activeInitial);
-    } else {
-      setTranscript(
-        activeInitial === 'tito'
-          ? 'أهلاً يا تيتو، جاهز — اضغط الكرة للتحدث أو اكتب أمرك.'
-          : 'جارفيس جاهز — اضغط الكرة للتحدث.'
-      );
-    }
+
+    setTranscript(
+      activeInitial === 'tito'
+        ? 'أهلاً يا ماستر تيتو، جاهز — اكتب أمرك أو اضغط الكرة للتحدث.'
+        : 'جارفيس جاهز — اكتب طلبك أو اضغط الكرة للتحدث.'
+    );
 
     // Live Server-Sent Events (SSE) Stream from Sovereign Microservices Gateway
     let eventSource: EventSource | null = null;
@@ -1333,24 +1352,18 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       }
 
       setIsThinking(true);
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      try {
-        const { getAuth } = await import('firebase/auth');
-        const user = getAuth().currentUser;
-        if (user) {
-          const token = await user.getIdToken();
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-        }
-      } catch {}
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/system/jarvis-conversation', {
         method: 'POST',
+        credentials: 'include',
         headers,
         body: JSON.stringify({
           message: commandText,
           history: conversationHistoryRef.current,
           persona,
           selectedBrandId: currentSelectedBrand.id,
-          recentChatSummary
+          recentChatSummary,
+          includeAudio: false
         })
       });
       const data = await res.json();
@@ -1577,7 +1590,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
       if (scenario === 't2_studio_generate') {
         announcement = "أمرك يا ماستر، جاري تشغيل المتصفح التنفيذي وفتح تيتو ستوديو والضغط على زر إنتاج محتوى جديد بالذكاء الاصطناعي!";
-        targetToRun = "https://t2-studio.vercel.app";
+        targetToRun = "https://studio.t2os.app";
         setDockedAppTab('t2_studio');
       } else if (scenario === 't2_agent_clean_master') {
         announcement = "جاري فتح لوحة تحكم تيتو أجنت وفحص كارت كلين ماستر وصندوق المحادثات والرسائل فوراً!";
@@ -1638,44 +1651,42 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   return (
     <div className={`fixed inset-0 z-[9995] flex items-center justify-center font-['Cairo'] transition-all duration-300 ${
-      isFullscreen ? 'p-0 bg-[#01030a]' : 'p-2 md:p-4 bg-black/80'
+      isFullscreen ? 'p-0 bg-[#01030a]' : 'p-3 sm:p-6 bg-black/80'
     }`} dir="rtl">
       
-      {/* Deep Blue-Black Fiber-Optic Second Brain OS Container with Dominant Space Canvas */}
-      <div className={`relative w-full bg-[#01030b]/45 backdrop-blur-md border border-cyan-500/40 shadow-[0_0_60px_rgba(0,240,255,0.2)] flex flex-col overflow-hidden transition-all duration-300 ${
-        isFullscreen ? 'h-[100dvh] rounded-none border-0' : 'max-w-[1560px] h-[95dvh] rounded-[36px]'
+      {/* Deep Blue-Black Fiber-Optic Second Brain OS Container */}
+      <div className={`relative mx-auto w-full bg-[#01030b]/90 border border-cyan-500/40 shadow-[0_0_60px_rgba(0,240,255,0.2)] flex flex-col overflow-hidden transition-all duration-300 ${
+        isFullscreen ? 'h-[100dvh] rounded-none border-0' : 'max-w-6xl h-[92dvh] rounded-[28px]'
       }`}>
 
-        {/* 3D Cosmos Space Canvas Background (Subtle dim backdrop so Jarvis Core & text stay 100% crisp) */}
-        <div className="absolute inset-0 pointer-events-none z-0 opacity-20 overflow-hidden">
-          <SpaceCanvas interactive={false} showEarth={false} />
-        </div>
-
-        {/* Fiber-Optic Bioluminescent Grid & Deep Space Vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,240,255,0.03)_0%,_rgba(1,3,11,0.88)_65%,_#01030a_100%)] pointer-events-none z-0" />
+        {/* Fiber-Optic Bioluminescent Grid & Deep Space Vignette (Zero duplicate SpaceCanvas) */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,240,255,0.04)_0%,_rgba(1,3,11,0.92)_65%,_#01030a_100%)] pointer-events-none z-0" />
         <div 
           className="absolute inset-0 opacity-[0.04] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] z-0" 
         />
 
-        {/* TOP STATUS BAR: Second Brain OS & Multi-Window Header */}
-        <div className="relative z-10 flex items-center justify-between px-6 py-2.5 border-b border-cyan-500/30 bg-[#010410]/90 backdrop-blur-md">
+        {/* TOP STATUS BAR: Responsive Second Brain OS & Multi-Window Header */}
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-2.5 border-b border-cyan-500/30 bg-[#010410]/95">
           {/* Left: Real Ecosystem Telemetry & Clock */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400 shadow-[0_0_12px_#00f0ff]" />
               </span>
-              <span className="hidden sm:inline font-mono text-xs md:text-sm font-black text-cyan-300 tracking-wider">
-                {currentTime || '20:43:37.41'}
-              </span>
+              <MissionClock />
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 text-[11px] font-['Cairo'] border-r border-white/10 pr-3 shrink-0">
-              {isMasterAdmin ? (
-                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/25 text-cyan-200 font-bold whitespace-nowrap">
-                  {allBrandsList.length || realStats.totalVaultBrandsCount || 0} براند متصل
-                </span>
+            <div className="hidden sm:flex items-center gap-2 text-[11px] font-['Cairo'] border-r border-white/10 pr-2.5 shrink-0">
+              {isMasterAdmin && persona === 'tito' ? (
+                <>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 font-black whitespace-nowrap">
+                    👑 الماستر تيتو
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/25 text-cyan-200 font-bold whitespace-nowrap">
+                    {allBrandsList.length || realStats.totalVaultBrandsCount || 0} براند متصل
+                  </span>
+                </>
               ) : (
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-bold whitespace-nowrap">
                   تجربة مجانية 7 أيام
@@ -1685,15 +1696,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           </div>
 
           {/* Center: Clean Minimalist Title */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
             <Cpu className="w-4 h-4 text-cyan-400 shrink-0" />
             <h1 className="text-xs md:text-sm font-black tracking-wider text-white/95 font-['Cairo'] whitespace-nowrap">
               جارفس <span className="text-cyan-400">//</span> {isMasterAdmin ? 'العقل التنفيذي الموحد' : 'المستشار التنفيذي لأعمالك'}
             </h1>
           </div>
 
-          {/* Right: Role-Separated Action Buttons (Clean 4-button Executive Header) */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Right: Role-Separated Action Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
             {isMasterAdmin ? (
               <>
                 <button
@@ -1804,9 +1815,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             </button>
 
             <button
-              onClick={onClose}
+              type="button"
+              onClick={() => {
+                stopAllJarvisAudio();
+                onClose();
+                if (typeof window !== 'undefined' && window.location.pathname === '/jarvis') {
+                  window.history.replaceState({}, '', '/pricing');
+                }
+              }}
               title="إغلاق المحطة"
-              className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 transition-all"
+              aria-label="إغلاق المحطة"
+              className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1870,6 +1889,35 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               handlePlayPersonaGreeting={handlePlayPersonaGreeting}
               setIsPlayingVoice={setIsPlayingVoice}
             />
+
+            {/* Direct Free-Text Command Input Bar */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const q = textCommandInput.trim();
+                if (!q || isThinking) return;
+                setTextCommandInput('');
+                stopAllJarvisAudio();
+                handleSendLiveCommand(q);
+              }}
+              className="w-full max-w-lg flex items-center gap-2 px-2"
+            >
+              <input
+                type="text"
+                value={textCommandInput}
+                onChange={(e) => setTextCommandInput(e.target.value)}
+                placeholder="اكتب أمرك أو سؤالك لجارفيس مباشرة..."
+                className="flex-1 bg-[#03091e]/90 border border-cyan-500/35 focus:border-cyan-400 rounded-2xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder:text-white/40 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isThinking || !textCommandInput.trim()}
+                className="px-4 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black font-black text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>إرسال</span>
+              </button>
+            </form>
 
             {/* Voice conversation is synced directly to main Shadow Chat */}
 
@@ -2256,7 +2304,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       window.open(resolveBrandWebUrl(matched || { slug }), '_blank', 'noopener,noreferrer');
                     }}
                     onOpenChat={() => handleOpenWhatsAppConnectModal()}
-                    onOpenStudio={() => window.open('https://t2-studio.vercel.app', '_blank')}
+                    onOpenStudio={() => window.open('https://studio.t2os.app', '_blank')}
                     centerCore={
                       <button
                         type="button"

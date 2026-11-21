@@ -99,7 +99,7 @@ export async function generateIndustryCatalogWithAI(input: {
 أرجع النتيجة كـ JSON Array فقط بدون أي نص إضافي، بحيث يحتوي كل عنصر على:
 { "name": "اسم قصير وواضح بالعربية", "numericPrice": رقم_بالجنيه_المصري, "category": "تصنيف قصير", "description": "وصف بيعي من جملة واحدة" }`;
 
-  for (const model of ['gemini-2.5-flash', 'gemini-3.1-flash-lite']) {
+  for (const model of ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']) {
     try {
       const resp = await ai.models.generateContent({
         model,

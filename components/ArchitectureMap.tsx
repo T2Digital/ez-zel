@@ -20,7 +20,7 @@ export const ArchitectureMap = () => {
                 >
                   {({ zoomIn, zoomOut, resetTransform }) => (
                     <>
-                      <div className="absolute top-4 right-4 z-[60] flex flex-col gap-2 bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/10 shadow-lg">
+                      <div className="absolute top-4 right-4 z-[60] flex flex-col gap-2 bg-black/40 p-2 rounded-xl border border-white/10 shadow-lg">
                         <button onClick={() => zoomIn()} className="p-2 hover:bg-white/10 rounded-lg text-cyan-400 transition-colors tooltip tooltip-left" data-tip="تكبير">+</button>
                         <button onClick={() => zoomOut()} className="p-2 hover:bg-white/10 rounded-lg text-cyan-400 transition-colors tooltip tooltip-left" data-tip="تصغير">-</button>
                         <button onClick={() => resetTransform()} className="p-2 hover:bg-white/10 rounded-lg text-cyan-400 transition-colors tooltip tooltip-left" data-tip="توسيط">⟲</button>
@@ -109,7 +109,7 @@ export const ArchitectureMap = () => {
                         {/* =======================================================
                             CORE HUB
                             ======================================================= */}
-                        <div className="absolute w-[240px] h-[240px] bg-[#020005]/90 backdrop-blur-2xl border border-cyan-400 rounded-full flex flex-col items-center justify-center shadow-[0_0_100px_rgba(6,182,212,0.8)] z-50 animate-[pulse_5s_ease-in-out_infinite]" style={{ left: 1530, top: 880 }}>
+                        <div className="absolute w-[240px] h-[240px] bg-[#020005]/90 border border-cyan-400 rounded-full flex flex-col items-center justify-center shadow-[0_0_100px_rgba(6,182,212,0.8)] z-50 animate-[pulse_5s_ease-in-out_infinite]" style={{ left: 1530, top: 880 }}>
                             <Cpu className="w-20 h-20 text-cyan-300 mb-2 drop-shadow-[0_0_15px_currentColor]" />
                             <span className="font-black text-cyan-100 text-xl uppercase tracking-[0.2em] text-center leading-tight">Shadow<br/>Master Core</span>
                             <span className="text-[10px] text-cyan-400 font-mono mt-2">V3.1 OMNI-AGENT</span>
@@ -118,125 +118,125 @@ export const ArchitectureMap = () => {
                         {/* =======================================================
                             INTERACTIVE PERSONAS HUB (Pink)
                             ======================================================= */}
-                        <div className="absolute w-[180px] h-[180px] bg-pink-950/60 backdrop-blur-xl border border-pink-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(236,72,153,0.5)] z-40" style={{ left: 1060, top: 510 }}>
+                        <div className="absolute w-[180px] h-[180px] bg-pink-950/60 border border-pink-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(236,72,153,0.5)] z-40" style={{ left: 1060, top: 510 }}>
                             <Users className="w-12 h-12 text-pink-400 mb-1 drop-shadow-[0_0_10px_currentColor]" />
                             <span className="font-bold text-pink-100 text-base uppercase tracking-widest text-center leading-tight">Interactive<br/>Personas</span>
                         </div>
                             {/* 1. Leader */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 600, top: 400 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 600, top: 400 }}>
                                 <Code className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                                 <span className="text-sm text-pink-300 font-black block mb-1">المايسترو (Leader)</span>
                             </div>
                             {/* 2. Detective */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1100, top: 300 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1100, top: 300 }}>
                                 <Search className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                                 <span className="text-sm text-pink-300 font-black block mb-1">المحقق (Detective)</span>
                             </div>
                             {/* 3. Accountant */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 700, top: 800 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 700, top: 800 }}>
                                 <CreditCard className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                                 <span className="text-sm text-pink-300 font-black block mb-1">المحاسب (Accountant)</span>
                             </div>
                             {/* 4. Legal */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1300, top: 700 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1300, top: 700 }}>
                                 <Briefcase className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                                 <span className="text-sm text-pink-300 font-black block mb-1">المحامي (Legal)</span>
                             </div>
                             {/* 5. Marketer */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1200, top: 850 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1200, top: 850 }}>
                                 <Megaphone className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                                 <span className="text-sm text-pink-300 font-black block mb-1">المسوق (Marketer)</span>
                             </div>
                             {/* 6. Designer */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 800, top: 300 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 800, top: 300 }}>
                                 <PenTool className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                                 <span className="text-sm text-pink-300 font-black block mb-1">المصمم (Designer)</span>
                             </div>
                             {/* 7. Editor */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1400, top: 400 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1400, top: 400 }}>
                                 <Video className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                                 <span className="text-sm text-pink-300 font-black block mb-1">المونتير (Editor)</span>
                             </div>
                             {/* 8. Shopper */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1400, top: 550 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-pink-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-center z-40 group hover:scale-125 hover:border-pink-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1400, top: 550 }}>
                                 <ShoppingCart className="w-8 h-8 text-pink-400 mx-auto mb-2" />
                                 <span className="text-sm text-pink-300 font-black block mb-1">المتسوق (Shopper)</span>
                             </div>
 {/* =======================================================
                             AUTONOMOUS PERSONAS HUB (Orange)
                             ======================================================= */}
-                        <div className="absolute w-[180px] h-[180px] bg-orange-950/60 backdrop-blur-xl border border-orange-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(249,115,22,0.5)] z-40" style={{ left: 1060, top: 1310 }}>
+                        <div className="absolute w-[180px] h-[180px] bg-orange-950/60 border border-orange-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(249,115,22,0.5)] z-40" style={{ left: 1060, top: 1310 }}>
                             <Bot className="w-12 h-12 text-orange-400 mb-1 drop-shadow-[0_0_10px_currentColor]" />
                             <span className="font-bold text-orange-100 text-base uppercase tracking-widest text-center leading-tight">Autonomous<br/>Agents</span>
                         </div>
                             {/* 9. Executor */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 600, top: 1200 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 600, top: 1200 }}>
                                 <Terminal className="w-8 h-8 text-orange-400 mx-auto mb-2" />
                                 <span className="text-sm text-orange-300 font-black block mb-1">المنفذ (Executor)</span>
                             </div>
                             {/* 10. Healer / Life Coach */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 500, top: 1500 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 500, top: 1500 }}>
                                 <HeartHandshake className="w-8 h-8 text-orange-400 mx-auto mb-2" />
                                 <span className="text-sm text-orange-300 font-black block mb-1">اللايف كوتش (Life Coach)</span>
                             </div>
                             {/* 11. Analyst */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 800, top: 1700 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 800, top: 1700 }}>
                                 <Activity className="w-8 h-8 text-orange-400 mx-auto mb-2" />
                                 <span className="text-sm text-orange-300 font-black block mb-1">المحلل (Analyst)</span>
                             </div>
                             {/* 12. Nexus */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1200, top: 1700 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1200, top: 1700 }}>
                                 <Cpu className="w-8 h-8 text-orange-400 mx-auto mb-2" />
                                 <span className="text-sm text-orange-300 font-black block mb-1">نكسوس (Nexus)</span>
                             </div>
                             {/* 13. Archivist */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1354, top: 1240 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1354, top: 1240 }}>
                                 <Database className="w-8 h-8 text-orange-400 mx-auto mb-2" />
                                 <span className="text-sm text-orange-300 font-black block mb-1">الأرشيف (Archivist)</span>
                             </div>
                             {/* 14. Swarm Manager */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 700, top: 1450 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 700, top: 1450 }}>
                                 <CloudCog className="w-8 h-8 text-orange-400 mx-auto mb-2" />
                                 <span className="text-sm text-orange-300 font-black block mb-1">سرب الظل (Swarm)</span>
                             </div>
                             {/* 15. Live Session */}
-                            <div className="absolute w-44 bg-transparent backdrop-blur-none border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1400, top: 1550 }}>
+                            <div className="absolute w-44 bg-slate-950/90 border-2 border-orange-500/50 rounded-2xl p-3 shadow-[0_0_20px_rgba(249,115,22,0.4)] text-center z-40 group hover:scale-125 hover:border-orange-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1400, top: 1550 }}>
                                 <Radio className="w-8 h-8 text-orange-400 mx-auto mb-2 z-10 relative" />
                                 <span className="text-sm text-orange-300 font-black block mb-1 relative z-10">اللايف سيشن (Live Session)</span>
                             </div>
 {/* =======================================================
                             CAPABILITIES HUB (Purple)
                             ======================================================= */}
-                        <div className="absolute w-[180px] h-[180px] bg-purple-950/60 backdrop-blur-xl border border-purple-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(139,92,246,0.5)] z-40" style={{ left: 2060, top: 510 }}>
+                        <div className="absolute w-[180px] h-[180px] bg-purple-950/60 border border-purple-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(139,92,246,0.5)] z-40" style={{ left: 2060, top: 510 }}>
                             <Zap className="w-12 h-12 text-purple-400 mb-1 drop-shadow-[0_0_10px_currentColor]" />
                             <span className="font-bold text-purple-100 text-base uppercase tracking-widest text-center leading-tight">Capabilities<br/>& Tools</span>
                         </div>
                             {/* Live Coding */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1854, top: 240 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1854, top: 240 }}>
                                 <Code className="w-8 h-8 text-purple-400 mx-auto mb-2" />
                                 <span className="text-sm text-purple-300 font-black block mb-1">البرمجة الحية (Live Sandboxing)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">دعم Vite/React، تعديل فوري (HMR / Sync)، والتشغيل داخل المتصفح بأكواد آمنة وبيئة تجريبية معزولة.</span>
                             </div>
                             {/* Media Suite */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2354, top: 340 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2354, top: 340 }}>
                                 <Film className="w-8 h-8 text-purple-400 mx-auto mb-2" />
                                 <span className="text-sm text-purple-300 font-black block mb-1">منصة الميديا (Media Suite)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">دعم Stable Diffusion، جلب فيديوهات (Pixabay API)، وإرفاق مستندات بصيغ PDF, CSV, Images.</span>
                             </div>
                             {/* Autonomous Gen */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2454, top: 620 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2454, top: 620 }}>
                                 <LayoutGrid className="w-8 h-8 text-purple-400 mx-auto mb-2" />
                                 <span className="text-sm text-purple-300 font-black block mb-1">التخيل المستقل (Autonomous Gen)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">مهام الخلفية: توليد خطط، إعادة هيكلة البيانات تلقائياً دون أمر صريح وتحديث الواجهات.</span>
                             </div>
                             {/* Voice / AV */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2254, top: 790 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2254, top: 790 }}>
                                 <Mic className="w-8 h-8 text-purple-400 mx-auto mb-2" />
                                 <span className="text-sm text-purple-300 font-black block mb-1">المعالجة الصوتية (Shadow Voice)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">دمج LameJS لتحويل الردود إلى ملفات MP3 متزامنة (TTS) وتخزينها سحابيا بـ FreeHost CDN.</span>
                             </div>
                             {/* Dynamic Cards */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1754, top: 740 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-purple-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(139,92,246,0.4)] text-center z-40 group hover:scale-125 hover:border-purple-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1754, top: 740 }}>
                                 <FileText className="w-8 h-8 text-purple-400 mx-auto mb-2" />
                                 <span className="text-sm text-purple-300 font-black block mb-1">الكروت التفاعلية (Chat Cards UI)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">محرك تصيير داخلي للـ markdown والخرائط والنماذج والأدوات داخل فقاعات المحادثة.</span>
@@ -246,30 +246,30 @@ export const ArchitectureMap = () => {
                         {/* =======================================================
                             INFRASTRUCTURE HUB (Cyan)
                             ======================================================= */}
-                        <div className="absolute w-[180px] h-[180px] bg-cyan-950/60 backdrop-blur-xl border border-cyan-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(6,182,212,0.5)] z-40" style={{ left: 1560, top: 1410 }}>
+                        <div className="absolute w-[180px] h-[180px] bg-cyan-950/60 border border-cyan-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(6,182,212,0.5)] z-40" style={{ left: 1560, top: 1410 }}>
                             <Database className="w-12 h-12 text-cyan-400 mb-1 drop-shadow-[0_0_10px_currentColor]" />
                             <span className="font-bold text-cyan-100 text-base uppercase tracking-widest text-center leading-tight">Infra &<br/>System Base</span>
                         </div>
                             {/* Firebase */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-cyan-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-cyan-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1454, top: 1740 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-cyan-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] text-center z-40 group hover:scale-125 hover:border-cyan-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1454, top: 1740 }}>
                                 <Globe className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
                                 <span className="text-sm text-cyan-300 font-black block mb-1">سحابة البيانات (Cloud Firebase)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">تخزين آمن للمستخدمين، الميزانيات، الكوبونات الفعالة، وسجل الشات المشفر.</span>
                             </div>
                             {/* Local IndexedDB */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-cyan-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-cyan-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1754, top: 1690 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-cyan-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] text-center z-40 group hover:scale-125 hover:border-cyan-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1754, top: 1690 }}>
                                 <HardDrive className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
                                 <span className="text-sm text-cyan-300 font-black block mb-1">قاعدة التخزين المنسوقة (IndexedDB)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">Dexie.js للبحث الفوري، تخزين الجلسات (Sessions)، ومعالجات الدفع المسبوعة من API.</span>
                             </div>
                             {/* External APIs */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-cyan-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-cyan-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1654, top: 1840 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-cyan-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] text-center z-40 group hover:scale-125 hover:border-cyan-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1654, top: 1840 }}>
                                 <Cpu className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
                                 <span className="text-sm text-cyan-300 font-black block mb-1">الوصلات الخارجية (External APIs)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">Gemini 3.1 Pro، Stripe/Paypal للتعامل المالي، إرسال البريد (Resend/SendGrid).</span>
                             </div>
                             {/* Admin */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-cyan-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-cyan-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1254, top: 1740 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-cyan-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] text-center z-40 group hover:scale-125 hover:border-cyan-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1254, top: 1740 }}>
                                 <ShieldCheck className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
                                 <span className="text-sm text-cyan-300 font-black block mb-1">لوحة الأدمن المركزية (Admin DB)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">نظام شامل للإحصائيات الحية، إدارة الموارد، قبول السحب، ورسائل الـ System Broadcast.</span>
@@ -279,36 +279,36 @@ export const ArchitectureMap = () => {
                         {/* =======================================================
                             MEMORY HUB (Amber)
                             ======================================================= */}
-                        <div className="absolute w-[180px] h-[180px] bg-amber-950/60 backdrop-blur-xl border border-amber-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(245,158,11,0.5)] z-40" style={{ left: 2060, top: 1310 }}>
+                        <div className="absolute w-[180px] h-[180px] bg-amber-950/60 border border-amber-500 rounded-full flex flex-col items-center justify-center shadow-[0_0_60px_rgba(245,158,11,0.5)] z-40" style={{ left: 2060, top: 1310 }}>
                             <Brain className="w-12 h-12 text-amber-400 mb-1 drop-shadow-[0_0_10px_currentColor]" />
                             <span className="font-bold text-amber-100 text-base uppercase tracking-widest text-center leading-tight">Memory<br/>& Lore</span>
                         </div>
                             {/* LTM */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1854, top: 1540 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 1854, top: 1540 }}>
                                 <Database className="w-8 h-8 text-amber-400 mx-auto mb-2" />
                                 <span className="text-sm text-amber-300 font-black block mb-1">الذاكرة طويلة المدى (LTM)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">استنتاجات تلقائية (تفضيلات المستخدم، النغمة، لغة البرمجة المفضلة) لحفظ سياق دائم.</span>
                             </div>
                             {/* Vector RAG */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2254, top: 1140 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2254, top: 1140 }}>
                                 <Search className="w-8 h-8 text-amber-400 mx-auto mb-2" />
                                 <span className="text-sm text-amber-300 font-black block mb-1">البحث المعرفي والأساس (Vector RAG)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">آلية استرجاع البيانات الدلالية لمعرفة تاريخ المشاريع والإجابة بناءً على وثائق محددة سابقا.</span>
                             </div>
                             {/* Vault */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2354, top: 1440 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2354, top: 1440 }}>
                                 <FolderOpen className="w-8 h-8 text-amber-400 mx-auto mb-2" />
                                 <span className="text-sm text-amber-300 font-black block mb-1">خزينة الملفات (Vault DB)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">حفظ الصور، نواتج الكود المخصصة، مستندات الـ PDF للرجوع إليها كـ Attachments سرية.</span>
                             </div>
                             {/* Fact DB */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2154, top: 1640 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2154, top: 1640 }}>
                                 <CheckCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
                                 <span className="text-sm text-amber-300 font-black block mb-1">موسوعة الحقائق (Fact Base)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">أرشفة الأوامر الثابتة والعادات للمستخدم بدقة تصل لـ 100% كي لا يضطر لتكرار نفسه أبداً.</span>
                             </div>
                             {/* Global Directives */}
-                            <div className="absolute w-48 bg-transparent backdrop-blur-none border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center backdrop-blur-md z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2454, top: 1640 }}>
+                            <div className="absolute w-48 bg-slate-950/90 border-2 border-amber-500/50 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center z-40 group hover:scale-125 hover:border-amber-400 hover:z-50 transition-all cursor-crosshair" style={{ left: 2454, top: 1640 }}>
                                 <MessageCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
                                 <span className="text-sm text-amber-300 font-black block mb-1">الإرشادات الجوهرية (Directives)</span>
                                 <span className="text-[10px] text-white/80 leading-relaxed block">مجموعة تعليمات النظام الأساسية، شخصية الظل العميقة وأسلوبه في الإجابة (Tone Control).</span>
@@ -350,7 +350,7 @@ export const ArchitectureMap = () => {
             `}} />
             
             {/* Guide overlay */}
-            <div className="absolute bottom-4 left-4 bg-transparent backdrop-blur-none backdrop-blur border border-white/10 p-3 rounded-xl z-50 text-[10px] text-white/60 font-mono shadow-2xl pointer-events-none">
+            <div className="absolute bottom-4 left-4 bg-slate-950/90 border border-white/10 p-3 rounded-xl z-50 text-[10px] text-white/60 font-mono shadow-2xl pointer-events-none">
                 <div className="flex items-center gap-2 mb-1"><Globe className="w-3 h-3 text-cyan-400" /> Pan = Drag to move around map</div>
                 <div className="flex items-center gap-2 mb-1"><Search className="w-3 h-3 text-pink-400" /> Zoom = Scroll / Pinch</div>
                 <div className="flex items-center gap-2"><Bot className="w-3 h-3 text-orange-400" /> Hover = Expand Agent Info</div>

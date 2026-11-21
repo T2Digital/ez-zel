@@ -278,7 +278,7 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
     try {
         const ai = getGeminiClient();
         const res = await ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-3.5-flash-lite',
             contents: prompt,
             config: {
                 temperature: 0.3,

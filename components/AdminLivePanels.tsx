@@ -3,6 +3,7 @@ import {
   Bot, Film, RefreshCw, ExternalLink, CheckCircle2, AlertTriangle,
   MessageSquare, Calendar, Sparkles, Power, Globe, Zap
 } from 'lucide-react';
+import { getAdminAuthHeaders } from '../services/adminIdentity';
 
 interface AdminLivePanelsProps {
   onOpenBrandInJarvis?: (brandId: string) => void;
@@ -70,7 +71,7 @@ export const AdminLiveStudioPanel: React.FC<AdminLivePanelsProps> = ({ onOpenBra
             <span>تحديث</span>
           </button>
           <a
-            href="https://t2-studio.vercel.app"
+            href="https://studio.t2os.app"
             target="_blank"
             rel="noreferrer"
             className="px-3 py-1.5 bg-amber-500 text-black text-xs font-black rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-1"
@@ -155,7 +156,8 @@ export const AdminLiveAgentPanel: React.FC<AdminLivePanelsProps> = ({ onOpenBran
   const loadFleet = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/brand-hub/agent/fleet');
+      const headers = await getAdminAuthHeaders();
+      const res = await fetch('/api/brand-hub/agent/fleet', { credentials: 'include', headers });
       const data = await res.json();
       if (data?.ok) setFleet(data);
     } catch {
@@ -172,17 +174,10 @@ export const AdminLiveAgentPanel: React.FC<AdminLivePanelsProps> = ({ onOpenBran
     setTogglingId(brandId);
     setStatusMsg(null);
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      try {
-        const { getAuth } = await import('firebase/auth');
-        const user = getAuth().currentUser;
-        if (user) {
-          const token = await user.getIdToken();
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-        }
-      } catch {}
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/toggle-bot`, {
         method: 'POST',
+        credentials: 'include',
         headers,
       });
       const data = await res.json();

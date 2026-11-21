@@ -133,7 +133,7 @@ class ADKEngine {
             let response;
             try {
                 response = await ai.models.generateContent({
-                    model: 'gemini-3.8-flash',
+                    model: 'gemini-3.5-flash-lite',
                     contents: history as any,
                     config: {
                         tools: [{ functionDeclarations: tools as any }],
