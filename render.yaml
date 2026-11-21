@@ -14,9 +14,9 @@ services:
       - key: PERSISTENT_DATA_DIR
         value: /var/data
       - key: TITO_STUDIO_API_URL
-        value: https://t2-studio.onrender.com
+        value: https://studio.t2os.app
       - key: T2_AGENT_API_URL
-        value: https://khedr-bot-agent.onrender.com
+        value: https://agent.t2os.app
       - key: NODE_ENV
         value: production
       - key: PORT

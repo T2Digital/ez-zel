@@ -116,7 +116,7 @@ const generateSystemPrompt = (user: UserProfile | undefined, memory: string, rul
 
     const affiliateInfo = user?.affiliate ? `
     - كود الدعوة الخاص بك (Referral Code): ${user.affiliate.referralCode}
-    - رابط الدعوة الخاص بك: https://ez-zel.onrender.com/?ref=${user.affiliate.referralCode}
+    - رابط الدعوة الخاص بك: https://t2os.app/?ref=${user.affiliate.referralCode}
     - إجمالي الأرباح: ${user.affiliate.totalEarnings} جنيه
     - عدد الدعوات الناجحة: ${user.affiliate.referralsCount}
     - نسبة العمولة: 10% لكل دعوة تسجل وتفعل باقاتها.

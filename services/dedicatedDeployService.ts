@@ -182,7 +182,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
           productsCatalog: Array.isArray((brand as any).productsCatalog) ? (brand as any).productsCatalog : [],
           templateId: resolvedKey,
           appTemplate: input.appTemplate || (brand as any).appTemplate || 'services_booking',
-          ezZelApiBase: process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com'
+          ezZelApiBase: process.env.PUBLIC_BASE_URL || 'https://t2os.app'
         },
         null,
         2
@@ -266,7 +266,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
     const envTarget = vercelProjectId || repoName;
     const rotatingGeminiKey = getNextHealthyGeminiKey();
     const envVarsToInject: Array<{ key: string; value: string }> = [
-      { key: 'VITE_EZZEL_API_URL', value: process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com' },
+      { key: 'VITE_EZZEL_API_URL', value: process.env.PUBLIC_BASE_URL || 'https://t2os.app' },
       { key: 'VITE_TENANT_BRAND_ID', value: String(brand.slug || brand.id) },
       { key: 'TENANT_ADMIN_PASSWORD', value: `T2@${adminPin}` },
       ...(rotatingGeminiKey

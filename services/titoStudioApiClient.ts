@@ -3,7 +3,7 @@
  * Connects Ez-Zel / Jarvis Brain directly to Tito Studio Cloud Run API.
  */
 
-const DEFAULT_TITO_STUDIO_URL = "https://t2-studio.onrender.com";
+const DEFAULT_TITO_STUDIO_URL = "https://studio.t2os.app";
 
 export function getTitoStudioBaseUrl(): string {
   return (

@@ -31,7 +31,7 @@ export const resolveBrandWebUrl = (brand: any): string => {
     brand.websiteUrl,
   ]
     .map((u) => String(u || '').trim())
-    .filter((u) => /^https?:\/\//i.test(u) && !u.includes('ez-zel.onrender.com/store'));
+    .filter((u) => /^https?:\/\//i.test(u) && !u.includes('ez-zel.onrender.com/store') && !u.includes('t2os.app/store'));
   if (candidates.length > 0) return candidates[0];
 
   const slug = String(brand.slug || brand.id || '').toLowerCase().trim();
@@ -736,7 +736,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                   تجربة وتدريب T2 Agent + شات العملاء الفعلي
                 </h4>
                 <button
-                  onClick={() => window.open(brandData?.agentPortalUrl || 'https://khedr-bot-agent.onrender.com/dashboard', '_blank', 'noopener,noreferrer')}
+                  onClick={() => window.open(brandData?.agentPortalUrl || 'https://agent.t2os.app/dashboard', '_blank', 'noopener,noreferrer')}
                   className="text-[11px] font-bold text-purple-300 hover:underline cursor-pointer"
                 >
                   فتح شاشة T2 Agent الكاملة ↗

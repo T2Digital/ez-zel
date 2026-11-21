@@ -267,7 +267,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isExecutiveOpen, setIsExecutiveOpen] = useState(false);
   const [executiveRunning, setExecutiveRunning] = useState(false);
   const [executiveScenario, setExecutiveScenario] = useState<string>('t2_studio_command');
-  const [executiveUrl, setExecutiveUrl] = useState('https://t2-studio.onrender.com');
+  const [executiveUrl, setExecutiveUrl] = useState('https://studio.t2os.app');
   const [executiveLogs, setExecutiveLogs] = useState<any[]>([]);
   const [executiveScreenshot, setExecutiveScreenshot] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 });
@@ -1581,11 +1581,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setDockedAppTab('t2_studio');
       } else if (scenario === 't2_agent_clean_master') {
         announcement = "جاري فتح لوحة تحكم تيتو أجنت وفحص كارت كلين ماستر وصندوق المحادثات والرسائل فوراً!";
-        targetToRun = "https://khedr-bot-agent.onrender.com/dashboard";
+        targetToRun = "https://agent.t2os.app/dashboard";
         setDockedAppTab('t2_agent');
       } else if (scenario === 't2_agent_salegates') {
         announcement = "جاري فحص كارت سيل جيت واستشارات العقارات عبر المتصفح التنفيذي!";
-        targetToRun = "https://khedr-bot-agent.onrender.com/dashboard";
+        targetToRun = "https://agent.t2os.app/dashboard";
         setDockedAppTab('t2_agent');
       } else if (scenario === 'alkhedr_booking') {
         announcement = "أمرك يا ماستر، الأجنت التنفيذي بدأ يتحكم في المتصفح، جاري فتح موقع الخضر وحجز سيارة تويوتا فورتشنر 4x4!";
@@ -1700,7 +1700,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   onClick={async () => {
                     stopAllJarvisAudio();
                     const bId = currentSelectedBrand?.id || 'clean_master';
-                    let embedUrl = `https://khedr-bot-agent.onrender.com/embed/crm?brandId=${encodeURIComponent(bId)}&embed=1`;
+                    let embedUrl = `https://agent.t2os.app/embed/crm?brandId=${encodeURIComponent(bId)}&embed=1`;
                     try {
                       const r = await fetch(`/api/embed/signed-urls?brandId=${encodeURIComponent(bId)}&window=crm`);
                       const j = await r.json();
@@ -1718,7 +1718,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   onClick={async () => {
                     stopAllJarvisAudio();
                     const cId = currentSelectedBrand?.id || '1';
-                    let embedUrl = `https://t2-studio.onrender.com/?embed=1&view=calendar&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(cId)}`;
+                    let embedUrl = `https://studio.t2os.app/?embed=1&view=calendar&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(cId)}`;
                     try {
                       const r = await fetch(`/api/embed/signed-urls?clinicId=${encodeURIComponent(cId)}&view=calendar`);
                       const j = await r.json();

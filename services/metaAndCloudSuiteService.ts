@@ -273,7 +273,7 @@ export async function createMetaAdCampaign(payload: {
                         if (pageId) {
                             const adMsg = payload.message || payload.creative?.message || payload.creative?.bodyText || payload.campaignName;
                             const adHeadline = payload.headline || payload.creative?.headline || payload.campaignName;
-                            const destUrl = payload.linkUrl || payload.creative?.linkUrl || process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com';
+                            const destUrl = payload.linkUrl || payload.creative?.linkUrl || process.env.PUBLIC_BASE_URL || 'https://t2os.app';
 
                             try {
                                 const creativeResp = await fetch(`https://graph.facebook.com/v19.0/${formattedActId}/adcreatives`, {

@@ -714,7 +714,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                   type="url"
                   value={agentUrlInput}
                   onChange={(e) => setAgentUrlInput(e.target.value)}
-                  placeholder="https://khedr-bot-agent.onrender.com"
+                  placeholder="https://agent.t2os.app"
                   className="w-full bg-slate-950 border border-white/15 rounded-xl p-2.5 text-white font-mono"
                 />
               </div>

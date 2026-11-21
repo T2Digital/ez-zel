@@ -539,7 +539,7 @@ async function startServer() {
           const slug = String(req.params.slug || "").trim();
           const { signClientPortalToken } = await import("./routes/tenantErpRoutes");
           const token = signClientPortalToken(slug);
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
           res.json({
               ok: true,
               slug,
@@ -569,7 +569,7 @@ async function startServer() {
           const subWindow = resolveBrandSubscriptionWindow(brand);
           const accessCheck = await verifyClientPortalWriteAccess(req, slug, brand);
           const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
-          const agentBase = (process.env.T2_AGENT_URL || "https://khedr-bot-agent.onrender.com").replace(/\/+$/, "");
+          const agentBase = (process.env.T2_AGENT_URL || "https://agent.t2os.app").replace(/\/+$/, "");
           const brandKey = String(brand.slug || brand.id);
           const studioClinicKey = String(brand.titoStudioClinicId || brand.studioBrandId || brandKey);
           const agentBrandKey = String(brand.agentBrandId || brandKey);
@@ -577,7 +577,7 @@ async function startServer() {
           const storefrontUrl = appAccessMode === "landing_page"
               ? studioLandingPageUrl
               : (brand.vercelUrl || brand.deployedUrl || `/store/${encodeURIComponent(brandKey)}`);
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
           res.json({
               ok: true,
               brand,
@@ -620,7 +620,7 @@ async function startServer() {
               return res.status(401).json({ ok: false, error: "غير مصرح — يرجى فتح بوابة العميل عبر الرابط الموثق (?token=...) للتحدث مع مدير الحساب." });
           }
           const subWindow = resolveBrandSubscriptionWindow(brand);
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
           if (access.actor !== "admin" && subWindow.subscriptionStatus === "expired") {
               return res.status(402).json({
                   ok: false,
@@ -671,7 +671,7 @@ async function startServer() {
               return res.status(401).json({ ok: false, error: "غير مصرح — يرجى فتح بوابة العميل عبر الرابط الموثق (?token=...) لاعتماد المنشورات." });
           }
           const subWindow = resolveBrandSubscriptionWindow(brand);
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
           if (access.actor !== "admin" && subWindow.subscriptionStatus === "expired") {
               return res.status(402).json({
                   ok: false,
@@ -2358,7 +2358,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   // --- SEO & GEO ENDPOINTS (robots.txt, llms.txt, sitemap.xml) --- //
   app.get("/sitemap.xml", (_req, res) => {
-      const base = process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com";
+      const base = process.env.PUBLIC_BASE_URL || "https://t2os.app";
       const today = new Date().toISOString().split("T")[0];
       res.setHeader("Content-Type", "application/xml; charset=utf-8");
       res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -2564,7 +2564,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               subscriptionStatus,
               trialEndsAt,
               trialDaysLeft,
-              upgradeUrl: `${process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com"}/pricing?brandId=${encodeURIComponent(brand.slug || brand.id)}`
+              upgradeUrl: `${process.env.PUBLIC_BASE_URL || "https://t2os.app"}/pricing?brandId=${encodeURIComponent(brand.slug || brand.id)}`
           }
       });
   });
@@ -2592,7 +2592,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       const slug = String(req.params.slug || "");
       const brand = getUnifiedGrowthBrands().find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
       if (!brand) return res.status(404).type("text/plain").send("Brand not found");
-      const base = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+      const base = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
       const items = (brand.productsCatalog || []).slice(0, 20).map((p: any) => `- ${p.name}: ${p.numericPrice || p.sellingPrice || p.price || "حسب الطلب"} ج.م`).join("\n");
       const txt = `# ${brand.name}\n> ${brand.slogan || brand.businessType || "نشاط تجاري معتمد على منصة T2OS"}\n\n- الرابط الرسمي: ${brand.appUrl || `${base}/app/${slug}`}\n- الهاتف / واتساب: ${brand.phone || "متاح عبر التطبيق"}\n- العنوان: ${brand.address || "مصر"}\n\n## المنتجات والخدمات:\n${items || "- خدمات ومنتجات متخصصة حسب الطلب"}\n`;
       res.type("text/plain; charset=utf-8").send(txt);
@@ -2600,14 +2600,14 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   app.get(["/app/:slug/sitemap.xml", "/store/:slug/sitemap.xml"], (req, res) => {
       const slug = String(req.params.slug || "");
-      const base = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+      const base = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${base}/app/${encodeURIComponent(slug)}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n</urlset>`;
       res.type("application/xml; charset=utf-8").send(xml);
   });
 
   app.get(["/app/:slug/robots.txt", "/store/:slug/robots.txt"], (req, res) => {
       const slug = String(req.params.slug || "");
-      const base = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+      const base = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
       res.type("text/plain").send(`User-agent: *\nAllow: /\nSitemap: ${base}/app/${encodeURIComponent(slug)}/sitemap.xml\n`);
   });
 
@@ -3003,7 +3003,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           }
 
           // Fallback: delegate directly to T2 Studio's /api/gemini/generateImages
-          const studioBase = (process.env.TITO_STUDIO_URL || "https://t2-studio.onrender.com").replace(/\/+$/, "");
+          const studioBase = (process.env.TITO_STUDIO_URL || "https://studio.t2os.app").replace(/\/+$/, "");
           try {
               const sRes = await fetch(`${studioBase}/api/gemini/generateImages`, {
                   method: "POST",
@@ -3608,7 +3608,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           const rawSlug = (subdomain || businessName).toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
           const slug = rawSlug && rawSlug.length > 2 ? rawSlug : `app-${Date.now().toString(36)}`;
           const tenantId = `tenant_${Date.now()}`;
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
           const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
           const requestedAccessMode = resolveBrandAppAccessMode({
               planId: req.body?.planId,
@@ -3737,7 +3737,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           ecosystem: {
               ezZelCore: {
                   name: "منظومة الظل السيادية (Ez-Zel Sovereign OS)",
-                  url: process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com",
+                  url: process.env.PUBLIC_BASE_URL || "https://t2os.app",
                   status: "operational",
                   activeTenants: tenants.length,
                   totalMRR,
@@ -3862,7 +3862,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           realConfirmedRevenueEgp += (isNaN(num) ? 0 : num);
       });
 
-      // Operational Agents connected to Tito Agent (Matches khedr-bot-agent.onrender.com/dashboard)
+      // Operational Agents connected to Tito Agent (Matches agent.t2os.app/dashboard)
       const agentConnectedBrands = [
           { 
               id: 'clean_master', 
@@ -4344,22 +4344,22 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                 ? "الضغط على زر إنتاج محتوى جديد (AI CORE) وتوليد منشور ترويجي" 
                 : "فحص غرفة القيادة والتحكم الإبداعي (Command Deck)";
           } else if (scenario === "t2_agent_clean_master") {
-              destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
+              destUrl = targetUrl || "https://agent.t2os.app/dashboard";
               actionLabel = "فحص كارت كلين ماستر وصندوق المحادثات (297) والتأكد من ربط واتساب";
           } else if (scenario === "t2_agent_salegates") {
-              destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
+              destUrl = targetUrl || "https://agent.t2os.app/dashboard";
               actionLabel = "فحص كارت Sale Gates Egypt والاستشارات العقارية (61 محادثة)";
           } else if (scenario === "alkhedr_booking") {
-              destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
+              destUrl = targetUrl || "https://agent.t2os.app/dashboard";
               actionLabel = "حجز سيارة تويوتا فورتشنر 4x4 أوتوماتيك لشركة الخضر VIP";
           } else if (scenario === "clean_master_booking") {
-              destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
+              destUrl = targetUrl || "https://agent.t2os.app/dashboard";
               actionLabel = "تأكيد طلب معاينة تنظيف فلل وقصور - كلين ماستر";
           } else if (scenario === "admin_audit") {
-              destUrl = targetUrl || "https://khedr-bot-agent.onrender.com/dashboard";
+              destUrl = targetUrl || "https://agent.t2os.app/dashboard";
               actionLabel = "فحص مباشر لرسائل الواتساب وحملات البرودكاست";
           } else if (!destUrl) {
-              destUrl = "https://khedr-bot-agent.onrender.com/dashboard";
+              destUrl = "https://agent.t2os.app/dashboard";
           }
 
           addLog(`جاري التوجيه إلى الرابط: ${destUrl}`, "action");

@@ -211,7 +211,7 @@ export const AdminLiveAgentPanel: React.FC<AdminLivePanelsProps> = ({ onOpenBran
                 {fleet?.source === 't2_ai_agent_live' ? 'متصل حياً بـ T2 Agent ✅' : 'بيانات متزامنة'}
               </span>
             </h3>
-            <p className="text-xs text-white/60">البيانات والحالات الفعلية من khedr-bot-agent.onrender.com بدون محاكاة</p>
+            <p className="text-xs text-white/60">البيانات والحالات الفعلية من agent.t2os.app بدون محاكاة</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -223,7 +223,7 @@ export const AdminLiveAgentPanel: React.FC<AdminLivePanelsProps> = ({ onOpenBran
             <span>تحديث حي</span>
           </button>
           <a
-            href={fleet?.agentPortalUrl || 'https://khedr-bot-agent.onrender.com/dashboard'}
+            href={fleet?.agentPortalUrl || 'https://agent.t2os.app/dashboard'}
             target="_blank"
             rel="noreferrer"
             className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-black text-xs font-black rounded-xl shadow-lg shadow-emerald-500/30 flex items-center gap-1.5"

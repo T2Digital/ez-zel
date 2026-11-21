@@ -77,7 +77,7 @@ export function renderTenantAppHtml(brand: any): string {
     ? `<img src="${escapeHtml(brand.logoUrl)}" alt="${escapeHtml(brand.name)}" style="width:68px;height:68px;border-radius:18px;object-fit:cover;border:2px solid ${primary};margin:0 auto 10px;display:block;background:#0f172a;" />`
     : `<div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,${primary},#3b82f6);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#020617;margin:0 auto 10px;">${escapeHtml((brand?.name || 'T2').slice(0, 2))}</div>`;
 
-  const publicBase = (process.env.PUBLIC_BASE_URL || 'https://ez-zel.onrender.com').replace(/\/+$/, '');
+  const publicBase = (process.env.PUBLIC_BASE_URL || 'https://t2os.app').replace(/\/+$/, '');
   const canonicalUrl = brand?.appUrl || brand?.vercelUrl || brand?.liveUrl || `${publicBase}/app/${slug}`;
   const seoTitle = `${brand.name} | ${brand?.slogan || (template === 'products_erp' ? 'المتجر الإلكتروني المعتمد والطلب الفوري' : 'الخدمات المعتمدة وحجز المواعيد أونلاين')}`;
   const seoDesc = brand?.directKnowledge || `${brand.name} — ${brand?.businessType || (template === 'products_erp' ? 'متجر إلكتروني' : 'مركز خدمات')} في ${brand?.address || 'مصر'}. تصفح الكتالوج والأسعار واطلب أو احجز مباشرة عبر الويب أو واتساب ${brand?.phone || ''}.`;

@@ -3,7 +3,7 @@
  * Connects Ez-Zel / Jarvis Brain directly to T2 AI Agent (WhatsApp, Meta, TikTok, CRM, Broadcasts, Payments).
  */
 
-const DEFAULT_T2_AGENT_URL = "https://khedr-bot-agent.onrender.com";
+const DEFAULT_T2_AGENT_URL = "https://agent.t2os.app";
 
 export function getT2AgentBaseUrl(): string {
   return (

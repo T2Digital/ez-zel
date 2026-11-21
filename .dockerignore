@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.git
+data
+obsidian_vault
+.env
+.env.*
+*.log
+*.zip

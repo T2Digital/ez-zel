@@ -275,14 +275,14 @@ export const JarvisDynamicWidgetHUD: React.FC<JarvisDynamicWidgetHUDProps> = ({
                 type="text"
                 value={studioUrlInput}
                 onChange={(e) => setStudioUrlInput(e.target.value)}
-                placeholder="https://tito-studio.onrender.com"
+                placeholder="https://studio.t2os.app"
                 className="px-3 py-1.5 rounded-xl bg-black/50 border border-white/15 text-white text-[11px] focus:outline-none focus:border-cyan-400"
               />
               <input
                 type="text"
                 value={agentUrlInput}
                 onChange={(e) => setAgentUrlInput(e.target.value)}
-                placeholder="https://t2-agent.onrender.com"
+                placeholder="https://agent.t2os.app"
                 className="px-3 py-1.5 rounded-xl bg-black/50 border border-white/15 text-white text-[11px] focus:outline-none focus:border-cyan-400"
               />
             </div>

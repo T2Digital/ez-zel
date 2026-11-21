@@ -209,8 +209,8 @@ export async function sendZeroTouchOnboardingPacket(input: {
   const { signClientPortalToken } = await import('../routes/tenantErpRoutes');
   const portalToken = signClientPortalToken(input.brandId);
   const studioPortalUrl = `${(process.env.TITO_STUDIO_PUBLIC_URL || 'https://t2-studio.vercel.app').replace(/\/$/, '')}/?view=clientPortal&brandId=${encodeURIComponent(input.brandId)}&embed=1`;
-  const agentPortalUrl = `https://khedr-bot-agent.onrender.com/embed/crm?brandId=${encodeURIComponent(input.brandId)}&embed=1`;
-  const unifiedPortalUrl = `https://ez-zel.onrender.com/client/${encodeURIComponent(input.brandId)}?token=${encodeURIComponent(portalToken)}`;
+  const agentPortalUrl = `https://agent.t2os.app/embed/crm?brandId=${encodeURIComponent(input.brandId)}&embed=1`;
+  const unifiedPortalUrl = `https://t2os.app/client/${encodeURIComponent(input.brandId)}?token=${encodeURIComponent(portalToken)}`;
   const message =
     `🎉 *تم تفعيل وإطلاق منظومة ${input.brandName} بالكامل!*\n\n` +
     `🧭 *بوابة العميل الموحدة (الشوروم + الأيجنت + مدير الحساب):*\n${unifiedPortalUrl}\n\n` +

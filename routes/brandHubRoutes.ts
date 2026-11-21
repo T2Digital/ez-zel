@@ -143,7 +143,7 @@ export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
     brand?.websiteUrl,
   ]
     .map((u) => String(u || "").trim())
-    .filter((u) => /^https?:\/\//i.test(u) && !u.includes("ez-zel.onrender.com/store"));
+    .filter((u) => /^https?:\/\//i.test(u) && !u.includes("ez-zel.onrender.com/store") && !u.includes("t2os.app/store"));
 
   if (candidates.length > 0) return candidates[0];
 
@@ -154,7 +154,7 @@ export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
   if (slug === "clean_master" || slug === "clean-master") {
     return "https://cleanmaster-eg.com";
   }
-  const publicBase = (process.env.PUBLIC_BASE_URL || "https://ez-zel.onrender.com").replace(/\/+$/, "");
+  const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
   return `${publicBase}/app/${brand?.slug || brand?.id || slug}`;
 }
 
@@ -185,7 +185,7 @@ function findBrandAndTenant(idOrSlug: string, deps: BrandHubDeps) {
 }
 
 export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
-  // 0) GET Live Fleet Overview from T2 AI Agent (khedr-bot-agent.onrender.com)
+  // 0) GET Live Fleet Overview from T2 AI Agent (agent.t2os.app)
   app.get("/api/brand-hub/agent/fleet", async (_req: Request, res: Response) => {
     try {
       const [brandsHealth, financials] = await Promise.all([

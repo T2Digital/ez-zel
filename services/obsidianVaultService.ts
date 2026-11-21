@@ -859,7 +859,7 @@ export async function executeRealJarvisEcosystemAction(input: {
             const candidateAgentUrls = [
                 getT2AgentBaseUrl(),
                 process.env.T2_AGENT_URL,
-                'https://khedr-bot-agent.onrender.com'
+                'https://agent.t2os.app'
             ].filter((u, i, arr): u is string => Boolean(u) && arr.indexOf(u) === i);
 
             let livePairingCode: string | null = null;

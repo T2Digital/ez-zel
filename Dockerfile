@@ -48,8 +48,8 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 # Copy built application and package files
 COPY package*.json ./
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/data ./data
 COPY --from=builder /app/node_modules ./node_modules
+RUN mkdir -p /app/data /var/data
 
 EXPOSE 3000
 

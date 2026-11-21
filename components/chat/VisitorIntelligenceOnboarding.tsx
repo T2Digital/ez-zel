@@ -865,7 +865,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   {isConnectingWa ? 'جاري التوليد...' : waPairingData ? '🔄 تحديث QR والكود' : '📱 QR وكود الربط الفوري'}
                 </button>
                 <a
-                  href={`https://khedr-bot-agent.onrender.com/dashboard?brandId=${encodeURIComponent(generatedBrand?.agentBrandId || generatedBrand?.slug || generatedBrand?.id || 'clean_master')}`}
+                  href={`https://agent.t2os.app/dashboard?brandId=${encodeURIComponent(generatedBrand?.agentBrandId || generatedBrand?.slug || generatedBrand?.id || 'clean_master')}`}
                   target="_blank"
                   rel="noreferrer"
                   className="px-2.5 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/45 text-emerald-200 border border-emerald-400/50 text-[10px] font-black transition shrink-0 flex items-center gap-1"
@@ -912,7 +912,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   type="button"
                   onClick={() => {
                     const bId = generatedBrand?.studioBrandId || generatedBrand?.id || generatedBrand?.slug || 'clean_master';
-                    window.open(`https://t2-studio.onrender.com/?view=clientPortal&brandId=${encodeURIComponent(bId)}&embed=1`, '_blank', 'noopener,noreferrer');
+                    window.open(`https://studio.t2os.app/?view=clientPortal&brandId=${encodeURIComponent(bId)}&embed=1`, '_blank', 'noopener,noreferrer');
                   }}
                   className="flex-1 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/45 text-blue-200 border border-blue-400/50 text-[10px] font-black transition"
                 >
@@ -995,7 +995,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   type="button"
                   onClick={() => {
                     const bId = generatedBrand?.studioBrandId || generatedBrand?.id || generatedBrand?.slug || 'clean_master';
-                    window.open(`https://t2-studio.onrender.com/?view=clientPortal&brandId=${encodeURIComponent(bId)}&embed=1`, '_blank', 'noopener,noreferrer');
+                    window.open(`https://studio.t2os.app/?view=clientPortal&brandId=${encodeURIComponent(bId)}&embed=1`, '_blank', 'noopener,noreferrer');
                   }}
                   className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 text-[10px] font-black shrink-0"
                 >

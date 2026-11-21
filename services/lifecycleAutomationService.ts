@@ -86,7 +86,7 @@ export async function runLifecycleAndTokenSweep(options?: {
         expiringSoonCount += 1;
         const dedupeKey = `reminder_48h:${brandId}:${todayStr}`;
         if (!seenKeys.has(dedupeKey)) {
-          const msg = `تنبيه تجديد اشتراك "${b.name || brandId}": متبقي أقل من ${Math.ceil(hoursLeft)} ساعة على انتهاء الفترة الحالية (${expiryIso.slice(0, 10)}). للتجديد والاستمرار: https://ez-zel.onrender.com/pricing?brandId=${encodeURIComponent(b.slug || brandId)}`;
+          const msg = `تنبيه تجديد اشتراك "${b.name || brandId}": متبقي أقل من ${Math.ceil(hoursLeft)} ساعة على انتهاء الفترة الحالية (${expiryIso.slice(0, 10)}). للتجديد والاستمرار: https://t2os.app/pricing?brandId=${encodeURIComponent(b.slug || brandId)}`;
           actionsTaken.push(`${dryRun ? '[DRY] ' : ''}48h reminder for ${brandId}`);
           if (!dryRun) {
             events.push({ key: dedupeKey, brandId, kind: 'reminder_48h', message: msg, createdAt: new Date().toISOString() });
