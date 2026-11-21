@@ -14,8 +14,8 @@ RUN apk add --no-cache python3 make g++ git
 # Copy dependency manifests
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies for build)
-RUN npm ci
+# Install all dependencies (including devDependencies for build even if NODE_ENV=production is injected)
+RUN npm ci --include=dev
 
 # Copy full source tree
 COPY . .
