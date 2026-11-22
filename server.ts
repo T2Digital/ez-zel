@@ -2276,14 +2276,16 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       res.setHeader("Access-Control-Allow-Origin", "*");
       try {
           const { recordLiveEvent } = await import("./services/liveTelemetryService");
-          const { source, eventType, brandId, customerName, customerPhone, amountEgp, summary, raw } = req.body || {};
+          const { t2AgentApi } = await import("./services/t2AgentApiClient");
+          const { source, eventType, brandId, orderId, customerName, customerPhone, amountEgp, summary, raw } = req.body || {};
           if (!eventType) {
               return res.status(400).json({ ok: false, error: "eventType is required" });
           }
+          const slugKey = String(brandId || "clean_master").trim();
           const ev = recordLiveEvent({
               source: source || "battah",
               eventType,
-              brandId: String(brandId || "clean_master"),
+              brandId: slugKey,
               customerName,
               customerPhone,
               amountEgp: Number(amountEgp || 0),
@@ -2291,7 +2293,61 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               raw
           });
           broadcastGatewayEvent("LIVE_TELEMETRY_EVENT", ev);
-          res.json({ ok: true, event: ev });
+
+          let adminWhatsappQueued = false;
+          let customerWhatsappQueued = false;
+          if (String(eventType) === "order_created") {
+              try {
+                  const normSlug = slugKey.toLowerCase().replace(/[^a-z0-9]/g, "");
+                  const unified = getUnifiedGrowthBrands();
+                  const brandMatch =
+                      unified.find((b: any) =>
+                          String(b.id || "").toLowerCase().replace(/[^a-z0-9]/g, "") === normSlug ||
+                          String(b.slug || "").toLowerCase().replace(/[^a-z0-9]/g, "") === normSlug
+                      ) || getClonedBrandByIdOrSlug(slugKey);
+                  const brandName = String(brandMatch?.name || slugKey);
+                  const brandKey = String(brandMatch?.id || slugKey);
+                  const adminPhone = String(brandMatch?.whatsapp || brandMatch?.phone || "").trim();
+                  const custName = String(customerName || "عميل أونلاين").trim();
+                  const custPhone = String(customerPhone || "").trim();
+                  const totalNum = Number(amountEgp || 0);
+                  const ordId = String(orderId || raw?.orderId || Date.now());
+                  const addr = String(raw?.shippingAddress || raw?.customerAddress || "").trim();
+                  const itemsArr = Array.isArray(raw?.items) ? raw.items : [];
+                  const itemsSummary = itemsArr.length
+                      ? itemsArr.map((it: any) => `• ${it.productName || it.name || "منتج"} × ${it.quantity || it.qty || 1}`).join("\n")
+                      : "• طلب متجر أونلاين";
+                  const payMethod = String(raw?.paymentMethod || "cod");
+                  const payLabel = payMethod === "cod" ? "دفع عند الاستلام" : payMethod;
+                  const publicBase = String(process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
+
+                  if (adminPhone) {
+                      const adminMsg =
+                          `🔔 *طلب أونلاين جديد — ${brandName}* (#${ordId})\n` +
+                          `👤 العميل: ${custName}\n` +
+                          (custPhone ? `📱 الهاتف: ${custPhone}\n` : "") +
+                          (addr ? `📍 العنوان: ${addr}\n` : "") +
+                          `🛒 الأصناف:\n${itemsSummary}\n` +
+                          `💰 الإجمالي: *${totalNum} ج.م* (${payLabel})\n` +
+                          `🔗 لوحة الإدارة: ${publicBase}/store/${encodeURIComponent(slugKey)}`;
+                      adminWhatsappQueued = true;
+                      t2AgentApi.sendManualReply(brandKey, adminPhone, adminMsg).catch(() => {});
+                  }
+                  if (custPhone) {
+                      const customerMsg =
+                          `أهلاً بك يا ${custName} في *${brandName}* 🌟\n` +
+                          `تم استلام طلبك رقم *#${ordId}* بنجاح!\n` +
+                          `🛒 تفاصيل الطلب:\n${itemsSummary}\n` +
+                          `💰 الإجمالي: *${totalNum} ج.م*\n` +
+                          (addr ? `📍 العنوان: ${addr}\n` : "") +
+                          `فريقنا هيراجع الطلب ويتواصل معاك لتأكيد التوصيل في أسرع وقت ✅`;
+                      customerWhatsappQueued = true;
+                      t2AgentApi.sendManualReply(brandKey, custPhone, customerMsg).catch(() => {});
+                  }
+              } catch {}
+          }
+
+          res.json({ ok: true, event: ev, alerts: { adminWhatsappQueued, customerWhatsappQueued, telemetryRecorded: true } });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message || "Failed to record tenant event" });
       }

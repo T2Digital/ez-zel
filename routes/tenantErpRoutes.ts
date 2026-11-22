@@ -14,6 +14,8 @@ import {
   loadDropshippingFunnels,
   type CarrierProvider,
 } from "../services/dropshippingEngineService";
+import { t2AgentApi } from "../services/t2AgentApiClient";
+import { recordLiveEvent } from "../services/liveTelemetryService";
 
 const EPHEMERAL_TENANT_SECRET = crypto.randomBytes(32).toString("hex");
 const getTenantAuthSecret = () => {
@@ -454,7 +456,72 @@ export function registerTenantErpRoutes(
         orders: [newOrder, ...existingOrders].slice(0, 500),
         notifications: [newNotification, ...existingNotifs].slice(0, 300),
       });
-      return res.json({ ok: true, order: newOrder, notification: newNotification });
+
+      // Resolve brand metadata for instant WhatsApp alerts & Shadow Live Pulse telemetry
+      const brandInfo = await resolveBrandForAuth(slugNorm).catch(() => null);
+      const brandName = String(brandInfo?.name || slugNorm);
+      const brandKey = String(brandInfo?.id || slugNorm);
+      const adminPhone = String(brandInfo?.whatsapp || brandInfo?.phone || "").trim();
+      const itemsSummary = items
+        .map((it: any) => `• ${it.productName || it.name || "منتج"} × ${it.quantity || it.qty || 1}`)
+        .join("\n");
+
+      // 1) Record immediately in Shadow Live Pulse Telemetry (Jarvis live stats)
+      let telemetryRecorded = false;
+      try {
+        recordLiveEvent({
+          source: "battah",
+          eventType: "order_created",
+          brandId: brandKey,
+          customerName: newOrder.customerName,
+          customerPhone: newOrder.customerPhone,
+          amountEgp: newOrder.totalAmount,
+          summary: `طلب متجر أونلاين #${orderId} (${brandName}) من ${newOrder.customerName} — ${newOrder.totalAmount} ج.م`,
+          raw: { slug: slugNorm, orderId, paymentMethod: newOrder.paymentMethod, itemsCount: items.length },
+        });
+        telemetryRecorded = true;
+      } catch {}
+
+      // 2) Instant WhatsApp notification to Store Admin via T2 AI Agent
+      let adminWhatsappQueued = false;
+      if (adminPhone) {
+        const publicBase = String(process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
+        const adminMsg =
+          `🔔 *طلب أونلاين جديد — ${brandName}* (#${orderId})\n` +
+          `👤 العميل: ${newOrder.customerName}\n` +
+          `📱 الهاتف: ${newOrder.customerPhone}\n` +
+          `📍 العنوان: ${newOrder.customerAddress}\n` +
+          `🛒 الأصناف:\n${itemsSummary}\n` +
+          `💰 الإجمالي: *${newOrder.totalAmount} ج.م* (${newOrder.paymentMethod === "cod" ? "دفع عند الاستلام" : newOrder.paymentMethod})\n` +
+          `🔗 لوحة الإدارة: ${publicBase}/store/${encodeURIComponent(slugNorm)}`;
+        adminWhatsappQueued = true;
+        t2AgentApi.sendManualReply(brandKey, adminPhone, adminMsg).catch(() => {});
+      }
+
+      // 3) Automatic WhatsApp order confirmation to Customer via T2 AI Agent
+      let customerWhatsappQueued = false;
+      if (newOrder.customerPhone) {
+        const customerMsg =
+          `أهلاً بك يا ${newOrder.customerName} في *${brandName}* 🌟\n` +
+          `تم استلام طلبك رقم *#${orderId}* بنجاح!\n` +
+          `🛒 تفاصيل الطلب:\n${itemsSummary}\n` +
+          `💰 الإجمالي شامل الشحن: *${newOrder.totalAmount} ج.م*\n` +
+          `📍 العنوان: ${newOrder.customerAddress}\n` +
+          `فريقنا هيراجع الطلب ويتواصل معاك لتأكيد التوصيل في أسرع وقت ✅`;
+        customerWhatsappQueued = true;
+        t2AgentApi.sendManualReply(brandKey, newOrder.customerPhone, customerMsg).catch(() => {});
+      }
+
+      return res.json({
+        ok: true,
+        order: newOrder,
+        notification: newNotification,
+        alerts: {
+          adminWhatsappQueued,
+          customerWhatsappQueued,
+          telemetryRecorded,
+        },
+      });
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message || "Failed to create tenant order" });
     }

@@ -741,3 +741,55 @@ test("20) Static contract: t2-studio Meta Ads insights does not return hardcoded
   assert.equal(snippet.includes("spend: 4250"), false);
   assert.ok(snippet.includes("connected: false"));
 });
+
+test("21) tenantErpRoutes online store order creates admin notification and records live Shadow telemetry", async () => {
+  const { registerTenantErpRoutes } = await importTs(path.join("routes", "tenantErpRoutes.ts"));
+  const { getLiveTelemetrySummary } = await importTs(path.join("services", "liveTelemetryService.ts"));
+
+  const routes = {};
+  const mockApp = {
+    get(p, h) { routes[`GET ${p}`] = h; },
+    post(p, h) { routes[`POST ${p}`] = h; },
+    options() {},
+  };
+  const testSlug = `auto-house-test-${Date.now()}`;
+  registerTenantErpRoutes(mockApp, {
+    getUnifiedGrowthBrands: () => [
+      { id: testSlug, slug: testSlug, name: "أوتو هاوس", phone: "01013372674", whatsapp: "01013372674" },
+    ],
+    getClonedBrandByIdOrSlug: () => null,
+  });
+
+  const res = {
+    statusCode: 200,
+    headers: {},
+    body: null,
+    setHeader(k, v) { this.headers[k] = v; },
+    status(c) { this.statusCode = c; return this; },
+    json(b) { this.body = b; return this; },
+  };
+  await routes["POST /api/tenant-erp/:slug/orders"](
+    {
+      params: { slug: testSlug },
+      headers: {},
+      body: {
+        customerDetails: { name: "أحمد علي", phone: "01099887766", address: "مدينة نصر" },
+        items: [{ productName: "طقم تيل فرامل سيراميك", quantity: 1, price: 1450 }],
+        subtotal: 1450,
+        paymentMethod: "cod",
+      },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.ok(res.body.notification?.message?.includes("أحمد علي"));
+  assert.equal(res.body.alerts?.telemetryRecorded, true);
+  assert.equal(res.body.alerts?.adminWhatsappQueued, true);
+  assert.equal(res.body.alerts?.customerWhatsappQueued, true);
+
+  const pulse = getLiveTelemetrySummary(testSlug);
+  assert.ok(pulse.orders >= 1);
+  assert.ok(pulse.totalRevenueEgp >= 1450);
+});
