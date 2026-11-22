@@ -793,3 +793,64 @@ test("21) tenantErpRoutes online store order creates admin notification and reco
   assert.ok(pulse.orders >= 1);
   assert.ok(pulse.totalRevenueEgp >= 1450);
 });
+
+test("22) Post-subscription market research produces full strategy + 8-item mixed plan and worker invokes generateVideo for reels", async () => {
+  const { conductAIMarketResearchAndStrategy } = await tsImport(
+    pathToFileURL(path.join(process.cwd(), "routes", "ecosystemOrchestrationRoutes.ts")).href,
+    import.meta.url
+  );
+  const pack = await conductAIMarketResearchAndStrategy({
+    brandName: "أوتو هاوس",
+    industry: "قطع غيار سيارات",
+    city: "القاهرة",
+    productsSample: ["تيل فرامل سيراميك", "فلتر زيت أصلي"],
+  });
+
+  assert.ok(pack.marketResearch.length > 40);
+  assert.ok(pack.painPoints.length >= 5);
+  assert.ok(pack.strategicPillars.length >= 4);
+  assert.equal(pack.contentPlan.length, 8);
+  assert.ok(pack.contentPlan.some((i) => i.type === "reel" || i.type === "video"));
+  assert.ok(pack.contentPlan.some((i) => i.type === "image"));
+
+  const studioWorker = await tsImport(
+    pathToFileURL("D:/t2-studio/src/server/contentExecutionWorker.ts").href,
+    import.meta.url
+  );
+  let videoCalled = false;
+  let savedRecord = null;
+  studioWorker.enqueueContentExecutionBatch(
+    {
+      clinicId: "test_video_clinic",
+      brandName: "أوتو هاوس",
+      items: [
+        {
+          title: "ريلز مقارنة تيل الفرامل الأصلي من أوتو هاوس",
+          type: "reel",
+          caption: "شوف الفرق الحقيقي مع أوتو هاوس في جودة وأمان تيل الفرامل السيراميك. اطلب الآن عبر واتساب أو المتجر!",
+          visualPrompt: "مشهد سينمائي لمقارنة تيل فرامل سيراميك داخل ورشة حديثة",
+          painPoint: "التأكد من الجودة الأصلية",
+        },
+      ],
+      triggerSource: "unit_test",
+    },
+    {
+      loadBrand: async () => ({ id: "test_video_clinic", name: "أوتو هاوس", industry: "قطع غيار سيارات" }),
+      generateVideo: async () => {
+        videoCalled = true;
+        return "https://cdn.example.com/auto_reel_test.mp4";
+      },
+      saveContentItem: async (rec) => {
+        savedRecord = rec;
+        return "vid_doc_1";
+      },
+    }
+  );
+
+  for (let i = 0; i < 40 && !savedRecord; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.equal(videoCalled, true);
+  assert.equal(savedRecord?.visualUrl, "https://cdn.example.com/auto_reel_test.mp4");
+  assert.equal(savedRecord?.qaPassed, true);
+});
