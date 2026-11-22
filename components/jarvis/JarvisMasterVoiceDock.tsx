@@ -30,15 +30,15 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            className="w-full px-5 py-2.5 rounded-2xl bg-[#030718]/90 border border-cyan-400/40 text-center text-xs text-cyan-200 font-bold shadow-[0_0_35px_rgba(0,240,255,0.25)] backdrop-blur-2xl"
+            className="w-full max-h-40 overflow-y-auto px-5 py-2.5 rounded-2xl bg-[#030718]/90 border border-cyan-400/40 text-center text-xs text-cyan-200 font-bold shadow-[0_0_35px_rgba(0,240,255,0.25)] backdrop-blur-2xl"
           >
             {isThinking ? (
               <span className="flex items-center justify-center gap-2 text-cyan-300">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-spin" />
-                🧠 جاري التفكير وتحليل طلبك يا ماستر...
+                🧠 جاري التفكير وتحليل طلبك...
               </span>
             ) : (
-              <span className="leading-relaxed">🗣️ "{transcript}"</span>
+              <span className="leading-relaxed whitespace-pre-line">🗣️ "{transcript.replace(/\*\*/g, '')}"</span>
             )}
           </motion.div>
         )}

@@ -1502,6 +1502,12 @@ ${textContent.substring(0, 10000)}`;
         userProfile={user}
         externalRefreshKey={swarmRefreshKey + messages.length}
         onQuickPrompt={(prompt) => handleSend(prompt)}
+        onOpenBattleStation={() => {
+          setBattleStationPersona(isTito ? 'tito' : 'visitor');
+          setShowBattleStation(true);
+        }}
+        onOpenNewBrand={() => setShowOnboardingModal(true)}
+        onNavigateAdmin={(section) => onNavigateTo?.(section || 'admin')}
       />
 
       <div

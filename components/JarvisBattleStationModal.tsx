@@ -1703,8 +1703,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             </h1>
           </div>
 
-          {/* Right: Role-Separated Action Buttons */}
-          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+          {/* Right: Role-Separated Action Buttons (Visible on BOTH Mobile & Desktop) */}
+          <div className="flex items-center gap-1.5 flex-wrap shrink-0 max-w-full overflow-x-auto scrollbar-none">
             {isMasterAdmin ? (
               <>
                 <button
@@ -1719,16 +1719,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     } catch {}
                     setAgentEmbed({ open: true, windowName: 'crm', brandId: bId, embedUrl });
                   }}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 font-bold text-xs whitespace-nowrap transition-all cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/40 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
                 >
                   <Bot className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>الأجنت المدمج</span>
+                  <span>الأجنت</span>
                 </button>
 
                 <button
                   onClick={async () => {
                     stopAllJarvisAudio();
-                    const cId = currentSelectedBrand?.id || '1';
+                    const cId = currentSelectedBrand?.id || 'brand_1779847291377';
                     let embedUrl = `https://studio.t2os.app/?embed=1&view=calendar&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(cId)}`;
                     try {
                       const r = await fetch(`/api/embed/signed-urls?clinicId=${encodeURIComponent(cId)}&view=calendar`);
@@ -1737,10 +1737,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     } catch {}
                     setStudioEmbed({ open: true, view: 'calendar', clinicId: cId, embedUrl });
                   }}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-400/40 font-bold text-xs whitespace-nowrap transition-all cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 text-purple-200 border border-purple-400/40 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-purple-300" />
-                  <span>الاستوديو المدمج</span>
+                  <span>الاستوديو</span>
                 </button>
 
                 <button
@@ -1754,7 +1754,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     } catch {}
                   }}
                   title="فحص وربط المنصات الثلاث (الظل + تيتو ستوديو + تيتو أجنت)"
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-emerald-500/15 text-emerald-300 border border-white/10 hover:border-emerald-400/40 font-bold text-xs transition-all cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-emerald-500/15 text-emerald-300 border border-white/10 hover:border-emerald-400/40 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
                 >
                   <Radio className="w-3.5 h-3.5 animate-pulse" />
                   <span>رادار الربط</span>
@@ -1763,7 +1763,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <button
                   onClick={() => setIsAdkVentureOpen(true)}
                   title="مخترع المشاريع الذكي (ADK 0→1) — دراسة سوق وكتالوج وخطة 30 يوم"
-                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border border-amber-400/45 font-bold text-xs transition-all cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border border-amber-400/45 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                   <span>اختراع مشروع</span>
@@ -1771,7 +1771,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                 <button
                   onClick={() => setIsOnboardingOpen(true)}
-                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs transition-all cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>براند جديد</span>

@@ -678,15 +678,26 @@ async function startServer() {
           const quota = getBrandMonthlyQuotaStatus(brand);
           const subWindow = resolveBrandSubscriptionWindow(brand);
           const accessCheck = await verifyClientPortalWriteAccess(req, slug, brand);
+          const { titoStudioApi } = await import("./services/titoStudioApiClient");
+          const { t2AgentApi } = await import("./services/t2AgentApiClient");
           const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
           const agentBase = (process.env.T2_AGENT_URL || "https://agent.t2os.app").replace(/\/+$/, "");
           const brandKey = String(brand.slug || brand.id);
           const studioClinicKey = String(brand.titoStudioClinicId || brand.studioBrandId || brandKey);
           const agentBrandKey = String(brand.agentBrandId || brandKey);
+          const studioShowroomUrl = titoStudioApi.buildStudioEmbedUrl("clientPortal", studioClinicKey);
+
+          let agentApiKey = "";
+          try {
+              const keysRes: any = await t2AgentApi.getBrandKeys(agentBrandKey);
+              agentApiKey = String(keysRes?.apiKey || keysRes?.keys?.apiKey || keysRes?.data?.apiKey || "");
+          } catch {}
+          const agentDashboardUrl = t2AgentApi.buildAgentEmbedUrl("crm", agentBrandKey, agentApiKey || undefined);
+
           const studioLandingPageUrl = brand.studioLandingPageUrl || brand.landingPageUrl || `${studioBase}/landing/${encodeURIComponent(brandKey)}`;
           const storefrontUrl = appAccessMode === "landing_page"
               ? studioLandingPageUrl
-              : (brand.vercelUrl || brand.deployedUrl || `/store/${encodeURIComponent(brandKey)}`);
+              : (brand.vercelUrl || brand.deployedUrl || brand.dedicatedLiveUrl || `/store/${encodeURIComponent(brandKey)}`);
           const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
           res.json({
               ok: true,
@@ -700,9 +711,9 @@ async function startServer() {
               portalAuthValid: accessCheck.ok,
               upgradeUrl: `${publicBase}/pricing?brandId=${encodeURIComponent(brandKey)}`,
               portals: {
-                  studioShowroomUrl: `${studioBase}/?view=clientPortal&brandId=${encodeURIComponent(brandKey)}&clinicId=${encodeURIComponent(studioClinicKey)}&embed=1`,
-                  agentDashboardUrl: `${agentBase}/embed/crm?brandId=${encodeURIComponent(agentBrandKey)}&embed=1`,
-                  agentFullDashboardUrl: `${agentBase}/dashboard?brandId=${encodeURIComponent(agentBrandKey)}`,
+                  studioShowroomUrl,
+                  agentDashboardUrl,
+                  agentFullDashboardUrl: agentDashboardUrl,
                   storefrontUrl,
                   studioLandingPageUrl,
               }

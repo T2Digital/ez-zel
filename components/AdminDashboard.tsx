@@ -883,6 +883,10 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
             </div>
         )}
 
+        {activeView === 'brand_registry' && (
+            <AdminBrandRegistryPanel />
+        )}
+
         {activeView === 'studio' && (
             <AdminLiveStudioPanel onOpenBrandInJarvis={() => { if (onNavigateTo) onNavigateTo('chat'); }} />
         )}
