@@ -26,7 +26,7 @@ import {
   type SupplierProvider,
 } from "../services/dropshippingEngineService";
 import { recordLiveEvent } from "../services/liveTelemetryService";
-import { t2AgentApi } from "../services/t2AgentApiClient";
+import { getT2AgentBaseUrl, t2AgentApi } from "../services/t2AgentApiClient";
 import { verifyAdminRequest } from "../services/serverAdminAuth";
 import { verifyTenantToken } from "./tenantErpRoutes";
 
@@ -710,6 +710,210 @@ export function registerDropshippingRoutes(app: Express): void {
       return res.json({ ok: true, carrier: "cj_auto", ...result });
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message });
+    }
+  });
+
+  // 8) Live Readiness & Non-Destructive End-to-End Dropshipping Verification
+  app.get("/api/dropshipping/readiness", async (req: Request, res: Response) => {
+    if (!(await authorizeDropshippingAdmin(req))) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+    try {
+      const funnels = loadDropshippingFunnels();
+      const providers = getMaskedProvidersConfig();
+      const alGenedyExcluded = !funnels.some(
+        (f) => String(f.slug).includes("algenedy") || f.agentBrandId === "al_genedy"
+      );
+
+      let whatsappEngineConnected = false;
+      let agentStatus = 0;
+      let agentLatencyMs = 0;
+      const t0 = Date.now();
+      try {
+        const probe = await fetch(`${getT2AgentBaseUrl()}/api/system/health`, {
+          signal: AbortSignal.timeout(4000),
+        });
+        agentStatus = probe.status;
+        whatsappEngineConnected = probe.ok;
+        agentLatencyMs = Date.now() - t0;
+      } catch {
+        agentLatencyMs = Date.now() - t0;
+      }
+
+      return res.json({
+        ok: true,
+        checkedAt: new Date().toISOString(),
+        alGenedyIsolated: alGenedyExcluded,
+        storesCount: funnels.length,
+        stores: funnels.map((f) => ({
+          slug: f.slug,
+          brandName: f.brandName,
+          productsCount: Array.isArray(f.products) ? f.products.length : 0,
+        })),
+        suppliers: {
+          cj: providers.configured.cj ? "api_live" : "catalog_ready_whatsapp",
+          knawat: providers.configured.knawat ? "api_live" : "catalog_ready_whatsapp",
+          makhazen: providers.configured.makhazen ? "api_live" : "catalog_ready_whatsapp",
+          taager: providers.configured.taager ? "api_live" : "catalog_ready_whatsapp",
+          local_whatsapp: "whatsapp_ready",
+          on_demand_workshop: "whatsapp_ready",
+        },
+        carriers: {
+          bosta: providers.configured.bosta ? "api_live" : "manual_waybill_ready",
+          oto: providers.configured.oto ? "api_live" : "manual_waybill_ready",
+          aramex: providers.configured.aramex ? "api_live" : "manual_waybill_ready",
+          cj_auto: providers.configured.cj ? "api_live" : "catalog_ready_whatsapp",
+          whatsappEngine: {
+            connected: whatsappEngineConnected,
+            httpStatus: agentStatus,
+            latencyMs: agentLatencyMs,
+          },
+          webhooksConfigured: {
+            bostaSecret: Boolean((process.env.BOSTA_WEBHOOK_SECRET || "").trim()),
+            otoSecret: Boolean((process.env.OTO_WEBHOOK_SECRET || "").trim()),
+            cjSecret: Boolean((process.env.CJ_WEBHOOK_SECRET || "").trim()),
+          },
+        },
+        settlement: computeCodSettlementSummary(),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || "Readiness check failed" });
+    }
+  });
+
+  app.post("/api/dropshipping/e2e-selftest", async (req: Request, res: Response) => {
+    if (!(await authorizeDropshippingAdmin(req))) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+
+    const checks: Array<{ step: string; ok: boolean; detail: string }> = [];
+    const ordersBackup = loadDropshippingOrders();
+    try {
+      const store = loadDropshippingFunnels().find((f) => f.slug === "captaincar-eg");
+      if (!store) {
+        return res.status(404).json({ ok: false, error: "Primary commercial store captaincar-eg not found" });
+      }
+      const taagerItem = store.products.find((p) => p.supplierProvider === "taager") || store.products[0];
+      const cjItem = store.products.find((p) => p.supplierProvider === "cj") || store.products[1] || store.products[0];
+
+      // Step 1: Multi-supplier split-order routing
+      const refCode = `SELFTEST-${Date.now().toString().slice(-6)}`;
+      const split = buildSplitSubOrders({
+        refCode,
+        store,
+        shippingFeeEgp: 60,
+        items: [
+          { productId: taagerItem.id, productName: taagerItem.name, qty: 1, unitPriceEgp: taagerItem.sellingPriceEgp },
+          { productId: cjItem.id, productName: cjItem.name, qty: 1, unitPriceEgp: cjItem.sellingPriceEgp },
+        ],
+      });
+      const step1Ok = split.subOrders.length >= 1 && split.totalSellingEgp > 0;
+      checks.push({
+        step: "split_order_routing",
+        ok: step1Ok,
+        detail: `subOrders=${split.subOrders.length}, carriers=${split.subOrders.map((s) => s.carrierProvider).join(",")}`,
+      });
+
+      // Step 2: Zero selling price leakage check on supplier dispatch message
+      const dispatchText = buildZeroPriceSubOrderDispatchText(
+        {
+          refCode,
+          customerName: "SELFTEST عميل",
+          customerPhone: "01000000000",
+          governorate: "القاهرة",
+          address: "مدينة نصر",
+        },
+        split.subOrders[0]
+      );
+      const step2Ok =
+        dispatchText.includes(refCode) &&
+        !dispatchText.includes(String(taagerItem.sellingPriceEgp)) &&
+        !dispatchText.includes(String(split.subOrders[0].codCollectionEgp));
+      checks.push({
+        step: "zero_price_supplier_dispatch",
+        ok: step2Ok,
+        detail: step2Ok ? "Customer/SKU present, selling & COD prices redacted" : "Dispatch text validation failed",
+      });
+
+      // Step 3: Temporary COD order lifecycle + webhook settlement + full cleanup
+      const testSubOrders = split.subOrders.map((s, idx) => ({
+        ...s,
+        trackingNumber: `TEST-TRK-${Date.now()}-${idx}`,
+        status: "dispatched_to_supplier" as DropshippingOrderStatus,
+      }));
+      const tempOrder: DropshippingOrder = {
+        id: `selftest_${Date.now()}`,
+        refCode,
+        funnelSlug: store.slug,
+        brandName: store.brandName,
+        agentBrandId: store.agentBrandId || "tito_media",
+        productName: `[SELFTEST] ${taagerItem.name}`,
+        qty: 2,
+        bundleLabel: "E2E Selftest",
+        sellingPriceEgp: split.totalSellingEgp,
+        shippingFeeEgp: 60,
+        totalCodEgp: split.totalSellingEgp + 60,
+        supplierCostTotalEgp: split.totalSupplierCostEgp,
+        adSpendEgp: 85,
+        netProfitEgp: split.totalSellingEgp - split.totalSupplierCostEgp - 85,
+        customerName: "SELFTEST",
+        customerPhone: "01000000000",
+        governorate: "القاهرة",
+        address: "Selftest Address",
+        supplierWhatsapp: testSubOrders[0]?.supplierWhatsapp || "01013372674",
+        status: "dispatched_to_supplier",
+        whatsappConfirmed: true,
+        carrierProvider: testSubOrders[0]?.carrierProvider || "bosta",
+        subOrders: testSubOrders,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      saveDropshippingOrders([tempOrder, ...ordersBackup]);
+
+      for (const s of testSubOrders) {
+        applyCarrierWebhookUpdate({
+          carrier: s.carrierProvider,
+          trackingNumber: s.trackingNumber,
+          rawState: "delivered",
+        });
+      }
+      const afterOrder = loadDropshippingOrders().find((o) => o.id === tempOrder.id);
+      const step3Ok = Boolean(afterOrder && afterOrder.status === "delivered");
+      const settlement = computeCodSettlementSummary();
+      checks.push({
+        step: "carrier_webhook_and_settlement",
+        ok: step3Ok && typeof settlement.netRealizedProfitEgp === "number",
+        detail: `orderStatus=${afterOrder?.status}, netRealizedProfitEgp=${settlement.netRealizedProfitEgp}`,
+      });
+
+      // Step 4: Live T2 Agent WhatsApp gateway reachability
+      let step4Ok = false;
+      let agentHttp = 0;
+      try {
+        const probe = await fetch(`${getT2AgentBaseUrl()}/api/system/health`, {
+          signal: AbortSignal.timeout(4000),
+        });
+        agentHttp = probe.status;
+        step4Ok = probe.ok;
+      } catch {}
+      checks.push({
+        step: "whatsapp_agent_health",
+        ok: step4Ok,
+        detail: `agentHttp=${agentHttp}`,
+      });
+
+      const passedSteps = checks.filter((c) => c.ok).length;
+      return res.json({
+        ok: passedSteps === checks.length,
+        passedSteps,
+        totalSteps: checks.length,
+        checks,
+        cleanedUp: true,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || "Selftest failed", checks });
+    } finally {
+      saveDropshippingOrders(ordersBackup);
     }
   });
 }

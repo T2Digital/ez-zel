@@ -35,6 +35,7 @@ import {
     runLiveEcosystemHealthProbe
 } from "./services/ecosystemConfigService";
 import { startEcosystemWatchdog, getWatchdogStatus } from "./services/ecosystemWatchdogService";
+import { startOffServerBackupScheduler } from "./services/offServerBackupService";
 import { getTitoStudioBaseUrl } from "./services/titoStudioApiClient";
 import { getT2AgentBaseUrl } from "./services/t2AgentApiClient";
 import {
@@ -2745,6 +2746,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   const { registerDropshippingRoutes } = await import("./routes/dropshippingRoutes");
   registerDropshippingRoutes(app);
 
+  const { registerBackupAndOpsRoutes } = await import("./routes/backupAndOpsRoutes");
+  registerBackupAndOpsRoutes(app);
+
   // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
   app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
       const slug = String(req.params.slug || "");
@@ -4961,6 +4965,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`[SYSTEM] Full-stack architecture enabled. Background queues & Live API WebSocket ready.`);
     startEcosystemWatchdog(() => getTitoStudioBaseUrl(), () => getT2AgentBaseUrl());
+    startOffServerBackupScheduler();
   });
 }
 

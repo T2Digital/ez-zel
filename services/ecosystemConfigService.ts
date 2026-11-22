@@ -72,6 +72,7 @@ async function probeServiceEndpoint(
   status: "CONNECTED" | "HTML_ONLY" | "UNREACHABLE";
   httpStatus?: number;
   latencyMs: number;
+  uptimeSeconds?: number;
   detail: string;
 }> {
   const started = Date.now();
@@ -100,12 +101,24 @@ async function probeServiceEndpoint(
       };
     }
 
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch {}
+    const uptimeSeconds =
+      typeof parsed?.uptimeSeconds === "number"
+        ? parsed.uptimeSeconds
+        : typeof parsed?.uptime === "number"
+          ? Math.round(parsed.uptime)
+          : undefined;
+
     return {
       name,
       baseUrl,
       status: res.ok ? "CONNECTED" : "UNREACHABLE",
       httpStatus: res.status,
       latencyMs,
+      uptimeSeconds,
       detail: res.ok ? "متصل ويعمل بكفاءة JSON API" : `استجابة HTTP ${res.status}`,
     };
   } catch (err: any) {

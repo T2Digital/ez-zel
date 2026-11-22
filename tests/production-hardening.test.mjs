@@ -522,3 +522,81 @@ test("12) alGenedyErpRoutes redacts quotes/attendance on public GET and blocks s
     });
   }
 });
+
+test("13) offServerBackupService performs lossless AES-256-GCM encrypt/decrypt and rejects tampering", async () => {
+  const { encryptBackupPayload, decryptBackupPayload } = await importTs(
+    path.join("services", "offServerBackupService.ts")
+  );
+  const secret = "test-strong-backup-secret-2026";
+  const sample = Buffer.from(JSON.stringify({ ok: true, count: 42, note: "اختبار النسخ الاحتياطي" }), "utf8");
+  const envelope = encryptBackupPayload(sample, secret);
+
+  assert.equal(envelope.alg, "aes-256-gcm");
+  assert.equal(envelope.version, "t2os-backup-v1");
+  const decrypted = decryptBackupPayload(envelope, secret);
+  assert.equal(decrypted.toString("utf8"), sample.toString("utf8"));
+
+  // Tampered ciphertext must throw
+  const tampered = {
+    ...envelope,
+    ciphertextB64: Buffer.from("tampered-bytes").toString("base64"),
+  };
+  assert.throws(() => decryptBackupPayload(tampered, secret));
+
+  // Wrong key must throw
+  assert.throws(() => decryptBackupPayload(envelope, "wrong-secret-key"));
+});
+
+test("14) backupAndOpsRoutes enforces 401 admin auth on status, backup run, download, and test alert", async () => {
+  const { registerBackupAndOpsRoutes } = await importTs(path.join("routes", "backupAndOpsRoutes.ts"));
+  const routes = {};
+  const mockApp = {
+    get(p, h) { routes[`GET ${p}`] = h; },
+    post(p, h) { routes[`POST ${p}`] = h; },
+  };
+  registerBackupAndOpsRoutes(mockApp);
+
+  for (const key of [
+    "GET /api/admin/backups/status",
+    "POST /api/admin/backups/run",
+    "GET /api/admin/backups/download",
+    "POST /api/admin/watchdog/test-alert",
+  ]) {
+    const res = {
+      statusCode: 200,
+      body: null,
+      status(c) { this.statusCode = c; return this; },
+      json(b) { this.body = b; return this; },
+    };
+    await routes[key]({ headers: {}, body: {} }, res);
+    assert.equal(res.statusCode, 401, `${key} should return 401 without admin auth`);
+    assert.equal(res.body.ok, false);
+  }
+});
+
+test("15) dropshippingRoutes enforces 401 admin auth on readiness and e2e-selftest in production", async () => {
+  const { registerDropshippingRoutes } = await importTs(path.join("routes", "dropshippingRoutes.ts"));
+  const routes = {};
+  const mockApp = {
+    get(p, h) { routes[`GET ${p}`] = h; },
+    post(p, h) { routes[`POST ${p}`] = h; },
+  };
+  registerDropshippingRoutes(mockApp);
+
+  const prevEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    for (const key of ["GET /api/dropshipping/readiness", "POST /api/dropshipping/e2e-selftest"]) {
+      const res = {
+        statusCode: 200,
+        body: null,
+        status(c) { this.statusCode = c; return this; },
+        json(b) { this.body = b; return this; },
+      };
+      await routes[key]({ headers: { host: "t2os.app" }, body: {} }, res);
+      assert.equal(res.statusCode, 401, `${key} must reject unauthenticated requests with 401`);
+    }
+  } finally {
+    process.env.NODE_ENV = prevEnv;
+  }
+});
