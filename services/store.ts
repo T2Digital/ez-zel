@@ -83,10 +83,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (profile) {
               set({ user: profile });
               
-              // Ensure we pull cloud history securely to avoid empty chats across devices
-              try {
-                  await shadowDB.downloadUserCloudData(lastUserEmail);
-              } catch(e) {}
+              // Pull cloud history in the background without blocking app startup
+              shadowDB.downloadUserCloudData(lastUserEmail).catch(() => {});
 
               if (profile.status === 'active') {
                  if (isMasterAdminEmail(profile.email)) {

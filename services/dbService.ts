@@ -1192,8 +1192,11 @@ class ShadowDB {
 
       if (!localProfile && db && cleanEmail !== 'guest') {
          try {
-             const docSnap = await getDoc(doc(db, "users", cleanEmail));
-             if (docSnap.exists()) {
+             const docSnap = await Promise.race([
+                 getDoc(doc(db, "users", cleanEmail)),
+                 new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+             ]);
+             if (docSnap && docSnap.exists()) {
                  const cloudData = docSnap.data() as UserProfile;
                  localProfile = { ...cloudData, email: cleanEmail };
                  if (typeof indexedDB !== 'undefined') {

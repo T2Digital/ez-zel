@@ -46,22 +46,7 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
 
         // --- MASTER ADMIN SOVEREIGN SESSION EXCHANGE ---
         if (isLogin && isMasterAdminEmail(cleanEmail)) {
-             const firebasePassword = cleanEmail === 'admin@shadow.com' && password === 'admin' ? 'admin123' : password;
-
-             let fbLoggedIn = false;
-             try {
-                 await shadowDB.loginUser(cleanEmail, firebasePassword);
-                 fbLoggedIn = true;
-             } catch {
-                 if (cleanEmail === 'admin@shadow.com' && password === 'admin') {
-                     try {
-                         await shadowDB.registerUser(cleanEmail, firebasePassword, 'تيتو (الماستر)', false);
-                         fbLoggedIn = true;
-                     } catch {}
-                 }
-             }
-
-             // Establish real signed HttpOnly cookie + bearer token on T2OS backend
+             // 1. Exchange credentials directly with T2OS backend first (fast, non-blocking)
              const sessRes = await fetch('/api/auth/admin-session', {
                  method: 'POST',
                  credentials: 'include',
@@ -74,32 +59,43 @@ const Auth: React.FC<Props> = ({ selectedPlan, defaultTab = 'login', isAffiliate
                  try {
                      localStorage.setItem('t2os_admin_token', String(sessData.adminToken));
                      localStorage.setItem('tito_admin_master', 'true');
+                     localStorage.setItem('shadow_active_user', cleanEmail);
+                     localStorage.setItem('shadow_last_user', cleanEmail);
                  } catch {}
 
-                 let adminProfile = await shadowDB.getProfile(cleanEmail);
-                 if (!adminProfile) {
-                     adminProfile = {
-                         email: cleanEmail,
-                         phone: cleanEmail,
-                         uid: fbLoggedIn ? 'ADMIN_VERIFIED_UID' : 'ADMIN_SESSION_UID',
-                         status: 'active',
-                         joinedAt: Date.now(),
-                         tier: 'sovereign',
-                         name: 'تيتو (الماستر)',
-                         shadowName: 'الماستر',
-                         affiliate: { isMarketer: true, referralCode: 'TITO_MASTER', totalEarnings: 0, referralsCount: 0, payoutHistory: [] }
-                     };
-                 } else {
-                     adminProfile.tier = 'sovereign';
-                     adminProfile.status = 'active';
-                 }
-                 await shadowDB.saveProfile(adminProfile, true);
+                 const adminProfile: UserProfile = {
+                     email: cleanEmail,
+                     phone: cleanEmail,
+                     uid: 'ADMIN_SESSION_UID',
+                     status: 'active',
+                     joinedAt: Date.now(),
+                     tier: 'sovereign',
+                     name: 'تيتو (الماستر)',
+                     shadowName: 'الماستر',
+                     affiliate: { isMarketer: true, referralCode: 'TITO_MASTER', totalEarnings: 0, referralsCount: 0, payoutHistory: [] }
+                 };
+
+                 // Save locally in background without blocking navigation on Firestore WebChannel
+                 shadowDB.saveProfile(adminProfile, true).catch(() => {});
+                 const firebasePassword = cleanEmail === 'admin@shadow.com' && password === 'admin' ? 'admin123' : password;
+                 shadowDB.loginUser(cleanEmail, firebasePassword).catch(() => {});
+
                  onAuthSuccess(adminProfile);
                  setIsLoading(false);
                  return;
              }
 
-             if (!fbLoggedIn) {
+             // Fallback: try Firebase sign-in with 5s timeout if password is a personal Firebase password
+             const firebasePassword = cleanEmail === 'admin@shadow.com' && password === 'admin' ? 'admin123' : password;
+             try {
+                 const fbUser = await Promise.race([
+                     shadowDB.loginUser(cleanEmail, firebasePassword),
+                     new Promise<never>((_, reject) => setTimeout(() => reject(new Error('FIREBASE_AUTH_TIMEOUT')), 5000)),
+                 ]);
+                 onAuthSuccess(fbUser);
+                 setIsLoading(false);
+                 return;
+             } catch {
                  setError('بيانات دخول الماستر غير صحيحة.');
                  setIsLoading(false);
                  return;
