@@ -6,7 +6,7 @@ phone: "201013373634"
 status: "شغال"
 storefront: "/store/clean_master"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.129Z"
+updated_at: "2026-11-17T04:12:39.550Z"
 ---
 
 # 🏢 [[كلين ماستر لخدمات النظافة والتعقيم]]

@@ -6,7 +6,7 @@ phone: "201154040041"
 status: "متوقف"
 storefront: "/store/sky_vip"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.126Z"
+updated_at: "2026-11-17T04:12:39.549Z"
 ---
 
 # 🏢 [[SKY VIP]]

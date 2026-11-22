@@ -6,7 +6,7 @@ phone: "01013373634"
 status: "شغال"
 storefront: "/store/mwaisgha"
 meta_connected: false
-updated_at: "2026-11-15T17:33:47.136Z"
+updated_at: "2026-11-17T04:12:39.553Z"
 ---
 
 # 🏢 [[أكاديمية النخبة للتدريب]]

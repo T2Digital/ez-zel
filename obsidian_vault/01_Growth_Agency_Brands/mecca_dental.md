@@ -6,7 +6,7 @@ phone: "01040111001"
 status: "متوقف"
 storefront: "/store/mecca_dental"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.123Z"
+updated_at: "2026-11-17T04:12:39.547Z"
 ---
 
 # 🏢 [[عيادة مكة لطب الأسنان]]

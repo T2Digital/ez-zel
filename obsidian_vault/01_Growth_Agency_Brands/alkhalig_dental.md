@@ -6,7 +6,7 @@ phone: "01040441411"
 status: "متوقف"
 storefront: "/store/alkhalig_dental"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.121Z"
+updated_at: "2026-11-17T04:12:39.547Z"
 ---
 
 # 🏢 [[عيادة الخليج لطب الأسنان]]

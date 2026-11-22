@@ -26,7 +26,6 @@ import LiveAgentAction from './LiveAgentAction';
 import { ChatInputArea } from './chat/ChatInputArea';
 import { AGIReasoningTrace } from './chat/AGIReasoningTrace';
 import { ToolCardRenderer, handleAppCardAction, getCardIcon } from './chat/ToolCardRenderer';
-import { JarvisExecutiveSummaryDrawer } from './chat/JarvisExecutiveSummaryDrawer';
 import { LiveTelemetryNotifier } from './LiveTelemetryNotifier';
 const PredictiveAnalyticsBoard = React.lazy(() => import('./chat/PredictiveAnalyticsBoard').then(m => ({ default: m.PredictiveAnalyticsBoard })));
 import { useAppStore } from '../services/store';
@@ -1496,18 +1495,6 @@ ${textContent.substring(0, 10000)}`;
       <LiveTelemetryNotifier
         isMasterAdmin={isAdmin}
         activeBrandId={(user as any)?.linkedBrandId}
-      />
-
-      <JarvisExecutiveSummaryDrawer
-        userProfile={user}
-        externalRefreshKey={swarmRefreshKey + messages.length}
-        onQuickPrompt={(prompt) => handleSend(prompt)}
-        onOpenBattleStation={() => {
-          setBattleStationPersona(isTito ? 'tito' : 'visitor');
-          setShowBattleStation(true);
-        }}
-        onOpenNewBrand={() => setShowOnboardingModal(true)}
-        onNavigateAdmin={(section) => onNavigateTo?.(section || 'admin')}
       />
 
       <div

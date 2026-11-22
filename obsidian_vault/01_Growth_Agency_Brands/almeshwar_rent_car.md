@@ -6,7 +6,7 @@ phone: "0112716060"
 status: "متوقف"
 storefront: "/store/almeshwar_rent_car"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.131Z"
+updated_at: "2026-11-17T04:12:39.551Z"
 ---
 
 # 🏢 [[المشوار لتأجير السيارات]]

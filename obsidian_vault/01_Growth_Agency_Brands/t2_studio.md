@@ -6,7 +6,7 @@ phone: "+966 50 123 4567"
 status: "متوقف"
 storefront: "/store/t2_studio"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.130Z"
+updated_at: "2026-11-17T04:12:39.550Z"
 ---
 
 # 🏢 [[T2 Studio]]

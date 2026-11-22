@@ -6,7 +6,7 @@ phone: "201000000000"
 status: "متوقف"
 storefront: "/store/crypto_bel_arabi"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.124Z"
+updated_at: "2026-11-17T04:12:39.548Z"
 ---
 
 # 🏢 [[كريبتو بالعربي]]

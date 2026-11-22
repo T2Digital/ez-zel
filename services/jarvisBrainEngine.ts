@@ -1297,97 +1297,36 @@ ${conversationMemoryDirective}`;
             backendExecutionResult = { success: false, message: `تعذر النشر عبر تيتو ستوديو: ${pubErr?.message}` };
           }
         } else {
-          // 1. Generate bespoke AI Egyptian Arabic copy tailored to the exact user prompt
+          const targetPlatforms = resolveConnectedPlatforms(matchedStudioBrand, false);
+
+          // 1. Delegate copy + design generation + Studio persistence 100% to Tito Studio API
           let customHook = `🚀 ${dynamicTopic}`;
-          let customCaption = "";
+          let customCaption = dynamicTopic;
+          let publicMediaUrl = "";
+          let studioSavedId = "";
+          let studioDesignWarning: string | undefined;
+
           try {
-            const copyResp = await ai.models.generateContent({
-              model: "gemini-3.1-flash-lite",
-              contents: `أنت مدير المحتوى الإبداعي في تيتو ستوديو. اكتب منشور سوشيال ميديا احترافي وجذاب باللهجة المصرية العصرية لبراند "${targetBrand.name}" (${targetBrand.businessType || "النمو الرقمي والأتمتة"}).
-الموضوع المطلوب من المستخدم: "${message}" (Topic: ${dynamicTopic}).
-رجّع النتيجة كـ JSON فقط بهذا الشكل:
-{"hook": "عنوان خاطف قوي في سطر واحد", "caption": "نص البوست الكامل باللهجة المصرية مع إيموجيز وCTA واضح للتواصل على ${targetBrand.phone || "01013373634"}", "imagePrompt": "وصف إنجليزي دقيق لصورة إعلانية فخمة بأسلوب مستقبلي 2026 بدون أي نصوص مكتوبة داخل الصورة"}`,
-              config: { responseMimeType: "application/json", temperature: 0.7 },
+            const studioDesignRes: any = await titoStudioApi.executeRemoteAction("content.generate_design", studioClinicId, {
+              topic: dynamicTopic,
+              prompt: message,
+              platforms: targetPlatforms.length > 0 ? targetPlatforms : ["instagram", "facebook"],
+              saveToCalendar: true,
+              sendToShowroom: true,
+              status: publishNow && targetPlatforms.length > 0 ? "published" : "scheduled",
             });
-            const parsedCopy = JSON.parse(copyResp?.text || "{}");
-            if (parsedCopy.hook) customHook = parsedCopy.hook;
-            if (parsedCopy.caption) customCaption = parsedCopy.caption;
-            if (parsedCopy.imagePrompt) {
-              var generatedImagePrompt = parsedCopy.imagePrompt;
-            }
-          } catch (copyErr: any) {
-            console.warn("[Jarvis Brain] AI copy generation warning:", copyErr?.message);
-          }
-
-          // 2. Generate real AI visual (Try Tito Studio Cloud API first, then Gemini generateContent / Imagen cascade)
-          let visualUrl: string | undefined = undefined;
-          const imgPrompt =
-            (typeof generatedImagePrompt !== "undefined" && generatedImagePrompt) ||
-            `Futuristic 2026 holographic AI command center representing ${targetBrand.name} and ${dynamicTopic}, dark obsidian glass, glowing cyan and electric violet neon neural network, ultra-clean commercial photography, no text`;
-
-          try {
-            const studioImgRes: any = await titoStudioApi.generateGeminiImage(imgPrompt);
-            const b64 = studioImgRes?.generatedImages?.[0]?.image?.imageBytes;
-            if (b64) {
-              visualUrl = `data:image/png;base64,${b64}`;
-            } else if (typeof studioImgRes?.imageUrl === "string" && studioImgRes.imageUrl) {
-              visualUrl = studioImgRes.imageUrl;
-            }
+            const designResult = studioDesignRes?.result || studioDesignRes?.data || studioDesignRes || {};
+            if (designResult?.copy?.hook) customHook = designResult.copy.hook;
+            else if (designResult?.copy?.title) customHook = designResult.copy.title;
+            if (designResult?.copy?.caption) customCaption = designResult.copy.caption;
+            if (designResult?.visualUrl) publicMediaUrl = String(designResult.visualUrl);
+            if (designResult?.savedId) studioSavedId = String(designResult.savedId);
           } catch (studioErr: any) {
-            console.warn("[Jarvis Studio Visual] Tito Studio API unavailable, using Gemini cascade:", studioErr?.message);
+            studioDesignWarning = studioErr?.message;
+            console.warn("[Jarvis Brain -> Tito Studio content.generate_design] warning:", studioDesignWarning);
           }
 
-          if (!visualUrl) {
-            for (const gcModel of ["gemini-3.1-flash-lite-image", "gemini-2.5-flash-image"]) {
-              try {
-                const gcRes: any = await ai.models.generateContent({
-                  model: gcModel,
-                  contents: imgPrompt,
-                });
-                const parts = gcRes?.candidates?.[0]?.content?.parts || [];
-                for (const part of parts) {
-                  if (part?.inlineData?.data) {
-                    const mimeType = part.inlineData.mimeType || "image/png";
-                    visualUrl = `data:${mimeType};base64,${part.inlineData.data}`;
-                    break;
-                  }
-                }
-                if (visualUrl) break;
-              } catch (gcErr: any) {
-                console.warn(`[Jarvis Studio Visual] ${gcModel} failed:`, gcErr?.message);
-              }
-            }
-          }
-
-          if (!visualUrl) {
-            for (const imgModel of ["imagen-3.0-generate-002", "imagen-4.0-generate-001"]) {
-              try {
-                const imgRes: any = await ai.models.generateImages({
-                  model: imgModel,
-                  prompt: imgPrompt,
-                  config: { numberOfImages: 1, aspectRatio: "1:1" },
-                });
-                const img = imgRes?.generatedImages?.[0];
-                const bytes = img?.image?.imageBytes;
-                if (bytes) {
-                  visualUrl = `data:${img.image?.mimeType || "image/png"};base64,${bytes}`;
-                  break;
-                }
-              } catch (imgErr: any) {
-                console.warn(`[Jarvis Studio Visual] ${imgModel} failed:`, imgErr?.message);
-              }
-            }
-          }
-
-          if (visualUrl && visualUrl.startsWith("data:image/")) {
-            try {
-              const savedMedia = saveGeneratedMedia(visualUrl, targetBrand.slug || brandId);
-              visualUrl = savedMedia.publicUrl;
-            } catch (saveErr: any) {
-              console.warn("[Jarvis Studio Visual] Failed to persist media to disk, keeping data URL:", saveErr?.message);
-            }
-          }
-
+          // 2. Mirror into local T2OS brand state for unified dashboard sync (without overwriting Studio design with raw brand logo)
           backendExecutionResult = await executeRealJarvisEcosystemAction({
             actionType: "CREATE_CUSTOM_STUDIO_POST",
             brandId,
@@ -1395,52 +1334,20 @@ ${conversationMemoryDirective}`;
               topic: dynamicTopic,
               customHook,
               customCaption,
-              visualUrl,
+              visualUrl: publicMediaUrl || undefined,
               publishNow,
             },
           });
+          backendExecutionResult = {
+            ...backendExecutionResult,
+            studioClinicId,
+            studioSavedId,
+            visualUrl: publicMediaUrl,
+            studioDesignWarning,
+          };
 
-          // Save to Tito Studio (non-blocking) and ensure a real Studio AI design URL before publishing
-          let publicMediaUrl = /^https?:\/\//i.test(String(visualUrl || "")) ? visualUrl : "";
-          let usedStudioDesignGenerator = false;
-          if (!publicMediaUrl) {
-            try {
-              const studioDesignRes: any = await titoStudioApi.executeRemoteAction("content.generate_design", studioClinicId, {
-                topic: dynamicTopic,
-                hook: customHook,
-                caption: customCaption || dynamicTopic,
-                platforms: resolveConnectedPlatforms(matchedStudioBrand, false),
-                saveToCalendar: false,
-                sendToShowroom: false,
-              });
-              const candidateUrl = studioDesignRes?.visualUrl || studioDesignRes?.result?.visualUrl || studioDesignRes?.data?.visualUrl || "";
-              if (/^https?:\/\//i.test(String(candidateUrl))) {
-                publicMediaUrl = candidateUrl;
-                usedStudioDesignGenerator = true;
-              }
-            } catch {}
-          }
-          if (!publicMediaUrl) {
-            publicMediaUrl = matchedStudioBrand?.logo || targetBrand?.logo || "";
-          }
-          const targetPlatforms = resolveConnectedPlatforms(matchedStudioBrand, /\.(mp4|mov|webm)/i.test(publicMediaUrl));
-
+          // 3. If immediate social publish was requested, dispatch via Tito Studio's multi-platform publisher
           let studioDispatchRes: any = null;
-          let studioCreateErr: string | undefined;
-          try {
-            await titoStudioApi.createContent({
-              clinicId: studioClinicId,
-              title: customHook,
-              type: "image",
-              caption: customCaption || dynamicTopic,
-              visualUrl: publicMediaUrl || visualUrl,
-              status: publishNow ? "published" : "scheduled",
-              scheduledPlatforms: targetPlatforms,
-            });
-          } catch (createErr: any) {
-            studioCreateErr = createErr?.message;
-          }
-
           if (publishNow) {
             if (targetPlatforms.length === 0) {
               // Poka-Yoke Guard: Never dispatch to unlinked channels; route to Showroom + Settings cleanly
@@ -1448,12 +1355,19 @@ ${conversationMemoryDirective}`;
                 ...backendExecutionResult,
                 pokaYokeBlocked: true,
                 studioClinicId,
-                studioCreateErr,
-                message: `تم تجهيز المنشور وحفظه في صالة العرض لبراند (${targetBrand?.name || studioClinicId})، ولكن لا توجد صفحات سوشيال مربوطة بعد. اربط صفحة فيسبوك/إنستجرام من الإعدادات ثم اعتمد النشر بضغطة واحدة.`,
+                message: `تم تصميم المنشور في تيتو ستوديو وحفظه في صالة العرض لبراند (${targetBrand?.name || studioClinicId})، ولكن لا توجد صفحات سوشيال مربوطة بعد. اربط صفحة فيسبوك/إنستجرام من الإعدادات ثم اعتمد النشر بضغطة واحدة.`,
+              };
+            } else if (!publicMediaUrl) {
+              backendExecutionResult = {
+                ...backendExecutionResult,
+                pokaYokeBlocked: true,
+                studioClinicId,
+                message: `تم حفظ نص المنشور في تيتو ستوديو لبراند (${targetBrand?.name || studioClinicId})، وتم إيقاف النشر المباشر مؤقتاً لحين اعتماد التصميم المرئي في الاستوديو بدلاً من نشر اللوجو.`,
               };
             } else {
               try {
                 studioDispatchRes = await titoStudioApi.executeRemoteAction("publish.multi_platform", studioClinicId, {
+                  itemId: studioSavedId || undefined,
                   title: customHook,
                   caption: customCaption || dynamicTopic,
                   mediaUrl: publicMediaUrl,
@@ -1463,7 +1377,6 @@ ${conversationMemoryDirective}`;
                   ...backendExecutionResult,
                   studioClinicId,
                   targetPlatforms,
-                  studioCreateErr,
                   studioDispatchRes,
                   publishResult: studioDispatchRes,
                 };
@@ -1472,7 +1385,6 @@ ${conversationMemoryDirective}`;
                   ...backendExecutionResult,
                   studioClinicId,
                   targetPlatforms,
-                  studioCreateErr,
                   studioPublishError: pubErr?.message,
                 };
               }
@@ -1485,7 +1397,7 @@ ${conversationMemoryDirective}`;
             view: publishNow ? "showroom" : "calendar",
             clinicId: studioClinicId,
             embedUrl,
-            actionExecuted: publishNow ? "publish.multi_platform" : "content.create",
+            actionExecuted: publishNow ? "publish.multi_platform" : "content.generate_design",
             brandId: studioClinicId,
             result: backendExecutionResult,
           };

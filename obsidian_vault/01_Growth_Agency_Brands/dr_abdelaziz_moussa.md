@@ -6,7 +6,7 @@ phone: "920000007"
 status: "متوقف"
 storefront: "/store/dr_abdelaziz_moussa"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.124Z"
+updated_at: "2026-11-17T04:12:39.548Z"
 ---
 
 # 🏢 [[عيادة د. عبدالعزيز الموسى]]

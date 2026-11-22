@@ -6,7 +6,7 @@ phone: "+966112973666"
 status: "متوقف"
 storefront: "/store/alkhedr_car_rental"
 meta_connected: true
-updated_at: "2026-11-15T17:33:47.128Z"
+updated_at: "2026-11-17T04:12:39.550Z"
 ---
 
 # 🏢 [[شركة الخضر لتأجير السيارات]]

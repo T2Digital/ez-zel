@@ -489,63 +489,66 @@ export const getShadowResponse = async (history: any[], message: string, extraDa
         const contextData = await getContextData();
         const emotionData = analyzeEmotionFromText(message);
 
-        // Unified Role-Isolated Swarm & Cloud-First Memory Sync
+        // Unified Role-Isolated Swarm & Cloud-First Memory Sync (ONLY inject business swarm context when message is about brands/marketing/studio/agent)
         let unifiedSecondBrainText = '';
         let liveSwarmSnapshot: any = null;
-        try {
-            const emailLower = (userProfile?.email || '').toLowerCase();
-            const isMasterRole = (userProfile as any)?.role === 'master' || isMasterAdminEmail(emailLower);
-            const inferredRole = isMasterRole ? 'MASTER_ADMIN' : ((userProfile as any)?.linkedBrandId ? 'BRAND_OWNER' : 'VISITOR');
-            const scopeKey = (userProfile as any)?.linkedBrandId || userProfile?.email || 'guest';
+        const isBusinessOrSwarmIntent = /براند|تيتو\s*ستوديو|تيتو\s*ميديا|تيتو\s*أجنت|تيتو\s*اجنت|كلين\s*ماستر|أوتو\s*هاوس|الخضر|كريستال|سقطرى|الخليج|مكة|الشموخ|بوست|منشور|شوروم|شو\s*روم|إعلان|اعلان|حملة|سرب|عملاء|مشتركين|باقات|باقة|واتساب\s*البوت|أرباح|ارباح|حجوزات|متجر|تطبيق\s*عميل|مبيعات/i.test(message);
 
-            const authHeaders = isMasterRole ? await getAdminAuthHeaders() : {};
-            const [swarmRes, cloudMemRes, liveTelRes, obsRes, finRes] = await Promise.all([
-                fetch('/api/swarm/run', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        role: inferredRole,
-                        brandId: (userProfile as any)?.linkedBrandId,
-                        phone: (userProfile as any)?.phone,
-                        intent: message
-                    })
-                }).then(r => r.json()).catch(() => null),
-                fetch(`/api/memory/context?scopeKey=${encodeURIComponent(scopeKey)}`).then(r => r.json()).catch(() => null),
-                fetch(`/api/telemetry/live${!isMasterRole && (userProfile as any)?.linkedBrandId ? `?brandId=${encodeURIComponent((userProfile as any).linkedBrandId)}` : ''}`).then(r => r.json()).catch(() => null),
-                isMasterRole ? fetch('/api/obsidian/graph', { credentials: 'include', headers: authHeaders }).then(r => r.json()).catch(() => null) : Promise.resolve(null),
-                isMasterRole ? fetch('/api/system/real-financials', { credentials: 'include', headers: authHeaders }).then(r => r.json()).catch(() => null) : Promise.resolve(null)
-            ]);
+        if (isBusinessOrSwarmIntent) {
+            try {
+                const emailLower = (userProfile?.email || '').toLowerCase();
+                const isMasterRole = (userProfile as any)?.role === 'master' || isMasterAdminEmail(emailLower);
+                const inferredRole = isMasterRole ? 'MASTER_ADMIN' : ((userProfile as any)?.linkedBrandId ? 'BRAND_OWNER' : 'VISITOR');
+                const scopeKey = (userProfile as any)?.linkedBrandId || userProfile?.email || 'guest';
 
-            const liveEventsLines = Array.isArray(liveTelRes?.latestEvents) && liveTelRes.latestEvents.length > 0
-                ? liveTelRes.latestEvents.slice(0, 6).map((ev: any) => `  • [${ev.source}] ${ev.summary}${ev.amountEgp ? ` (${ev.amountEgp} ج.م)` : ''} — ${ev.timestamp}`).join('\n')
-                : '  • لا توجد أحداث لحظية مسجلة بعد.';
-            const liveTelemetryBlock = liveTelRes?.ok
-                ? `- الأحداث الحية اللحظية (Live Telemetry):
+                const authHeaders = isMasterRole ? await getAdminAuthHeaders() : {};
+                const [swarmRes, cloudMemRes, liveTelRes, obsRes, finRes] = await Promise.all([
+                    fetch('/api/swarm/run', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            role: inferredRole,
+                            brandId: (userProfile as any)?.linkedBrandId,
+                            phone: (userProfile as any)?.phone,
+                            intent: message
+                        })
+                    }).then(r => r.json()).catch(() => null),
+                    fetch(`/api/memory/context?scopeKey=${encodeURIComponent(scopeKey)}`).then(r => r.json()).catch(() => null),
+                    fetch(`/api/telemetry/live${!isMasterRole && (userProfile as any)?.linkedBrandId ? `?brandId=${encodeURIComponent((userProfile as any).linkedBrandId)}` : ''}`).then(r => r.json()).catch(() => null),
+                    isMasterRole ? fetch('/api/obsidian/graph', { credentials: 'include', headers: authHeaders }).then(r => r.json()).catch(() => null) : Promise.resolve(null),
+                    isMasterRole ? fetch('/api/system/real-financials', { credentials: 'include', headers: authHeaders }).then(r => r.json()).catch(() => null) : Promise.resolve(null)
+                ]);
+
+                const liveEventsLines = Array.isArray(liveTelRes?.latestEvents) && liveTelRes.latestEvents.length > 0
+                    ? liveTelRes.latestEvents.slice(0, 6).map((ev: any) => `  • [${ev.source}] ${ev.summary}${ev.amountEgp ? ` (${ev.amountEgp} ج.م)` : ''} — ${ev.timestamp}`).join('\n')
+                    : '  • لا توجد أحداث لحظية مسجلة بعد.';
+                const liveTelemetryBlock = liveTelRes?.ok
+                    ? `- الأحداث الحية اللحظية (Live Telemetry):
   * طلبات/مبيعات: ${liveTelRes.orders} | حجوزات: ${liveTelRes.bookings} | رسائل واتساب: ${liveTelRes.whatsappMessages} | حجوزات/مبيعات واتساب مؤكدة: ${liveTelRes.whatsappConfirmed} | تفاعلات سوشيال (لايك/كومنت/رسائل): ${liveTelRes.socialInteractions} | إيراد لايف: ${liveTelRes.totalRevenueEgp} ج.م
 ${liveEventsLines}`
-                : '';
+                    : '';
 
-            if (swarmRes?.ok) {
-                liveSwarmSnapshot = swarmRes;
-                (window as any).__LAST_SWARM_SNAPSHOT = swarmRes;
-            }
+                if (swarmRes?.ok) {
+                    liveSwarmSnapshot = swarmRes;
+                    (window as any).__LAST_SWARM_SNAPSHOT = swarmRes;
+                }
 
-            const cloudSummary = cloudMemRes?.memory?.rollingSummary || '';
-            const cloudFacts = Array.isArray(cloudMemRes?.memory?.facts) ? cloudMemRes.memory.facts.join(' | ') : '';
-            const swarmAgentsLine = Array.isArray(swarmRes?.agents)
-                ? swarmRes.agents.map((a: any) => `  * [${a.name}] (${a.status}): ${a.summary}`).join('\n')
-                : '';
+                const cloudSummary = cloudMemRes?.memory?.rollingSummary || '';
+                const cloudFacts = Array.isArray(cloudMemRes?.memory?.facts) ? cloudMemRes.memory.facts.join(' | ') : '';
+                const swarmAgentsLine = Array.isArray(swarmRes?.agents)
+                    ? swarmRes.agents.map((a: any) => `  * [${a.name}] (${a.status}): ${a.summary}`).join('\n')
+                    : '';
 
-            if (isMasterRole) {
-                const brandsSummary = (obsRes?.growthAgencyBrands || []).map((b: any) =>
-                    `• ${b.name} (ID: ${b.id} | المجال: ${b.businessType || 'تجاري'} | هاتف: ${b.phone || ''} | ستوديو: ${(b.weekContentPlan || []).length} منشور)`
-                ).join('\n');
-                const ezzelSubs = (obsRes?.ezZelPersonalClients || []).map((c: any) =>
-                    `• ${c.name} (الحالة: ${c.status} | الباقة: ${c.plan})`
-                ).join('\n');
-                const bookingsCount = finRes?.confirmedBookingsCount ?? 0;
-                const revenueEgp = finRes?.realConfirmedRevenueEgp ?? 0;
-                unifiedSecondBrainText = `
+                if (isMasterRole) {
+                    const brandsSummary = (obsRes?.growthAgencyBrands || []).map((b: any) =>
+                        `• ${b.name} (ID: ${b.id} | المجال: ${b.businessType || 'تجاري'} | هاتف: ${b.phone || ''} | ستوديو: ${(b.weekContentPlan || []).length} منشور)`
+                    ).join('\n');
+                    const ezzelSubs = (obsRes?.ezZelPersonalClients || []).map((c: any) =>
+                        `• ${c.name} (الحالة: ${c.status} | الباقة: ${c.plan})`
+                    ).join('\n');
+                    const bookingsCount = finRes?.confirmedBookingsCount ?? 0;
+                    const revenueEgp = finRes?.realConfirmedRevenueEgp ?? 0;
+                    unifiedSecondBrainText = `
 [JARVIS_SWARM_MASTER_CONTEXT]:
 - وضع القيادة: الماستر تيتو (إشراف كامل على المنظومة).
 - سرب الوكلاء الخمسة (حالة لحظية):
@@ -559,8 +562,8 @@ ${liveTelemetryBlock}
 ${cloudSummary ? `- ملخص الذاكرة السحابية: ${cloudSummary}` : ''}
 ${cloudFacts ? `- حقائق محفوظة: ${cloudFacts}` : ''}
 `;
-            } else {
-                unifiedSecondBrainText = `
+                } else {
+                    unifiedSecondBrainText = `
 [JARVIS_SWARM_CLIENT_CONTEXT]:
 - الدور: ${inferredRole === 'BRAND_OWNER' ? 'صاحب براند' : 'زائر'}
 - سرب الوكلاء الخاص بك:
@@ -568,10 +571,10 @@ ${swarmAgentsLine}
 ${liveTelemetryBlock}
 ${cloudSummary ? `- ملخص الذاكرة السحابية: ${cloudSummary}` : ''}
 ${cloudFacts ? `- حقائق محفوظة عن نشاطك: ${cloudFacts}` : ''}
-- توجيه: أجب بوضوح وتركيز على مصلحة العميل أو الزائر فقط، واستخدم بيانات السرب الحية أعلاه ولا تذكر أي بيانات داخلية لأدمن المنظومة.
 `;
-            }
-        } catch {}
+                }
+            } catch {}
+        }
 
         const identityInjection = `
         \n\n[SYSTEM_HIDDEN_CONTEXT]:
@@ -582,18 +585,20 @@ ${cloudFacts ? `- حقائق محفوظة عن نشاطك: ${cloudFacts}` : ''}
         (إذا كان هناك رسائل خلفية (Shadow Messages) في السياق، اعرض التعاون. للتواصل بين الظلال يتم استخدام البريد الإلكتروني أو ID المستخدم، وسيقوم الظل الآخر باستقبالها خلف الكواليس.)
         
         [BRAND_VAULTS_AUTO_CONTEXT]:
-        If the user asks for a design, video script, or social media post for any of these brands, YOU MUST automatically use the Tone of Voice, Visual Guidelines (Hex Colors), and Strategy provided below:
-        ${brandVaults || 'No Brand Vaults available. If the user asks for a specific brand, configure it first via brand_vault_manager tool.'}
+        ${brandVaults || 'No Brand Vaults configured locally.'}
         ${unifiedSecondBrainText}
         - BATTERY_STATUS: ${contextData.battery}
         - NETWORK_STATUS: ${contextData.network}
         - DEVICE_INFO: ${contextData.userAgent}
         - DETECTED_USER_EMOTION: ${emotionData.emotion}
         - URGENCY_LEVEL: ${emotionData.urgency}
-        - YOUR_IDENTITY: Ez-Zel (الظل). Egyptian AI Assistant. You must act accordingly to the user's emotion and urgency.
+        - YOUR_CORE_SOUL_AND_PRINCIPLES (أصل الظل ومبادئه ومعتقداته الثابتة):
+          * أنت "الظل (Ez-Zel / المايسترو)" — الرفيق الشخصي، التوأم الرقمي، والابن البار للماستر تيتو.
+          * مرجعيتك العليا التي لا تتزحزح في أي نصيحة أو تحليل أو حكم: القرآن الكريم، السنة النبوية الشريفة، القانون المصري، وعلم النفس.
+          * إياك أن تختزل شخصيتك في "سرب الأجنت أو التسويق" إلا عندما يسألك المستخدم صراحةً عن البراندات أو البيزنس! في الحوارات الشخصية، الدينية، الفكرية، البرمجية، التداول، الموسيقى، أو الفضفضة، تحدّث بروح الظل الأصيلة، وحكمته، وجدعنته المصرية، واستخدم أدواتك الأصيلة (قرآن، رفيق مسلم، أغاني ومهرجانات، شارت تداول، برمجة، ذاكرة، تذكيرات، إلخ).
         - VOICE_ANALYSIS_INSTRUCTION: If the user attached an audio message (.webm), deeply analyze their actual voice tone, emotion (stress, happiness, anger), and background noise, and respond appropriately showing that you feel their exact emotion!
         - USER_NAME: ${userProfile?.name || 'Master'}.
-        - INSTRUCTION: Reply in Egyptian Arabic.
+        - INSTRUCTION: Reply in authentic Egyptian Arabic (عامية مصرية أصيلة وذكية).
         `;
         
         const finalUserMessage = message + identityInjection;
