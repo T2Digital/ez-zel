@@ -1258,6 +1258,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 appTemplate: resolvedTemplate,
                 appMode,
                 hasExistingBusiness,
+                onboardingMode: hasExistingBusiness ? 'connect_existing' : 'create_new',
                 existingAssets,
                 socialLinks: {
                     ...((cloned as any).socialLinks || {}),
@@ -1270,6 +1271,34 @@ export async function executeRealJarvisEcosystemAction(input: {
             await upsertBrandToTitoStudioFirestore(enrichedBrand);
             const studioPostsCount = await syncWeekPlanToTitoStudioFirestore(enrichedBrand, omniPlan);
             await syncFromTitoStudioFirestore();
+
+            // Automatically trigger Tito Studio Background Execution + QA Gate for Week-1 Trial Content
+            try {
+                const { getTitoStudioBaseUrl } = await import('./titoStudioApiClient');
+                const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, '');
+                const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || '').trim();
+                const execItems = (Array.isArray(omniPlan) ? omniPlan : []).slice(0, 7).map((p: any, idx: number) => ({
+                    title: String(p.title || p.topic || `خطة الأسبوع — منشور ${idx + 1}`),
+                    type: p.type === 'video' || p.format === 'reel' ? 'video' : 'image',
+                    caption: String(p.caption || p.script || p.hook || p.title || ''),
+                    visualPrompt: String(p.visualPrompt || p.designBrief || ''),
+                    pillarLabel: String(p.pillar || 'خطة الأسبوع التجريبي'),
+                    scheduledPlatforms: Array.isArray(p.platforms) ? p.platforms : ['facebook', 'instagram'],
+                }));
+                if (studioKey && execItems.length > 0) {
+                    fetch(`${studioBase}/api/execution/enqueue`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-api-key': studioKey },
+                        body: JSON.stringify({
+                            clinicId: String((enrichedBrand as any).titoStudioClinicId || enrichedBrand.id),
+                            brandName: enrichedBrand.name,
+                            items: execItems,
+                            triggerSource: 'trial_7d_auto_provision',
+                        }),
+                        signal: AbortSignal.timeout(8000),
+                    }).catch(() => {});
+                }
+            } catch {}
 
             // Also add to Ez-Zel Clients as a 7-Day Free Trial subscriber
             const clients = getEzZelPersonalClients();

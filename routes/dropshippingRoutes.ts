@@ -91,6 +91,16 @@ export function registerDropshippingRoutes(app: Express): void {
     const categories = Array.from(new Set(safeProducts.map((p) => p.mainCategory || p.category).filter(Boolean)));
     const safePhone = store.storeTheme?.phone || "01013372674";
 
+    try {
+      recordLiveEvent({
+        source: "storefront_pixel",
+        eventType: "store_visit",
+        brandId: store.agentBrandId || store.slug,
+        summary: `زيارة متجر ${store.brandName} (/shop/${store.slug})`,
+        raw: { slug: store.slug },
+      });
+    } catch {}
+
     return res.json({
       ok: true,
       store: {

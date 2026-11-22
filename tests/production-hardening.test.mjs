@@ -600,3 +600,144 @@ test("15) dropshippingRoutes enforces 401 admin auth on readiness and e2e-selfte
     process.env.NODE_ENV = prevEnv;
   }
 });
+
+test("16) t2-studio contentExecutionWorker QA Gate passes strong copy (>=75) and rejects prohibited/weak copy", async () => {
+  const { evaluateContentQuality, QA_PASS_THRESHOLD } = await tsImport(
+    pathToFileURL("D:/t2-studio/src/server/contentExecutionWorker.ts").href,
+    import.meta.url
+  );
+
+  const strong = evaluateContentQuality({
+    brandName: "كابتن كار",
+    title: "احمِ سيارتك مع كابتن كار بطقم النانو 5×1",
+    caption:
+      "وداعاً لبهتان طلاء السيارة والخدوش اليومية! طقم النانو من كابتن كار يعالج مشكلة تآكل الطلاء بسرعة وسهولة. اطلب الآن عبر واتساب واستفد من الشحن المجاني!",
+    visualPrompt: "تصميم إعلاني فاخر لسيارة لامعة بحماية نانو سيراميك بإضاءة استوديو",
+    painPoint: "تآكل الطلاء",
+  });
+  assert.equal(strong.passed, true);
+  assert.ok(strong.score >= QA_PASS_THRESHOLD);
+
+  const weak = evaluateContentQuality({
+    brandName: "كابتن كار",
+    title: "عرض",
+    caption: "ضمان 100% شفاء فوري ونهائي",
+    visualPrompt: "",
+  });
+  assert.equal(weak.passed, false);
+  assert.ok(weak.score < QA_PASS_THRESHOLD);
+  assert.ok(weak.notes.length >= 3);
+});
+
+test("17) t2-studio adBudgetManager splits 50% package between Awareness & Sales and evaluates CPA rules", async () => {
+  const { buildAdBudgetAllocationPlan, evaluateAdOptimizationRules } = await tsImport(
+    pathToFileURL("D:/t2-studio/src/server/adBudgetManager.ts").href,
+    import.meta.url
+  );
+
+  const planEcom = buildAdBudgetAllocationPlan({
+    monthlyPlanPriceEgp: 10000,
+    adBudgetRatio: 0.5,
+    brandStage: "established",
+    businessModel: "ecommerce_store",
+    hasWhatsappBusiness: true,
+    hasPixel: true,
+  });
+  assert.equal(planEcom.totalMonthlyAdBudgetEgp, 5000);
+  assert.equal(planEcom.awarenessPct, 30);
+  assert.equal(planEcom.salesPct, 70);
+  assert.ok(planEcom.channels.some((c) => c.channelKey === "sales_store_conversions" && c.metaObjective === "OUTCOME_SALES"));
+  assert.ok(planEcom.channels.some((c) => c.channelKey === "sales_whatsapp_agent"));
+
+  const planServices = buildAdBudgetAllocationPlan({
+    monthlyPlanPriceEgp: 5000,
+    brandStage: "new",
+    businessModel: "services_booking",
+    hasWhatsappBusiness: false,
+  });
+  assert.equal(planServices.totalMonthlyAdBudgetEgp, 2500);
+  assert.equal(planServices.awarenessPct, 40);
+  assert.ok(planServices.readinessWarnings.length >= 1);
+
+  const opt = evaluateAdOptimizationRules([
+    { id: "c1", name: "Winner", spendEgp: 200, results: 5, targetCpaEgp: 80, dailyBudgetEgp: 100 },
+    { id: "c2", name: "Bleeder", spendEgp: 200, results: 0, targetCpaEgp: 80, dailyBudgetEgp: 100 },
+  ]);
+  assert.equal(opt.scaledCount, 1);
+  assert.equal(opt.pausedCount, 1);
+  assert.equal(opt.decisions.find((d) => d.campaignId === "c1").action, "SCALE_UP");
+  assert.equal(opt.decisions.find((d) => d.campaignId === "c2").action, "PAUSE");
+});
+
+test("18) liveTelemetryService aggregates store visits, cart adds, orders, post/ad insights, and showroom pulse", async () => {
+  const { recordLiveEvent, getLiveTelemetrySummary } = await importTs(
+    path.join("services", "liveTelemetryService.ts")
+  );
+  const testBrand = `pulse_unit_${Date.now()}`;
+  recordLiveEvent({ source: "storefront_pixel", eventType: "store_visit", brandId: testBrand, summary: "visit 1" });
+  recordLiveEvent({ source: "storefront_pixel", eventType: "cart_add", brandId: testBrand, summary: "cart 1" });
+  recordLiveEvent({ source: "battah", eventType: "order_created", brandId: testBrand, amountEgp: 950, summary: "ord 1" });
+  recordLiveEvent({
+    source: "meta_webhook",
+    eventType: "post_insights",
+    brandId: testBrand,
+    summary: "post metrics",
+    raw: { reach: 4200, views: 5100, likes: 130, comments: 19 },
+  });
+  recordLiveEvent({
+    source: "t2_studio",
+    eventType: "showroom_ready",
+    brandId: testBrand,
+    summary: "showroom",
+    raw: { approvedCount: 3 },
+  });
+
+  const summary = getLiveTelemetrySummary(testBrand);
+  assert.equal(summary.storeVisits, 1);
+  assert.equal(summary.cartAdds, 1);
+  assert.equal(summary.orders, 1);
+  assert.equal(summary.cartToOrderRatePct, 100);
+  assert.equal(summary.socialReach, 4200);
+  assert.equal(summary.socialViews, 5100);
+  assert.equal(summary.socialLikes, 130);
+  assert.equal(summary.socialComments, 19);
+  assert.equal(summary.showroomPendingCount, 3);
+  assert.ok(summary.executivePulseAr.includes("4,200"));
+});
+
+test("19) ecosystemOrchestrationRoutes enforces 401 on studio/admin hooks and validates storefront beacons", async () => {
+  const { registerEcosystemOrchestrationRoutes } = await importTs(
+    path.join("routes", "ecosystemOrchestrationRoutes.ts")
+  );
+  const routes = {};
+  const mockApp = {
+    get(p, h) { routes[`GET ${p}`] = h; },
+    post(p, h) { routes[`POST ${p}`] = h; },
+  };
+  registerEcosystemOrchestrationRoutes(mockApp);
+
+  const invoke = async (key, reqOverrides = {}) => {
+    const res = {
+      statusCode: 200,
+      body: null,
+      status(c) { this.statusCode = c; return this; },
+      json(b) { this.body = b; return this; },
+    };
+    await routes[key]({ headers: {}, body: {}, params: {}, query: {}, ...reqOverrides }, res);
+    return res;
+  };
+
+  assert.equal((await invoke("POST /api/studio/showroom-ready", { body: { clinicId: "b1" } })).statusCode, 401);
+  assert.equal((await invoke("POST /api/admin/brands/:brandId/activate-growth-cycle", { params: { brandId: "b1" } })).statusCode, 401);
+  assert.equal((await invoke("POST /api/telemetry/storefront-event", { body: { brandId: "b1", eventType: "invalid_evt" } })).statusCode, 400);
+  assert.equal((await invoke("POST /api/telemetry/storefront-event", { body: { brandId: "b1", eventType: "cart_add", productName: "Test" } })).statusCode, 201);
+});
+
+test("20) Static contract: t2-studio Meta Ads insights does not return hardcoded fake spend (4250) by default", () => {
+  const studioServer = fs.readFileSync("D:/t2-studio/server.ts", "utf8");
+  const idx = studioServer.indexOf('app.get("/api/meta/ads/insights"');
+  assert.ok(idx > 0);
+  const snippet = studioServer.slice(idx, idx + 1500);
+  assert.equal(snippet.includes("spend: 4250"), false);
+  assert.ok(snippet.includes("connected: false"));
+});

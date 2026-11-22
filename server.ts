@@ -1761,6 +1761,15 @@ async function startServer() {
               } catch {}
 
               try {
+                  const { triggerPostSubscriptionGrowthCycle } = await import("./routes/ecosystemOrchestrationRoutes");
+                  void triggerPostSubscriptionGrowthCycle({
+                      brandId,
+                      planPriceEgp: amountEgp,
+                      planName: planSpec.nameAr,
+                  }).catch(() => {});
+              } catch {}
+
+              try {
                   const { persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
                   persistBrandUpdateAcrossEcosystem(brandId, {
                       planId: planSpec.id,
@@ -2748,6 +2757,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   const { registerBackupAndOpsRoutes } = await import("./routes/backupAndOpsRoutes");
   registerBackupAndOpsRoutes(app);
+
+  const { registerEcosystemOrchestrationRoutes } = await import("./routes/ecosystemOrchestrationRoutes");
+  registerEcosystemOrchestrationRoutes(app);
 
   // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
   app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
