@@ -1,0 +1,33 @@
+User-agent: *
+Allow: /
+
+# Major Search & Generative AI Crawlers (SEO + GEO)
+User-agent: Googlebot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://algenedy-ads.vercel.app/sitemap.xml
+# LLM & AI Search Knowledge Base: https://algenedy-ads.vercel.app/llms.txt

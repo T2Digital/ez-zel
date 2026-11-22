@@ -156,6 +156,10 @@ export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
   if (slug === "clean_master" || slug === "clean-master") {
     return "https://cleanmaster-eg.com";
   }
+  if (slug === "al_genedy" || slug === "al-genedy" || slug.includes("genedy")) {
+    const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
+    return `${publicBase}/al-genedy/`;
+  }
   const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
   return `${publicBase}/app/${brand?.slug || brand?.id || slug}`;
 }
@@ -203,14 +207,49 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
           ? brandsHealth
           : [];
 
+      // Merge unified active brands with T2 Agent live list so none of the 9 active brands are missing
+      const mergedMap = new Map<string, any>();
+      for (const b of unified) {
+        const key = normalizeSlugKey(b.slug || b.id || "");
+        if (!key) continue;
+        mergedMap.set(key, {
+          id: b.id,
+          slug: b.slug || b.id,
+          name: b.name,
+          businessType: b.businessType,
+          phone: b.phone,
+          lifecycleStage: b.lifecycleStage,
+          planAmount: b.planAmount || (b.lifecycleStage === "active_client" ? 5000 : 0),
+          status: b.botPaused ? "paused" : "active",
+          conversationsCount: b.conversationsCount || 0,
+          whatsappConnected: Boolean(b.phone),
+          metaConnected: Boolean(b.metaConnected),
+          appUrl: resolveBrandRealAppUrl(b, tenants.find((t: any) => t.id === b.id || t.slug === b.slug)),
+        });
+      }
+      for (const lb of liveList) {
+        const key = normalizeSlugKey(lb.slug || lb.id || "");
+        if (!key) continue;
+        const existing = mergedMap.get(key) || {};
+        mergedMap.set(key, {
+          ...existing,
+          ...lb,
+          name: existing.name || lb.name,
+          businessType: existing.businessType || lb.businessType,
+          lifecycleStage: existing.lifecycleStage || lb.lifecycleStage || "active_client",
+          planAmount: existing.planAmount || lb.planAmount || 5000,
+          appUrl: existing.appUrl || lb.appUrl,
+        });
+      }
+      const mergedList = Array.from(mergedMap.values());
+
       if (!adminAuth.ok) {
-        const list = liveList.length > 0 ? liveList : unified;
-        const activeCount = list.filter((b: any) => b?.status !== "paused" && !b?.botPaused && !b?.isPaused).length;
+        const activeCount = mergedList.filter((b: any) => b?.status !== "paused" && !b?.botPaused && !b?.isPaused).length;
         return res.json({
           ok: true,
           restricted: true,
-          source: liveList.length > 0 ? "t2_ai_agent_live" : "unified_fallback",
-          brandsCount: list.length,
+          source: liveList.length > 0 ? "t2_ai_agent_live_merged" : "unified_fallback",
+          brandsCount: mergedList.length,
           activeBotsCount: activeCount,
           brands: [],
         });
@@ -218,21 +257,10 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
 
       res.json({
         ok: true,
-        source: liveList.length > 0 ? "t2_ai_agent_live" : "unified_fallback",
+        source: liveList.length > 0 ? "t2_ai_agent_live_merged" : "unified_fallback",
         agentPortalUrl: `${getT2AgentBaseUrl()}/embed/crm?embed=1`,
         financials: financials || null,
-        brands: liveList.length > 0 ? liveList : unified.map((b: any) => ({
-          id: b.id,
-          slug: b.slug,
-          name: b.name,
-          businessType: b.businessType,
-          phone: b.phone,
-          status: b.botPaused ? "paused" : "active",
-          conversationsCount: b.conversationsCount || 0,
-          whatsappConnected: Boolean(b.phone),
-          metaConnected: Boolean(b.metaConnected),
-          appUrl: resolveBrandRealAppUrl(b, tenants.find((t: any) => t.id === b.id || t.slug === b.slug)),
-        })),
+        brands: mergedList,
       });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || "Failed loading agent fleet" });
@@ -661,14 +689,21 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
     }
   });
 
-  // 7) ADK Venture Architect (0 -> 1 Business Invention & Feasibility Blueprint)
+  // 7) ADK Venture Architect (0 -> 1 Business Invention & Feasibility Blueprint + Dropshipping Engine)
   app.post("/api/adk/invent-business", async (req: Request, res: Response) => {
     try {
-      const { niche, budgetEgp = 50000, city = "القاهرة والجيزة" } = req.body || {};
+      const {
+        niche,
+        budgetEgp = 50000,
+        city = "القاهرة والجيزة",
+        fulfillmentMode = "dropshipping",
+        supplierWhatsapp = "01013372674",
+      } = req.body || {};
       if (!niche || !String(niche).trim()) {
         return res.status(400).json({ ok: false, error: "يرجى كتابة مجال أو فكرة المشروع" });
       }
 
+      const isDropshipping = fulfillmentMode === "dropshipping";
       const ai = deps.getServerAI();
       let blueprint: any = null;
       let aiPowered = false;
@@ -676,40 +711,53 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
       if (ai) {
         for (const modelName of ACTIVE_GEMINI_TEXT_MODELS) {
           try {
-            const prompt = `أنت مهندس مشاريع وخبير اقتصاديات أسواق (ADK Venture Architect) في منظومة T2OS.
+            const prompt = `أنت مهندس مشاريع وخبير اقتصاديات أسواق ودروبشيبنج (ADK Venture Architect) في منظومة T2OS.
 المطلوب اختراع مشروع تجاري واقعي ومحكم بناءً على:
 - المجال/الفكرة: "${niche}"
 - رأس المال التقريبي: ${budgetEgp} ج.م
 - السوق المستهدف: ${city}
+- نموذج التوريد والتشغيل: ${isDropshipping ? "دروبشيبنج بدون مخزون مربوط بموردين جاهزين (Dropshipping)" : "منتجات/خدمات ومخزون خاص (Own Inventory)"}
 
 أرجع JSON صالحاً فقط (بدون Markdown) بهذه البنية الدقيقة:
 {
   "recommendedBrandName": "اسم عربي/عالمي قوي وجذاب للمشروع",
   "alternativeNames": ["اسم بديل 1", "اسم بديل 2"],
   "slogan": "سلوجان قصير بياع جداً",
-  "businessModel": "products_erp أو services_booking",
+  "businessModel": "${isDropshipping ? "products_erp" : "products_erp أو services_booking"}",
+  "fulfillmentMode": "${isDropshipping ? "dropshipping" : "own_inventory"}",
   "marketStudy": {
     "opportunity": "تحليل مختصر للفجوة السوقية والطلب في ${city}",
     "targetAudience": "وصف دقيق للعميل المستهدف",
     "usp": "الميزة التنافسية التي تجعل العميل يشتري منك"
   },
   "unitEconomics": {
-    "avgOrderValueEgp": 650,
+    "avgOrderValueEgp": 750,
     "estimatedMarginPct": 38,
-    "breakEvenOrders": 28
+    "breakEvenOrders": 22
   },
-  "recommendedSaasPlan": "باقة 2,500 ج أو باقة 5,000 ج أو باقة 10,000 ج",
+  "dropshippingConfig": {
+    "enabled": ${isDropshipping},
+    "supplierWhatsapp": "${supplierWhatsapp}",
+    "autoForwardOrders": true,
+    "hideRetailPriceFromSupplier": true,
+    "supplierPartners": [
+      { "name": "منصة تاجر (Taager Egypt/KSA)", "type": "دروبشيبنج محلي وشحن وتحصيل فوري", "avgDeliveryDays": "2-4 أيام" },
+      { "name": "مورد جملة مباشر + شحن بوسطة (Bosta)", "type": "سحب من تاجر الجملة عند تأكيد الطلب", "avgDeliveryDays": "1-3 أيام" },
+      { "name": "CJ Dropshipping / قنوات استيراد سريعة", "type": "منتجات تريند عالية الهامش", "avgDeliveryDays": "4-7 أيام" }
+    ]
+  },
+  "recommendedSaasPlan": "باقة 5,000 ج (تطبيق + أجنت واتساب + 50% إعلانات)",
   "starterCatalog": [
-    { "name": "منتج/خدمة 1", "numericPrice": 450, "description": "وصف مختصر مقنع" },
-    { "name": "منتج/خدمة 2", "numericPrice": 850, "description": "وصف مختصر مقنع" },
-    { "name": "منتج/خدمة 3", "numericPrice": 1200, "description": "وصف مختصر مقنع" },
-    { "name": "باقة VIP 4", "numericPrice": 1950, "description": "وصف مختصر مقنع" }
+    { "name": "منتج 1", "supplierCostEgp": 240, "numericPrice": 490, "netMarginEgp": 185, "supplierSource": "منصة تاجر / جملة محلي", "description": "وصف مختصر مقنع" },
+    { "name": "منتج 2", "supplierCostEgp": 420, "numericPrice": 850, "netMarginEgp": 350, "supplierSource": "منصة تاجر / جملة محلي", "description": "وصف مختصر مقنع" },
+    { "name": "منتج 3", "supplierCostEgp": 600, "numericPrice": 1200, "netMarginEgp": 500, "supplierSource": "مورد جملة معتمد", "description": "وصف مختصر مقنع" },
+    { "name": "باقة التوفير VIP 4", "supplierCostEgp": 950, "numericPrice": 1950, "netMarginEgp": 850, "supplierSource": "تجميع موردين + شحن بوسطة", "description": "وصف مختصر مقنع" }
   ],
   "launchRoadmap30Days": [
-    { "week": "الأسبوع 1", "focus": "تأسيس الهوية والتطبيق وربط واتساب" },
-    { "week": "الأسبوع 2", "focus": "إطلاق محتوى تيتو ستوديو وبداية الحملات" },
-    { "week": "الأسبوع 3", "focus": "تحسين التحويل بالبكسل وإغلاق العملاء عبر الأجنت" },
-    { "week": "الأسبوع 4", "focus": "مراجعة العائد وتوسيع المنتجات الأعلى ربحاً" }
+    { "week": "الأسبوع 1", "focus": "تأسيس المتجر وربط كتالوج الدروبشيبنج وواتساب المورد" },
+    { "week": "الأسبوع 2", "focus": "إطلاق محتوى تيتو ستوديو وإعلانات المنتج الرابح (Winning Product)" },
+    { "week": "الأسبوع 3", "focus": "تأكيد الطلبات آلياً عبر الأجنت وتحويل أمر الشحن للمورد بدون إظهار هامش ربحك" },
+    { "week": "الأسبوع 4", "focus": "تحصيل الأرباح الصافية وتوسيع المنتجات الأعلى هامشاً" }
   ]
 }`;
             const aiRes = await Promise.race([
@@ -733,38 +781,100 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
 
       if (!blueprint) {
         const cleanNiche = String(niche).trim();
-        const isProduct = /متجر|بيع|منتج|قطع|ملابس|قهوة|عطور|أكل|سوبر/i.test(cleanNiche);
+        const isProduct = isDropshipping || /متجر|بيع|منتج|قطع|ملابس|قهوة|عطور|أكل|سوبر|دروب/i.test(cleanNiche);
         const budget = Number(budgetEgp) || 50000;
         blueprint = {
           recommendedBrandName: `${cleanNiche} برو`,
           alternativeNames: [`نخبة ${cleanNiche}`, `${cleanNiche} هب`],
-          slogan: `جودة مضمونة وسرعة تنفيذ في ${city}`,
+          slogan: isDropshipping
+            ? `أقوى منتجات ${cleanNiche} لحد باب بيتك في ${city} بدون وسيط`
+            : `جودة مضمونة وسرعة تنفيذ في ${city}`,
           businessModel: isProduct ? "products_erp" : "services_booking",
+          fulfillmentMode: isDropshipping ? "dropshipping" : "own_inventory",
           marketStudy: {
-            opportunity: `طلب متنامٍ في ${city} على ${cleanNiche} مع سرعة رد عبر واتساب وطلب إلكتروني مباشر بدون تعقيد.`,
+            opportunity: isDropshipping
+              ? `فرصة دروبشيبنج ذهبية في ${city} بمجال ${cleanNiche}: بيع مباشر للعميل بدون تجميد رأس مال في مخزون، مع تحويل الطلب آلياً للمورد فور تأكيد الأجنت.`
+              : `طلب متنامٍ في ${city} على ${cleanNiche} مع سرعة رد عبر واتساب وطلب إلكتروني مباشر بدون تعقيد.`,
             targetAudience: `العملاء الباحثون عن جودة موثوقة وسرعة توصيل/حجز داخل ${city}.`,
-            usp: `متجر وتطبيق فوري + متابعة واتساب 24/7 + ضمان جودة واضح.`,
+            usp: isDropshipping
+              ? `صفر تكلفة مخزون + تأكيد طلبات بالذكاء الاصطناعي + تحويل أمر الشحن للمورد آلياً مع حفظ صافي ربحك.`
+              : `متجر وتطبيق فوري + متابعة واتساب 24/7 + ضمان جودة واضح.`,
           },
           unitEconomics: {
-            avgOrderValueEgp: isProduct ? 750 : 950,
-            estimatedMarginPct: isProduct ? 35 : 48,
-            breakEvenOrders: Math.max(15, Math.round(budget / 2500)),
+            avgOrderValueEgp: isProduct ? 790 : 950,
+            estimatedMarginPct: isDropshipping ? 42 : isProduct ? 35 : 48,
+            breakEvenOrders: Math.max(12, Math.round(budget / 3000)),
           },
-          recommendedSaasPlan: budget >= 50000 ? "باقة النمو 5,000 ج (تطبيق ويب كامل + 50% إعلانات)" : "باقة الانطلاق 2,500 ج (لاندنج بيدج + 50% إعلانات)",
+          dropshippingConfig: {
+            enabled: isDropshipping,
+            supplierWhatsapp,
+            autoForwardOrders: true,
+            hideRetailPriceFromSupplier: true,
+            supplierPartners: [
+              { name: "منصة تاجر (Taager Egypt/KSA)", type: "دروبشيبنج محلي وشحن وتحصيل فوري", avgDeliveryDays: "2-4 أيام" },
+              { name: "مورد جملة مباشر + شحن بوسطة (Bosta)", type: "سحب من تاجر الجملة عند تأكيد الطلب", avgDeliveryDays: "1-3 أيام" },
+              { name: "CJ Dropshipping / قنوات استيراد سريعة", type: "منتجات تريند عالية الهامش", avgDeliveryDays: "4-7 أيام" },
+            ],
+          },
+          recommendedSaasPlan: budget >= 40000 ? "باقة النمو 5,000 ج (تطبيق ويب كامل + 50% إعلانات)" : "باقة الانطلاق 2,500 ج (لاندنج بيدج + 50% إعلانات)",
           starterCatalog: [
-            { name: `باقة البداية — ${cleanNiche}`, numericPrice: 450, description: "أفضل خيار لتجربة الخدمة أو المنتج لأول مرة" },
-            { name: `الباقة الأكثر طلباً — ${cleanNiche}`, numericPrice: 890, description: "توازن ممتاز بين السعر والقيمة المضافة" },
-            { name: `باقة التوفير العائلية`, numericPrice: 1450, description: "خصم 15% مع أولوية تنفيذ وتوصيل" },
-            { name: `إصدار VIP الشامل`, numericPrice: 2200, description: "تجربة متكاملة مع متابعة مستمرة وضمان ممتد" },
+            {
+              name: `المنتج الرابح الأول — ${cleanNiche}`,
+              supplierCostEgp: 220,
+              numericPrice: 490,
+              netMarginEgp: 205,
+              supplierSource: "منصة تاجر / مورد جملة",
+              description: "أعلى معدل طلب وتحويل سريع مع الدفع عند الاستلام",
+            },
+            {
+              name: `العرض الأكثر مبيعاً — ${cleanNiche}`,
+              supplierCostEgp: 410,
+              numericPrice: 890,
+              netMarginEgp: 400,
+              supplierSource: "منصة تاجر / شحن بوسطة",
+              description: "توازن ممتاز بين تكلفة المورد وصافي الربح للقطعة",
+            },
+            {
+              name: `باقة التوفير (قطعتين + شحن مجاني)`,
+              supplierCostEgp: 680,
+              numericPrice: 1450,
+              netMarginEgp: 670,
+              supplierSource: "مورد جملة مباشر",
+              description: "يرفع متوسط سلة الشراء (AOV) ويضاعف صافي ربحك في الشحنة",
+            },
+            {
+              name: `إصدار البريميوم VIP الشامل`,
+              supplierCostEgp: 980,
+              numericPrice: 2200,
+              netMarginEgp: 1080,
+              supplierSource: "مورد معتمد + تغليف باسم البراند",
+              description: "أعلى هامش ربح صافي في الطلب الواحد مع ضمان استبدال",
+            },
           ],
           launchRoadmap30Days: [
-            { week: "الأسبوع 1", focus: "تأسيس الهوية والتطبيق وربط كود واتساب Baileys" },
-            { week: "الأسبوع 2", focus: "نشر محتوى تيتو ستوديو وإطلاق أول حملة بـ 50% من الباقة" },
-            { week: "الأسبوع 3", focus: "تتبع البيكسل وتحسين ردود وكيل المبيعات على الأسئلة المتكررة" },
-            { week: "الأسبوع 4", focus: "مراجعة صافي الربح وتوسيع الكتالوج الأكثر مبيعاً" },
+            { week: "الأسبوع 1", focus: "تأسيس المتجر وربط كتالوج الدروبشيبنج ورقم واتساب المورد للتوجيه الآلي" },
+            { week: "الأسبوع 2", focus: "نشر محتوى تيتو ستوديو وإطلاق إعلان المنتج الرابح بـ 50% من الباقة" },
+            { week: "الأسبوع 3", focus: "تأكيد الطلبات عبر الأجنت وإرسال بوليصة الشحن للمورد بدون كشف سعر البيع" },
+            { week: "الأسبوع 4", focus: "مراجعة صافي الأرباح المحصلة وتوسيع المنتجات الأعلى هامشاً" },
           ],
         };
       }
+
+      // Normalize starterCatalog so every item always has supplierCostEgp & netMarginEgp
+      blueprint.fulfillmentMode = isDropshipping ? "dropshipping" : "own_inventory";
+      blueprint.starterCatalog = (blueprint.starterCatalog || []).map((item: any) => {
+        const retail = Number(item.numericPrice) || 500;
+        const cost = Number(item.supplierCostEgp) || Math.round(retail * 0.48);
+        const shipping = 65;
+        const margin = Number(item.netMarginEgp) || Math.max(80, retail - cost - shipping);
+        return {
+          ...item,
+          numericPrice: retail,
+          supplierCostEgp: cost,
+          netMarginEgp: margin,
+          supplierSource: item.supplierSource || (isDropshipping ? "منصة تاجر / مورد جملة" : "مخزون البراند"),
+        };
+      });
 
       res.json({ ok: true, aiPowered, blueprint });
     } catch (err: any) {

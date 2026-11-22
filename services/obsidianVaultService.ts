@@ -297,6 +297,12 @@ export function getUnifiedGrowthBrands(): any[] {
     const studioCache = readTitoStudioCacheSync();
     const studioNameMap: Record<string, string> = {
         '2': 'crystal_teeth',
+        '3': 'socotra_dental',
+        '4': 'alkhalig_dental',
+        '5': 'dental_district',
+        '6': 'mecca_dental',
+        '7': 'dr_abdelaziz_moussa',
+        'brand_1786261318926': 'al_shomoukh_dentistry',
         'brand_1788540631941': 'clean_master',
         'brand_1785774967683': 'alkhedr_car_rental',
         'brand_1783239457203': 'fazaa_express',

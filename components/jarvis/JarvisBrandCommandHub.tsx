@@ -41,6 +41,9 @@ export const resolveBrandWebUrl = (brand: any): string => {
   if (slug === 'clean_master' || slug === 'clean-master') {
     return 'https://cleanmaster-eg.com';
   }
+  if (slug === 'al_genedy' || slug === 'al-genedy' || slug.includes('genedy')) {
+    return 'https://t2os.app/al-genedy/';
+  }
   if (slug) {
     return `https://t2-tenant-${slug.replace(/_/g, '-')}.vercel.app`;
   }

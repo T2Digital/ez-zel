@@ -49,6 +49,47 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'studio' | 'agent' | 'medical' | 'automotive' | 'services'>('all');
   const [autoRotate, setAutoRotate] = useState(true);
+  const [pulseMode, setPulseMode] = useState<'ALL' | 'TX' | 'RX' | 'SYNC'>('ALL');
+  const [liveTelemetrySummary, setLiveTelemetrySummary] = useState<string>('نبض الألياف الضوئية متصل 100% بين الكواكب الأربعة والبراندات النشطة');
+  const burstMultiplierRef = useRef<number>(1);
+
+  // Poll /api/telemetry/live every 10s for real live pulse status
+  useEffect(() => {
+    let mounted = true;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/telemetry/live');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!mounted) return;
+        const events = Array.isArray(data?.latestEvents)
+          ? data.latestEvents
+          : Array.isArray(data?.recentEvents)
+            ? data.recentEvents
+            : [];
+        if (events.length > 0) {
+          const latest = events[0];
+          setLiveTelemetrySummary(`${latest.source || 'T2OS'} ➔ ${latest.eventType || latest.type || 'SYNC'}: ${latest.summary || 'نبضة حية متزامنة'}`);
+        } else if (typeof data?.totalEvents === 'number') {
+          setLiveTelemetrySummary(`النبض الحي متصل • ${data.totalEvents} حدث (${data.whatsappMessages || 0} واتساب • ${data.orders || 0} طلب • ${data.bookings || 0} حجز)`);
+        }
+      } catch {}
+    };
+    poll();
+    const timer = setInterval(poll, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const triggerOpticalBurst = () => {
+    burstMultiplierRef.current = 3.2;
+    setLiveTelemetrySummary('⚡ تم إطلاق موجة نبض ضوئي فوري (TX + RX + SYNC) عبر جميع كواكب المنظومة والبراندات النشطة');
+    setTimeout(() => {
+      burstMultiplierRef.current = 1;
+    }, 3500);
+  };
 
   // 3D Camera / Orbit State
   const rotationRef = useRef({ x: 0.28, y: 0.45 });
@@ -153,14 +194,28 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     let animId: number;
     let t = 0;
 
-    // Energy packet photons traveling along filaments
-    const photons = Array.from({ length: 48 }, (_, i) => ({
-      nodeIdx: i % Math.max(node3DPositions.length, 1),
-      progress: Math.random(),
-      speed: 0.008 + Math.random() * 0.014,
-      size: 1.8 + Math.random() * 1.6,
-      color: i % 2 === 0 ? '#00f0ff' : '#10b981'
-    }));
+    // Core Ecosystem Planets in Inner Sovereign Ring
+    const coreSystemPlanets = [
+      { id: 'planet_studio', label: 'كوكب تيتو ستوديو', sub: 'Tito Studio AI', angleOffset: 0, r: 138, color: '#a855f7', glow: 'rgba(168,85,247,0.55)', signalType: 'SYNC' as const },
+      { id: 'planet_agent', label: 'كوكب تيتو أجنت', sub: 'WhatsApp & CRM', angleOffset: (Math.PI * 2) / 3, r: 138, color: '#10b981', glow: 'rgba(16,185,129,0.55)', signalType: 'RX' as const },
+      { id: 'planet_factory', label: 'كوكب مصنع التطبيقات', sub: 'Web Apps & ERP', angleOffset: (Math.PI * 4) / 3, r: 138, color: '#00f0ff', glow: 'rgba(0,240,255,0.55)', signalType: 'TX' as const },
+    ];
+
+    // Energy packet photons traveling along optical fiber filaments (TX, RX, SYNC)
+    const photons = Array.from({ length: 66 }, (_, i) => {
+      const kind: 'TX' | 'RX' | 'SYNC' = i % 3 === 0 ? 'TX' : i % 3 === 1 ? 'RX' : 'SYNC';
+      const color = kind === 'TX' ? '#00f0ff' : kind === 'RX' ? '#10b981' : '#a855f7';
+      return {
+        nodeIdx: i % Math.max(node3DPositions.length, 1),
+        planetIdx: i % 3,
+        kind,
+        direction: kind === 'RX' ? -1 : 1, // RX travels from brand/planet INTO central core; TX travels OUTWARD
+        progress: Math.random(),
+        speed: 0.007 + Math.random() * 0.012,
+        size: 2.1 + Math.random() * 1.6,
+        color
+      };
+    });
 
     const render = () => {
       t += 0.02;
@@ -262,6 +317,57 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       }
       ctx.restore();
 
+      // 1B. Project & Draw Inner Sovereign Ecosystem Planets (Studio, Agent, App Factory)
+      const projectedCorePlanets = coreSystemPlanets.map((pl) => {
+        const angle = pl.angleOffset + t * 0.18;
+        const px3d = Math.cos(angle) * pl.r;
+        const pz3d = Math.sin(angle) * pl.r;
+        const py3d = Math.sin(angle * 2) * 18;
+        const p = project3D(px3d, py3d, pz3d);
+        return { ...pl, px: p.px, py: p.py, scale: p.scale, z: p.z, x3d: px3d, y3d: py3d, z3d: pz3d };
+      });
+
+      const centerOrigin = project3D(0, 0, 0);
+      projectedCorePlanets.forEach((pl) => {
+        ctx.save();
+        // Fiber bridge from Central Core (Ez-Zel/Jarvis) to Ecosystem Planet
+        ctx.beginPath();
+        ctx.moveTo(centerOrigin.px, centerOrigin.py);
+        ctx.lineTo(pl.px, pl.py);
+        ctx.strokeStyle = pl.color;
+        ctx.lineWidth = 2.0 * pl.scale;
+        ctx.setLineDash([5, 4]);
+        ctx.stroke();
+
+        // Planet Sphere
+        const pr = 14 * pl.scale;
+        const pGrad = ctx.createRadialGradient(pl.px - pr * 0.3, pl.py - pr * 0.3, pr * 0.1, pl.px, pl.py, pr * 1.8);
+        pGrad.addColorStop(0, '#ffffff');
+        pGrad.addColorStop(0.35, pl.color);
+        pGrad.addColorStop(1, 'rgba(2,6,23,0.15)');
+        ctx.fillStyle = pGrad;
+        ctx.beginPath();
+        ctx.arc(pl.px, pl.py, pr, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Orbital ring around planet
+        ctx.beginPath();
+        ctx.ellipse(pl.px, pl.py, pr * 1.65, pr * 0.65, 0.35, 0, Math.PI * 2);
+        ctx.strokeStyle = pl.color;
+        ctx.lineWidth = 1.1;
+        ctx.setLineDash([]);
+        ctx.stroke();
+
+        // Planet Label
+        ctx.font = 'bold 10px Cairo, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 6;
+        ctx.fillText(pl.label, pl.px, pl.py - pr - 6);
+        ctx.restore();
+      });
+
       // 2. Project Nodes and Sort by Z-depth
       const projectedNodes = node3DPositions.map((item, idx) => {
         const p = project3D(item.x, item.y, item.z);
@@ -280,26 +386,30 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       // Sort back-to-front for proper depth occlusion
       projectedNodes.sort((a, b) => b.z - a.z);
 
-      // 3. Draw Fiber-Optic Energy Filaments to Central Core & Neighboring Nodes
+      // 3. Draw Curved Fiber-Optic Energy Filaments from Core & Ecosystem Planets to Brand Planets
       ctx.save();
-      projectedNodes.forEach(node => {
+      projectedNodes.forEach((node, nIdx) => {
         const center = project3D(0, 0, 0);
+        const hubPlanet = projectedCorePlanets[nIdx % projectedCorePlanets.length] || center;
+        const midX = (hubPlanet.px + node.px) / 2;
+        const midY = (hubPlanet.py + node.py) / 2 - 22 * node.scale;
 
         ctx.beginPath();
-        ctx.moveTo(center.px, center.py);
-        ctx.lineTo(node.px, node.py);
+        ctx.moveTo(hubPlanet.px, hubPlanet.py);
+        ctx.quadraticCurveTo(midX, midY, node.px, node.py);
 
-        const filamentGrad = ctx.createLinearGradient(center.px, center.py, node.px, node.py);
+        const filamentGrad = ctx.createLinearGradient(hubPlanet.px, hubPlanet.py, node.px, node.py);
         if (node.isSelected) {
-          filamentGrad.addColorStop(0, 'rgba(0, 240, 255, 0.85)');
+          filamentGrad.addColorStop(0, 'rgba(0, 240, 255, 0.95)');
+          filamentGrad.addColorStop(0.5, '#10b981');
           filamentGrad.addColorStop(1, '#00f0ff');
-          ctx.lineWidth = 2.4;
+          ctx.lineWidth = 2.6;
           ctx.setLineDash([]);
         } else {
-          filamentGrad.addColorStop(0, 'rgba(0, 240, 255, 0.18)');
-          filamentGrad.addColorStop(0.7, 'rgba(168, 85, 247, 0.22)');
-          filamentGrad.addColorStop(1, 'rgba(56, 189, 248, 0.4)');
-          ctx.lineWidth = Math.max(0.6, 1.2 * node.scale);
+          filamentGrad.addColorStop(0, 'rgba(0, 240, 255, 0.28)');
+          filamentGrad.addColorStop(0.5, 'rgba(16, 185, 129, 0.25)');
+          filamentGrad.addColorStop(1, 'rgba(168, 85, 247, 0.35)');
+          ctx.lineWidth = Math.max(0.8, 1.35 * node.scale);
           ctx.setLineDash([4, 6]);
         }
         ctx.strokeStyle = filamentGrad;
@@ -307,22 +417,29 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       });
       ctx.restore();
 
-      // 4. Draw Traveling Photons along lines
+      // 4. Draw Color-Coded Optical Fiber Photons (TX Blue, RX Emerald, SYNC Purple) along Curved Filaments
       ctx.save();
       photons.forEach(pt => {
-        pt.progress = (pt.progress + pt.speed) % 1;
-        const target = projectedNodes[pt.nodeIdx % projectedNodes.length];
+        if (pulseMode !== 'ALL' && pt.kind !== pulseMode) return;
+        pt.progress = (pt.progress + pt.speed * burstMultiplierRef.current) % 1;
+        const target = projectedNodes[pt.nodeIdx % Math.max(projectedNodes.length, 1)];
         if (!target) return;
 
-        const center = project3D(0, 0, 0);
-        const curX = center.px + (target.px - center.px) * pt.progress;
-        const curY = center.py + (target.py - center.py) * pt.progress;
+        const hubPlanet = projectedCorePlanets[pt.nodeIdx % projectedCorePlanets.length] || project3D(0, 0, 0);
+        const effectiveT = pt.direction === -1 ? 1 - pt.progress : pt.progress;
+        const midX = (hubPlanet.px + target.px) / 2;
+        const midY = (hubPlanet.py + target.py) / 2 - 22 * target.scale;
+
+        // Quadratic Bezier interpolation along the optical fiber curve
+        const invT = 1 - effectiveT;
+        const curX = invT * invT * hubPlanet.px + 2 * invT * effectiveT * midX + effectiveT * effectiveT * target.px;
+        const curY = invT * invT * hubPlanet.py + 2 * invT * effectiveT * midY + effectiveT * effectiveT * target.py;
 
         ctx.beginPath();
-        ctx.arc(curX, curY, pt.size * (0.8 + pt.progress * 0.4), 0, Math.PI * 2);
+        ctx.arc(curX, curY, pt.size * (0.85 + effectiveT * 0.45) * (burstMultiplierRef.current > 1 ? 1.25 : 1), 0, Math.PI * 2);
         ctx.fillStyle = pt.color;
         ctx.shadowColor = pt.color;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 11;
         ctx.fill();
       });
       ctx.restore();
@@ -463,7 +580,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       cancelAnimationFrame(animId);
       canvas.removeEventListener('click', handleCanvasClick);
     };
-  }, [node3DPositions, selectedBrandId, zoomRef, autoRotate, onSelectBrand]);
+  }, [node3DPositions, selectedBrandId, zoomRef, autoRotate, pulseMode, onSelectBrand]);
 
   return (
     <div ref={containerRef} className={`relative w-full h-full min-h-[480px] rounded-3xl bg-[#01030d]/35 backdrop-blur-md border border-cyan-500/20 overflow-hidden shadow-[0_0_60px_rgba(0,240,255,0.08)] flex flex-col ${className}`}>
@@ -539,6 +656,60 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           <RefreshCw className={`w-3 h-3 ${autoRotate ? 'animate-spin' : ''}`} style={{ animationDuration: '6s' }} />
           <span className="hidden md:inline">{autoRotate ? 'دوران حي' : 'مثبت'}</span>
         </button>
+      </div>
+
+      {/* Live Optical Fiber Pulse Legend & Interactive Trigger Bar */}
+      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 border-b border-cyan-500/15 bg-[#02081c]/70 text-[10px] font-['Cairo']">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setPulseMode('ALL')}
+            className={`px-2 py-0.5 rounded-lg border font-black transition cursor-pointer ${
+              pulseMode === 'ALL' ? 'bg-white/15 border-white/40 text-white' : 'bg-black/30 border-white/10 text-white/60'
+            }`}
+          >
+            كل النبضات الحية
+          </button>
+          <button
+            onClick={() => setPulseMode('TX')}
+            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer ${
+              pulseMode === 'TX' ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200' : 'bg-cyan-500/10 border-cyan-500/25 text-cyan-300/80'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-[#00f0ff] shadow-[0_0_8px_#00f0ff]" />
+            <span>TX إرسال أمر للتطبيقات</span>
+          </button>
+          <button
+            onClick={() => setPulseMode('RX')}
+            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer ${
+              pulseMode === 'RX' ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200' : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300/80'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]" />
+            <span>RX استقبال واتساب وحجوزات</span>
+          </button>
+          <button
+            onClick={() => setPulseMode('SYNC')}
+            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer ${
+              pulseMode === 'SYNC' ? 'bg-purple-500/25 border-purple-400 text-purple-200' : 'bg-purple-500/10 border-purple-500/25 text-purple-300/80'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-[#a855f7] shadow-[0_0_8px_#a855f7]" />
+            <span>SYNC مزامنة ستوديو وميتا</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="hidden lg:inline text-[10px] text-cyan-200/80 truncate max-w-[310px]">
+            {liveTelemetrySummary}
+          </span>
+          <button
+            onClick={triggerOpticalBurst}
+            className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-black text-[10px] flex items-center gap-1 shadow-[0_0_15px_rgba(0,240,255,0.35)] cursor-pointer"
+          >
+            <Zap className="w-3 h-3" />
+            <span>⚡ إطلاق نبضة مزامنة حية</span>
+          </button>
+        </div>
       </div>
 
       {/* 3D WebGL / Canvas Space + Exact Centered Core Wrapper */}

@@ -28,6 +28,9 @@ interface RegistryBrand {
   agentBrandId: string;
   catalogCount: number;
   status: string;
+  planId?: string;
+  planAmount?: number;
+  subscriptionPlan?: string;
   readiness?: BrandReadiness;
 }
 
@@ -129,6 +132,26 @@ export const AdminBrandRegistryPanel: React.FC = () => {
     }
   };
 
+  const handleActivateCorePackage = async () => {
+    setBusyId('__core9__');
+    setStatusMsg(null);
+    try {
+      const headers = await getAdminHeaders();
+      const res = await fetch('/api/admin/brands/registry/activate-core-package', { method: 'POST', headers });
+      const data = await res.json();
+      if (data?.ok) {
+        await loadRegistry();
+        setStatusMsg({ type: 'ok', text: data.message || 'تم تفعيل الفول باكدج (باقة 5,000 ج.م) للـ 9 براندات النشطة ✅' });
+      } else {
+        setStatusMsg({ type: 'err', text: data?.error || 'فشل تفعيل الفول باكدج' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: 'err', text: err?.message || 'خطأ في الاتصال' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleSafeConnectAgent = async (brand: RegistryBrand) => {
     setBusyId(brand.id);
     setStatusMsg(null);
@@ -206,7 +229,15 @@ export const AdminBrandRegistryPanel: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleActivateCorePackage}
+            disabled={busyId === '__core9__'}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 text-xs font-black hover:bg-emerald-500/30 disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>{busyId === '__core9__' ? 'جاري التفعيل...' : '⚡ تفعيل باكدج 5,000 للـ 9 براندات النشطة'}</span>
+          </button>
           <button
             onClick={handleBulkPauseAll}
             disabled={busyId === '__bulk__'}
@@ -294,6 +325,11 @@ export const AdminBrandRegistryPanel: React.FC = () => {
                       <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border ${meta.badgeClass}`}>
                         {meta.label}
                       </span>
+                      {(b.planAmount || b.lifecycleStage === 'active_client') && (
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          👑 باقة {(b.planAmount || 5000).toLocaleString()} ج.م (50/50)
+                        </span>
+                      )}
                       <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-md">
                         {b.canonicalId}
                       </span>

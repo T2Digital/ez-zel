@@ -160,10 +160,10 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   // ORBITAL DRAG & DROP STATE
   const [orbitMap, setOrbitMap] = useState<Record<string, number>>({
       'tasks': 0, 'memory': 0, 'sync': 0, 'vault': 0, 'contacts': 0, 'music_vault': 0,
-      'brains': 0, 'reports': 0, 'contentMachine': 0, 'podcast': 0,
-      'identity': 1, 'affiliate': 1, 'upgrade': 1, 'social': 1,
+      'brains': 0, 'reports': 0, 'contentMachine': 0, 'podcast': 0, 'phone_agent': 0,
+      'identity': 1, 'affiliate': 1, 'upgrade': 1, 'social': 1, 'human_voice': 1,
       'voice': 2, 'override': 2, 'workspace': 2, 'logout': 2, 'nexus': 1, 'brands': 0, 'wallet': 0, 'live': 1,
-      'hologram': 0, 'research': 1, 'advisory': 1
+      'hologram': 0, 'research': 1, 'advisory': 1, 'tafra': 2
   });
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -383,23 +383,36 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
       await shadowDB.saveProfile({ ...user, iotActions: updatedActions });
   };
 
-  // Define streamlined SaaS orbital items (Customer: 7 focused action pillars; Master Admin: extra system tools)
+  // Full Sovereign Orbital Satellites (Restored all 22 orbital icons across the 3 rings)
   const allItems = [
+      { id: 'tasks', icon: Target, label: "المهام النشطة", value: tasks.filter(t => t.status === 'pending').length, colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowTasksModal(true) },
+      { id: 'phone_agent', icon: Phone, label: "الوكيل الهاتفي الذكي", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: () => setShowAutonomousManager(true) },
+      { id: 'memory', icon: Database, label: "خزنة الذاكرة", value: memory.length, colorClass: "text-purple-400", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowMemoryModal(true) },
+      { id: 'contacts', icon: Users, label: "جهات الاتصال", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setShowContacts(true) },
+      { id: 'social', icon: Share2, label: "مصفوفة السوشيال", colorClass: "text-pink-400", bgClass: "bg-pink-500/10", borderClass: "border-pink-500/30", onClick: () => setShowSocialModal(true) },
       ...(user.phone !== 'GUEST' ? [
           { id: 'brands', icon: Briefcase, label: "غرفة قيادة براندي", value: undefined, colorClass: "text-cyan-400", bgClass: "bg-cyan-500/15", borderClass: "border-cyan-500/40", onClick: () => setShowBrandsModal(true) },
+          { id: 'wallet', icon: Wallet, label: "المحفظة السيادية", colorClass: "text-amber-400", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: () => setShowWalletModal(true) },
           { id: 'live', icon: Mic, label: "المستشار الصوتي (جارفيس)", colorClass: "text-blue-400", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/30", onClick: () => setShowLiveModal(true) },
+          { id: 'hologram', icon: Orbit, label: "الهولوجرام والفضاء", colorClass: "text-cyan-300", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setShowHologram(true) },
+          { id: 'research', icon: Globe, label: "مركز الأبحاث", colorClass: "text-teal-400", bgClass: "bg-teal-500/10", borderClass: "border-teal-500/30", onClick: () => setShowResearch(true) },
+          { id: 'advisory', icon: Users, label: "المجلس الاستشاري", colorClass: "text-violet-400", bgClass: "bg-violet-500/10", borderClass: "border-violet-500/30", onClick: () => setShowAdvisory(true) },
       ] : []),
+      { id: 'sync', icon: Activity, label: "معدل التزامن العصبي", value: `${liveSync}%`, colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: loadData },
       { id: 'identity', icon: identity.icon, label: identity.label, colorClass: identity.color, bgClass: identity.bg, borderClass: identity.border, onClick: () => setShowVault(true) },
       { id: 'affiliate', icon: user.phone === 'GUEST' ? Megaphone : DollarSign, label: user.phone === 'GUEST' ? "سوق للظل واربح" : "بيزنس العيلة (تسويق)", colorClass: "text-emerald-400", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/30", onClick: user.phone === 'GUEST' ? onStartAffiliate : onOpenAffiliate },
       ...(user.tier !== 'sovereign' ? [
           { id: 'upgrade', icon: Crown, label: "الباقة والترقية", colorClass: "text-amber-300", bgClass: "bg-amber-500/15", borderClass: "border-amber-500/35", onClick: onUpgrade }
       ] : []),
       { id: 'human_voice', icon: Mic, label: "نبرة صوت الظل 🎙️", colorClass: "text-emerald-300", bgClass: "bg-emerald-500/15", borderClass: "border-emerald-400/40", onClick: () => setShowHumanVoiceModal(true) },
+      { id: 'voice', icon: voiceStatus === 'playing' ? Pause : Play, label: voiceStatus === 'playing' ? "إيقاف التحية الصوتية" : "التحية الصوتية للظل", colorClass: "text-amber-400", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: toggleVoice },
       ...(isAdmin ? [
           { id: 'override', icon: Terminal, label: "لوحة الحوكمة (Admin HQ)", colorClass: "text-red-400", bgClass: "bg-red-900/20", borderClass: "border-red-500/35", onClick: () => setPendingSecureAction('admin') },
           { id: 'tafra', icon: Cpu, label: "مختبر الطفرة ⚡", colorClass: "text-purple-400", bgClass: "bg-purple-500/10", borderClass: "border-purple-500/30", onClick: () => setShowTafraDashboard(true) },
           { id: 'brains', icon: Network, label: "توجيه العقول", colorClass: "text-indigo-400", bgClass: "bg-indigo-500/10", borderClass: "border-indigo-500/30", onClick: () => setShowBrainRouter(true) },
+          { id: 'reports', icon: ActivitySquare, label: "التقارير الاستباقية", colorClass: "text-amber-400", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", onClick: () => setShowProactiveReports(true) },
           { id: 'vault', icon: Shield, label: "مفاتيح API", colorClass: "text-rose-400", bgClass: "bg-rose-500/10", borderClass: "border-rose-500/30", onClick: () => setShowApiVault(true) },
+          { id: 'nexus', icon: LinkIcon, label: "بوابة Nexus IoT", colorClass: "text-cyan-400", bgClass: "bg-cyan-500/10", borderClass: "border-cyan-500/30", onClick: () => setPendingSecureAction('nexus') },
           { id: 'workspace', icon: FolderOpen, label: "مساحة العمل", colorClass: "text-purple-400", bgClass: "bg-purple-900/20", borderClass: "border-purple-500/30", onClick: onOpenWorkspace }
       ] : []),
       { id: 'logout', icon: LogOut, label: "خروج مؤقت", colorClass: "text-gray-400", bgClass: "bg-white/5", borderClass: "border-white/10", onClick: onLogout }

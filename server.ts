@@ -694,11 +694,11 @@ async function startServer() {
           } catch {}
           const agentDashboardUrl = t2AgentApi.buildAgentEmbedUrl("crm", agentBrandKey, agentApiKey || undefined);
 
+          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
           const studioLandingPageUrl = brand.studioLandingPageUrl || brand.landingPageUrl || `${studioBase}/landing/${encodeURIComponent(brandKey)}`;
           const storefrontUrl = appAccessMode === "landing_page"
               ? studioLandingPageUrl
-              : (brand.vercelUrl || brand.deployedUrl || brand.dedicatedLiveUrl || `/store/${encodeURIComponent(brandKey)}`);
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
+              : (slug === "al_genedy" ? `${publicBase}/al-genedy/` : (brand.vercelUrl || brand.deployedUrl || brand.dedicatedLiveUrl || `/store/${encodeURIComponent(brandKey)}`));
           res.json({
               ok: true,
               brand,
@@ -1086,6 +1086,9 @@ async function startServer() {
                       appTemplate: b.appTemplate || "services_booking",
                       titoStudioClinicId: b.titoStudioClinicId || b.id,
                       agentBrandId: b.agentBrandId || b.id,
+                      planId: b.planId || (b.lifecycleStage === "active_client" ? "growth_5000" : ""),
+                      planAmount: Number(b.planAmount ?? (b.lifecycleStage === "active_client" ? 5000 : 0)),
+                      subscriptionPlan: b.subscriptionPlan || "",
                       catalogCount,
                       status: b.status || "متوقف",
                       registrySynced: Boolean(b.registrySynced),
@@ -1111,7 +1114,7 @@ async function startServer() {
       try {
           const auth = await verifyAdminRequest(req);
           if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
-          const { canonicalId, slug, name, lifecycleStage, appTemplate, titoStudioClinicId, agentBrandId, mergedFromIds } = req.body || {};
+          const { canonicalId, slug, name, lifecycleStage, appTemplate, titoStudioClinicId, agentBrandId, planId, planAmount, mergedFromIds } = req.body || {};
           if (!canonicalId) return res.status(400).json({ ok: false, error: "canonicalId is required" });
           const { upsertBrandRegistryEntry } = await import("./services/brandRegistryService");
           const entry = upsertBrandRegistryEntry(String(canonicalId), {
@@ -1121,6 +1124,8 @@ async function startServer() {
               ...(appTemplate ? { appTemplate } : {}),
               ...(titoStudioClinicId ? { titoStudioClinicId: String(titoStudioClinicId) } : {}),
               ...(agentBrandId ? { agentBrandId: String(agentBrandId) } : {}),
+              ...(planId ? { planId: String(planId) } : {}),
+              ...(planAmount !== undefined ? { planAmount: Number(planAmount) } : {}),
               ...(Array.isArray(mergedFromIds) ? { mergedFromIds } : {}),
           });
           const { upsertBrandToTitoStudioFirestore } = await import("./services/titoStudioFirestoreBridge");
@@ -1129,6 +1134,41 @@ async function startServer() {
               await upsertBrandToTitoStudioFirestore(matched).catch(() => {});
           }
           res.json({ ok: true, entry, message: `تم تحديث تصنيف وهوية (${entry.name || entry.canonicalId}) في Firestore بنجاح` });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message });
+      }
+  });
+
+  app.post("/api/admin/brands/registry/activate-core-package", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const { upsertBrandRegistryEntry } = await import("./services/brandRegistryService");
+          const coreList = [
+              { canonicalId: "al_shomoukh_dentistry", slug: "al_shomoukh_dentistry", name: "الشموخ لطب الأسنان", appTemplate: "services_booking" as const, titoStudioClinicId: "brand_1786261318926", agentBrandId: "al_shomoukh_dentistry" },
+              { canonicalId: "crystal_teeth", slug: "crystal_teeth", name: "عيادة كريستال لطب الأسنان", appTemplate: "services_booking" as const, titoStudioClinicId: "2", agentBrandId: "crystal_teeth" },
+              { canonicalId: "alkhalig_dental", slug: "alkhalig_dental", name: "عيادة الخليج لطب الأسنان", appTemplate: "services_booking" as const, titoStudioClinicId: "4", agentBrandId: "alkhalig_dental" },
+              { canonicalId: "socotra_dental", slug: "socotra_dental", name: "عيادة سقطرى لطب الأسنان", appTemplate: "services_booking" as const, titoStudioClinicId: "3", agentBrandId: "socotra_dental" },
+              { canonicalId: "dental_district", slug: "dental_district", name: "عيادة حي الأسنان", appTemplate: "services_booking" as const, titoStudioClinicId: "5", agentBrandId: "dental_district" },
+              { canonicalId: "mecca_dental", slug: "mecca_dental", name: "عيادة مكة لطب الأسنان", appTemplate: "services_booking" as const, titoStudioClinicId: "6", agentBrandId: "mecca_dental" },
+              { canonicalId: "clean_master", slug: "clean_master", name: "كلين ماستر", appTemplate: "services_booking" as const, titoStudioClinicId: "brand_1788540631941", agentBrandId: "clean_master" },
+              { canonicalId: "tito_media", slug: "tito_media", name: "تيتو ميديا", appTemplate: "services_booking" as const, titoStudioClinicId: "brand_1779847291377", agentBrandId: "tito_media" },
+              { canonicalId: "al_genedy", slug: "al_genedy", name: "الجنيدي للإعلان", appTemplate: "products_erp" as const, titoStudioClinicId: "al_genedy", agentBrandId: "al_genedy" },
+          ];
+          for (const item of coreList) {
+              upsertBrandRegistryEntry(item.canonicalId, {
+                  ...item,
+                  lifecycleStage: "active_client",
+                  planId: "growth_5000",
+                  planAmount: 5000,
+              });
+          }
+          res.json({
+              ok: true,
+              activatedCount: coreList.length,
+              totalMrrEgp: coreList.length * 5000,
+              message: `تم تفعيل الباكدج الكامل (باقة النمو 5,000 ج.م) وربط الأيجنت والاستوديو والتطبيق لجميع البراندات الـ ${coreList.length} النشطة بنجاح!`,
+          });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });
       }
@@ -2699,6 +2739,10 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
   app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
       const slug = String(req.params.slug || "");
+      const normSlug = slug.toLowerCase().trim();
+      if (normSlug === "al_genedy" || normSlug === "al-genedy") {
+          return res.redirect("/al-genedy/");
+      }
       const unified = getUnifiedGrowthBrands();
       const brand = unified.find(b => b.id === slug || b.slug === slug) || getClonedBrandByIdOrSlug(slug);
       if (!brand) {
@@ -4596,6 +4640,18 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       });
       app.get(['/dashboard/t2-agent', '/apps/t2-agent/dashboard'], (req, res) => {
           res.sendFile(path.join(t2AgentPublicPath, 'dashboard.html'));
+      });
+  }
+
+  // --- INTEGRATED APP MOUNT: AL-GENEDY ADVERTISING FULL 3D & ERP PLATFORM ---
+  const alGenedyDistPath = fs.existsSync(path.join(process.cwd(), 'dist', 'al-genedy'))
+      ? path.join(process.cwd(), 'dist', 'al-genedy')
+      : path.join(process.cwd(), 'public', 'al-genedy');
+  if (fs.existsSync(alGenedyDistPath)) {
+      app.use('/al-genedy', express.static(alGenedyDistPath));
+      app.get(['/al-genedy', '/al-genedy/*all'], (_req, res) => {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          res.sendFile(path.join(alGenedyDistPath, 'index.html'));
       });
   }
 

@@ -16,11 +16,14 @@ export default defineConfig(() => {
       plugins: [
         react(),
         VitePWA({
-          registerType: 'prompt',
+          registerType: 'autoUpdate',
           includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
           workbox: {
+            skipWaiting: true,
+            clientsClaim: true,
+            navigateFallbackDenylist: [/^\/al-genedy/, /^\/app\//, /^\/store\//, /^\/api\//],
             maximumFileSizeToCacheInBytes: 5000000,
-            globIgnores: ['**/vendor-web-llm*', '**/vendor-ai*', '**/vendor-ffmpeg*', '**/*.map']
+            globIgnores: ['**/vendor-web-llm*', '**/vendor-ai*', '**/vendor-ffmpeg*', '**/*.map', 'al-genedy/**']
           },
           manifest: {
             name: 'Ez-Zel Shadow',

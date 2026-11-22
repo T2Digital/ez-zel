@@ -18,6 +18,8 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
   const [niche, setNiche] = useState('');
   const [budgetEgp, setBudgetEgp] = useState('50000');
   const [city, setCity] = useState('القاهرة والجيزة');
+  const [fulfillmentMode, setFulfillmentMode] = useState<'dropshipping' | 'own_inventory'>('dropshipping');
+  const [supplierWhatsapp, setSupplierWhatsapp] = useState('01013372674');
   const [loading, setLoading] = useState(false);
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [error, setError] = useState('');
@@ -54,6 +56,8 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
           niche: niche.trim(),
           budgetEgp: Number(budgetEgp) || 50000,
           city: city.trim() || 'مصر',
+          fulfillmentMode,
+          supplierWhatsapp: supplierWhatsapp.trim() || '01013372674',
         }),
       });
       const data = await res.json();
@@ -124,6 +128,48 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-xs focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            {/* Fulfillment & Dropshipping Selector */}
+            <div className="md:col-span-2">
+              <label className="text-[11px] font-bold text-purple-300 block mb-1">نموذج التوريد والتشغيل (Inventory vs Dropshipping)</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFulfillmentMode('dropshipping')}
+                  className={`px-3 py-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    fulfillmentMode === 'dropshipping'
+                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.25)]'
+                      : 'bg-black/50 border-white/10 text-white/60 hover:text-white'
+                  }`}
+                >
+                  <span>🚚 دروبشيبنج مربوط بموردين جاهزين</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFulfillmentMode('own_inventory')}
+                  className={`px-3 py-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    fulfillmentMode === 'own_inventory'
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-[0_0_18px_rgba(0,240,255,0.2)]'
+                      : 'bg-black/50 border-white/10 text-white/60 hover:text-white'
+                  }`}
+                >
+                  <span>📦 منتجات أو خدمات خاصة (مخزونك)</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-emerald-300 block mb-1">
+                {fulfillmentMode === 'dropshipping' ? 'واتساب المورد (لتحويل الطلبات بدون أسعار)' : 'واتساب مسؤول التشغيل'}
+              </label>
+              <input
+                value={supplierWhatsapp}
+                onChange={(e) => setSupplierWhatsapp(e.target.value)}
+                dir="ltr"
+                placeholder="010..."
+                className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-xs text-right focus:border-emerald-400 focus:outline-none"
               />
             </div>
             <div className="md:col-span-3 flex items-center justify-between gap-3 flex-wrap pt-1">
@@ -217,23 +263,69 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
                 </div>
               </div>
 
-              {/* Starter Catalog */}
-              <div className="p-4 rounded-2xl bg-[#070d20] border border-white/10 space-y-2.5">
-                <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
-                  <ShoppingBag className="w-4 h-4" />
-                  الكتالوج المبدئي الجاهز للإطلاق ({(blueprint.starterCatalog || []).length} عناصر)
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Starter Catalog & Dropshipping Profit Matrix */}
+              <div className="p-4 rounded-2xl bg-[#070d20] border border-white/10 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                    <ShoppingBag className="w-4 h-4" />
+                    الكتالوج الجاهز ومصفوفة ربح الدروبشيبنج ({(blueprint.starterCatalog || []).length} منتجات رابحة)
+                  </h4>
+                  {blueprint.fulfillmentMode === 'dropshipping' && (
+                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300">
+                      🚚 توجيه آلي للمورد بدون كشف سعر البيع أو هامش ربحك
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {(blueprint.starterCatalog || []).map((item: any, i: number) => (
-                    <div key={i} className="p-2.5 rounded-xl bg-black/50 border border-white/10 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{item.name}</div>
-                        <div className="text-[10px] text-white/55 truncate">{item.description}</div>
+                    <div key={i} className="p-3 rounded-xl bg-black/50 border border-white/10 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">{item.name}</div>
+                          <div className="text-[10px] text-white/55 truncate">{item.description}</div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shrink-0">
+                          {item.supplierSource || 'مورد معتمد'}
+                        </span>
                       </div>
-                      <span className="text-xs font-black text-emerald-300 shrink-0">{item.numericPrice} ج.م</span>
+                      <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-white/10 text-center text-[10px]">
+                        <div className="p-1.5 rounded-lg bg-white/5">
+                          <span className="text-white/50 block">جملة المورد</span>
+                          <b className="text-amber-300">{item.supplierCostEgp || Math.round((item.numericPrice || 500) * 0.48)} ج.م</b>
+                        </div>
+                        <div className="p-1.5 rounded-lg bg-white/5">
+                          <span className="text-white/50 block">سعر البيع</span>
+                          <b className="text-white">{item.numericPrice} ج.م</b>
+                        </div>
+                        <div className="p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30">
+                          <span className="text-emerald-200/80 block">صافي ربحك</span>
+                          <b className="text-emerald-300">+{item.netMarginEgp || Math.round((item.numericPrice || 500) * 0.4)} ج.م</b>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Dropshipping Supplier Network & Auto-Forwarding Bridge */}
+                {blueprint.dropshippingConfig?.supplierPartners && (
+                  <div className="mt-3 p-3 rounded-xl bg-emerald-950/25 border border-emerald-500/30 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-black text-emerald-300">
+                      <span>🔗 شبكة الموردين وبوابة التوجيه الآلي (T2 Dropshipping Bridge)</span>
+                      <span className="font-mono text-[10px] text-cyan-300">
+                        واتساب المورد: {blueprint.dropshippingConfig.supplierWhatsapp || supplierWhatsapp}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px]">
+                      {blueprint.dropshippingConfig.supplierPartners.map((sp: any, idx: number) => (
+                        <div key={idx} className="p-2 rounded-lg bg-black/50 border border-white/10">
+                          <div className="font-black text-white">{sp.name}</div>
+                          <div className="text-white/60 mt-0.5">{sp.type}</div>
+                          <div className="text-emerald-400 font-bold mt-1">⏱️ التوصيل: {sp.avgDeliveryDays}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 30-Day Launch Roadmap */}

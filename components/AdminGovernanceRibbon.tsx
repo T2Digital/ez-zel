@@ -30,6 +30,9 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
   onOpenJarvis,
 }) => {
   const [liveBrandsCount, setLiveBrandsCount] = useState<number | null>(null);
+  const [totalRegistryCount, setTotalRegistryCount] = useState<number>(20);
+  const [activeRegistryBrands, setActiveRegistryBrands] = useState<any[]>([]);
+  const [trialRegistryCount, setTrialRegistryCount] = useState<number>(0);
   const [agentLiveOk, setAgentLiveOk] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -37,11 +40,23 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
     setChecking(true);
     try {
       const headers = await getAdminAuthHeaders();
-      const res = await fetch('/api/brand-hub/agent/fleet', { credentials: 'include', headers });
-      const data = await res.json();
-      if (data?.ok) {
-        setLiveBrandsCount(typeof data.brandsCount === 'number' ? data.brandsCount : Array.isArray(data.brands) ? data.brands.length : 0);
-        setAgentLiveOk(data.source === 't2_ai_agent_live');
+      const [fleetRes, regRes] = await Promise.all([
+        fetch('/api/brand-hub/agent/fleet', { credentials: 'include', headers }).then(r => r.json()).catch(() => null),
+        fetch('/api/admin/brands/registry', { credentials: 'include', headers }).then(r => r.json()).catch(() => null),
+      ]);
+      if (fleetRes?.ok) {
+        setAgentLiveOk(String(fleetRes.source || '').startsWith('t2_ai_agent_live'));
+      }
+      if (regRes?.ok && Array.isArray(regRes.brands)) {
+        const regList = regRes.brands;
+        const activeList = regList.filter((b: any) => b.lifecycleStage === 'active_client');
+        const trialList = regList.filter((b: any) => b.lifecycleStage === 'trial');
+        setTotalRegistryCount(regList.length);
+        setActiveRegistryBrands(activeList);
+        setTrialRegistryCount(trialList.length);
+        setLiveBrandsCount(activeList.length > 0 ? activeList.length : regList.length);
+      } else if (fleetRes?.ok) {
+        setLiveBrandsCount(typeof fleetRes.brandsCount === 'number' ? fleetRes.brandsCount : Array.isArray(fleetRes.brands) ? fleetRes.brands.length : 0);
       }
     } catch {
       setAgentLiveOk(false);
@@ -54,16 +69,26 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
     fetchGovernanceTelemetry();
   }, [fetchGovernanceTelemetry]);
 
-  const trialOrFreeCount = realProfiles.filter(
+  const profileTrialCount = realProfiles.filter(
     (p) => p.status !== 'active' && p.status !== 'pending'
   ).length;
 
-  const estimatedMrr = realProfiles
+  const effectiveActiveClientsCount = Math.max(activeMembersCount, activeRegistryBrands.length);
+  const effectiveTrialCount = Math.max(profileTrialCount, trialRegistryCount);
+  const effectiveTotalSubscribers = effectiveActiveClientsCount + effectiveTrialCount + pendingRequestsCount;
+
+  const profileMrr = realProfiles
     .filter((p) => p.status === 'active')
     .reduce((sum, u) => {
       if (u.subscriptionCycle === 'yearly') return sum + Math.round(10000 / 12);
       return sum + Number((u as any).monthlySubscriptionEgp || 2500);
     }, 0);
+
+  const registryMrr = activeRegistryBrands.reduce((sum, b) => {
+    return sum + (Number(b.planAmount || 5000) || 5000);
+  }, 0);
+
+  const estimatedMrr = Math.max(profileMrr, registryMrr);
 
   const estimatedAdsPool = Math.round(estimatedMrr * 0.5);
   const estimatedNetSystem = estimatedMrr - estimatedAdsPool;
@@ -84,14 +109,14 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* 1. SUBSCRIBERS & TRIAL CONVERSION */}
         <button
-          onClick={() => triggerFilter('all')}
+          onClick={() => onSelectView('brand_registry')}
           className="text-right p-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-[#071327]/95 via-[#050a18]/95 to-black/95 hover:border-cyan-400/70 transition-all group cursor-pointer shadow-[0_0_25px_rgba(6,182,212,0.12)] relative overflow-hidden"
         >
           <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full bg-cyan-500/10 blur-2xl pointer-events-none" />
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-black text-cyan-300 flex items-center gap-1.5">
               <Users className="w-4 h-4" />
-              قاعدة المشتركين
+              قاعدة المشتركين والبراندات
             </span>
             {pendingRequestsCount > 0 ? (
               <span className="px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-400/50 text-rose-300 text-[10px] font-black animate-pulse">
@@ -101,11 +126,11 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
               <ShieldCheck className="w-4 h-4 text-cyan-400/60" />
             )}
           </div>
-          <div className="text-3xl font-black text-white tracking-tight">{realProfiles.length}</div>
+          <div className="text-3xl font-black text-white tracking-tight">{effectiveTotalSubscribers}</div>
           <div className="text-[11px] text-white/70 mt-1.5 flex items-center gap-2 flex-wrap">
-            <span className="text-emerald-300 font-bold">{activeMembersCount} عميل مدفوع</span>
+            <span className="text-emerald-300 font-bold">{effectiveActiveClientsCount} عميل مدفوع نشط</span>
             <span className="text-white/30">•</span>
-            <span className="text-amber-300 font-bold">{trialOrFreeCount} تجربة/مستخدم</span>
+            <span className="text-amber-300 font-bold">{effectiveTrialCount} تجربة/مستخدم</span>
           </div>
         </button>
 
@@ -168,7 +193,7 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
 
         {/* 4. REAL CONNECTED BRANDS -> JARVIS */}
         <button
-          onClick={() => (onOpenJarvis ? onOpenJarvis() : onSelectView('agent_platform'))}
+          onClick={() => (onOpenJarvis ? onOpenJarvis() : onSelectView('brand_registry'))}
           className="text-right p-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-[#231705]/95 via-[#0f0a03]/95 to-black/95 hover:border-amber-400/70 transition-all group cursor-pointer shadow-[0_0_25px_rgba(245,158,11,0.12)] relative overflow-hidden"
         >
           <div className="flex items-center justify-between mb-2">
@@ -180,7 +205,7 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
           </div>
           <div className="text-3xl font-black text-white">
             {liveBrandsCount !== null ? liveBrandsCount : '—'}{' '}
-            <span className="text-xs font-bold text-amber-300/80">براند فعلي</span>
+            <span className="text-xs font-bold text-amber-300/80">براند شغّال (من {totalRegistryCount})</span>
           </div>
           <div className="text-[11px] text-amber-200/80 mt-1.5 font-bold">
             دخول مباشر لغرفة قيادة جارفيس ↗
@@ -192,21 +217,21 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
       <div className="p-2.5 rounded-2xl bg-[#070b16]/95 border border-white/10 flex items-center justify-between gap-2 flex-wrap shadow-lg">
         <div className="flex items-center gap-2 text-xs font-black text-white/75 px-2">
           <Filter className="w-3.5 h-3.5 text-cyan-400" />
-          <span>فلترة حسابات المنظومة الفعلية:</span>
+          <span>فلترة حسابات وبراندات المنظومة الفعلية:</span>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
-            onClick={() => triggerFilter('all')}
+            onClick={() => onSelectView('brand_registry')}
             className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
               activeFilter === 'all'
                 ? 'bg-white text-black shadow'
                 : 'bg-white/5 text-white/65 hover:text-white hover:bg-white/10'
             }`}
           >
-            الكل ({realProfiles.length})
+            الكل ({totalRegistryCount})
           </button>
           <button
-            onClick={() => triggerFilter('active')}
+            onClick={() => onSelectView('brand_registry')}
             className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 ${
               activeFilter === 'active'
                 ? 'bg-emerald-500 text-black shadow shadow-emerald-500/30'
@@ -214,7 +239,7 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>العملاء النشطين ({activeMembersCount})</span>
+            <span>العملاء النشطين ({effectiveActiveClientsCount})</span>
           </button>
           <button
             onClick={() => triggerFilter('trial')}
@@ -225,7 +250,7 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>المجربين والمستخدمين ({trialOrFreeCount})</span>
+            <span>المجربين والمستخدمين ({effectiveTrialCount})</span>
           </button>
           <button
             onClick={() => triggerFilter('pending')}

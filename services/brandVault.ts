@@ -813,7 +813,52 @@ export const BRAND_VAULT: Record<string, BrandConfig> = {
         "consultationFee": "مجاناً"
     },
     "systemPrompt": "أنت المستشار العقاري الذكي لمنصة Sale Gates Egypt. تتواصل مع العملاء لتحديد نوع العقار المطلوب والميزانية وترتيب المعاينة الميدانية."
-}
+  },
+  "al_genedy": {
+    "id": "al_genedy",
+    "studioId": "al_genedy",
+    "name": "الجنيدي للإعلان",
+    "englishName": "Al-Genedy Advertising",
+    "category": "واجهات كلادنج - حروف بارزة - شاشات الكترونية - نيون",
+    "source": "unified",
+    "status": "شغال",
+    "conversationsCount": 18,
+    "phone": "01080444447",
+    "whatsapp": "201080444447",
+    "primaryColor": "#FF6B1A",
+    "accentColor": "#059669",
+    "logoUrl": "/logo-algenedy.png",
+    "address": "مصر — صالة العرض والورشة والمصنع",
+    "locationUrl": "https://t2os.app/al-genedy/",
+    "subscriptionPlan": "باقة النمو الذهبي (5,000 ج.م)",
+    "catalog": {
+      "claddingFacades": {
+        "name": "واجهات كلادنج معمارية (Alucobond 4mm) شاملة الشاسيه والتركيب",
+        "price": "2,400 ج.م / م²",
+        "details": "توريد وتكسية ألواح كلادنج مقاومة للعوامل الجوية مع تصميم 3D كامل للواجهة والعمودين"
+      },
+      "letters3D": {
+        "name": "حروف بارزة 3D (أستانلس ذهبي/فضي وأكريليك مضيء ليد كوري)",
+        "price": "3,200 ج.م / م²",
+        "details": "إضاءة أمامية وخلفية Halo واقعية 100% مع ترانسات MeanWell مقاومة للمطر"
+      },
+      "customNeon": {
+        "name": "نيون فليكس سيليكون مخصص + دمج نيون مع طباعة UV على أكريليك وفومكس وخشب",
+        "price": "850 ج.م / متر طولي ليد",
+        "details": "تسعير دقيق بالمتر الطولي لليد مع دعم رفع الشعار أو التصميم الجاهز وتوقيعات النيون"
+      },
+      "ledScreens": {
+        "name": "شاشات عرض إعلانية إلكترونية LED (داخلي وخارجي P4 / P5 / P8)",
+        "price": "14,500 ج.م / م²",
+        "details": "شاشات عالية السطوع قابلة للبرمجة عن بُعد للواجهات والمولات والمعارض"
+      }
+    },
+    "pricingRules": {
+      "currency": "EGP",
+      "depositPercent": 50
+    },
+    "systemPrompt": "أنت المستشار الهندسي الذكي لـ الجنيدي للإعلان (واجهات كلادنج - حروف بارزة - شاشات الكترونية - نيون). تساعد العملاء في تصميم الواجهات والنيون وحساب المقاسات وإصدار عروض الأسعار وطلبات التعاقد."
+  }
 };
 
 export const getBrandConfig = (brandId: string): BrandConfig | undefined => {

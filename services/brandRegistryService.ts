@@ -11,6 +11,8 @@ export interface CanonicalBrandEntry {
   appTemplate?: TenantAppTemplate;
   titoStudioClinicId?: string;
   agentBrandId?: string;
+  planId?: string;
+  planAmount?: number;
   mergedFromIds?: string[];
   notes?: string;
   updatedAt: string;
@@ -18,12 +20,123 @@ export interface CanonicalBrandEntry {
 
 interface BrandRegistryState {
   defaultStage: BrandLifecycleStage;
+  coreNineSeededV1?: boolean;
   brands: Record<string, CanonicalBrandEntry>;
   updatedAt?: string;
 }
 
 const REGISTRY_DOC_KEY = 't2_unified_brand_registry';
 const REGISTRY_FILE = 't2_unified_brand_registry.json';
+
+const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
+  {
+    canonicalId: 'al_shomoukh_dentistry',
+    slug: 'al_shomoukh_dentistry',
+    name: 'الشموخ لطب الأسنان',
+    lifecycleStage: 'active_client',
+    appTemplate: 'services_booking',
+    titoStudioClinicId: 'brand_1786261318926',
+    agentBrandId: 'al_shomoukh_dentistry',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['brand_1786261318926', 'رعاية_صحية_وطب_أسنان'],
+  },
+  {
+    canonicalId: 'crystal_teeth',
+    slug: 'crystal_teeth',
+    name: 'عيادة كريستال لطب الأسنان',
+    lifecycleStage: 'active_client',
+    appTemplate: 'services_booking',
+    titoStudioClinicId: '2',
+    agentBrandId: 'crystal_teeth',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['2'],
+  },
+  {
+    canonicalId: 'alkhalig_dental',
+    slug: 'alkhalig_dental',
+    name: 'عيادة الخليج لطب الأسنان',
+    lifecycleStage: 'active_client',
+    appTemplate: 'services_booking',
+    titoStudioClinicId: '4',
+    agentBrandId: 'alkhalig_dental',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['4'],
+  },
+  {
+    canonicalId: 'socotra_dental',
+    slug: 'socotra_dental',
+    name: 'عيادة سقطرى لطب الأسنان',
+    lifecycleStage: 'active_client',
+    appTemplate: 'services_booking',
+    titoStudioClinicId: '3',
+    agentBrandId: 'socotra_dental',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['3'],
+  },
+  {
+    canonicalId: 'dental_district',
+    slug: 'dental_district',
+    name: 'عيادة حي الأسنان',
+    lifecycleStage: 'active_client',
+    appTemplate: 'services_booking',
+    titoStudioClinicId: '5',
+    agentBrandId: 'dental_district',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['5'],
+  },
+  {
+    canonicalId: 'mecca_dental',
+    slug: 'mecca_dental',
+    name: 'عيادة مكة لطب الأسنان',
+    lifecycleStage: 'active_client',
+    appTemplate: 'services_booking',
+    titoStudioClinicId: '6',
+    agentBrandId: 'mecca_dental',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['6'],
+  },
+  {
+    canonicalId: 'clean_master',
+    slug: 'clean_master',
+    name: 'كلين ماستر',
+    lifecycleStage: 'active_client',
+    appTemplate: 'services_booking',
+    titoStudioClinicId: 'brand_1788540631941',
+    agentBrandId: 'clean_master',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['brand_1788540631941'],
+  },
+  {
+    canonicalId: 'tito_media',
+    slug: 'tito_media',
+    name: 'تيتو ميديا',
+    lifecycleStage: 'active_client',
+    appTemplate: 'services_booking',
+    titoStudioClinicId: 'brand_1779847291377',
+    agentBrandId: 'tito_media',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['brand_1779847291377', 't2_studio', 't2_studio_وكالة_تسويق_ونمو_رقمي_وأتمتة', 'تسويق_ونمو_رقمي_وأتمتة'],
+  },
+  {
+    canonicalId: 'al_genedy',
+    slug: 'al_genedy',
+    name: 'الجنيدي للإعلان',
+    lifecycleStage: 'active_client',
+    appTemplate: 'products_erp',
+    titoStudioClinicId: 'al_genedy',
+    agentBrandId: 'al_genedy',
+    planId: 'growth_5000',
+    planAmount: 5000,
+  },
+];
 
 function normalizeKey(id: string): string {
   return String(id || '').trim().toLowerCase();
@@ -34,16 +147,39 @@ export function getBrandRegistryState(): BrandRegistryState {
     defaultStage: 'paused_archive',
     brands: {},
   });
-  return {
+  const brands = raw?.brands && typeof raw.brands === 'object' ? { ...raw.brands } : {};
+  let changed = false;
+
+  if (!raw?.coreNineSeededV1) {
+    const now = new Date().toISOString();
+    for (const seed of CORE_ACTIVE_BRANDS_SEED) {
+      const prev = brands[seed.canonicalId] || {};
+      brands[seed.canonicalId] = {
+        ...prev,
+        ...seed,
+        updatedAt: now,
+      };
+    }
+    changed = true;
+  }
+
+  const state: BrandRegistryState = {
     defaultStage: raw?.defaultStage || 'paused_archive',
-    brands: raw?.brands && typeof raw.brands === 'object' ? raw.brands : {},
+    coreNineSeededV1: true,
+    brands,
     updatedAt: raw?.updatedAt,
   };
+
+  if (changed) {
+    saveBrandRegistryState(state);
+  }
+  return state;
 }
 
 export function saveBrandRegistryState(state: BrandRegistryState): BrandRegistryState {
   const next: BrandRegistryState = {
     defaultStage: state.defaultStage || 'paused_archive',
+    coreNineSeededV1: state.coreNineSeededV1 ?? true,
     brands: state.brands || {},
     updatedAt: new Date().toISOString(),
   };
@@ -130,6 +266,9 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
     const isPaused = lifecycleStage === 'paused_archive';
     const resolvedTemplate = entry?.appTemplate || resolveBrandTemplate(b);
 
+    const resolvedPlanId = entry?.planId || b.planId || (lifecycleStage === 'active_client' ? 'growth_5000' : b.planId);
+    const resolvedPlanAmount = entry?.planAmount ?? b.planAmount ?? (lifecycleStage === 'active_client' ? 5000 : 0);
+
     out.push({
       ...b,
       canonicalId: entry?.canonicalId || b.id,
@@ -139,6 +278,9 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
       appTemplate: resolvedTemplate,
       titoStudioClinicId: entry?.titoStudioClinicId || b.titoStudioClinicId || b.id,
       agentBrandId: entry?.agentBrandId || b.agentBrandId || b.id,
+      planId: resolvedPlanId,
+      planAmount: resolvedPlanAmount,
+      subscriptionPlan: lifecycleStage === 'active_client' ? `باقة النمو الذهبي (${resolvedPlanAmount.toLocaleString('en-US')} ج.م)` : (b.subscriptionPlan || 'متوقف'),
       status: isPaused ? 'متوقف' : (b.status && b.status !== 'متوقف' ? b.status : 'شغال'),
       botPaused: isPaused ? true : Boolean(b.botPaused),
       registrySynced: Boolean(entry),
