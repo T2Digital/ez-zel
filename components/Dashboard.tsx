@@ -61,16 +61,16 @@ interface SatelliteProps {
     onDragStart: (id: string, e: React.PointerEvent) => void;
 }
 
-const SatelliteCard: React.FC<SatelliteProps> = ({ id, icon: Icon, label, value, colorClass, bgClass, borderClass, onClick, size = 'w-32 h-32 lg:w-40 lg:h-40', onDragStart }) => (
+const SatelliteCard: React.FC<SatelliteProps> = ({ id, icon: Icon, label, value, colorClass, bgClass, borderClass, onClick, size = 'w-20 h-20 lg:w-24 lg:h-24', onDragStart }) => (
     <div 
         onPointerDown={(e) => onDragStart(id, e)}
         onClick={onClick} 
         className={`group relative ${size} rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform hover:scale-125 shadow-lg ${bgClass} ${borderClass} border backdrop-blur-md canvas-bypass`}
     >
-        {Icon && <Icon className={`${value !== undefined ? 'w-10 h-10 lg:w-14 lg:h-14' : 'w-1/2 h-1/2'} ${colorClass} relative z-10 transition-transform duration-[10s] ease-linear`} />}
-        {value !== undefined && <div className={`mt-1 font-black text-xl lg:text-3xl leading-none ${colorClass}`}>{value}</div>}
-        <div className="absolute -bottom-16 opacity-0 group-hover:opacity-100 transition-all pointer-events-none flex flex-col items-center z-50">
-             <span className={`text-sm lg:text-lg font-bold ${colorClass} bg-black/90 px-4 py-2 rounded-xl border ${borderClass} whitespace-nowrap shadow-[0_10px_30px_rgba(0,0,0,0.8)] uppercase tracking-widest`}>
+        {Icon && <Icon className={`${value !== undefined ? 'w-7 h-7 lg:w-9 lg:h-9' : 'w-1/2 h-1/2'} ${colorClass} relative z-10 transition-transform duration-[10s] ease-linear`} />}
+        {value !== undefined && <div className={`mt-0.5 font-black text-xs lg:text-base leading-none ${colorClass}`}>{value}</div>}
+        <div className="absolute -bottom-14 opacity-0 group-hover:opacity-100 transition-all pointer-events-none flex flex-col items-center z-50">
+             <span className={`text-xs lg:text-sm font-bold ${colorClass} bg-black/90 px-3 py-1.5 rounded-xl border ${borderClass} whitespace-nowrap shadow-[0_10px_30px_rgba(0,0,0,0.8)] uppercase tracking-widest`}>
                  {label}
              </span>
         </div>
@@ -90,7 +90,7 @@ interface Props {
   onOpenWorkspace?: () => void;
 }
 
-const ORBIT_RADII = [220, 360, 500];
+const ORBIT_RADII = [225, 355, 485];
 const ORBIT_SPEEDS = [0.005, -0.003, 0.002]; // radians per frame
 
 import { VoiceSecurityGate } from './VoiceSecurityGate';
@@ -157,13 +157,12 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
   const identity = getIdentity();
   const isAdmin = isMasterAdminEmail(user.email);
 
-  // ORBITAL DRAG & DROP STATE
+  // ORBITAL DRAG & DROP STATE (Balanced 6 / 8 / 11 distribution with zero center/ring overlap)
   const [orbitMap, setOrbitMap] = useState<Record<string, number>>({
-      'tasks': 0, 'memory': 0, 'sync': 0, 'vault': 0, 'contacts': 0, 'music_vault': 0,
-      'brains': 0, 'reports': 0, 'contentMachine': 0, 'podcast': 0, 'phone_agent': 0,
-      'identity': 1, 'affiliate': 1, 'upgrade': 1, 'social': 1, 'human_voice': 1,
-      'voice': 2, 'override': 2, 'workspace': 2, 'logout': 2, 'nexus': 1, 'brands': 0, 'wallet': 0, 'live': 1,
-      'hologram': 0, 'research': 1, 'advisory': 1, 'tafra': 2
+      'brands': 0, 'tasks': 0, 'memory': 0, 'phone_agent': 0, 'sync': 0, 'wallet': 0,
+      'live': 1, 'identity': 1, 'affiliate': 1, 'social': 1, 'contacts': 1, 'hologram': 1, 'research': 1, 'advisory': 1,
+      'override': 2, 'tafra': 2, 'brains': 2, 'reports': 2, 'vault': 2, 'nexus': 2, 'workspace': 2,
+      'human_voice': 2, 'voice': 2, 'upgrade': 2, 'logout': 2
   });
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -431,8 +430,8 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
     <div className="fixed inset-0 w-full h-full bg-transparent text-white font-['Cairo'] overflow-hidden flex items-center justify-center select-none touch-none">
         <OrbitalStyles />
         
-        {/* Responsive scaling container */}
-        <div ref={containerRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none flex items-center justify-center scale-[0.35] sm:scale-[0.55] md:scale-[0.75] lg:scale-[0.9] xl:scale-100" style={{ transformOrigin: 'center center' }}>
+        {/* Responsive scaling container (fits cleanly inside 1440x900 without clipping top/bottom rings) */}
+        <div ref={containerRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none flex items-center justify-center scale-[0.32] sm:scale-[0.48] md:scale-[0.62] lg:scale-[0.70] xl:scale-[0.76] 2xl:scale-[0.88]" style={{ transformOrigin: 'center center' }}>
             
             {/* Draw Ring Lines */}
             {ORBIT_RADII.map((r, i) => (

@@ -881,4 +881,179 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
       res.status(500).json({ ok: false, error: err?.message || "ADK venture invention failed" });
     }
   });
+
+  // 8) Al-Genedy 3D Facade & Neon AI Design Architect Endpoint
+  app.post("/api/ai/design-architect", async (req: Request, res: Response) => {
+    try {
+      const { prompt = "", audioBase64, audioMimeType = "audio/webm", currentConfig = {} } = req.body || {};
+      const cleanPrompt = String(prompt || "").trim();
+
+      const buildFallbackDesign = (rawText: string) => {
+        const text = rawText || String(currentConfig?.title || "الجنيدي للإعلان");
+        const isNeon = /نيون|neon|سكريبت|توقيع|فوميكس|أكليرك|طباعة/i.test(text);
+        const category = isNeon ? "neon" : "signboard";
+        const nameMatch = text.match(/(?:باسم|اسمه|لـ|شركة|مطعم|كافيه|صيدلية|عيادة)\s+([^\d،,.]+?)(?:\s+عرض|\s+مقاس|\s+بحروف|\s+بخط|\s+خلفية|$)/i);
+        const title = (nameMatch ? nameMatch[1].trim() : currentConfig?.title || "الجنيدي للإعلان").slice(0, 32);
+
+        let widthCm = category === "signboard" ? 450 : 120;
+        let heightCm = category === "signboard" ? 130 : 65;
+        const dimMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:متر|م|سم|cm)?\s*(?:في|×|x|\*)\s*(\d+(?:\.\d+)?)/i);
+        if (dimMatch) {
+          const rw = Number(dimMatch[1]);
+          const rh = Number(dimMatch[2]);
+          widthCm = rw <= 15 ? Math.round(rw * 100) : Math.round(rw);
+          heightCm = rh <= 6 ? Math.round(rh * 100) : Math.round(rh);
+        }
+
+        const backingColorHex = /فضي|رصاصي/i.test(text)
+          ? "#94a3b8"
+          : /أزرق|ازرق|كحلي/i.test(text)
+          ? "#1e3a8a"
+          : /أخضر|اخضر|زمردي/i.test(text)
+          ? "#064e3b"
+          : /نبيتي|برغندي|أحمر/i.test(text)
+          ? "#7f1d1d"
+          : /أبيض|ابيض/i.test(text)
+          ? "#f5f5f4"
+          : "#0f172a";
+
+        const ledColorHex = /زمردي|أخضر|اخضر/i.test(text)
+          ? "#34d399"
+          : /وردي|ماجنتا|بينك|فوشيا/i.test(text)
+          ? "#f472b6"
+          : /أزرق|سماوي|لبني|سيان/i.test(text)
+          ? "#38bdf8"
+          : /أحمر/i.test(text)
+          ? "#ef4444"
+          : "#fbbf24";
+
+        const neonBackingId = /خشب/i.test(text)
+          ? "wood_walnut_12mm"
+          : /فوميكس أسود/i.test(text)
+          ? "forex_black_10mm"
+          : /فوميكس/i.test(text)
+          ? "forex_white_10mm"
+          : /أكليرك أسود|اكريليك اسود/i.test(text)
+          ? "black_acrylic_5mm"
+          : /أكليرك أبيض|اكريليك ابيض/i.test(text)
+          ? "white_acrylic_5mm"
+          : "clear_acrylic_5mm";
+
+        const environmentLighting = /نهار/i.test(text) ? "daylight" : /غروب|عصر/i.test(text) ? "dusk" : "night";
+        const signLetterId = /أستانلس|استانلس/i.test(text) ? "stainless_halo" : "acrylic_3d";
+
+        return {
+          transcript: cleanPrompt || undefined,
+          category,
+          title,
+          subtitle: category === "signboard" ? "واجهات كلادينج - حروف بارزة - شاشات - نيون" : "",
+          widthCm,
+          heightCm,
+          signBackingId: "alucobond",
+          signLetterId,
+          depthCm: 8,
+          backingColorHex,
+          letterColorHex: /ذهبي/i.test(text) ? "#eab308" : "#ffffff",
+          ledColorHex,
+          neonBackingId,
+          neonIpRating: "IP67",
+          environmentLighting,
+          includeInstallation: true,
+          architectSummary: `تم تصميم ${category === "signboard" ? "واجهة كلادينج متكاملة 3D بدون إطار وبروز واقعي وعمودين يمين وشمال" : "لافتة نيون فليكس مخصصة"} بمقاس ${widthCm}×${heightCm} سم وإضاءة واقعية.`,
+        };
+      };
+
+      const ai = deps.getServerAI();
+      let design: any = null;
+      let aiPowered = false;
+
+      if (ai && (cleanPrompt || audioBase64)) {
+        const architectPrompt = `أنت مهندس واجهات كلادينج ولافتات نيون وحروف بارزة 3D في شركة الجنيدي للإعلان.
+حوّل طلب العميل التالي إلى JSON صالح فقط (بدون Markdown) يصف المواصفات التقنية للتصميم بدقة:
+طلب العميل: "${cleanPrompt || "تصميم واجهة أو نيون من الرسالة الصوتية"}"
+الإعداد الحالي: ${JSON.stringify({
+          category: currentConfig?.category || "signboard",
+          title: currentConfig?.title || "الجنيدي للإعلان",
+          widthCm: currentConfig?.widthCm || 450,
+          heightCm: currentConfig?.heightCm || 130,
+        })}
+
+الحقول المطلوبة في JSON:
+{
+  "transcript": "نص واضح للطلب بالعربية",
+  "category": "signboard أو neon",
+  "title": "الاسم التجاري على اللافتة (حد أقصى 32 حرف)",
+  "subtitle": "وصف مختصر أسفل الاسم أو فارغ للنيون",
+  "widthCm": 450,
+  "heightCm": 130,
+  "signBackingId": "alucobond",
+  "signLetterId": "stainless_halo أو acrylic_3d",
+  "depthCm": 8,
+  "backingColorHex": "#0f172a",
+  "letterColorHex": "#eab308",
+  "ledColorHex": "#fbbf24",
+  "neonBackingId": "clear_acrylic_5mm أو white_acrylic_5mm أو black_acrylic_5mm أو forex_white_10mm أو forex_black_10mm أو wood_walnut_12mm",
+  "neonIpRating": "IP67",
+  "environmentLighting": "daylight أو dusk أو night",
+  "includeInstallation": true,
+  "architectSummary": "ملخص هندسي عربي للخامات والأبعاد والإضاءة"
+}`;
+
+        for (const modelName of ACTIVE_GEMINI_TEXT_MODELS) {
+          try {
+            const parts: any[] = [{ text: architectPrompt }];
+            if (audioBase64) {
+              parts.push({
+                inlineData: {
+                  mimeType: String(audioMimeType || "audio/webm"),
+                  data: String(audioBase64).replace(/^data:[^;]+;base64,/, ""),
+                },
+              });
+            }
+            const aiRes = await Promise.race([
+              ai.models.generateContent({
+                model: modelName,
+                contents: parts,
+                config: { responseMimeType: "application/json", temperature: 0.35 },
+              }),
+              new Promise<never>((_, rej) => setTimeout(() => rej(new Error("AI_DESIGN_TIMEOUT")), 6500)),
+            ]);
+            const raw = String(aiRes?.text || "").replace(/```json|```/gi, "").trim();
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.title) {
+              design = parsed;
+              aiPowered = true;
+              break;
+            }
+          } catch {}
+        }
+      }
+
+      if (!design) {
+        design = buildFallbackDesign(cleanPrompt);
+      }
+
+      return res.json({ ok: true, aiPowered, design });
+    } catch (err: any) {
+      return res.status(200).json({
+        ok: true,
+        aiPowered: false,
+        design: {
+          category: "signboard",
+          title: "الجنيدي للإعلان",
+          subtitle: "واجهات كلادينج - حروف بارزة - شاشات - نيون",
+          widthCm: 450,
+          heightCm: 130,
+          backingColorHex: "#0f172a",
+          letterColorHex: "#eab308",
+          ledColorHex: "#fbbf24",
+          signLetterId: "stainless_halo",
+          environmentLighting: "night",
+          includeInstallation: true,
+          architectSummary: "تم تجهيز واجهة كلادينج 3D احترافية بالمقاسات القياسية وإضاءة واقعية.",
+        },
+        note: err?.message || "fallback",
+      });
+    }
+  });
 }
