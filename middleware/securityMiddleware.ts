@@ -1,6 +1,17 @@
 import type { Request, Response, NextFunction } from "express";
+import { parseCookies, verifyAdminSessionToken } from "../services/serverAdminAuth";
+import { verifyTenantToken } from "../routes/tenantErpRoutes";
 
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (now > entry.resetAt) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, 60_000).unref();
 
 export function createRateLimiter(maxRequests: number, windowMs: number, label = "api") {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -45,12 +56,17 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth/meta/",
   "/api/auth/social/",
   "/api/system/ecosystem-health",
+  "/api/system/watchdog-status",
   "/api/client-portal/",
   "/api/payments/paymob/plans",
   "/api/payments/paymob/webhook",
   "/api/payments/paymob/checkout-gateway",
   "/api/webhooks/",
+  "/api/webhooks/bosta",
   "/api/gateway/health",
+  "/api/ai/design-architect",
+  "/api/dropshipping/public/",
+  "/api/al-genedy/",
 ];
 
 function isTrustedSameOrigin(req: Request): boolean {
@@ -70,16 +86,26 @@ export function requireSovereignApiAccess(req: Request, res: Response, next: Nex
   if (!fullPath.startsWith("/api/")) return next();
   if (PUBLIC_API_PREFIXES.some((prefix) => fullPath.startsWith(prefix))) return next();
 
-  const adminSecret = process.env.ADMIN_SECRET_KEY || process.env.T2_AGENT_ADMIN_KEY;
+  const adminSecret = process.env.ADMIN_API_SECRET || process.env.ADMIN_SECRET_KEY || process.env.T2_AGENT_ADMIN_KEY;
   const providedSecret = String(req.headers["x-admin-secret"] || req.headers["x-api-key"] || "");
   const authHeader = String(req.headers.authorization || "");
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
 
   if (adminSecret && providedSecret === adminSecret) return next();
-  if (authHeader.startsWith("Bearer ") && authHeader.length > 20) return next();
+
+  const cookies = parseCookies(req);
+  if (cookies.t2os_admin_session && verifyAdminSessionToken(cookies.t2os_admin_session).ok) {
+    return next();
+  }
+
+  if (bearer && (verifyAdminSessionToken(bearer).ok || verifyTenantToken(bearer))) {
+    return next();
+  }
+
   if (isTrustedSameOrigin(req)) return next();
 
   return res.status(401).json({
     ok: false,
-    error: "Unauthorized: valid admin secret, bearer token, or same-origin session required.",
+    error: "Unauthorized: valid admin secret, verified session token, or same-origin session required.",
   });
 }

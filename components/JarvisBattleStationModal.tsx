@@ -851,9 +851,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     setIsGeneratingBranding(true);
     playShadowVoice(`جاري تشغيل محرك البراندينج وتأسيس هوية وصفحات ${brandingForm.brandName} وإعداد خطة الـ 3 منشورات...`, 'male');
     try {
+      const authHeaders = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/branding/forge', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: authHeaders,
         body: JSON.stringify({
           brandName: brandingForm.brandName,
           category: brandingForm.category,
@@ -872,7 +874,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setGeneratedBrandingKit(data.kit);
         await fetch('/api/branding/save', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          headers: authHeaders,
           body: JSON.stringify({ kit: data.kit, phone: brandingForm.phone, whatsapp: brandingForm.phone })
         });
         toast.success(`تم تأسيس هوية وحقيبة صفحات ${data.kit.brandName} بنجاح!`);
@@ -1026,7 +1029,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     try {
       const res = await fetch('/api/cloner/clone', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: await getAdminAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name, industry: category || 'متجر إلكتروني' })
       });
       const d = await res.json();

@@ -16,6 +16,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
+        getUserEmail() == "ahm.atya@gmail.com" ||
         getUserEmail() == "admin@shadow.com" || 
         getUserEmail() == "ahmed.atya.daif@gmail.com" || 
         (

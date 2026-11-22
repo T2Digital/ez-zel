@@ -1,4 +1,5 @@
 import { Express } from "express";
+import { verifyAdminRequest } from "../services/serverAdminAuth";
 
 export function registerCommunicationsRoutes(
   app: Express,
@@ -7,6 +8,8 @@ export function registerCommunicationsRoutes(
   // --- OMNICHANNEL PHONE & VOICE CALL AGENT ENDPOINTS ---
   app.post("/api/agent/phone-call", async (req, res) => {
     try {
+      const auth = await verifyAdminRequest(req);
+      if (!auth.ok) return res.status(401).json({ success: false, error: auth.error || "Unauthorized" });
       const { targetNumber, reason, callerNumber } = req.body;
       console.log(`[PHONE AGENT] Initiating Call to ${targetNumber} for: ${reason}`);
 
@@ -26,6 +29,8 @@ export function registerCommunicationsRoutes(
   // --- TELEGRAM BOT ENDPOINTS ---
   app.post("/api/agent/telegram/send", async (req, res) => {
     try {
+      const auth = await verifyAdminRequest(req);
+      if (!auth.ok) return res.status(401).json({ success: false, error: auth.error || "Unauthorized" });
       const { chatId, text, botToken, buttons } = req.body;
       const token = botToken || process.env.TELEGRAM_BOT_TOKEN;
 

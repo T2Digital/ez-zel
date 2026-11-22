@@ -5,6 +5,7 @@ import {
   Instagram, Share2, ArrowRight, ArrowLeft, Loader2, Globe, Github, Check
 } from 'lucide-react';
 import { playShadowVoice } from '../../services/speechService';
+import { getAdminAuthHeaders } from '../../services/adminIdentity';
 
 interface ClientOnboardingModalProps {
   isOpen: boolean;
@@ -124,7 +125,8 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
       // Call Unified Register Brand Endpoint
       const res = await fetch('/api/vault/register-brand', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: await getAdminAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload)
       });
       const data = await res.json();

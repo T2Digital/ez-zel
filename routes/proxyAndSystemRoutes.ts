@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { exec } from "child_process";
 import { GoogleGenAI } from "@google/genai";
 import { getTitoStudioBaseUrl } from "../services/titoStudioApiClient";
+import { verifyAdminRequest } from "../services/serverAdminAuth";
 
 async function loadOptionalPuppeteer(): Promise<any | null> {
   try {
@@ -362,22 +363,52 @@ export function registerProxyAndSystemRoutes(
   });
 
   // --- REAL TERMINAL & SYSTEM OS RUNNER (JARVIS Terminal Engine) ---
+  const SAFE_TERMINAL_COMMANDS = new Set([
+      "git status",
+      "git status --short",
+      "git log -n 5",
+      "git log -1 --oneline",
+      "node -v",
+      "npm -v",
+      "uptime",
+      "df -h",
+  ]);
+
   app.post("/api/terminal/execute", async (req, res) => {
       try {
-          const { command, cwd } = req.body;
-          if (!command || typeof command !== "string") {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) {
+              return res.status(401).json({ success: false, error: auth.error || "Unauthorized" });
+          }
+
+          if (process.env.NODE_ENV === "production" && process.env.ALLOW_SOVEREIGN_TERMINAL !== "true") {
+              return res.status(403).json({
+                  success: false,
+                  error: "Shell terminal execution is disabled in production for security.",
+              });
+          }
+
+          const { command, cwd } = req.body || {};
+          const trimmed = typeof command === "string" ? command.trim() : "";
+          if (!trimmed) {
               return res.status(400).json({ error: "Command string is required." });
           }
 
-          console.log(`[JARVIS TERMINAL] Executing command: ${command}`);
+          if (/[;&|`$><\r\n]/.test(trimmed) || !SAFE_TERMINAL_COMMANDS.has(trimmed)) {
+              return res.status(403).json({
+                  success: false,
+                  error: "Command not in read-only diagnostic allowlist.",
+              });
+          }
+
+          console.log(`[JARVIS TERMINAL] Executing allowlisted command (${auth.email}): ${trimmed}`);
           const startTime = Date.now();
 
-          // Execute with safe timeout of 15 seconds
-          exec(command, { cwd: cwd || process.cwd(), timeout: 15000, maxBuffer: 1024 * 1024 * 5 }, (error, stdout, stderr) => {
+          exec(trimmed, { cwd: cwd || process.cwd(), timeout: 15000, maxBuffer: 1024 * 1024 * 5 }, (error, stdout, stderr) => {
               const durationMs = Date.now() - startTime;
               res.json({
                   success: !error,
-                  command,
+                  command: trimmed,
                   stdout: stdout || "",
                   stderr: stderr || (error ? error.message : ""),
                   exitCode: error ? (error.code || 1) : 0,
@@ -391,11 +422,21 @@ export function registerProxyAndSystemRoutes(
   });
 
   // --- REAL CODEBASE INTROSPECTION & SELF-AWARENESS (AGI Brain Arm) ---
+  const SENSITIVE_SOURCE_PATTERN = /(^|[\\/])(\.env|.*\.pem|.*\.key|.*serviceAccount.*|persistent_firestore_auth\.json)/i;
+
   app.post("/api/system/source", async (req, res) => {
       try {
-          const { action, path: reqPath, query } = req.body;
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) {
+              return res.status(401).json({ success: false, error: auth.error || "Unauthorized" });
+          }
+
+          const { action, path: reqPath } = req.body || {};
           const rootDir = process.cwd();
           const cleanPath = reqPath ? String(reqPath).replace(/^(\.\.[\/\\])+/, "").replace(/^\/+/, "") : "";
+          if (cleanPath && SENSITIVE_SOURCE_PATTERN.test(cleanPath)) {
+              return res.status(403).json({ success: false, error: "Access to sensitive secret files is denied." });
+          }
           const resolvedPath = path.resolve(rootDir, cleanPath);
 
           if (!resolvedPath.startsWith(rootDir)) {
@@ -665,6 +706,8 @@ export function registerProxyAndSystemRoutes(
 
   app.post("/api/studio/live/content-plan", async (req, res) => {
       try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ success: false, error: auth.error || "Unauthorized" });
           const data = await callTitoStudio("/api/studio/content-plan", "POST", req.body || {});
           res.json(data);
       } catch (e: any) {
@@ -674,6 +717,8 @@ export function registerProxyAndSystemRoutes(
 
   app.post("/api/studio/live/approve-publish", async (req, res) => {
       try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ success: false, error: auth.error || "Unauthorized" });
           const { contentId, clinicId, caption, platform = "facebook", publishNow = false } = req.body || {};
           if (!contentId) {
               return res.status(400).json({ success: false, error: "contentId is required" });
@@ -942,6 +987,8 @@ export function registerProxyAndSystemRoutes(
 
   app.post("/api/developer/deploy-app", async (req, res) => {
       try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ success: false, error: auth.error || "Unauthorized" });
           const { cloneOrSynthesizeBrand } = await import("../services/appClonerCrawlerService");
           const { resolveFlagshipTemplate } = await import("../services/tenantFactory");
           const {

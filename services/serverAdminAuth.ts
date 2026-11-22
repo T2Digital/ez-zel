@@ -7,14 +7,25 @@ const ADMIN_COOKIE_NAME = "t2os_admin_session";
 const ADMIN_TOKEN_PREFIX = "t2adm_";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+const EPHEMERAL_SESSION_SECRET = crypto.randomBytes(32).toString("hex");
+let warnedMissingSecret = false;
+
 function getSigningSecret(): string {
-  return (
+  const configured =
     process.env.TENANT_AUTH_SECRET ||
     process.env.ADMIN_API_SECRET ||
     process.env.ADMIN_SECRET_KEY ||
-    process.env.T2_AGENT_ADMIN_KEY ||
-    "t2os_sovereign_fallback_secret_2026"
-  );
+    process.env.T2_AGENT_ADMIN_KEY;
+  if (configured && configured.trim().length > 0) {
+    return configured.trim();
+  }
+  if (!warnedMissingSecret) {
+    warnedMissingSecret = true;
+    console.error(
+      "[CRITICAL SECURITY] No TENANT_AUTH_SECRET / ADMIN_API_SECRET / ADMIN_SECRET_KEY configured — using ephemeral per-process secret."
+    );
+  }
+  return EPHEMERAL_SESSION_SECRET;
 }
 
 export function getPrimaryFirebaseApiKey(): string {
@@ -173,4 +184,18 @@ export async function verifyAdminRequest(
   }
 
   return { ok: false, error: "Admin authorization required" };
+}
+
+export async function requireAdminMiddleware(
+  req: Request,
+  res: Response,
+  next: (err?: any) => void
+): Promise<void> {
+  const auth = await verifyAdminRequest(req);
+  if (!auth.ok) {
+    res.status(401).json({ ok: false, error: auth.error || "Admin authorization required" });
+    return;
+  }
+  (req as any).adminEmail = auth.email;
+  next();
 }

@@ -6,6 +6,7 @@ import { t2AgentApi, getT2AgentBaseUrl } from "../services/t2AgentApiClient";
 import { getTitoStudioAuthToken } from "../services/titoStudioFirestoreBridge";
 import { verifyAdminRequest } from "../services/serverAdminAuth";
 import { ACTIVE_GEMINI_TEXT_MODELS } from "../services/geminiKeyPool";
+import { calculateCodProfitability } from "../services/dropshippingEngineService";
 
 const HUB_CONFIG_FILE = path.join(process.cwd(), "data", "brand_hub_configs.json");
 const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || "t2-content-studio";
@@ -860,18 +861,27 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
         };
       }
 
-      // Normalize starterCatalog so every item always has supplierCostEgp & netMarginEgp
+      // Normalize starterCatalog with real COD unit economics (shipping, CPA, 20% returns)
       blueprint.fulfillmentMode = isDropshipping ? "dropshipping" : "own_inventory";
       blueprint.starterCatalog = (blueprint.starterCatalog || []).map((item: any) => {
         const retail = Number(item.numericPrice) || 500;
         const cost = Number(item.supplierCostEgp) || Math.round(retail * 0.48);
         const shipping = 65;
-        const margin = Number(item.netMarginEgp) || Math.max(80, retail - cost - shipping);
+        const cpa = 95;
+        const expectedReturnRatePct = 20;
+        const codEconomics = calculateCodProfitability({
+          sellingPriceEgp: retail,
+          supplierCostEgp: cost,
+          shippingCostEgp: shipping,
+          cpaAdCostEgp: cpa,
+          expectedReturnRatePct,
+        });
         return {
           ...item,
           numericPrice: retail,
           supplierCostEgp: cost,
-          netMarginEgp: margin,
+          netMarginEgp: codEconomics.realNetProfitPerDeliveredEgp,
+          codEconomics,
           supplierSource: item.supplierSource || (isDropshipping ? "منصة تاجر / مورد جملة" : "مخزون البراند"),
         };
       });

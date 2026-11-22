@@ -1,6 +1,7 @@
 import { Express } from "express";
 import fs from "fs";
 import path from "path";
+import { requireAdminMiddleware } from "../services/serverAdminAuth";
 import {
   publishBrandPost,
   launchAdCampaign,
@@ -34,7 +35,7 @@ import {
 
 export function registerMetaAndAgencyRoutes(app: Express): void {
   // --- SOVEREIGN GROWTH AGENCY PIPELINE (Bridges 2, 3 & 4) --- //
-  app.post("/api/growth/publish-post", async (req, res) => {
+  app.post("/api/growth/publish-post", requireAdminMiddleware, async (req, res) => {
       try {
           const { brandId, postIndex } = req.body || {};
           if (!brandId) return res.status(400).json({ error: "brandId is required" });
@@ -128,18 +129,18 @@ export function registerMetaAndAgencyRoutes(app: Express): void {
       }
   });
 
-  app.post("/api/t2-agent/brands/:id/instructions", async (req, res) => {
+  app.post("/api/t2-agent/brands/:id/instructions", requireAdminMiddleware, async (req, res) => {
       try {
-          const result = await updateT2AgentInstructions(req.params.id, req.body?.systemInstruction || "");
+          const result = await updateT2AgentInstructions(String(req.params.id), req.body?.systemInstruction || "");
           res.json(result);
       } catch (err: any) {
           res.status(500).json({ error: err?.message });
       }
   });
 
-  app.post("/api/t2-agent/brands/:id/send-message", async (req, res) => {
+  app.post("/api/t2-agent/brands/:id/send-message", requireAdminMiddleware, async (req, res) => {
       try {
-          const result = await sendT2AgentWhatsAppMessage(req.params.id, req.body || {});
+          const result = await sendT2AgentWhatsAppMessage(String(req.params.id), req.body || {});
           res.json(result);
       } catch (err: any) {
           res.status(500).json({ error: err?.message });
@@ -164,9 +165,9 @@ export function registerMetaAndAgencyRoutes(app: Express): void {
       }
   });
 
-  app.post("/api/t2-agent/brands/:id/toggle-bot", async (req, res) => {
+  app.post("/api/t2-agent/brands/:id/toggle-bot", requireAdminMiddleware, async (req, res) => {
       try {
-          const result = await toggleT2AgentBotStatus(req.params.id, req.body?.status);
+          const result = await toggleT2AgentBotStatus(String(req.params.id), req.body?.status);
           res.json(result);
       } catch (err: any) {
           res.status(500).json({ error: err?.message });
@@ -175,7 +176,7 @@ export function registerMetaAndAgencyRoutes(app: Express): void {
 
   // --- SOVEREIGN META & CLOUD SUITE API (12 ENDPOINTS) --- //
   // 1. Create Facebook Page & Link Instagram Business
-  app.post("/api/meta/pages/create", async (req, res) => {
+  app.post("/api/meta/pages/create", requireAdminMiddleware, async (req, res) => {
       try {
           const result = await createMetaPage(req.body || {});
           res.json(result);
@@ -196,7 +197,7 @@ export function registerMetaAndAgencyRoutes(app: Express): void {
   });
 
   // 3. Launch AI-Powered Meta Ad Campaign
-  app.post("/api/meta/ads/campaigns/create", async (req, res) => {
+  app.post("/api/meta/ads/campaigns/create", requireAdminMiddleware, async (req, res) => {
       try {
           const result = await createMetaAdCampaign(req.body || {});
           res.json(result);
@@ -248,7 +249,7 @@ export function registerMetaAndAgencyRoutes(app: Express): void {
   });
 
   // 8. Generate Brand Identity & Kit with Gemini AI
-  app.post("/api/brand/generateKit", async (req, res) => {
+  app.post("/api/brand/generateKit", requireAdminMiddleware, async (req, res) => {
       try {
           const result = await generateBrandKit(req.body || {});
           res.json(result);
@@ -279,7 +280,7 @@ export function registerMetaAndAgencyRoutes(app: Express): void {
   });
 
   // 11. Dual Live Publish to Facebook & Instagram
-  app.post("/api/meta/publish", async (req, res) => {
+  app.post("/api/meta/publish", requireAdminMiddleware, async (req, res) => {
       try {
           const result = await publishMetaPost(req.body || {});
           res.json(result);

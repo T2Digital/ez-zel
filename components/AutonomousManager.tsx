@@ -15,6 +15,7 @@ import { omnichannelService, PhoneCallSession, OmnichannelConfig } from '../serv
 import { actionBookingEngine, AutonomousActionRequest, ActionCategory } from '../services/actionBookingEngine';
 import { speakNative, stopVoice } from '../services/speechService';
 import { AndroidBridgeService } from '../services/androidBridgeService';
+import { getAdminAuthHeaders } from '../services/adminIdentity';
 
 export const AutonomousManager: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user } = useAppStore();
@@ -66,7 +67,8 @@ export const AutonomousManager: React.FC<{ onClose: () => void }> = ({ onClose }
     try {
       const res = await fetch('/api/terminal/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: await getAdminAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ command: targetCmd })
       });
       const data = await res.json();

@@ -7,6 +7,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import * as googleWorkspace from './googleWorkspaceService';
 import { omnichannelService } from './omnichannelService';
 import { actionBookingEngine } from './actionBookingEngine';
+import { getAdminAuthHeaders } from './adminIdentity';
 
 export interface ToolHandlerContext {
     handleSend: (text: string, audio?: Blob, existingAudio?: string, isHidden?: boolean, ignoreLimit?: boolean) => void;
@@ -188,9 +189,11 @@ export const processToolActions = async (
                       data: { command_type: 'source_read', logs: `[AGI Self-Inspection] Fulfilling live introspection for: ${data.path || '/'}...` }
                   });
                   try {
+                      const authHeaders = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
                       const res = await fetch('/api/system/source', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          headers: authHeaders,
                           body: JSON.stringify({ action: 'read_file', path: data.path })
                       });
                       const resData = await res.json();
@@ -203,7 +206,8 @@ export const processToolActions = async (
                           // Try listing directory
                           const listRes = await fetch('/api/system/source', {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              headers: authHeaders,
                               body: JSON.stringify({ action: 'list_files', path: data.path })
                           });
                           const listData = await listRes.json();
@@ -239,7 +243,8 @@ export const processToolActions = async (
                   try {
                       const execRes = await fetch('/api/terminal/execute', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          headers: await getAdminAuthHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify({ command: cmdToRun })
                       });
                       const execData = await execRes.json();
@@ -1607,9 +1612,11 @@ export const processToolActions = async (
                   });
 
                   try {
+                      const authHeaders = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
                       const res = await fetch('/api/branding/forge', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          headers: authHeaders,
                           body: JSON.stringify({
                               brandName: args.brand_name,
                               category: args.category,
@@ -1622,7 +1629,8 @@ export const processToolActions = async (
                           const kit = data.kit;
                           await fetch('/api/branding/save', {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              headers: authHeaders,
                               body: JSON.stringify({ kit, phone: args.phone, whatsapp: args.phone })
                           });
 
@@ -1740,7 +1748,8 @@ export const processToolActions = async (
                   try {
                       const res = await fetch('/api/developer/deploy-app', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          headers: await getAdminAuthHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify({
                               businessName: args.business_name,
                               template: args.template || 'custom',
@@ -1765,6 +1774,38 @@ export const processToolActions = async (
                           cardType: 'task_success',
                           title: '⚠️ تعذر إطلاق نسخة التطبيق',
                           description: err?.message || 'حدث خطأ في وكيل التطوير',
+                      });
+                  }
+              }
+              else if (t.name === 'accountant_access') {
+                  const args = (t.args || {}) as any;
+                  try {
+                      const [dropRes, telRes] = await Promise.all([
+                          fetch('/api/dropshipping/settlement', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+                          fetch('/api/telemetry/live', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+                      ]);
+                      const dropSum = dropRes?.summary || {};
+                      const telRev = Number(telRes?.totalRevenueEgp || 0);
+                      const netDropProfit = Number(dropSum?.netRealizedProfitEgp || 0);
+                      const grossCod = Number(dropSum?.grossCodRevenueEgp || 0);
+
+                      uiCards.push({
+                          cardType: 'revenue_matrix',
+                          data: {
+                              action: args.action || 'revenue_report',
+                              grossRevenueEgp: grossCod + telRev,
+                              dropshippingNetProfitEgp: netDropProfit,
+                              deliveredOrders: dropSum?.delivered || 0,
+                              returnRatePct: dropSum?.returnRatePct || 0,
+                          },
+                      });
+                      const hiddenAccPrompt = `[ACCOUNTANT_FINANCIAL_REPORT]\n${JSON.stringify({ action: args.action, dropshippingSummary: dropSum, liveTelemetryRevenueEgp: telRev })}\n\n[INSTRUCTION]: قدّم للماستر ملخص المحاسب التنفيذي الدقيق لصافي الأرباح، الإيرادات، مستحقات الموردين، ونسبة المرتجعات بوضوح باللهجة المصرية.`;
+                      setTimeout(() => handleSend(hiddenAccPrompt, undefined, undefined, true), 100);
+                  } catch (err: any) {
+                      uiCards.push({
+                          cardType: 'task_success',
+                          title: 'تقرير المحاسب التنفيذي',
+                          description: err?.message || 'تعذر جلب التقرير المالي حالياً',
                       });
                   }
               }

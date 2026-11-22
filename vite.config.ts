@@ -21,7 +21,7 @@ export default defineConfig(() => {
           workbox: {
             skipWaiting: true,
             clientsClaim: true,
-            navigateFallbackDenylist: [/^\/al-genedy/, /^\/app\//, /^\/store\//, /^\/api\//],
+            navigateFallbackDenylist: [/^\/al-genedy/, /^\/app\//, /^\/store\//, /^\/drop\//, /^\/api\//],
             maximumFileSizeToCacheInBytes: 5000000,
             globIgnores: ['**/vendor-web-llm*', '**/vendor-ai*', '**/vendor-ffmpeg*', '**/*.map', 'al-genedy/**']
           },

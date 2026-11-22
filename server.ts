@@ -34,6 +34,7 @@ import {
     saveEcosystemConfig,
     runLiveEcosystemHealthProbe
 } from "./services/ecosystemConfigService";
+import { startEcosystemWatchdog, getWatchdogStatus } from "./services/ecosystemWatchdogService";
 import { getTitoStudioBaseUrl } from "./services/titoStudioApiClient";
 import { getT2AgentBaseUrl } from "./services/t2AgentApiClient";
 import {
@@ -79,6 +80,7 @@ import { ACTIVE_GEMINI_TEXT_MODELS, sanitizeGeminiTextModel, loadGeminiKeysFromE
 import { isMasterAdminEmail } from "./services/adminIdentity";
 import {
     verifyAdminRequest,
+    requireAdminMiddleware,
     signAdminSessionToken,
     setAdminSessionCookie,
     clearAdminSessionCookie,
@@ -466,10 +468,11 @@ async function startServer() {
               if (isAllowedEmail) {
                   if (
                       cleanEmail === "admin@shadow.com" &&
-                      (password === "admin" ||
-                          password === "admin123" ||
+                      (
+                          (process.env.NODE_ENV !== "production" && (password === "admin" || password === "admin123")) ||
                           (process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD) ||
-                          (expectedSecret && password === expectedSecret))
+                          (expectedSecret && password === expectedSecret)
+                      )
                   ) {
                       verifiedEmail = cleanEmail;
                   } else if (fbKey) {
@@ -822,7 +825,7 @@ async function startServer() {
   });
 
   // --- AUTOMATED APP CLONER & MARKET CRAWLER API --- //
-  app.post(["/api/cloner/clone-brand", "/api/cloner/clone"], async (req, res) => {
+  app.post(["/api/cloner/clone-brand", "/api/cloner/clone"], requireAdminMiddleware, async (req, res) => {
       try {
           const { name, industry, websiteUrl, phone, ownerEmail } = req.body || {};
           if (!name) return res.status(400).json({ error: "اسم النشاط مطلوب" });
@@ -917,13 +920,13 @@ async function startServer() {
       }
   });
 
-  app.post("/api/obsidian/node/:id", (req, res) => {
+  app.post("/api/obsidian/node/:id", requireAdminMiddleware, (req, res) => {
       try {
           const { markdown } = req.body || {};
           if (!markdown || typeof markdown !== "string") {
               return res.status(400).json({ success: false, error: "markdown content is required" });
           }
-          const result = saveObsidianNodeMarkdown(req.params.id, markdown);
+          const result = saveObsidianNodeMarkdown(String(req.params.id), markdown);
           res.json(result);
       } catch (err: any) {
           res.status(500).json({ success: false, error: err?.message });
@@ -1973,7 +1976,7 @@ async function startServer() {
       };
   }
 
-  app.post("/api/communications/send", async (req, res) => {
+  app.post("/api/communications/send", requireAdminMiddleware, async (req, res) => {
       try {
           const result = await dispatchOmnichannelMessage(req.body || {});
           res.json(result);
@@ -2090,7 +2093,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       res.json({ ok: true, preferences: loadBriefingPreferences() });
   });
 
-  app.post("/api/system/briefing-preferences", (req, res) => {
+  app.post("/api/system/briefing-preferences", requireAdminMiddleware, (req, res) => {
       try {
           const current = loadBriefingPreferences();
           const updated = { ...current, ...(req.body || {}) };
@@ -2101,7 +2104,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
-  app.post("/api/system/trigger-daily-briefing", async (req, res) => {
+  app.post("/api/system/trigger-daily-briefing", requireAdminMiddleware, async (req, res) => {
       try {
           const period = req.body?.period === 'evening' ? 'evening' : 'morning';
           const briefing = buildDynamicEcosystemBriefing(period, req.body?.brandId);
@@ -2294,7 +2297,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
-  app.post("/api/deploy/dedicated-tenant", async (req, res) => {
+  app.post("/api/deploy/dedicated-tenant", requireAdminMiddleware, async (req, res) => {
       try {
           const { provisionDedicatedRepoAndVercel } = await import("./services/dedicatedDeployService");
           const { brandId, appTemplate, templateId } = req.body || {};
@@ -2412,7 +2415,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
-  app.post("/api/social/publish", async (req, res) => {
+  app.post("/api/social/publish", requireAdminMiddleware, async (req, res) => {
       try {
           const { publishToOmniPlatform } = await import("./services/omniSocialPublisher");
           const { platform, brandId, text, mediaUrl } = req.body || {};
@@ -2505,7 +2508,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
-  app.post("/api/studio/remote-execute", async (req, res) => {
+  app.post("/api/studio/remote-execute", requireAdminMiddleware, async (req, res) => {
       try {
           const { titoStudioApi } = await import("./services/titoStudioApiClient");
           const { action, clinicId, payload } = req.body || {};
@@ -2735,6 +2738,12 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   const { registerBrandHubRoutes } = await import("./routes/brandHubRoutes");
   registerBrandHubRoutes(app, { getUnifiedGrowthBrands, getPersistedTenants, getClonedBrandByIdOrSlug, getServerAI });
+
+  const { registerAlGenedyErpRoutes } = await import("./routes/alGenedyErpRoutes");
+  registerAlGenedyErpRoutes(app);
+
+  const { registerDropshippingRoutes } = await import("./routes/dropshippingRoutes");
+  registerDropshippingRoutes(app);
 
   // --- MULTI-TEMPLATE TENANT APPS (PRODUCTS ERP/POS + SERVICES BOOKING/FINANCE) & META OAUTH --- //
   app.get(["/store/:slug", "/app/:slug"], async (req, res) => {
@@ -4199,7 +4208,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   });
 
   // --- UNIVERSAL MASTER BRAND REGISTRATION & ONBOARDING ENDPOINT ---
-  app.post("/api/vault/register-brand", async (req, res) => {
+  app.post("/api/vault/register-brand", requireAdminMiddleware, async (req, res) => {
       try {
           const { 
               name, 
@@ -4378,7 +4387,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   });
 
   // --- BRANDING FORGE & SOCIAL LAUNCH KIT API ---
-  app.post("/api/branding/forge", async (req, res) => {
+  app.post("/api/branding/forge", requireAdminMiddleware, async (req, res) => {
       try {
           const { brandName, category, targetAudience, phone, isNewBusiness, currentAssets } = req.body;
           if (!brandName && !category) return res.status(400).json({ error: "اسم البراند أو مجال المشروع مطلوب" });
@@ -4398,7 +4407,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
-  app.post("/api/branding/save", async (req, res) => {
+  app.post("/api/branding/save", requireAdminMiddleware, async (req, res) => {
       try {
           const { kit, phone, whatsapp } = req.body;
           if (!kit || !kit.brandId) return res.status(400).json({ error: "بيانات البراند غير مكتملة" });
@@ -4625,6 +4634,10 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       } else {
           res.sendStatus(400);
       }
+  });
+
+  app.get("/api/system/watchdog-status", (_req, res) => {
+      res.json({ ok: true, ...getWatchdogStatus() });
   });
 
   registerProxyAndSystemRoutes(app, { getServerAI, synthesizeSovereignSpeech, getCleanServerGeminiKey });
@@ -4930,6 +4943,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`[SYSTEM] Full-stack architecture enabled. Background queues & Live API WebSocket ready.`);
+    startEcosystemWatchdog(() => getTitoStudioBaseUrl(), () => getT2AgentBaseUrl());
   });
 }
 

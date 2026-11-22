@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import {
   X, Sparkles, Brain, TrendingUp, DollarSign, ShoppingBag,
-  CalendarDays, Rocket, CheckCircle2, Loader2, Target, Layers
+  CalendarDays, Rocket, CheckCircle2, Loader2, Target, Layers, ExternalLink, Truck
 } from 'lucide-react';
+import { DropshippingSettlementPanel } from './DropshippingSettlementPanel';
+import { getAdminAuthHeaders } from '../../services/adminIdentity';
 
 interface AdkVentureArchitectModalProps {
   isOpen: boolean;
@@ -24,8 +26,44 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [error, setError] = useState('');
   const [blueprint, setBlueprint] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'architect' | 'settlement'>('architect');
+  const [launchingDrop, setLaunchingDrop] = useState(false);
+  const [launchedFunnelUrl, setLaunchedFunnelUrl] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleLaunchCodFunnel = async (item?: any) => {
+    if (!blueprint) return;
+    setLaunchingDrop(true);
+    try {
+      const targetItem = item || blueprint.starterCatalog?.[0] || {
+        name: blueprint.recommendedBrandName || niche,
+        numericPrice: 690,
+        supplierCostEgp: 260,
+      };
+      const res = await fetch('/api/dropshipping/funnels', {
+        method: 'POST',
+        credentials: 'include',
+        headers: await getAdminAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          brandName: blueprint.recommendedBrandName || 'T2OS DropStore',
+          productName: targetItem.name,
+          tagline: blueprint.slogan || targetItem.description,
+          sellingPriceEgp: targetItem.numericPrice || 690,
+          supplierCostPerUnitEgp: targetItem.supplierCostEgp || 260,
+          supplierWhatsapp: supplierWhatsapp || '01013372674',
+        }),
+      });
+      const data = await res.json();
+      if (data?.ok && data.funnelUrl) {
+        setLaunchedFunnelUrl(data.funnelUrl);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'تعذر إطلاق صفحة الهبوط');
+    } finally {
+      setLaunchingDrop(false);
+    }
+  };
 
   const phases = [
     'Think — تحليل الفجوة السوقية والطلب والمنافسين...',
@@ -100,7 +138,38 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
           </button>
         </div>
 
+        <div className="px-5 py-2.5 bg-[#04091a] border-b border-white/10 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('architect')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition ${
+              activeTab === 'architect'
+                ? 'bg-cyan-500/20 border border-cyan-400 text-cyan-200'
+                : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
+            }`}
+          >
+            <Brain className="w-3.5 h-3.5" />
+            <span>اختراع المشروع وحاسبة COD</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('settlement')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition ${
+              activeTab === 'settlement'
+                ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-200'
+                : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
+            }`}
+          >
+            <Truck className="w-3.5 h-3.5" />
+            <span>غرفة عمليات وتسوية الدروبشيبنج (COD Settlement)</span>
+          </button>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+          {activeTab === 'settlement' ? (
+            <DropshippingSettlementPanel />
+          ) : (
+          <>
           {/* Input Form */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 rounded-2xl bg-[#070d20] border border-white/10">
             <div className="md:col-span-3 sm:col-span-1">
@@ -212,14 +281,49 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
                     <p className="text-[11px] text-white/60 mt-1">أسماء بديلة: {blueprint.alternativeNames.join(' • ')}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => onLaunchBusiness(blueprint)}
-                  className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 cursor-pointer shrink-0"
-                >
-                  <Rocket className="w-4 h-4" />
-                  <span>أسّس هذا المشروع وأطلق تطبيقه</span>
-                </button>
+                <div className="flex flex-wrap gap-2 shrink-0 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    disabled={launchingDrop}
+                    onClick={() => handleLaunchCodFunnel()}
+                    className="flex-1 sm:flex-initial px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-60"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>{launchingDrop ? 'جاري التجهيز...' : '🚀 إطلاق صفحة هبوط COD (/drop/...)'}</span>
+                  </button>
+                  <button
+                    onClick={() => onLaunchBusiness(blueprint)}
+                    className="flex-1 sm:flex-initial px-4 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 cursor-pointer"
+                  >
+                    <Rocket className="w-4 h-4" />
+                    <span>أسّس هذا المشروع وأطلق تطبيقه</span>
+                  </button>
+                </div>
               </div>
+              {launchedFunnelUrl && (
+                <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-400/50 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-black text-emerald-200">
+                    ✅ تم إطلاق صفحة البيع الفوري بنجاح: <span className="font-mono text-cyan-200">{launchedFunnelUrl}</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={launchedFunnelUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black font-black text-[11px]"
+                    >
+                      فتح صفحة الطلب COD
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('settlement')}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 text-white font-bold text-[11px] cursor-pointer"
+                    >
+                      لوحة التسوية والموردين
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Market Study & Unit Economics */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -298,9 +402,23 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
                           <b className="text-white">{item.numericPrice} ج.م</b>
                         </div>
                         <div className="p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30">
-                          <span className="text-emerald-200/80 block">صافي ربحك</span>
-                          <b className="text-emerald-300">+{item.netMarginEgp || Math.round((item.numericPrice || 500) * 0.4)} ج.م</b>
+                          <span className="text-emerald-200/80 block">
+                            صافي فعلي ({item.codEconomics?.realNetMarginPct ?? 25}%)
+                          </span>
+                          <b className="text-emerald-300">+{item.codEconomics?.realNetProfitPerDeliveredEgp ?? item.netMarginEgp ?? Math.round((item.numericPrice || 500) * 0.3)} ج.م</b>
                         </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 text-[10px]">
+                        <span className={item.codEconomics?.verdict === 'REJECT_LOW_MARGIN' ? 'text-amber-300 font-bold' : 'text-emerald-300 font-bold'}>
+                          {item.codEconomics?.verdict === 'REJECT_LOW_MARGIN' ? '⚠️ هامش منخفض بعد CPA والمرتجعات' : '✅ منتج رابح (بعد الشحن و20% مرتجع)'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleLaunchCodFunnel(item)}
+                          className="text-cyan-300 hover:underline font-bold cursor-pointer"
+                        >
+                          إنشاء رابط بيع
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -344,6 +462,8 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       </div>
