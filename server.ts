@@ -3174,11 +3174,16 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
           }
 
           // Fallback: delegate directly to T2 Studio's /api/gemini/generateImages
-          const studioBase = (process.env.TITO_STUDIO_URL || "https://studio.t2os.app").replace(/\/+$/, "");
+          const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
+          const studioKey = process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || "";
           try {
               const sRes = await fetch(`${studioBase}/api/gemini/generateImages`, {
                   method: "POST",
-                  headers: { "Content-Type": "application/json", "User-Agent": "aistudio-build" },
+                  headers: {
+                      "Content-Type": "application/json",
+                      "User-Agent": "aistudio-build",
+                      ...(studioKey ? { "x-api-key": studioKey } : {}),
+                  },
                   body: JSON.stringify({ model: "gemini-3.1-flash-lite-image", prompt, config: { aspectRatio } }),
                   signal: AbortSignal.timeout(30000),
               });

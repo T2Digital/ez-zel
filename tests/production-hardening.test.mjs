@@ -362,3 +362,163 @@ test("10) applyCarrierWebhookUpdate updates sub-order & parent order status on O
     saveDropshippingOrders(backup);
   }
 });
+
+test("11) t2-studio studioSecurity enforces fail-closed auth, token redaction, HSTS, and strict CORS", async () => {
+  const {
+    applyStudioCorsAndSecurityHeaders,
+    sanitizeBrandRecord,
+    requireStudioApiAuth,
+  } = await tsImport(pathToFileURL("D:/t2-studio/src/server/studioSecurity.ts").href, import.meta.url);
+
+  const sanitized = sanitizeBrandRecord(
+    {
+      id: "brand_1",
+      name: "T2",
+      metaToken: "EAAG_SECRET_TOKEN",
+      tiktokToken: "TT_SECRET",
+      selectedMetaPage: { id: "page_1", name: "Page", access_token: "PAGE_SECRET" },
+    },
+    false
+  );
+  assert.equal(sanitized.metaToken, undefined);
+  assert.equal(sanitized.tiktokToken, undefined);
+  assert.equal(sanitized.selectedMetaPage.access_token, undefined);
+  assert.equal(sanitized.hasMetaToken, true);
+  assert.equal(sanitized.hasTiktokToken, true);
+
+  const makeRes = () => {
+    const headers = {};
+    return {
+      headers,
+      statusCode: 200,
+      body: null,
+      setHeader(k, v) { headers[k.toLowerCase()] = v; },
+      removeHeader(k) { delete headers[k.toLowerCase()]; },
+      status(c) { this.statusCode = c; return this; },
+      json(b) { this.body = b; return this; },
+      end() { return this; },
+    };
+  };
+
+  // Evil origin preflight blocked with 403 + HSTS header present
+  const resCors = makeRes();
+  applyStudioCorsAndSecurityHeaders(
+    { method: "OPTIONS", path: "/api/brands", headers: { origin: "https://evil.example" } },
+    resCors,
+    () => {}
+  );
+  assert.equal(resCors.statusCode, 403);
+  assert.ok(String(resCors.headers["strict-transport-security"]).includes("max-age=31536000"));
+
+  // Unauthenticated /api/brands blocked with 401
+  const guard = requireStudioApiAuth("fake-firebase-key");
+  const resUnauth = makeRes();
+  let nextUnauth = false;
+  await guard(
+    {
+      originalUrl: "/api/brands",
+      path: "/api/brands",
+      headers: { "x-forwarded-for": "203.0.113.5" },
+      socket: { remoteAddress: "10.0.0.2" },
+    },
+    resUnauth,
+    () => { nextUnauth = true; }
+  );
+  assert.equal(nextUnauth, false);
+  assert.equal(resUnauth.statusCode, 401);
+
+  // Server API key allowed with server_key mode
+  const prevKey = process.env.T2_REMOTE_API_KEY;
+  process.env.T2_REMOTE_API_KEY = "unit-test-studio-key-123";
+  try {
+    const reqAuth = {
+      originalUrl: "/api/brands",
+      path: "/api/brands",
+      headers: { "x-api-key": "unit-test-studio-key-123" },
+      socket: { remoteAddress: "10.0.0.2" },
+    };
+    const resAuth = makeRes();
+    let nextAuth = false;
+    await guard(reqAuth, resAuth, () => { nextAuth = true; });
+    assert.equal(nextAuth, true);
+    assert.equal(reqAuth.studioAuthMode, "server_key");
+  } finally {
+    if (prevKey === undefined) delete process.env.T2_REMOTE_API_KEY;
+    else process.env.T2_REMOTE_API_KEY = prevKey;
+  }
+});
+
+test("12) alGenedyErpRoutes redacts quotes/attendance on public GET and blocks spoofed-Origin writes", async () => {
+  const {
+    loadAlGenedyErpState,
+    saveAlGenedyErpState,
+    registerAlGenedyErpRoutes,
+  } = await importTs(path.join("routes", "alGenedyErpRoutes.ts"));
+
+  const routes = {};
+  const mockApp = {
+    get(p, h) { routes[`GET ${p}`] = h; },
+    post(p, h) { routes[`POST ${p}`] = h; },
+  };
+  registerAlGenedyErpRoutes(mockApp);
+
+  const backup = loadAlGenedyErpState();
+  try {
+    saveAlGenedyErpState({
+      quotes: [{ id: "q_secret", customerName: "عميل سري", customerPhone: "01000000001" }],
+      inventory: [{ id: "inv_1", name: "كلادينج" }],
+      attendance: [{ id: "att_1", employeeId: 101 }],
+    });
+
+    const invoke = async (key, reqOverrides = {}) => {
+      const res = {
+        statusCode: 200,
+        body: null,
+        status(c) { this.statusCode = c; return this; },
+        json(b) { this.body = b; return this; },
+      };
+      await routes[key]({ headers: {}, body: {}, ...reqOverrides }, res);
+      return res;
+    };
+
+    // Unauthenticated GET must return public scope with zero quotes & zero attendance PII
+    const pubGet = await invoke("GET /api/al-genedy/erp-state");
+    assert.equal(pubGet.statusCode, 200);
+    assert.equal(pubGet.body.scope, "public");
+    assert.equal(pubGet.body.state.inventory.length, 1);
+    assert.equal(pubGet.body.state.quotes.length, 0);
+    assert.equal(pubGet.body.state.attendance.length, 0);
+
+    // Spoofed Origin + sec-fetch-site POST without admin token must return 401
+    const spoofPost = await invoke("POST /api/al-genedy/erp-state", {
+      headers: {
+        origin: "https://t2os.app",
+        host: "t2os.app",
+        referer: "https://t2os.app/al-genedy/",
+        "sec-fetch-site": "same-origin",
+      },
+      body: { quotes: [] },
+    });
+    assert.equal(spoofPost.statusCode, 401);
+    assert.equal(spoofPost.body.ok, false);
+
+    // Public quote request validates required fields and appends safely
+    const badPubQuote = await invoke("POST /api/al-genedy/public/quote-request", {
+      body: { customerName: "أحمد" },
+    });
+    assert.equal(badPubQuote.statusCode, 400);
+
+    const goodPubQuote = await invoke("POST /api/al-genedy/public/quote-request", {
+      body: { customerName: "عميل متجر", customerPhone: "01099887755", estimatedTotal: 14500 },
+    });
+    assert.equal(goodPubQuote.statusCode, 201);
+    assert.equal(goodPubQuote.body.ok, true);
+    assert.equal(loadAlGenedyErpState().inventory.length, 1);
+  } finally {
+    saveAlGenedyErpState({
+      quotes: backup.quotes || [],
+      inventory: backup.inventory || [],
+      attendance: backup.attendance || [],
+    });
+  }
+});

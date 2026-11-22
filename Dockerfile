@@ -35,6 +35,7 @@ ENV PORT=3000
 
 # Install minimal runtime libraries (Chromium dependencies if needed for headless execution)
 RUN apk add --no-cache \
+    curl \
     chromium \
     nss \
     freetype \

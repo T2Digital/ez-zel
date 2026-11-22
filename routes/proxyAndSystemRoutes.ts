@@ -654,8 +654,9 @@ export function registerProxyAndSystemRoutes(
   const callTitoStudio = async (endpoint: string, method: "GET" | "POST" | "PATCH" = "GET", body?: any) => {
       const base = getTitoStudioBaseUrl().replace(/\/+$/, "");
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (process.env.TITO_STUDIO_API_KEY) {
-          headers["x-api-key"] = process.env.TITO_STUDIO_API_KEY;
+      const studioKey = process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY;
+      if (studioKey) {
+          headers["x-api-key"] = studioKey;
       }
       const resp = await fetch(`${base}${endpoint}`, {
           method,
