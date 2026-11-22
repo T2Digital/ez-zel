@@ -298,12 +298,29 @@ export const titoStudioApi = {
     studioRequest("POST", "/api/v1/ui/command", { command, view, clinicId, payload }),
   buildStudioEmbedUrl: (view: string, clinicId: string, apiKey?: string) => {
     const base = getTitoStudioBaseUrl();
+    const norm = String(clinicId || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+    const aliasMap: Record<string, string> = {
+      titomedia: "brand_1779847291377",
+      t2media: "brand_1779847291377",
+      t2studio: "brand_1779847291377",
+      t2digitalos: "brand_1779847291377",
+      cleanmaster: "brand_1788540631941",
+      autohouse: "brand_1794892093806",
+      alkhedr: "brand_1785774967683",
+      kyan: "brand_1782148514207",
+      albaraka: "brand_1780863827841",
+      skyvip: "brand_1780593467882",
+      fazaa: "brand_1783239457203",
+      almeshwar: "brand_1789888817820",
+      cryptobelarabi: "brand_1779846650608",
+    };
+    const safeClinicId = aliasMap[norm] || (clinicId && clinicId !== "1" ? clinicId : "brand_1779847291377");
     const qs = new URLSearchParams({
       embed: "1",
       view: view || "calendar",
       hideSidebar: "1",
       hideHeader: "1",
-      clinicId: clinicId || "1",
+      clinicId: safeClinicId,
     });
     const resolvedKey = (apiKey || process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || "").trim();
     if (resolvedKey) qs.set("apiKey", resolvedKey);

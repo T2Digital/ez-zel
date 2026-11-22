@@ -44,6 +44,87 @@ export interface JarvisBrainOutput {
 }
 
 /**
+ * Maps internal ez-zel brand IDs/slugs/names to their real Tito Studio Firestore clinic document ID
+ * so that phantom documents like `tito_media` (name: undefined) or fallback `"1"` (الشموخ) are never selected.
+ */
+export function resolveRealStudioClinicFromList(
+  liveList: any[],
+  brandId?: string,
+  targetBrand?: any,
+  message?: string,
+  explicitArg?: string
+): { clinicId: string; matchedBrand: any } {
+  const norm = (s: any) => String(s || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  const STUDIO_ALIAS_MAP: Record<string, string> = {
+    titomedia: "brand_1779847291377",
+    t2media: "brand_1779847291377",
+    t2studio: "brand_1779847291377",
+    t2digitalos: "brand_1779847291377",
+    cleanmaster: "brand_1788540631941",
+    autohouse: "brand_1794892093806",
+    alkhedr: "brand_1785774967683",
+    kyan: "brand_1782148514207",
+    albaraka: "brand_1780863827841",
+    skyvip: "brand_1780593467882",
+    fazaa: "brand_1783239457203",
+    almeshwar: "brand_1789888817820",
+    cryptobelarabi: "brand_1779846650608",
+  };
+
+  const validList = (Array.isArray(liveList) ? liveList : []).filter(
+    (sb: any) => sb && sb.id && sb.name && String(sb.name) !== "undefined"
+  );
+
+  const candidates = [explicitArg, brandId, targetBrand?.id, targetBrand?.slug, targetBrand?.name].filter(Boolean);
+  for (const c of candidates) {
+    const k = norm(c);
+    const aliasTarget = STUDIO_ALIAS_MAP[k];
+    if (aliasTarget) {
+      const found = validList.find((sb: any) => String(sb.id) === aliasTarget);
+      if (found) return { clinicId: String(found.id), matchedBrand: found };
+      return { clinicId: aliasTarget, matchedBrand: null };
+    }
+  }
+
+  const msgLower = String(message || "").toLowerCase();
+  if (/تيتو\s*ميديا|tito\s*media|t2\s*media/i.test(msgLower)) {
+    const found = validList.find((sb: any) => String(sb.id) === "brand_1779847291377");
+    return { clinicId: "brand_1779847291377", matchedBrand: found || null };
+  }
+
+  const needle = String(explicitArg || targetBrand?.name || brandId || message || "").toLowerCase();
+  // Prefer brands that actually have a connected Meta page or genuine name match
+  const matched =
+    validList.find(
+      (sb: any) =>
+        sb.selectedMetaPage?.id &&
+        (String(sb.id).toLowerCase() === String(brandId || "").toLowerCase() ||
+          (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
+          (sb.englishName && needle.includes(String(sb.englishName).toLowerCase())) ||
+          (targetBrand?.name &&
+            (String(sb.name || "").includes(targetBrand.name) || targetBrand.name.includes(String(sb.name || "")))))
+    ) ||
+    validList.find(
+      (sb: any) =>
+        String(sb.id).toLowerCase() === String(brandId || "").toLowerCase() ||
+        (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
+        (sb.englishName && needle.includes(String(sb.englishName).toLowerCase())) ||
+        (targetBrand?.name &&
+          (String(sb.name || "").includes(targetBrand.name) || targetBrand.name.includes(String(sb.name || ""))))
+    );
+
+  if (matched?.id) {
+    return { clinicId: String(matched.id), matchedBrand: matched };
+  }
+
+  const defaultTito = validList.find((sb: any) => String(sb.id) === "brand_1779847291377");
+  return {
+    clinicId: defaultTito ? String(defaultTito.id) : String(brandId && brandId !== "tito_media" ? brandId : "brand_1779847291377"),
+    matchedBrand: defaultTito || null,
+  };
+}
+
+/**
  * Dynamically resolves any brand across the entire unified ecosystem (Tito Studio, Tito Agent, PWA Cloner, Obsidian Vault)
  * by ID, slug, exact name, partial Arabic/English name, or businessType keywords.
  */
@@ -1171,19 +1252,14 @@ ${conversationMemoryDirective}`;
           `أقوى خدمات وعروض ${targetBrand.name} (${targetBrand.businessType || "خدمات احترافية"})`;
 
         // Resolve real Tito Studio clinicId + connected platforms (e.g. brand_1779847291377 for تيتو ميديا)
-        let studioClinicId = String(brandId || "1");
+        let studioClinicId = String(brandId && brandId !== "tito_media" ? brandId : "brand_1779847291377");
         let matchedStudioBrand: any = null;
         try {
           const liveBrandsRes: any = await titoStudioApi.listBrands();
           const liveList = Array.isArray(liveBrandsRes?.brands) ? liveBrandsRes.brands : Array.isArray(liveBrandsRes) ? liveBrandsRes : [];
-          const needle = String(targetBrand?.name || brandId || message || "").toLowerCase();
-          matchedStudioBrand = liveList.find((sb: any) =>
-            String(sb.id).toLowerCase() === String(brandId || "").toLowerCase() ||
-            (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
-            (sb.nameAr && needle.includes(String(sb.nameAr).toLowerCase())) ||
-            (targetBrand?.name && (String(sb.name || "").includes(targetBrand.name) || targetBrand.name.includes(String(sb.name || ""))))
-          );
-          if (matchedStudioBrand?.id) studioClinicId = String(matchedStudioBrand.id);
+          const resolvedStudio = resolveRealStudioClinicFromList(liveList, brandId, targetBrand, message, args.brandNameOrId);
+          studioClinicId = resolvedStudio.clinicId;
+          matchedStudioBrand = resolvedStudio.matchedBrand;
         } catch {}
 
         const resolveConnectedPlatforms = (brandObj: any, isVideo: boolean): string[] => {
@@ -1331,6 +1407,8 @@ ${conversationMemoryDirective}`;
             try {
               const studioDesignRes: any = await titoStudioApi.executeRemoteAction("content.generate_design", studioClinicId, {
                 topic: dynamicTopic,
+                hook: customHook,
+                caption: customCaption || dynamicTopic,
                 platforms: resolveConnectedPlatforms(matchedStudioBrand, false),
                 saveToCalendar: false,
                 sendToShowroom: false,
@@ -2147,25 +2225,18 @@ ${conversationMemoryDirective}`;
 
           // Resolve exact clinicId from live Tito Studio /api/brands
           // Strict client isolation: non-admin users are locked to their own brandId/targetBrand only
-          let clinicId = String(brandId || "1");
+          let clinicId = String(brandId && brandId !== "tito_media" ? brandId : "brand_1779847291377");
           try {
             const liveBrandsRes: any = await titoStudioApi.listBrands();
             const liveList = Array.isArray(liveBrandsRes?.brands) ? liveBrandsRes.brands : Array.isArray(liveBrandsRes) ? liveBrandsRes : [];
-            const needle = persona === "tito"
-              ? String(args.brandNameOrId || targetBrand?.name || message || "").toLowerCase()
-              : String(brandId || targetBrand?.name || "").toLowerCase();
-            const matchedStudio = liveList.find((sb: any) =>
-              String(sb.id).toLowerCase() === String(brandId || "").toLowerCase() ||
-              (persona === "tito" && (
-                String(sb.id).toLowerCase() === needle ||
-                (sb.name && needle.includes(String(sb.name).toLowerCase())) ||
-                (sb.nameAr && needle.includes(String(sb.nameAr).toLowerCase()))
-              )) ||
-              (targetBrand?.name && (String(sb.name || "").includes(targetBrand.name) || targetBrand.name.includes(String(sb.name || ""))))
+            const resolvedStudio = resolveRealStudioClinicFromList(
+              liveList,
+              brandId,
+              targetBrand,
+              persona === "tito" ? message : "",
+              persona === "tito" ? args.brandNameOrId : undefined
             );
-            if (matchedStudio?.id) {
-              clinicId = String(matchedStudio.id);
-            }
+            clinicId = resolvedStudio.clinicId;
           } catch {}
 
           let parsedPayload: Record<string, any> = {};
@@ -2193,8 +2264,9 @@ ${conversationMemoryDirective}`;
             result: remoteRes,
           };
         } catch (err: any) {
+          const fallbackClinicId = String(brandId && brandId !== "tito_media" ? brandId : "brand_1779847291377");
           const fallbackEmbedView = String(args.embedView || "generator").trim();
-          const fallbackEmbedUrl = titoStudioApi.buildStudioEmbedUrl(fallbackEmbedView, String(brandId || "1"));
+          const fallbackEmbedUrl = titoStudioApi.buildStudioEmbedUrl(fallbackEmbedView, fallbackClinicId);
           backendExecutionResult = {
             success: false,
             embedUrl: fallbackEmbedUrl,
@@ -2203,7 +2275,7 @@ ${conversationMemoryDirective}`;
           executedAction = {
             type: "STUDIO_EMBED_VIEW",
             view: fallbackEmbedView,
-            clinicId: String(brandId || "1"),
+            clinicId: fallbackClinicId,
             embedUrl: fallbackEmbedUrl,
             actionExecuted: String(args.action || "ui.navigate"),
           };
