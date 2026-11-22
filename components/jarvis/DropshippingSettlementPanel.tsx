@@ -81,7 +81,7 @@ export const DropshippingSettlementPanel: React.FC = () => {
   };
 
   const copyFunnelUrl = (slug: string) => {
-    const url = `${window.location.origin}/drop/${slug}`;
+    const url = `${window.location.origin}/shop/${slug}`;
     navigator.clipboard?.writeText(url).catch(() => {});
     setCopiedSlug(slug);
     setTimeout(() => setCopiedSlug(null), 2000);
@@ -155,32 +155,42 @@ export const DropshippingSettlementPanel: React.FC = () => {
 
       {/* Active One-Page COD Funnels */}
       <div className="p-3.5 rounded-2xl bg-[#070d20] border border-white/10 space-y-2.5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h4 className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
             <Package className="w-4 h-4" />
-            صفحات الهبوط السريعة النشطة (One-Page COD Funnels)
+            المتاجر الذكية العاملة بمحرك Battah الرسمي (Dropshipping Multi-Supplier)
           </h4>
           <span className="text-[10px] text-white/50">
-            {summary?.bostaConfigured ? '🚚 Bosta API: متصل لايف' : '💬 وضع التوريد المباشر: WhatsApp + طلبات حية'}
+            {summary?.bostaConfigured || summary?.otoConfigured || summary?.cjConfigured
+              ? `🚚 بوابة الشحن: ${[summary?.bostaConfigured && 'Bosta', summary?.otoConfigured && 'OTO/Aramex', summary?.cjConfigured && 'CJ Auto'].filter(Boolean).join(' + ')}`
+              : '💬 التوريد متعدد الشركات: Bosta / OTO / Aramex / CJ / WhatsApp Zero-Price'}
           </span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {funnels.map((f) => (
             <div key={f.slug} className="p-3 rounded-xl bg-black/50 border border-white/10 flex flex-col justify-between gap-2">
               <div>
-                <div className="text-xs font-black text-white">{f.productName}</div>
-                <div className="text-[10px] text-white/55">{f.brandName} • المورد: {f.supplierName}</div>
-                <div className="text-[11px] font-mono text-emerald-300 mt-1">/drop/{f.slug}</div>
+                <div className="text-xs font-black text-white">{f.brandName}</div>
+                <div className="text-[10px] text-white/55">{f.productName} • {Array.isArray(f.products) ? `${f.products.length} منتجات نشطة` : f.supplierName}</div>
+                <div className="text-[11px] font-mono text-emerald-300 mt-1">/shop/{f.slug}</div>
               </div>
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-1.5 pt-1 flex-wrap">
                 <a
-                  href={`/drop/${encodeURIComponent(f.slug)}`}
+                  href={`/shop/${encodeURIComponent(f.slug)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 text-[11px] font-bold flex items-center justify-center gap-1"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>فتح صفحة البيع</span>
+                  <span>فتح المتجر</span>
+                </a>
+                <a
+                  href={`/shop/${encodeURIComponent(f.slug)}?admin=dropshipping`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 text-[11px] font-bold flex items-center gap-1"
+                >
+                  <span>لوحة الموردين والشحن</span>
                 </a>
                 <button
                   type="button"
@@ -241,6 +251,11 @@ export const DropshippingSettlementPanel: React.FC = () => {
                     <span className="font-mono text-xs font-black text-cyan-300">{ord.refCode}</span>
                     {statusBadge(ord.status)}
                     <span className="text-[11px] text-white/60">{ord.governorate}</span>
+                    {Array.isArray(ord.subOrders) && ord.subOrders.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/40">
+                        Split × {ord.subOrders.length} ({ord.subOrders.map((s: any) => String(s.carrierProvider || 'bosta').toUpperCase()).join(' / ')})
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs font-bold text-white">
                     {ord.customerName} ({ord.customerPhone}) — {ord.productName} × {ord.qty}

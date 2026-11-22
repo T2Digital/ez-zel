@@ -231,3 +231,134 @@ test("7) khedr-bot corsMiddleware allows https://t2os.app with credentials and b
   corsMiddleware({ method: "OPTIONS", headers: { origin: "https://evil-attacker.example" } }, resEvilOpt, () => {});
   assert.equal(resEvilOpt.statusCode, 403);
 });
+
+test("8) loadDropshippingFunnels strictly excludes Al-Genedy and loads multi-supplier commercial stores", async () => {
+  const { loadDropshippingFunnels } = await importTs(path.join("services", "dropshippingEngineService.ts"));
+  const funnels = loadDropshippingFunnels();
+
+  assert.ok(funnels.length >= 2);
+  assert.equal(
+    funnels.some((f) => String(f.slug).includes("algenedy") || f.agentBrandId === "al_genedy"),
+    false
+  );
+  const captainCar = funnels.find((f) => f.slug === "captaincar-eg");
+  assert.ok(captainCar);
+  assert.ok(Array.isArray(captainCar.products) && captainCar.products.length >= 3);
+  const providers = new Set(captainCar.products.map((p) => p.supplierProvider));
+  assert.ok(providers.has("taager"));
+  assert.ok(providers.has("cj"));
+});
+
+test("9) buildSplitSubOrders splits multi-supplier cart and hides selling price in supplier dispatch", async () => {
+  const {
+    loadDropshippingFunnels,
+    buildSplitSubOrders,
+    buildZeroPriceSubOrderDispatchText,
+  } = await importTs(path.join("services", "dropshippingEngineService.ts"));
+
+  const store = loadDropshippingFunnels().find((f) => f.slug === "captaincar-eg");
+  const taagerItem = store.products.find((p) => p.supplierProvider === "taager");
+  const cjItem = store.products.find((p) => p.supplierProvider === "cj");
+
+  const split = buildSplitSubOrders({
+    refCode: "DRP-SPLIT-100",
+    store,
+    shippingFeeEgp: 60,
+    items: [
+      { productId: taagerItem.id, productName: taagerItem.name, qty: 1, unitPriceEgp: taagerItem.sellingPriceEgp },
+      { productId: cjItem.id, productName: cjItem.name, qty: 2, unitPriceEgp: cjItem.sellingPriceEgp },
+    ],
+  });
+
+  assert.equal(split.subOrders.length, 2);
+  const bostaSub = split.subOrders.find((s) => s.supplierProvider === "taager");
+  const cjSub = split.subOrders.find((s) => s.supplierProvider === "cj");
+  assert.equal(bostaSub.carrierProvider, "bosta");
+  assert.equal(cjSub.carrierProvider, "cj_auto");
+
+  const zeroPriceText = buildZeroPriceSubOrderDispatchText(
+    {
+      refCode: "DRP-SPLIT-100",
+      customerName: "سعيد عبد الله",
+      customerPhone: "01011223344",
+      governorate: "القاهرة",
+      address: "المعادي شارع 9",
+    },
+    cjSub
+  );
+
+  assert.ok(zeroPriceText.includes("DRP-SPLIT-100"));
+  assert.ok(zeroPriceText.includes(cjItem.sku));
+  assert.equal(zeroPriceText.includes(String(cjItem.sellingPriceEgp)), false);
+  assert.equal(zeroPriceText.includes(String(cjSub.codCollectionEgp)), false);
+});
+
+test("10) applyCarrierWebhookUpdate updates sub-order & parent order status on OTO/CJ/Bosta webhook", async () => {
+  const {
+    loadDropshippingOrders,
+    saveDropshippingOrders,
+    applyCarrierWebhookUpdate,
+  } = await importTs(path.join("services", "dropshippingEngineService.ts"));
+
+  const backup = loadDropshippingOrders();
+  try {
+    saveDropshippingOrders([
+      {
+        id: "drp_test_wh_1",
+        refCode: "DRP-WH-1",
+        funnelSlug: "captaincar-eg",
+        brandName: "CaptainCar EG",
+        agentBrandId: "tito_media",
+        productName: "Multi Test",
+        qty: 2,
+        bundleLabel: "2",
+        sellingPriceEgp: 1480,
+        shippingFeeEgp: 60,
+        totalCodEgp: 1540,
+        supplierCostTotalEgp: 605,
+        adSpendEgp: 85,
+        netProfitEgp: 790,
+        customerName: "عميل ويب هوك",
+        customerPhone: "01055566677",
+        governorate: "الجيزة",
+        address: "الدقي",
+        supplierWhatsapp: "01013372674",
+        status: "dispatched_to_supplier",
+        whatsappConfirmed: true,
+        subOrders: [
+          {
+            subOrderId: "DRP-WH-1-S1",
+            supplierProvider: "knawat",
+            supplierId: "knawat-dxb-01",
+            supplierName: "Knawat",
+            supplierWhatsapp: "01013372674",
+            warehouseRegion: "Dubai",
+            items: [],
+            supplierCostTotalEgp: 605,
+            codCollectionEgp: 1540,
+            carrierProvider: "oto",
+            trackingNumber: "OTO-998877",
+            status: "dispatched_to_supplier",
+          },
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    const res = applyCarrierWebhookUpdate({
+      carrier: "oto",
+      trackingNumber: "OTO-998877",
+      rawState: "delivered",
+    });
+
+    assert.equal(res.matched, true);
+    assert.equal(res.status, "delivered");
+    const after = loadDropshippingOrders()[0];
+    assert.equal(after.status, "delivered");
+    assert.equal(after.subOrders[0].status, "delivered");
+    assert.ok(after.subOrders[0].trackingUrl.includes("OTO-998877"));
+  } finally {
+    saveDropshippingOrders(backup);
+  }
+});

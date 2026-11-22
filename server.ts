@@ -4668,6 +4668,18 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       });
   }
 
+  // --- INTEGRATED APP MOUNT: OFFICIAL SOVEREIGN MULTI-TENANT DROPSHIPPING STORE ENGINE (BATTAH) ---
+  const shopDistPath = fs.existsSync(path.join(process.cwd(), 'dist', 'shop'))
+      ? path.join(process.cwd(), 'dist', 'shop')
+      : path.join(process.cwd(), 'public', 'shop');
+  if (fs.existsSync(shopDistPath)) {
+      app.use('/shop', express.static(shopDistPath));
+      app.get(['/shop', '/shop/*all', '/drop', '/drop/*all'], (_req, res) => {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          res.sendFile(path.join(shopDistPath, 'index.html'));
+      });
+  }
+
   // --- VITE MIDDLEWARE (Mounted after all API routes) --- //
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -1,309 +1,291 @@
 import type { Express, Request, Response } from "express";
 import {
+  applyCarrierWebhookUpdate,
+  buildCarrierTrackingUrl,
+  buildSplitSubOrders,
+  buildZeroPriceSubOrderDispatchText,
   buildZeroPriceSupplierDispatchText,
   calculateCodProfitability,
   computeCodSettlementSummary,
   dispatchOrderToBosta,
+  dispatchSubOrderShipment,
   formatEgyptWhatsappIntl,
+  getMaskedProvidersConfig,
+  getSupplierProviderLabel,
+  importProductsIntoStore,
   loadDropshippingFunnels,
   loadDropshippingOrders,
   saveDropshippingOrders,
+  saveDropshippingProvidersConfig,
+  searchSupplierCatalog,
   upsertDropshippingFunnel,
+  type CarrierProvider,
   type DropshippingFunnel,
   type DropshippingOrder,
   type DropshippingOrderStatus,
+  type SupplierProvider,
 } from "../services/dropshippingEngineService";
 import { recordLiveEvent } from "../services/liveTelemetryService";
 import { t2AgentApi } from "../services/t2AgentApiClient";
 import { verifyAdminRequest } from "../services/serverAdminAuth";
+import { verifyTenantToken } from "./tenantErpRoutes";
 
-function escapeHtml(s: any): string {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function isLocalDevRequest(req: Request): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  const host = String(req.headers.host || "");
+  return /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
 }
 
-function isSameOriginOrLocal(req: Request): boolean {
-  const fetchSite = String(req.headers["sec-fetch-site"] || "");
-  if (fetchSite === "same-origin") return true;
-  const host = String(req.headers.host || "");
-  const origin = String(req.headers.origin || "");
-  const referer = String(req.headers.referer || "");
-  if (host && (origin.includes(host) || referer.includes(host))) return true;
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(origin || referer)) return true;
+async function authorizeDropshippingAdmin(req: Request): Promise<boolean> {
+  const adminCheck = await verifyAdminRequest(req).catch(() => ({ ok: false }));
+  if (adminCheck.ok) return true;
+  const authHeader = String(req.headers.authorization || "");
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (bearer && verifyTenantToken(bearer)) return true;
+  if (isLocalDevRequest(req)) return true;
   return false;
 }
 
-const EGYPT_GOVS = [
-  "القاهرة",
-  "الجيزة",
-  "الإسكندرية",
-  "القليوبية",
-  "الدقهلية",
-  "الشرقية",
-  "الغربية",
-  "المنوفية",
-  "البحيرة",
-  "الفيوم",
-  "بني سويف",
-  "المنيا",
-  "أسيوط",
-  "سوهاج",
-  "قنا",
-  "أسوان",
-  "الأقصر",
-  "الإسماعيلية",
-  "السويس",
-  "بورسعيد",
-  "دمياط",
-  "كفر الشيخ",
-  "البحر الأحمر",
-  "مطروح",
-];
-
-function renderCodFunnelHtml(funnel: DropshippingFunnel): string {
-  const tierCards = funnel.tiers
-    .map(
-      (tier, i) => `
-      <label class="tier-card ${i === 1 ? "active" : ""}" data-qty="${tier.qty}">
-        <input type="radio" name="qty" value="${tier.qty}" ${i === 1 ? "checked" : ""} />
-        <div class="tier-top">
-          <div>
-            <div class="tier-title">${escapeHtml(tier.label)}</div>
-            <div class="tier-ship">${tier.freeShipping ? "✅ شحن مجاني لباب البيت" : `+ ${funnel.shippingCostEgp} ج.م مصاريف شحن`}</div>
-          </div>
-          <div class="tier-right">
-            ${tier.badge ? `<span class="badge">${escapeHtml(tier.badge)}</span>` : ""}
-            <div class="price">${tier.sellingPriceEgp.toLocaleString("ar-EG")} ج.م</div>
-          </div>
-        </div>
-      </label>`
-    )
-    .join("");
-
-  const highlightsHtml = (funnel.highlights || [])
-    .map((h) => `<li><span>✓</span> ${escapeHtml(h)}</li>`)
-    .join("");
-
-  const govOptions = EGYPT_GOVS.map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
-
-  return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(funnel.productName)} | ${escapeHtml(funnel.brandName)}</title>
-  <meta name="description" content="${escapeHtml(funnel.tagline)}" />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <style>
-    * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
-    body { margin: 0; background: #070b14; color: #f8fafc; line-height: 1.5; }
-    .wrap { max-width: 720px; margin: 0 auto; padding: 16px 14px 56px; }
-    .topbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 16px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); margin-bottom: 14px; font-size: 13px; font-weight: 800; }
-    .hero { background: linear-gradient(145deg, #0f172a, #090e1c); border: 1px solid rgba(56,189,248,0.28); border-radius: 22px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.45); }
-    .hero-img { width: 100%; max-height: 280px; object-fit: cover; display: block; background: #111827; }
-    .hero-body { padding: 18px; }
-    .pill { display: inline-block; padding: 4px 12px; border-radius: 999px; background: rgba(245,158,11,0.18); border: 1px solid rgba(245,158,11,0.45); color: #fcd34d; font-size: 11px; font-weight: 800; margin-bottom: 8px; }
-    h1 { margin: 0 0 6px; font-size: 22px; font-weight: 900; color: #ffffff; }
-    .sub { margin: 0 0 12px; font-size: 13px; color: #94a3b8; }
-    ul.bullets { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 13px; }
-    ul.bullets li span { color: #10b981; font-weight: 900; margin-left: 6px; }
-    .card { background: #0f172a; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 18px; margin-bottom: 16px; }
-    .sec-title { font-size: 15px; font-weight: 900; margin: 0 0 12px; color: #38bdf8; }
-    .tiers { display: grid; gap: 10px; }
-    .tier-card { display: block; padding: 13px 14px; border-radius: 14px; border: 2px solid rgba(255,255,255,0.12); background: rgba(2,6,23,0.65); cursor: pointer; transition: 0.15s; }
-    .tier-card.active { border-color: #10b981; background: rgba(16,185,129,0.12); box-shadow: 0 0 24px rgba(16,185,129,0.18); }
-    .tier-card input { display: none; }
-    .tier-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-    .tier-title { font-weight: 900; font-size: 14px; color: #fff; }
-    .tier-ship { font-size: 11px; color: #34d399; font-weight: 700; margin-top: 2px; }
-    .tier-right { text-align: left; }
-    .badge { display: inline-block; background: #f59e0b; color: #000; font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 999px; margin-bottom: 3px; }
-    .price { font-size: 17px; font-weight: 900; color: #fde047; }
-    .field { margin-bottom: 11px; }
-    label.lbl { display: block; font-size: 12px; font-weight: 800; color: #cbd5e1; margin-bottom: 4px; }
-    input, select, textarea { width: 100%; padding: 11px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.16); background: #020617; color: #ffffff; font-size: 14px; }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: #10b981; }
-    .summary-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 12px; background: rgba(2,6,23,0.85); border: 1px dashed rgba(16,185,129,0.5); margin: 12px 0; font-size: 14px; font-weight: 900; }
-    .btn { width: 100%; padding: 14px; border: 0; border-radius: 14px; background: linear-gradient(90deg, #10b981, #059669); color: #022c22; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 10px 30px rgba(16,185,129,0.3); }
-    .btn:disabled { opacity: 0.6; cursor: wait; }
-    .success-box { display: none; background: rgba(16,185,129,0.12); border: 2px solid #10b981; border-radius: 18px; padding: 18px; text-align: center; }
-    .wa-btn { display: inline-block; margin-top: 12px; padding: 11px 18px; border-radius: 12px; background: #22c55e; color: #022c22; text-decoration: none; font-weight: 900; font-size: 14px; }
-    .err { color: #fb7185; font-size: 13px; font-weight: 800; margin-top: 8px; display: none; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="topbar">
-      <span>🔥 ${escapeHtml(funnel.brandName)}</span>
-      <span>🚚 الدفع عند الاستلام + معاينة قبل الدفع</span>
-    </div>
-
-    <div class="hero">
-      ${funnel.heroImageUrl ? `<img class="hero-img" src="${escapeHtml(funnel.heroImageUrl)}" alt="${escapeHtml(funnel.productName)}" />` : ""}
-      <div class="hero-body">
-        <span class="pill">⚡ عرض حصري حتى نفاد الكمية</span>
-        <h1>${escapeHtml(funnel.productName)}</h1>
-        <p class="sub">${escapeHtml(funnel.tagline)}</p>
-        <ul class="bullets">${highlightsHtml}</ul>
-      </div>
-    </div>
-
-    <form id="codForm" class="card">
-      <h2 class="sec-title">1. اختر العرض والكمية المناسبة (الأكثر توفيراً: قطعتين)</h2>
-      <div class="tiers" id="tiersContainer">${tierCards}</div>
-
-      <h2 class="sec-title" style="margin-top: 18px;">2. بيانات التوصيل السريع (بدون تسجيل حساب)</h2>
-      <div class="field">
-        <label class="lbl">الاسم بالكامل *</label>
-        <input type="text" name="customerName" required placeholder="مثال: أحمد محمود" />
-      </div>
-      <div class="field">
-        <label class="lbl">رقم الموبايل (عليه واتساب لتأكيد الأوردر) *</label>
-        <input type="tel" name="customerPhone" required dir="ltr" placeholder="01012345678" />
-      </div>
-      <div class="field">
-        <label class="lbl">المحافظة *</label>
-        <select name="governorate" required>${govOptions}</select>
-      </div>
-      <div class="field">
-        <label class="lbl">العنوان بالتفصيل (الحي / الشارع / أقرب علامة مميزة) *</label>
-        <textarea name="address" rows="2" required placeholder="مدينة نصر - شارع عباس العقاد - عمارة 14"></textarea>
-      </div>
-
-      <div class="summary-bar">
-        <span>الإجمالي المستحق عند الاستلام:</span>
-        <span id="codTotalText" style="color:#fde047;">-- ج.م</span>
-      </div>
-
-      <button type="submit" id="submitBtn" class="btn">✅ اطلب الآن — الدفع عند الاستلام</button>
-      <div id="errBox" class="err"></div>
-    </form>
-
-    <div id="successBox" class="success-box">
-      <div style="font-size:28px;">🎉</div>
-      <h2 style="margin:6px 0;color:#34d399;">تم استلام طلبك بنجاح!</h2>
-      <p id="orderSummaryText" style="font-size:13px;color:#e2e8f0;"></p>
-      <a id="waConfirmLink" class="wa-btn" target="_blank" rel="noopener">💬 تأكيد الطلب فوراً على واتساب (واحصل على خصم 30% للقطعة الإضافية)</a>
-    </div>
-  </div>
-
-  <script>
-    (function () {
-      const tiers = ${JSON.stringify(funnel.tiers)};
-      const shippingBase = ${Number(funnel.shippingCostEgp || 65)};
-      const slug = ${JSON.stringify(funnel.slug)};
-      const totalEl = document.getElementById('codTotalText');
-      const form = document.getElementById('codForm');
-      const errBox = document.getElementById('errBox');
-      const btn = document.getElementById('submitBtn');
-      const successBox = document.getElementById('successBox');
-
-      function updateTotal() {
-        const checked = document.querySelector('input[name="qty"]:checked');
-        const q = Number(checked ? checked.value : 2);
-        const tier = tiers.find(t => t.qty === q) || tiers[0];
-        document.querySelectorAll('.tier-card').forEach(el => {
-          el.classList.toggle('active', Number(el.dataset.qty) === q);
-        });
-        const ship = tier.freeShipping ? 0 : shippingBase;
-        totalEl.textContent = (tier.sellingPriceEgp + ship).toLocaleString('ar-EG') + ' ج.م';
-      }
-
-      document.querySelectorAll('input[name="qty"]').forEach(r => r.addEventListener('change', updateTotal));
-      updateTotal();
-
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        errBox.style.display = 'none';
-        btn.disabled = true;
-        btn.textContent = 'جاري تسجيل الطلب وتأكيده...';
-        try {
-          const fd = new FormData(form);
-          const resp = await fetch('/api/dropshipping/public/' + encodeURIComponent(slug) + '/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              qty: Number(fd.get('qty') || 2),
-              customerName: fd.get('customerName'),
-              customerPhone: fd.get('customerPhone'),
-              governorate: fd.get('governorate'),
-              address: fd.get('address'),
-            })
-          });
-          const data = await resp.json();
-          if (!resp.ok || !data.ok) throw new Error(data.error || 'تعذر تسجيل الطلب');
-          form.style.display = 'none';
-          successBox.style.display = 'block';
-          document.getElementById('orderSummaryText').textContent =
-            'رقم الطلب المرجعي: ' + data.order.refCode + ' — الإجمالي عند الاستلام: ' + data.order.totalCodEgp + ' ج.م. يتواصل معك تيتو أجنت على واتساب لتأكيد موعد المندوب.';
-          document.getElementById('waConfirmLink').href = data.whatsappConfirmUrl;
-        } catch (err) {
-          errBox.textContent = err.message || 'حدث خطأ، حاول مرة أخرى';
-          errBox.style.display = 'block';
-          btn.disabled = false;
-          btn.textContent = '✅ اطلب الآن — الدفع عند الاستلام';
-        }
-      });
-    })();
-  </script>
-</body>
-</html>`;
-}
-
 export function registerDropshippingRoutes(app: Express): void {
-  // 1) High-Converting Mobile-First One-Page COD Landing Funnel
-  app.get("/drop/:slug", (req: Request, res: Response) => {
+  // 1) Public Battah Storefront Bootstrap API for Dropshipping Stores (sanitized — NO wholesale costs or private keys leaked)
+  app.get("/api/dropshipping/public/:slug/storefront", (req: Request, res: Response) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
     const slug = String(req.params.slug || "").trim().toLowerCase();
-    const funnels = loadDropshippingFunnels();
-    const funnel = funnels.find((f) => f.slug.toLowerCase() === slug) || funnels[0];
-    if (!funnel) {
-      return res.status(404).send("<h2 dir='rtl'>صفحة العرض غير متوفرة</h2>");
+    if (!slug || slug.includes("algenedy") || slug === "al_genedy" || slug === "al-genedy") {
+      return res.status(404).json({ ok: false, error: "Dropshipping storefront not found" });
     }
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.send(renderCodFunnelHtml(funnel));
+
+    const funnels = loadDropshippingFunnels();
+    const store = funnels.find((f) => f.slug.toLowerCase() === slug);
+    if (!store) {
+      return res.status(404).json({ ok: false, error: "Storefront not registered in dropshipping hub" });
+    }
+
+    const safeProducts = (Array.isArray(store.products) ? store.products : []).map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      category: p.category,
+      mainCategory: p.mainCategory || p.category,
+      subCategory: p.subCategory || p.category,
+      brand: p.brand || store.brandName,
+      description: p.description,
+      imageUrl: p.imageUrl,
+      images: p.images && p.images.length > 0 ? p.images : [p.imageUrl],
+      numericPrice: p.sellingPriceEgp,
+      sellingPrice: p.sellingPriceEgp,
+      originalPrice: p.originalPriceEgp,
+      discount: p.discount,
+      isNew: p.isNew,
+      rating: p.rating,
+      variants: p.variants,
+      fulfillmentType: p.fulfillmentType || "dropshipping",
+      supplierProvider: p.supplierProvider,
+      supplierId: p.supplierId,
+      supplierName: p.supplierName || getSupplierProviderLabel(p.supplierProvider),
+      warehouseRegion: p.warehouseRegion,
+      estimatedDeliveryDays: p.estimatedDeliveryDays,
+      expressCodTiers: p.expressCodTiers || store.tiers,
+    }));
+
+    const categories = Array.from(new Set(safeProducts.map((p) => p.mainCategory || p.category).filter(Boolean)));
+    const safePhone = store.storeTheme?.phone || "01013372674";
+
+    return res.json({
+      ok: true,
+      store: {
+        slug: store.slug,
+        brandName: store.brandName,
+        agentBrandId: store.agentBrandId,
+        tagline: store.tagline,
+        heroImageUrl: store.heroImageUrl,
+        shippingCostEgp: store.shippingCostEgp,
+        highlights: store.highlights,
+        tiers: store.tiers,
+        shippingZones: store.shippingZones || [],
+      },
+      brand: {
+        id: store.slug,
+        slug: store.slug,
+        name: store.brandName,
+        slogan: store.storeTheme?.slogan || store.tagline,
+        logoUrl: store.heroImageUrl,
+        primaryColor: store.storeTheme?.primaryColor || "#0284c7",
+        accentColor: store.storeTheme?.accentColor || "#0f172a",
+        phone: safePhone,
+        whatsapp: store.storeTheme?.whatsapp || safePhone,
+        businessType: "تجارة إلكترونية ودروبشيبنج",
+        appAccessMode: "full_app",
+        productsCatalog: safeProducts,
+        appCustomization: {
+          mainCategories: categories,
+          storefrontFilters: {
+            showSearch: true,
+            showCategoryFilter: true,
+            showSubCategoryFilter: false,
+            showBrandFilter: true,
+            brandFilterLabel: "المورد / البراند",
+            brandFilterOptions: Array.from(new Set(safeProducts.map((p) => String(p.brand || "")).filter(Boolean))),
+          },
+          heroSlides: [
+            {
+              id: 1,
+              badge: "🚀 التوصيل السريع والدفع عند الاستلام",
+              title: store.brandName,
+              subtitle: store.tagline,
+              description: store.highlights.join(" • "),
+              image: store.heroImageUrl || safeProducts[0]?.imageUrl || "",
+              category: "all",
+            },
+          ],
+          shipping: {
+            defaultFee: store.shippingCostEgp || 60,
+            freeShippingThreshold: 1800,
+            zones: store.shippingZones && store.shippingZones.length > 0
+              ? store.shippingZones
+              : [
+                  { name: "القاهرة والجيزة", fee: 55 },
+                  { name: "الإسكندرية والدلتا", fee: 65 },
+                  { name: "الصعيد ومدن القناة", fee: 85 },
+                ],
+          },
+        },
+      },
+      products: safeProducts,
+    });
   });
 
-  // 2) Public COD Order Intake + Non-Blocking T2 Agent Confirmation + Telemetry
+  // 2) Public COD Multi-Supplier Order Intake (Supports Multi-Item Split-Order Cart OR Single-Product Express COD)
   app.post("/api/dropshipping/public/:slug/orders", async (req: Request, res: Response) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
     try {
       const slug = String(req.params.slug || "").trim().toLowerCase();
+      if (slug.includes("algenedy") || slug === "al_genedy" || slug === "al-genedy") {
+        return res.status(400).json({ ok: false, error: "Al-Genedy Advertising is excluded from dropshipping" });
+      }
       const funnels = loadDropshippingFunnels();
       const funnel = funnels.find((f) => f.slug.toLowerCase() === slug);
       if (!funnel) {
-        return res.status(404).json({ ok: false, error: "العرض غير موجود" });
+        return res.status(404).json({ ok: false, error: "المتجر غير موجود" });
       }
 
-      const { qty = 1, customerName, customerPhone, governorate = "القاهرة", address, notes } = req.body || {};
+      const {
+        qty = 1,
+        productId,
+        items: rawCartItems,
+        customerName,
+        customerPhone,
+        governorate = "القاهرة",
+        address,
+        notes,
+        shippingFeeOverride,
+      } = req.body || {};
+
       if (!String(customerName || "").trim() || !String(customerPhone || "").trim() || !String(address || "").trim()) {
         return res.status(400).json({ ok: false, error: "يرجى إدخال الاسم ورقم الموبايل والعنوان بالتفصيل" });
       }
 
-      const numQty = Math.max(1, Number(qty) || 1);
-      const tier = funnel.tiers.find((t) => t.qty === numQty) || funnel.tiers[0];
-      const sellingPriceEgp = tier ? Number(tier.sellingPriceEgp) : funnel.tiers[0].sellingPriceEgp * numQty;
-      const shippingFeeEgp = tier?.freeShipping ? 0 : Number(funnel.shippingCostEgp || 65);
+      let orderItems: Array<{
+        productId: number | string;
+        sku?: string;
+        productName: string;
+        qty: number;
+        unitPriceEgp: number;
+        supplierProvider?: SupplierProvider;
+        supplierId?: string;
+        supplierName?: string;
+        supplierWhatsapp?: string;
+        supplierCostEgp?: number;
+        warehouseRegion?: string;
+      }> = [];
+
+      let expressSellingOverride: number | null = null;
+      let expressFreeShipping: boolean | null = null;
+      let bundleLabel = "";
+
+      if (Array.isArray(rawCartItems) && rawCartItems.length > 0) {
+        orderItems = rawCartItems.map((it: any) => ({
+          productId: it.productId ?? it.id ?? 0,
+          sku: it.sku,
+          productName: String(it.productName || it.name || funnel.productName),
+          qty: Math.max(1, Number(it.qty ?? it.quantity) || 1),
+          unitPriceEgp: Math.max(0, Number(it.unitPriceEgp ?? it.unitPrice ?? it.sellingPrice) || 0),
+          supplierProvider: it.supplierProvider,
+          supplierId: it.supplierId,
+          supplierName: it.supplierName,
+          warehouseRegion: it.warehouseRegion,
+        }));
+        bundleLabel = `${orderItems.reduce((s, i) => s + i.qty, 0)} منتج (سلة متعددة الموردين)`;
+      } else {
+        const numQty = Math.max(1, Number(qty) || 1);
+        const matchedProd =
+          (funnel.products || []).find((p) => productId !== undefined && String(p.id) === String(productId)) ||
+          funnel.products?.[0];
+        const tierList = matchedProd?.expressCodTiers || funnel.tiers || [];
+        const matchedTier = tierList.find((t) => t.qty === numQty);
+        const unitSell = matchedProd?.sellingPriceEgp || (funnel.tiers[0]?.sellingPriceEgp || 590);
+        const unitCost = matchedProd?.supplierCostEgp || funnel.supplierCostPerUnitEgp || 240;
+
+        expressSellingOverride = matchedTier ? Number(matchedTier.sellingPriceEgp) : unitSell * numQty;
+        expressFreeShipping = matchedTier ? Boolean(matchedTier.freeShipping) : numQty >= 2;
+        bundleLabel = matchedTier?.label || `${numQty} قطعة`;
+
+        orderItems = [
+          {
+            productId: matchedProd?.id ?? 1,
+            sku: matchedProd?.sku || `DROP-${funnel.slug}`,
+            productName: matchedProd?.name || funnel.productName,
+            qty: numQty,
+            unitPriceEgp: Math.round(expressSellingOverride / numQty),
+            supplierProvider: matchedProd?.supplierProvider || "local_wholesale",
+            supplierId: matchedProd?.supplierId || "default-supplier",
+            supplierName: matchedProd?.supplierName || funnel.supplierName,
+            supplierWhatsapp: matchedProd?.supplierWhatsapp || funnel.supplierWhatsapp,
+            supplierCostEgp: unitCost,
+            warehouseRegion: matchedProd?.warehouseRegion || "القاهرة — مصر",
+          },
+        ];
+      }
+
+      const defaultShipFee = Number(funnel.shippingCostEgp || 60);
+      const shippingFeeEgp =
+        expressFreeShipping === true
+          ? 0
+          : shippingFeeOverride !== undefined
+            ? Math.max(0, Number(shippingFeeOverride) || 0)
+            : defaultShipFee;
+
+      const refCode = `DRP-${Date.now().toString().slice(-6)}`;
+      const split = buildSplitSubOrders({
+        refCode,
+        store: funnel,
+        items: orderItems,
+        shippingFeeEgp,
+      });
+
+      const sellingPriceEgp = expressSellingOverride ?? split.totalSellingEgp;
       const totalCodEgp = sellingPriceEgp + shippingFeeEgp;
-      const supplierCostTotalEgp = Number(funnel.supplierCostPerUnitEgp || 220) * (tier?.qty || numQty);
+      const supplierCostTotalEgp = split.totalSupplierCostEgp;
       const adSpendEgp = Number(funnel.cpaAdCostEgp || 85);
       const netProfitEgp = Math.round(
-        totalCodEgp - supplierCostTotalEgp - Number(funnel.shippingCostEgp || 65) - adSpendEgp
+        totalCodEgp - supplierCostTotalEgp - defaultShipFee - adSpendEgp
       );
+      const totalQty = orderItems.reduce((s, i) => s + i.qty, 0);
+      const summaryProductName =
+        orderItems.length === 1
+          ? orderItems[0].productName
+          : `${orderItems[0].productName} (+ ${orderItems.length - 1} أصناف أخرى)`;
 
       const nowIso = new Date().toISOString();
-      const refCode = `DRP-${Date.now().toString().slice(-6)}`;
       const order: DropshippingOrder = {
         id: `drp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         refCode,
         funnelSlug: funnel.slug,
         brandName: funnel.brandName,
         agentBrandId: funnel.agentBrandId || "tito_media",
-        productName: funnel.productName,
-        qty: tier?.qty || numQty,
-        bundleLabel: tier?.label || `${numQty} قطعة`,
+        productName: summaryProductName,
+        qty: totalQty,
+        bundleLabel,
         sellingPriceEgp,
         shippingFeeEgp,
         totalCodEgp,
@@ -315,10 +297,12 @@ export function registerDropshippingRoutes(app: Express): void {
         governorate: String(governorate).trim(),
         address: String(address).trim(),
         notes: notes ? String(notes).trim() : undefined,
-        supplierWhatsapp: funnel.supplierWhatsapp,
+        supplierWhatsapp: split.subOrders[0]?.supplierWhatsapp || funnel.supplierWhatsapp,
         status: "pending_whatsapp_confirm",
         whatsappConfirmed: false,
         bostaTrackingNumber: null,
+        carrierProvider: split.subOrders[0]?.carrierProvider || "bosta",
+        subOrders: split.subOrders,
         createdAt: nowIso,
         updatedAt: nowIso,
       };
@@ -335,28 +319,28 @@ export function registerDropshippingRoutes(app: Express): void {
           customerName: order.customerName,
           customerPhone: order.customerPhone,
           amountEgp: order.totalCodEgp,
-          summary: `طلب دروبشيبنج COD (${order.refCode}): ${order.productName} × ${order.qty} — ${order.totalCodEgp} ج.م`,
+          summary: `طلب متجر (${order.refCode} | ${split.subOrders.length} شحنات): ${summaryProductName} — ${order.totalCodEgp} ج.م`,
         });
       } catch {}
 
       const confirmMsg =
         `أهلاً بك يا ${order.customerName} في ${funnel.brandName} 🌟\n` +
-        `تم تسجيل طلبك (${order.refCode}): ${order.productName} (${order.bundleLabel}).\n` +
+        `تم تسجيل طلبك (${order.refCode}) بنجاح (${split.subOrders.length} شحنة حسب مستودع التوريد).\n` +
         `الإجمالي عند الاستلام: ${order.totalCodEgp} ج.م — المحافظة: ${order.governorate}.\n` +
-        `يرجى الرد بـ "تأكيد" لشحن الطلب فوراً عبر بوسطة، وهل تحب إضافة قطعة إضافية بخصم 30% وشحن مجاني؟ 🎁`;
+        `يرجى الرد بـ "تأكيد" لشحن الطلب فوراً وإرسال رقم التتبع!`;
 
-      // Non-blocking T2 Agent confirmation message
       t2AgentApi
         .sendManualReply(order.agentBrandId, order.customerPhone, confirmMsg)
         .catch(() => {});
 
-      const agentFallbackWa = `https://wa.me/${formatEgyptWhatsappIntl(funnel.supplierWhatsapp)}?text=${encodeURIComponent(
-        `أؤكد طلبي رقم ${order.refCode} - ${order.productName} (${order.qty} قطعة) - ${order.customerName} - ${order.governorate}`
+      const agentFallbackWa = `https://wa.me/${formatEgyptWhatsappIntl(funnel.storeTheme?.whatsapp || funnel.supplierWhatsapp)}?text=${encodeURIComponent(
+        `أؤكد طلبي رقم ${order.refCode} - ${summaryProductName} (${totalQty} قطعة) - ${order.customerName} - ${order.governorate}`
       )}`;
 
       return res.json({
         ok: true,
         order,
+        subOrders: order.subOrders,
         whatsappConfirmUrl: agentFallbackWa,
       });
     } catch (err: any) {
@@ -364,12 +348,78 @@ export function registerDropshippingRoutes(app: Express): void {
     }
   });
 
-  // 3) COD Profitability Calculator + Settlement Board API
-  app.get("/api/dropshipping/settlement", (_req: Request, res: Response) => {
+  // 3) Providers Config, Live Supplier Catalog Search & 1-Click/Bulk Product Import
+  app.get("/api/dropshipping/providers", async (req: Request, res: Response) => {
+    if (!(await authorizeDropshippingAdmin(req))) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+    return res.json({ ok: true, config: getMaskedProvidersConfig() });
+  });
+
+  app.post("/api/dropshipping/providers", async (req: Request, res: Response) => {
+    if (!(await authorizeDropshippingAdmin(req))) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+    const updated = saveDropshippingProvidersConfig(req.body || {});
+    return res.json({ ok: true, config: updated });
+  });
+
+  app.post("/api/dropshipping/suppliers/search", async (req: Request, res: Response) => {
+    if (!(await authorizeDropshippingAdmin(req))) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+    const provider = String(req.body?.provider || "all") as SupplierProvider | "all";
+    const query = String(req.body?.query || "");
+    const result = await searchSupplierCatalog(provider, query);
+    return res.json(result);
+  });
+
+  app.post("/api/dropshipping/suppliers/import", async (req: Request, res: Response) => {
+    if (!(await authorizeDropshippingAdmin(req))) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
+    try {
+      const slug = String(req.body?.slug || "captaincar-eg").trim().toLowerCase();
+      if (slug.includes("algenedy") || slug === "al_genedy" || slug === "al-genedy") {
+        return res.status(400).json({ ok: false, error: "لا يمكن استيراد منتجات دروبشيبنج إلى تطبيق الجنيدي" });
+      }
+      const items = Array.isArray(req.body?.products)
+        ? req.body.products
+        : req.body?.product
+          ? [req.body.product]
+          : [];
+      if (items.length === 0) {
+        return res.status(400).json({ ok: false, error: "يرجى تحديد منتج واحد على الأقل للاستيراد" });
+      }
+      const result = await importProductsIntoStore(slug, items);
+      return res.json({ ok: true, ...result });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || "Import failed" });
+    }
+  });
+
+  // 4) COD Profitability Calculator + Settlement Board API
+  app.get("/api/dropshipping/settlement", async (req: Request, res: Response) => {
+    const authOk = await authorizeDropshippingAdmin(req);
     const funnels = loadDropshippingFunnels();
     const orders = loadDropshippingOrders();
     const summary = computeCodSettlementSummary();
-    res.json({ ok: true, summary, funnels, orders });
+    res.json({
+      ok: true,
+      summary,
+      providers: authOk ? getMaskedProvidersConfig() : undefined,
+      funnels: authOk
+        ? funnels
+        : funnels.map((f) => ({
+            slug: f.slug,
+            brandName: f.brandName,
+            productName: f.productName,
+            tagline: f.tagline,
+            heroImageUrl: f.heroImageUrl,
+            tiers: f.tiers,
+          })),
+      orders: authOk ? orders : [],
+    });
   });
 
   app.post("/api/dropshipping/calculate-profit", (req: Request, res: Response) => {
@@ -379,9 +429,8 @@ export function registerDropshippingRoutes(app: Express): void {
 
   app.post("/api/dropshipping/funnels", async (req: Request, res: Response) => {
     try {
-      if (!isSameOriginOrLocal(req)) {
-        const auth = await verifyAdminRequest(req);
-        if (!auth.ok) return res.status(401).json({ ok: false, error: "Unauthorized" });
+      if (!(await authorizeDropshippingAdmin(req))) {
+        return res.status(401).json({ ok: false, error: "Unauthorized" });
       }
       const b = req.body || {};
       const rawSlug = String(b.slug || b.productName || `drop-${Date.now()}`)
@@ -389,15 +438,24 @@ export function registerDropshippingRoutes(app: Express): void {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "") || `drop-${Date.now().toString().slice(-5)}`;
 
+      if (rawSlug.includes("algenedy") || b.agentBrandId === "al_genedy") {
+        return res.status(400).json({ ok: false, error: "تطبيق الجنيدي للإعلان مستقل ولا يرتبط بالدروبشيبنج" });
+      }
+
       const basePrice = Math.max(150, Number(b.sellingPriceEgp) || 690);
       const supplierUnit = Math.max(50, Number(b.supplierCostPerUnitEgp) || Math.round(basePrice * 0.42));
+      const heroImg =
+        b.heroImageUrl && !String(b.heroImageUrl).includes("/al-genedy/")
+          ? b.heroImageUrl
+          : "https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=1000&auto=format&fit=crop";
+
       const funnel: DropshippingFunnel = {
         slug: rawSlug,
-        brandName: String(b.brandName || "متجر T2OS السريع").trim(),
+        brandName: String(b.brandName || "متجر T2OS الذكي").trim(),
         agentBrandId: String(b.agentBrandId || "tito_media").trim(),
         productName: String(b.productName || "المنتج الرابح").trim(),
         tagline: String(b.tagline || "شحن سريع 1–3 أيام والدفع عند الاستلام بعد المعاينة").trim(),
-        heroImageUrl: b.heroImageUrl || "/al-genedy/images/hero_led_screen.jpg",
+        heroImageUrl: heroImg,
         supplierName: String(b.supplierName || "مورد جملة مباشر + بوسطة").trim(),
         supplierWhatsapp: String(b.supplierWhatsapp || "01013372674").trim(),
         supplierCostPerUnitEgp: supplierUnit,
@@ -437,33 +495,88 @@ export function registerDropshippingRoutes(app: Express): void {
       return res.json({
         ok: true,
         funnel: saved,
-        funnelUrl: `/drop/${encodeURIComponent(saved.slug)}`,
+        funnelUrl: `/shop/${encodeURIComponent(saved.slug)}`,
       });
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message || "Failed saving funnel" });
     }
   });
 
-  // 4) Zero-Price Supplier Dispatch & Optional Bosta Waybill Creation
-  app.post("/api/dropshipping/orders/:orderId/confirm-and-dispatch", async (req: Request, res: Response) => {
+  // 5) Zero-Price Split-Order & Multi-Carrier Dispatch (Bosta / OTO / Aramex / CJ Auto-Fulfillment)
+  const handleDispatchOrder = async (req: Request, res: Response) => {
     try {
-      if (!isSameOriginOrLocal(req)) {
-        const auth = await verifyAdminRequest(req);
-        if (!auth.ok) return res.status(401).json({ ok: false, error: "Unauthorized" });
+      if (!(await authorizeDropshippingAdmin(req))) {
+        return res.status(401).json({ ok: false, error: "Unauthorized" });
       }
       const orderId = String(req.params.orderId || "").trim();
+      const requestedSubId = String(req.body?.subOrderId || "").trim();
+      const requestedCarrier = req.body?.carrier as CarrierProvider | undefined;
+
       const orders = loadDropshippingOrders();
       const idx = orders.findIndex((o) => o.id === orderId || o.refCode === orderId);
       if (idx < 0) return res.status(404).json({ ok: false, error: "Order not found" });
 
       const order = orders[idx];
+      const nowIso = new Date().toISOString();
+
+      if (Array.isArray(order.subOrders) && order.subOrders.length > 0) {
+        const dispatches: any[] = [];
+        for (let sIdx = 0; sIdx < order.subOrders.length; sIdx++) {
+          const sub = order.subOrders[sIdx];
+          if (requestedSubId && sub.subOrderId !== requestedSubId) continue;
+
+          const result = await dispatchSubOrderShipment(order, sub, requestedCarrier);
+          order.subOrders[sIdx] = {
+            ...sub,
+            carrierProvider: result.carrier,
+            dispatchMode: result.mode,
+            trackingNumber: result.trackingNumber || sub.trackingNumber,
+            trackingUrl: result.trackingUrl || sub.trackingUrl,
+            status: "dispatched_to_supplier",
+            dispatchedAt: nowIso,
+          };
+          dispatches.push({
+            subOrderId: sub.subOrderId,
+            supplierName: sub.supplierName,
+            ...result,
+          });
+        }
+
+        const primary = dispatches[0];
+        order.whatsappConfirmed = true;
+        order.status = "dispatched_to_supplier";
+        if (primary) {
+          order.dispatchMode = primary.mode;
+          order.carrierProvider = primary.carrier;
+          order.bostaTrackingNumber = primary.trackingNumber || order.bostaTrackingNumber;
+          order.trackingUrl = primary.trackingUrl || order.trackingUrl;
+        }
+        order.dispatchedAt = nowIso;
+        order.updatedAt = nowIso;
+        orders[idx] = order;
+        saveDropshippingOrders(orders);
+
+        return res.json({
+          ok: true,
+          order,
+          dispatches,
+          mode: primary?.mode || "whatsapp_supplier_ready",
+          trackingNumber: primary?.trackingNumber || null,
+          supplierDispatchText: primary?.supplierDispatchText || buildZeroPriceSubOrderDispatchText(order, order.subOrders[0]),
+          supplierWhatsappUrl: primary?.supplierWhatsappUrl || "",
+          summary: computeCodSettlementSummary(),
+        });
+      }
+
+      // Legacy single-shipment dispatch fallback
       const dispatch = await dispatchOrderToBosta(order);
       order.whatsappConfirmed = true;
       order.status = "dispatched_to_supplier";
       order.dispatchMode = dispatch.mode;
       order.bostaTrackingNumber = dispatch.trackingNumber;
-      order.dispatchedAt = new Date().toISOString();
-      order.updatedAt = new Date().toISOString();
+      order.trackingUrl = dispatch.trackingNumber ? buildCarrierTrackingUrl("bosta", dispatch.trackingNumber) : "";
+      order.dispatchedAt = nowIso;
+      order.updatedAt = nowIso;
 
       orders[idx] = order;
       saveDropshippingOrders(orders);
@@ -481,16 +594,19 @@ export function registerDropshippingRoutes(app: Express): void {
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message || "Dispatch failed" });
     }
-  });
+  };
 
-  // 5) Settlement Status Transition (Confirmed / Delivered / Returned + Ad Spend Adjustment)
+  app.post("/api/dropshipping/orders/:orderId/confirm-and-dispatch", handleDispatchOrder);
+  app.post("/api/dropshipping/orders/:orderId/dispatch", handleDispatchOrder);
+
+  // 6) Settlement Status Transition (Confirmed / Delivered / Returned + Ad Spend Adjustment)
   app.post("/api/dropshipping/orders/:orderId/status", async (req: Request, res: Response) => {
     try {
-      if (!isSameOriginOrLocal(req)) {
-        const auth = await verifyAdminRequest(req);
-        if (!auth.ok) return res.status(401).json({ ok: false, error: "Unauthorized" });
+      if (!(await authorizeDropshippingAdmin(req))) {
+        return res.status(401).json({ ok: false, error: "Unauthorized" });
       }
       const orderId = String(req.params.orderId || "").trim();
+      const subOrderId = String(req.body?.subOrderId || "").trim();
       const orders = loadDropshippingOrders();
       const idx = orders.findIndex((o) => o.id === orderId || o.refCode === orderId);
       if (idx < 0) return res.status(404).json({ ok: false, error: "Order not found" });
@@ -504,7 +620,23 @@ export function registerDropshippingRoutes(app: Express): void {
       ];
       const nextStatus = req.body?.status as DropshippingOrderStatus;
       if (nextStatus && allowed.includes(nextStatus)) {
-        orders[idx].status = nextStatus;
+        if (subOrderId && Array.isArray(orders[idx].subOrders)) {
+          orders[idx].subOrders = orders[idx].subOrders!.map((s) =>
+            s.subOrderId === subOrderId ? { ...s, status: nextStatus } : s
+          );
+          if (orders[idx].subOrders!.every((s) => s.status === "delivered")) {
+            orders[idx].status = "delivered";
+          } else if (orders[idx].subOrders!.every((s) => s.status === "returned")) {
+            orders[idx].status = "returned";
+          } else {
+            orders[idx].status = nextStatus;
+          }
+        } else {
+          orders[idx].status = nextStatus;
+          if (Array.isArray(orders[idx].subOrders)) {
+            orders[idx].subOrders = orders[idx].subOrders!.map((s) => ({ ...s, status: nextStatus }));
+          }
+        }
       }
       if (req.body?.adSpendEgp !== undefined) {
         orders[idx].adSpendEgp = Math.max(0, Number(req.body.adSpendEgp) || 0);
@@ -522,34 +654,60 @@ export function registerDropshippingRoutes(app: Express): void {
     }
   });
 
-  // 6) Bosta Live Delivery Webhook
+  // 7) Automatic Multi-Carrier Tracking Webhooks (Bosta, OTO/Aramex, CJ Auto)
   app.post("/api/webhooks/bosta", (req: Request, res: Response) => {
     try {
       const secret = (process.env.BOSTA_WEBHOOK_SECRET || "").trim();
       if (secret && String(req.headers["x-bosta-secret"] || "") !== secret) {
         return res.status(403).json({ ok: false, error: "Invalid Bosta webhook secret" });
       }
+      const b = req.body || {};
+      const result = applyCarrierWebhookUpdate({
+        carrier: "bosta",
+        trackingNumber: b.trackingNumber || b._id,
+        bizRef: b.businessReference || b.orderId,
+        rawState: String(b.state || b.status || ""),
+      });
+      return res.json({ ok: true, carrier: "bosta", ...result });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message });
+    }
+  });
 
-      const body = req.body || {};
-      const tracking = String(body.trackingNumber || body._id || "").trim();
-      const bizRef = String(body.businessReference || body.orderId || "").trim();
-      const rawState = String(body.state || body.status || "").toLowerCase();
-
-      const orders = loadDropshippingOrders();
-      const idx = orders.findIndex(
-        (o) => (tracking && o.bostaTrackingNumber === tracking) || (bizRef && (o.refCode === bizRef || o.id === bizRef))
-      );
-      if (idx >= 0) {
-        if (/deliver|45|completed/i.test(rawState)) {
-          orders[idx].status = "delivered";
-        } else if (/return|46|cancel|terminated/i.test(rawState)) {
-          orders[idx].status = "returned";
-        }
-        orders[idx].updatedAt = new Date().toISOString();
-        saveDropshippingOrders(orders);
+  app.post("/api/webhooks/oto", (req: Request, res: Response) => {
+    try {
+      const secret = (process.env.OTO_WEBHOOK_SECRET || "").trim();
+      if (secret && String(req.headers["x-oto-secret"] || "") !== secret) {
+        return res.status(403).json({ ok: false, error: "Invalid OTO webhook secret" });
       }
+      const b = req.body || {};
+      const result = applyCarrierWebhookUpdate({
+        carrier: "oto",
+        trackingNumber: b.trackingNumber || b.awb || b.otoId,
+        bizRef: b.orderId || b.businessReference,
+        rawState: String(b.status || b.shipmentStatus || ""),
+      });
+      return res.json({ ok: true, carrier: "oto", ...result });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message });
+    }
+  });
 
-      return res.json({ ok: true, matched: idx >= 0 });
+  app.post("/api/webhooks/cj", (req: Request, res: Response) => {
+    try {
+      const secret = (process.env.CJ_WEBHOOK_SECRET || "").trim();
+      if (secret && String(req.headers["x-cj-secret"] || "") !== secret) {
+        return res.status(403).json({ ok: false, error: "Invalid CJ webhook secret" });
+      }
+      const b = req.body || {};
+      const params = b.params || b;
+      const result = applyCarrierWebhookUpdate({
+        carrier: "cj_auto",
+        trackingNumber: params.trackNumber || params.trackingNumber || params.logisticName,
+        bizRef: params.orderNumber || params.orderId,
+        rawState: String(params.orderStatus || params.status || ""),
+      });
+      return res.json({ ok: true, carrier: "cj_auto", ...result });
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message });
     }

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://battah-system.vercel.app/sitemap.xml

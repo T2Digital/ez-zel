@@ -289,7 +289,7 @@ export const AdkVentureArchitectModal: React.FC<AdkVentureArchitectModalProps> =
                     className="flex-1 sm:flex-initial px-4 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-60"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    <span>{launchingDrop ? 'جاري التجهيز...' : '🚀 إطلاق صفحة هبوط COD (/drop/...)'}</span>
+                    <span>{launchingDrop ? 'جاري التجهيز...' : '🚀 إطلاق متجر Battah الاحترافي (/shop/...)'}</span>
                   </button>
                   <button
                     onClick={() => onLaunchBusiness(blueprint)}
