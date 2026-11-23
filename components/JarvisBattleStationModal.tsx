@@ -13,7 +13,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { playShadowVoice, stopVoice, speakBrowserNaturalVoice } from '../services/speechService';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
-import { JarvisExecutiveSummaryDrawer } from './chat/JarvisExecutiveSummaryDrawer';
 import { LiveTelemetryNotifier } from './LiveTelemetryNotifier';
 import { FluidLuminescentOrb } from './FluidLuminescentOrb';
 import { ObsidianHolographicConstellation } from './ObsidianHolographicConstellation';
@@ -1687,9 +1686,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 font-black whitespace-nowrap">
                     👑 الماستر تيتو
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/25 text-cyan-200 font-bold whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => setActiveDeckTab((prev) => (prev === 'vault_crm' ? 'obsidian_graph' : 'vault_crm'))}
+                    className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-400/25 hover:border-cyan-400/60 text-cyan-200 font-bold whitespace-nowrap transition cursor-pointer"
+                    title="عرض وإدارة جميع البراندات الموحدة"
+                  >
                     {allBrandsList.length || realStats.totalVaultBrandsCount || 0} براند متصل
-                  </span>
+                  </button>
                 </>
               ) : (
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-bold whitespace-nowrap">
@@ -2108,16 +2112,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            <div className="w-full max-w-4xl">
-              <JarvisExecutiveSummaryDrawer
-                userProfile={{
-                  role: isMasterAdmin ? 'master' : 'visitor',
-                  linkedBrandId: currentSelectedBrand?.id !== 'clean_master' ? currentSelectedBrand?.id : undefined
-                }}
-                onQuickPrompt={(prompt) => handleSendLiveCommand(prompt)}
-              />
-            </div>
-
             {/* VISITOR INTELLIGENCE ONBOARDING (When Persona === 'visitor') */}
             {persona === 'visitor' ? (
               <VisitorIntelligenceOnboarding 
@@ -2224,8 +2218,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                           <span className="text-blue-300 font-black">15,000 ج.م ✔</span>
                         </div>
                         <div className="p-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
-                          <span className="text-white/50 block text-[8px]">7 منشورات ستوديو</span>
-                          <span className="text-cyan-300 font-black">3 مسارات CTA ✔</span>
+                          <span className="text-white/50 block text-[8px]">3 منشورات تجريبية (2 بوست + 1 فيديو)</span>
+                          <span className="text-cyan-300 font-black">فحص Vision QA ✔</span>
                         </div>
                         <div className="p-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
                           <span className="text-white/50 block text-[8px]">وكيل واتساب صوتي</span>
@@ -2295,8 +2289,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       businessType: b.businessType,
                       sourceApp: b.sourceApp,
                       phone: b.phone,
-                      postsCount: (b.weekContentPlan || []).length,
-                      conversationsCount: b.conversationsCount || 0
+                      postsCount: Number((b as any).studioPostsCount ?? (Array.isArray(b.weekContentPlan) ? b.weekContentPlan.length : 0)),
+                      conversationsCount: Number((b as any).liveWhatsappMessagesCount ?? 0),
+                      hasWhatsApp: Boolean((b as any).whatsappConnected),
                     }))}
                     selectedBrandId={selectedBrandId}
                     onSelectBrand={(id) => {
@@ -2352,7 +2347,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                           </span>
                         </h4>
                         <p className="text-[10px] text-white/60">
-                          واتساب: {selectedBrand.phone || '01030956097'} • خطة ستوديو: {(selectedBrand.weekContentPlan || []).length || 7} منشورات
+                          {(selectedBrand as any).whatsappConnected
+                            ? `واتساب: متصل (${(selectedBrand as any).liveWhatsappMessagesCount ?? 0} رسالة)`
+                            : 'واتساب: غير مربوط'}{' '}
+                          • منشورات الاستوديو:{' '}
+                          {Number(
+                            (selectedBrand as any).studioPostsCount ??
+                              (Array.isArray(selectedBrand.weekContentPlan) ? selectedBrand.weekContentPlan.length : 0)
+                          )}
                         </p>
                       </div>
                     </div>
@@ -2364,20 +2366,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       >
                         <Layers className="w-3.5 h-3.5" />
                         <span>إدارة البراند (4 أركان)</span>
-                      </button>
-                      <button
-                        onClick={() => setActiveDeckTab('studio_calendar')}
-                        className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 text-[10px] font-bold flex items-center gap-1 transition shadow-[0_0_10px_rgba(0,240,255,0.25)] cursor-pointer"
-                      >
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>تقويم ستوديو</span>
-                      </button>
-                      <button
-                        onClick={() => setActiveDeckTab('agent_fleet')}
-                        className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/50 text-purple-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span>وكيل واتساب</span>
                       </button>
                       <button
                         onClick={() => window.open(resolveBrandWebUrl(selectedBrand), '_blank', 'noopener,noreferrer')}
@@ -2708,7 +2696,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="p-2 rounded-2xl bg-black/40 border border-white/5 flex flex-col">
                     <span className="text-[9px] text-amber-400/80 font-bold">تيتو أجنت (واتساب وميتا)</span>
                     <span className="text-sm md:text-base font-black font-mono text-white mt-0.5">
-                      {realStats.agentActiveCount ?? 2} بوتات نشطة
+                      {realStats.agentActiveCount ?? 0} بوتات نشطة
                     </span>
                     <span className="text-[8px] text-amber-300 font-mono">{realStats.totalHandledMessages ?? 0} محادثة مسجلة</span>
                   </div>
@@ -2728,6 +2716,53 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       {realStats.realConfirmedRevenueEgp ?? 0} ج.م (كلين ماستر)
                     </span>
                   </div>
+                </div>
+
+                {/* Interactive Unified Brand Control List (1-click 4-Pillar Hub + Store Launch) */}
+                <div className="mt-3 max-h-56 overflow-y-auto space-y-1.5 text-right pr-0.5">
+                  {allBrandsList.map((b: any) => (
+                    <div
+                      key={b.id}
+                      className="p-2 rounded-xl bg-black/50 border border-white/10 hover:border-cyan-400/40 flex items-center justify-between gap-2 transition"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-black text-white truncate">{b.name}</span>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded-full border font-bold ${
+                              b.whatsappConnected
+                                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                                : 'bg-white/5 text-white/50 border-white/15'
+                            }`}
+                          >
+                            {b.whatsappConnected ? 'واتساب متصل' : 'واتساب غير مربوط'}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-white/50 block truncate">
+                          {b.businessType || b.slug} • منشورات: {Number(b.studioPostsCount ?? (Array.isArray(b.weekContentPlan) ? b.weekContentPlan.length : 0))}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectBrand(b.id);
+                            setActiveDeckTab('brand_hub');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-[10px] font-black cursor-pointer"
+                        >
+                          🎛️ إدارة (4 أركان)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => window.open(resolveBrandWebUrl(b), '_blank', 'noopener,noreferrer')}
+                          className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-cyan-200 text-[10px] font-bold cursor-pointer"
+                        >
+                          فتح التطبيق
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Action Buttons: View CRM & Meta Settings */}

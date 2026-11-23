@@ -28,13 +28,19 @@ const TEMPLATE_REPO_MAP: Record<FlagshipTemplateId, string> = {
  */
 export async function provisionDedicatedRepoAndVercel(input: {
   brandId: string;
+  englishSlug?: string;
+  brandName?: string;
+  businessType?: string;
+  phone?: string;
   appTemplate?: 'products_erp' | 'services_booking' | FlagshipTemplateId | string;
   templateId?: FlagshipTemplateId;
 }): Promise<DedicatedDeployResult> {
   const brands = getUnifiedGrowthBrands();
   const needle = String(input.brandId || '').trim().toLowerCase();
   let brand: any = brands.find((b: any) =>
-    String(b.id || '').toLowerCase() === needle || String(b.slug || '').toLowerCase() === needle
+    String(b.id || '').toLowerCase() === needle ||
+    String(b.slug || '').toLowerCase() === needle ||
+    (input.brandName && String(b.name || '').trim().toLowerCase() === String(input.brandName).trim().toLowerCase())
   );
   if (!brand) {
     try {
@@ -52,10 +58,28 @@ export async function provisionDedicatedRepoAndVercel(input: {
           id: sb.id,
           slug: sb.slug || String(sb.englishName || sb.id).toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-'),
           name: sb.name || sb.englishName,
+          englishName: sb.englishName,
+          businessType: input.businessType || sb.industry || 'تجارة وخدمات',
+          phone: input.phone || sb.phone || '',
           appTemplate: input.appTemplate || 'products_erp',
         };
       }
     } catch {}
+  }
+  if (!brand && input.brandName) {
+    const fallbackSlug = String(input.englishSlug || input.brandId || `brand-${Date.now().toString(36)}`)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `brand-${Date.now().toString(36)}`;
+    brand = {
+      id: fallbackSlug.replace(/-/g, '_'),
+      slug: fallbackSlug,
+      name: input.brandName,
+      englishName: input.englishSlug || fallbackSlug,
+      businessType: input.businessType || 'تجارة إلكترونية',
+      phone: input.phone || '',
+      appTemplate: input.appTemplate || 'products_erp',
+    };
   }
   if (!brand) {
     return {
@@ -78,15 +102,26 @@ export async function provisionDedicatedRepoAndVercel(input: {
       status: 'missing_credentials',
       brandId: brand.id,
       missingEnv,
-      message: `لتفعيل النشر التلقائي لمستودع مستقل على GitHub + Vercel، يرجى إضافة المتغيرات (${missingEnv.join(', ')}) في Render. حالياً يعمل البراند بنجاح على رابط Multi-Tenant الكامل.`
+      message: `لتفعيل النشر التلقائي لمستودع مستقل على GitHub + Vercel، يرجى إضافة المتغيرات (${missingEnv.join(', ')}) في Coolify.`
     };
   }
 
-  const slug = String(brand.slug || brand.id)
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40) || `t2-client-${Date.now()}`;
+  const rawAsciiSource = String(
+    input.englishSlug ||
+      (brand as any).englishSlug ||
+      (brand as any).englishName ||
+      brand.slug ||
+      brand.id ||
+      ''
+  );
+  const slug =
+    rawAsciiSource
+      .toLowerCase()
+      .replace(/&/g, '-and-')
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || `t2-client-${Date.now().toString(36)}`;
   const repoName = `t2-tenant-${slug}`;
   const requestedTemplate = (input.templateId || (brand as any).templateId) as FlagshipTemplateId | undefined;
   let resolvedKey: FlagshipTemplateId;

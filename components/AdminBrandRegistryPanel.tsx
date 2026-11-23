@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Database, PauseCircle, RefreshCw, Save, Search, Sparkles } from 'lucide-react';
+import { CheckCircle2, Database, ExternalLink, PauseCircle, RefreshCw, Rocket, Save, Search, Sliders, Sparkles, X } from 'lucide-react';
 import { getAdminAuthHeaders } from '../services/adminIdentity';
+
+const JarvisBrandCommandHub = React.lazy(() =>
+  import('./jarvis/JarvisBrandCommandHub').then((m) => ({ default: m.JarvisBrandCommandHub }))
+);
 
 type LifecycleStage = 'active_client' | 'trial' | 'paused_archive' | 'self_growth';
 
@@ -52,6 +56,7 @@ export const AdminBrandRegistryPanel: React.FC = () => {
   const [filterStage, setFilterStage] = useState<'all' | LifecycleStage>('all');
   const [search, setSearch] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [controllingBrand, setControllingBrand] = useState<RegistryBrand | null>(null);
 
   const loadRegistry = useCallback(async () => {
     setLoading(true);
@@ -196,6 +201,65 @@ export const AdminBrandRegistryPanel: React.FC = () => {
       }
     } catch (err: any) {
       setStatusMsg({ type: 'err', text: err?.message || 'خطأ في الاتصال' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDeployVercel = async (brand: RegistryBrand) => {
+    setBusyId(brand.id);
+    setStatusMsg(null);
+    try {
+      const headers = await getAdminHeaders();
+      const res = await fetch('/api/deploy/dedicated-tenant', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          brandId: brand.canonicalId || brand.id,
+          englishSlug: brand.slug || brand.canonicalId || brand.id,
+          brandName: brand.name,
+          appTemplate: brand.appTemplate,
+        }),
+      });
+      const data = await res.json();
+      if (data?.ok && data?.dedicatedLiveUrl) {
+        setStatusMsg({
+          type: 'ok',
+          text: `تم بناء ونشر (${brand.name}) على Vercel بنجاح: ${data.dedicatedLiveUrl} 🚀`,
+        });
+        await loadRegistry();
+      } else {
+        setStatusMsg({ type: 'err', text: data?.message || data?.error || 'تعذر النشر على Vercel' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: 'err', text: err?.message || 'خطأ أثناء النشر على Vercel' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleActivateBrandGrowthCycle = async (brand: RegistryBrand) => {
+    setBusyId(brand.id);
+    setStatusMsg(null);
+    try {
+      const headers = await getAdminHeaders();
+      const targetId = encodeURIComponent(brand.canonicalId || brand.id);
+      const res = await fetch(`/api/admin/brands/${targetId}/activate-growth-cycle`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ planPriceEgp: brand.planAmount || 5000 }),
+      });
+      const data = await res.json();
+      if (data?.ok) {
+        setStatusMsg({
+          type: 'ok',
+          text: `تم تشغيل دورة النمو لـ (${brand.name}) بنجاح (${data.researchSource || 'AI'}) + خطة الإعلانات (${data.adBudgetEgp} ج.م) + الاستوديو ⚡`,
+        });
+      } else {
+        setStatusMsg({ type: 'err', text: data?.error || 'تعذر تشغيل دورة النمو' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: 'err', text: err?.message || 'خطأ في الاتصال بدورة النمو' });
     } finally {
       setBusyId(null);
     }
@@ -436,6 +500,43 @@ export const AdminBrandRegistryPanel: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
+                      onClick={() => setControllingBrand(b)}
+                      disabled={isBusy}
+                      className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-black disabled:opacity-50"
+                      title="فتح غرفة قيادة البراند الموحدة (4 أركان) للتحكم الكامل"
+                    >
+                      <Sliders className="w-3.5 h-3.5" />
+                      <span>🎛️ تحكم كامل (4 أركان)</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeployVercel(b)}
+                      disabled={isBusy}
+                      className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl bg-violet-500/20 border border-violet-500/40 hover:bg-violet-500/30 text-violet-200 text-xs font-black disabled:opacity-50"
+                      title="نشر مستودع GitHub وتطبيق مستقل على Vercel"
+                    >
+                      <Rocket className="w-3.5 h-3.5" />
+                      <span>🚀 نشر على Vercel</span>
+                    </button>
+                    <button
+                      onClick={() => handleActivateBrandGrowthCycle(b)}
+                      disabled={isBusy}
+                      className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 hover:bg-amber-500/30 text-amber-200 text-xs font-black disabled:opacity-50"
+                      title="تشغيل بحث السوق + الاستراتيجية + 50% إعلانات + تنفيذ محتوى الاستوديو وVision QA"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>⚡ تشغيل دورة النمو (بحث + محتوى)</span>
+                    </button>
+                    <a
+                      href={`https://studio.t2os.app/?clinicId=${encodeURIComponent(b.titoStudioClinicId || b.canonicalId || b.id)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl bg-pink-500/20 border border-pink-500/40 hover:bg-pink-500/30 text-pink-200 text-xs font-black"
+                      title="فتح حساب البراند في تيتو ستوديو"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>🎨 الاستوديو</span>
+                    </a>
+                    <button
                       onClick={() => handleCopyPortalLink(b)}
                       disabled={isBusy}
                       className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl bg-purple-500/20 border border-purple-500/40 hover:bg-purple-500/30 text-purple-200 text-xs font-black disabled:opacity-50"
@@ -464,6 +565,33 @@ export const AdminBrandRegistryPanel: React.FC = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Full-Screen 4-Pillar Interactive Control Center Modal */}
+      {controllingBrand && (
+        <div className="fixed inset-0 z-[240] bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-5">
+          <div className="w-full max-w-6xl h-[90vh] bg-[#020614] border border-cyan-500/40 rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-[0_0_60px_rgba(0,240,255,0.2)]">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/10 shrink-0">
+              <h3 className="text-sm sm:text-base font-black text-white">
+                🎛️ التحكم التنفيذي الكامل (4 أركان): {controllingBrand.name}
+              </h3>
+              <button
+                onClick={() => setControllingBrand(null)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/25 text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <React.Suspense fallback={<div className="p-10 text-center text-cyan-300 text-xs">جاري تحميل غرفة قيادة البراند...</div>}>
+              <JarvisBrandCommandHub
+                brandId={controllingBrand.canonicalId || controllingBrand.id}
+                initialBrand={controllingBrand}
+                isMasterAdmin={true}
+                onBackToGrid={() => setControllingBrand(null)}
+              />
+            </React.Suspense>
+          </div>
         </div>
       )}
     </div>

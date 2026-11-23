@@ -3,9 +3,10 @@ import {
   ExternalLink, Activity, Smartphone, Share2, Bot, Brain,
   CheckCircle2, AlertTriangle, XCircle, RefreshCw, Save,
   Copy, Check, ArrowRight, Send, MessageSquare, Globe,
-  Calendar, ShieldCheck, Palette, Phone, MapPin, Link2, Box, Search
+  Calendar, ShieldCheck, Palette, Phone, MapPin, Link2, Box, Search, Rocket, Sparkles
 } from 'lucide-react';
 import { hybridMemory } from '../../services/hybridMemoryService';
+import { getAdminAuthHeaders } from '../../services/adminIdentity';
 
 const WorkspaceExplorer = React.lazy(() => import('../WorkspaceExplorer'));
 
@@ -42,7 +43,7 @@ export const resolveBrandWebUrl = (brand: any): string => {
     return 'https://cleanmaster-eg.com';
   }
   if (slug === 'al_genedy' || slug === 'al-genedy' || slug.includes('genedy')) {
-    return 'https://t2os.app/al-genedy/';
+    return 'https://al-genedy.vercel.app';
   }
   if (slug) {
     return `https://t2-tenant-${slug.replace(/_/g, '-')}.vercel.app`;
@@ -59,12 +60,20 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   onOpenWhatsAppModal,
   onOpenMetaModal,
 }) => {
+  const [activeBrandId, setActiveBrandId] = useState<string>(brandId);
+  const [availableBrands, setAvailableBrands] = useState<Array<{ id: string; slug?: string; name: string }>>([]);
   const [section, setSection] = useState<HubSection>('app');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deployingVercel, setDeployingVercel] = useState(false);
+  const [activatingGrowth, setActivatingGrowth] = useState(false);
   const [checkingHealth, setCheckingHealth] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (brandId) setActiveBrandId(brandId);
+  }, [brandId]);
 
   const [brandData, setBrandData] = useState<any>(initialBrand || null);
   const [healthData, setHealthData] = useState<any>(null);
@@ -100,24 +109,51 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   const [searchingSemantic, setSearchingSemantic] = useState(false);
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    try {
-      const { getAuth } = await import('firebase/auth');
-      const user = getAuth().currentUser;
-      if (user) {
-        const token = await user.getIdToken();
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-      }
-    } catch {}
-    return headers;
+    return await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
   };
 
+  useEffect(() => {
+    if (!isMasterAdmin) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const headers = await getAdminAuthHeaders();
+        const r = await fetch('/api/admin/brands/registry', { headers });
+        const d = await r.json().catch(() => null);
+        if (mounted && d?.ok && Array.isArray(d.brands)) {
+          setAvailableBrands(
+            d.brands.map((b: any) => ({
+              id: b.canonicalId || b.id,
+              slug: b.slug,
+              name: b.name || b.id,
+            }))
+          );
+          return;
+        }
+        const gRes = await fetch('/api/obsidian/graph', { headers });
+        const gData = await gRes.json().catch(() => null);
+        if (mounted && Array.isArray(gData?.growthAgencyBrands)) {
+          setAvailableBrands(
+            gData.growthAgencyBrands.map((b: any) => ({
+              id: b.id || b.slug,
+              slug: b.slug,
+              name: b.name || b.id,
+            }))
+          );
+        }
+      } catch {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isMasterAdmin]);
+
   const loadHub = useCallback(async () => {
-    if (!brandId) return;
+    if (!activeBrandId) return;
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}`, { headers });
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(activeBrandId)}`, { headers });
       const data = await res.json();
       if (data?.ok && data.brand) {
         const b = data.brand;
@@ -126,7 +162,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
         setPhone(b.phone || '');
         setAddress(b.address || '');
         setPrimaryColor(b.primaryColor || '#0284c7');
-        setAppUrl(b.appUrl || resolveBrandWebUrl(b));
+        setAppUrl(b.dedicatedLiveUrl || b.appUrl || resolveBrandWebUrl(b));
         setTone(b.agentConfig?.tone || '');
         setShippingPolicy(b.agentConfig?.shippingPolicy || '');
         setForbiddenTopics(b.agentConfig?.forbiddenTopics || '');
@@ -138,14 +174,14 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [brandId]);
+  }, [activeBrandId]);
 
   const runHealthCheck = useCallback(async () => {
-    if (!brandId) return;
+    if (!activeBrandId) return;
     setCheckingHealth(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/health-check`, {
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(activeBrandId)}/health-check`, {
         method: 'POST',
         headers,
       });
@@ -157,7 +193,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     } finally {
       setCheckingHealth(false);
     }
-  }, [brandId]);
+  }, [activeBrandId]);
 
   useEffect(() => {
     loadHub();
@@ -166,12 +202,70 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     setSaveMessage(null);
   }, [loadHub]);
 
+  const handleDeployDedicatedVercel = async () => {
+    if (!activeBrandId) return;
+    setDeployingVercel(true);
+    setSaveMessage(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/deploy/dedicated-tenant', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          brandId: activeBrandId,
+          englishSlug: brandData?.englishSlug || brandData?.slug || activeBrandId,
+          brandName: name || brandData?.name,
+          appTemplate: brandData?.appTemplate || 'products_erp',
+          templateId: brandData?.templateId,
+        }),
+      });
+      const data = await res.json();
+      if (data?.ok && data?.dedicatedLiveUrl) {
+        setAppUrl(data.dedicatedLiveUrl);
+        setSaveMessage(`تم نشر التطبيق المستقل على Vercel بنجاح: ${data.dedicatedLiveUrl} 🚀`);
+        await loadHub();
+      } else {
+        setSaveMessage(data?.message || data?.error || 'تعذر النشر على Vercel');
+      }
+    } catch (err: any) {
+      setSaveMessage(err?.message || 'خطأ أثناء النشر على Vercel');
+    } finally {
+      setDeployingVercel(false);
+    }
+  };
+
+  const handleActivateGrowthCycle = async () => {
+    if (!activeBrandId) return;
+    setActivatingGrowth(true);
+    setSaveMessage(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/admin/brands/${encodeURIComponent(activeBrandId)}/activate-growth-cycle`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ planPriceEgp: 5000 }),
+      });
+      const data = await res.json();
+      if (data?.ok) {
+        setSaveMessage(
+          `تم إطلاق دورة النمو (${data.researchSource || 'AI'}) + خطة الإعلانات (${data.adBudgetEgp} ج.م) + الاستوديو + Vision QA ${data.studioJobId ? `[Job: ${data.studioJobId}]` : ''} ⚡`
+        );
+      } else {
+        setSaveMessage(data?.error || 'تعذر إطلاق دورة النمو');
+      }
+    } catch (err: any) {
+      setSaveMessage(err?.message || 'خطأ في الاتصال بدورة النمو');
+    } finally {
+      setActivatingGrowth(false);
+    }
+  };
+
   const handleSaveChanges = async (customSuccessMsg?: string) => {
     setSaving(true);
     setSaveMessage(null);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/update`, {
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(activeBrandId)}/update`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -188,7 +282,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
       if (data?.ok) {
         if (knowledgeBase && knowledgeBase.trim().length > 8) {
           try {
-            const scopeId = `brand:${brandId}`;
+            const scopeId = `brand:${activeBrandId}`;
             const segments = knowledgeBase
               .split(/\n+/)
               .map((s) => s.trim())
@@ -231,7 +325,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     if (!semanticQuery.trim()) return;
     setSearchingSemantic(true);
     try {
-      const results = await hybridMemory.querySemanticVectors(semanticQuery, `brand:${brandId}`, { topK: 3 });
+      const results = await hybridMemory.querySemanticVectors(semanticQuery, `brand:${activeBrandId}`, { topK: 3 });
       setSemanticHits(results.map((r) => ({ text: r.text, score: Math.round(r.score * 100) })));
     } catch {
       setSemanticHits([]);
@@ -246,7 +340,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     setSaveMessage(null);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/playground-correct`, {
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(activeBrandId)}/playground-correct`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -275,7 +369,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     setSaveMessage(null);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/reply`, {
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(activeBrandId)}/reply`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ phone: phoneTarget, message: manualReplyText }),
@@ -302,7 +396,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     setTestReply(null);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/brand-hub/${encodeURIComponent(brandId)}/test-agent`, {
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(activeBrandId)}/test-agent`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ customerMessage: testInput }),
@@ -361,17 +455,34 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                 className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0 shadow"
                 style={{ backgroundColor: primaryColor || '#0284c7' }}
               >
-                {(name || brandId || 'B').slice(0, 1)}
+                {(name || activeBrandId || 'B').slice(0, 1)}
               </div>
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm md:text-base font-black text-white truncate">
-                  {name || brandData?.name || brandId}
+                  {name || brandData?.name || activeBrandId}
                 </h3>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 font-bold">
                   {brandData?.businessType || 'نشاط تجاري'}
                 </span>
+                {isMasterAdmin && availableBrands.length > 0 && (
+                  <select
+                    value={activeBrandId}
+                    onChange={(e) => setActiveBrandId(e.target.value)}
+                    className="bg-black/70 border border-cyan-500/40 rounded-lg px-2 py-0.5 text-[11px] font-bold text-cyan-200 focus:outline-none focus:border-cyan-400 max-w-[180px]"
+                    title="التبديل المباشر بين البراندات"
+                  >
+                    {!availableBrands.some((b) => b.id === activeBrandId || b.slug === activeBrandId) && (
+                      <option value={activeBrandId}>{name || activeBrandId}</option>
+                    )}
+                    {availableBrands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-cyan-300/80 font-mono truncate mt-0.5">
                 <Globe className="w-3 h-3 shrink-0" />
@@ -397,18 +508,40 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
           <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             <button
               onClick={() => window.open(effectiveAppUrl, '_blank', 'noopener,noreferrer')}
-              className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/20 transition cursor-pointer"
+              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/20 transition cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>فتح التطبيق الآن</span>
+              <span>فتح التطبيق</span>
             </button>
+            {isMasterAdmin && (
+              <>
+                <button
+                  onClick={handleDeployDedicatedVercel}
+                  disabled={deployingVercel}
+                  className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/35 border border-violet-400/45 text-violet-200 text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-60"
+                  title="بناء مستودع GitHub ونشر المتجر/التطبيق مستقلاً على Vercel"
+                >
+                  <Rocket className={`w-3.5 h-3.5 ${deployingVercel ? 'animate-pulse' : ''}`} />
+                  <span>{deployingVercel ? 'جاري النشر...' : 'نشر/تحديث على Vercel'}</span>
+                </button>
+                <button
+                  onClick={handleActivateGrowthCycle}
+                  disabled={activatingGrowth}
+                  className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/45 text-amber-200 text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-60"
+                  title="تشغيل بحث السوق + خطة 50% إعلانات + إنتاج المحتوى وVision QA في الاستوديو"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${activatingGrowth ? 'animate-spin' : ''}`} />
+                  <span>{activatingGrowth ? 'جاري التشغيل...' : 'بحث السوق + إنتاج محتوى (QA)'}</span>
+                </button>
+              </>
+            )}
             <button
               onClick={runHealthCheck}
               disabled={checkingHealth}
-              className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/45 text-emerald-200 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-60"
+              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/45 text-emerald-200 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-60"
             >
               {checkingHealth ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
-              <span>{checkingHealth ? 'جاري الفحص...' : 'فحص حالة الاتصال'}</span>
+              <span>{checkingHealth ? 'جاري الفحص...' : 'فحص الاتصال'}</span>
             </button>
           </div>
         </div>
@@ -633,7 +766,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                 </button>
                 {onOpenMetaModal && (
                   <button
-                    onClick={() => onOpenMetaModal(brandId)}
+                    onClick={() => onOpenMetaModal(activeBrandId)}
                     className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 text-blue-200 text-xs font-bold cursor-pointer"
                   >
                     ربط فيسبوك وإنستجرام
@@ -687,7 +820,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                 </h4>
                 {onOpenWhatsAppModal && (
                   <button
-                    onClick={() => onOpenWhatsAppModal(brandId)}
+                    onClick={() => onOpenWhatsAppModal(activeBrandId)}
                     className="text-[11px] font-bold text-emerald-300 hover:underline cursor-pointer"
                   >
                     إعدادات ربط الواتساب ↗
@@ -920,7 +1053,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
           <div className="flex-1 min-h-0 relative">
             <React.Suspense fallback={<div className="p-10 text-center text-purple-300 text-xs">جاري فتح الفضاء ثلاثي الأبعاد...</div>}>
               <WorkspaceExplorer
-                userId={brandId}
+                userId={activeBrandId}
                 onItemSelect={() => {}}
                 onBack={() => setIsMediaVaultOpen(false)}
               />

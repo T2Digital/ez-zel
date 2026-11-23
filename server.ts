@@ -2366,9 +2366,17 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.post("/api/deploy/dedicated-tenant", requireAdminMiddleware, async (req, res) => {
       try {
           const { provisionDedicatedRepoAndVercel } = await import("./services/dedicatedDeployService");
-          const { brandId, appTemplate, templateId } = req.body || {};
-          if (!brandId) return res.status(400).json({ ok: false, error: "brandId is required" });
-          const result = await provisionDedicatedRepoAndVercel({ brandId: String(brandId), appTemplate, templateId });
+          const { brandId, englishSlug, brandName, businessType, phone, appTemplate, templateId } = req.body || {};
+          if (!brandId && !brandName) return res.status(400).json({ ok: false, error: "brandId or brandName is required" });
+          const result = await provisionDedicatedRepoAndVercel({
+              brandId: String(brandId || englishSlug || brandName),
+              englishSlug: englishSlug ? String(englishSlug) : undefined,
+              brandName: brandName ? String(brandName) : undefined,
+              businessType: businessType ? String(businessType) : undefined,
+              phone: phone ? String(phone) : undefined,
+              appTemplate,
+              templateId,
+          });
           res.json(result);
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message || "Dedicated deploy failed" });
@@ -3899,9 +3907,9 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               metaConnected: !!metaConnected,
               metaAutoReply: metaAutoReply !== false,
               metaAutoPost: metaAutoPost !== false,
-              handledConversations: 120,
-              completedOrders: 15,
-              socialReach: "2.4k",
+              handledConversations: 0,
+              completedOrders: 0,
+              socialReach: "0",
               status: "active",
               deployedAt: new Date().toISOString().split("T")[0],
               monthlyRevenue: templateId === 'real_estate' ? 35000 : 

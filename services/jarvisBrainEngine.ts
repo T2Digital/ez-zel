@@ -465,9 +465,41 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         category: { type: Type.STRING, description: "نوع النشاط (بيع منتجات أم حجز خدمات، ومجاله التخصصي)" },
         phone: { type: Type.STRING, description: "رقم واتساب/هاتف العميل إن وجد" },
         isNewBusiness: { type: Type.BOOLEAN, description: "true إذا كان بيزنس جديد من الصفر" },
-        provisionWebApp: { type: Type.BOOLEAN, description: "true إذا طلب العميل إطلاق تطبيق الويب فوراً" },
+        provisionWebApp: { type: Type.BOOLEAN, description: "true إذا طلب العميل إطلاق تطبيق الويب فوراً على Vercel" },
       },
       required: ["category"],
+    },
+  },
+  {
+    name: "deploy_brand_web_app",
+    description:
+      "بناء ونشر متجر إلكتروني كامل أو تطبيق ويب مستقل للبراند على مستودع GitHub خاص ونشره فعلياً على Vercel (https://t2-tenant-<slug>.vercel.app) من أحد القوالب الستة المعتمدة (battah للمتاجر الإلكترونية والمنتجات والأحذية والملابس، clean_master للخدمات والعيادات، harb_restaurant للمطاعم، sehraya_cafe للكافيهات، master_key_car_rental لتأجير السيارات، nile_real_estate للعقارات). استخدم هذه الأداة دائماً عندما يطلب المستخدم بناء متجر أو تطبيق ويب كامل بدلاً من صفحات الهبوط المحلية.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        brandIdOrName: { type: Type.STRING, description: "اسم البراند أو معرفه (مثال: M&M للأحذية)" },
+        englishSlug: { type: Type.STRING, description: "المعرف الإنجليزي المختصر للرابط والريبو بدون رموز خاصة (مثال: mm-shoes)" },
+        templateId: {
+          type: Type.STRING,
+          enum: [
+            "battah",
+            "clean_master",
+            "harb_restaurant",
+            "sehraya_cafe",
+            "master_key_car_rental",
+            "nile_real_estate",
+          ],
+          description: "القالب الرسمي الأنسب للنشاط (battah للمتاجر والمنتجات والأحذية)",
+        },
+        appTemplate: {
+          type: Type.STRING,
+          enum: ["products_erp", "services_booking"],
+          description: "products_erp للمتاجر والمخازن، أو services_booking للخدمات والحجوزات",
+        },
+        phone: { type: Type.STRING, description: "رقم الهاتف أو الواتساب" },
+        industry: { type: Type.STRING, description: "النشاط التجاري أو مجال البراند" },
+      },
+      required: ["brandIdOrName"],
     },
   },
   {
@@ -750,14 +782,18 @@ function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, an
   const revenueEgp = records.reduce((s: number, r: any) => s + (Number(r.totalEgp || r.price || 0) || 0), 0);
   const plan = Array.isArray(brand.weekContentPlan) ? brand.weekContentPlan : [];
   const publishedCount = plan.filter((p: any) => p.status === "PUBLISHED").length;
-  const waConnected = Boolean(brand.phone || brand.whatsapp);
+  const waConnected = Boolean(brand.whatsappConnected);
   const metaConnected = Boolean(brand.metaPageId || brand.metaToken);
+  const liveAppUrl =
+    brand.dedicatedLiveUrl ||
+    brand.vercelUrl ||
+    "لم يُنشر على Vercel بعد — استخدم أداة deploy_brand_web_app لنشره على Vercel";
   return [
     `الاسم: "${brand.name}" [id:${brand.id}] (${brand.businessType || "نشاط تجاري"})`,
-    `رابط التطبيق: /app/${brand.slug || brand.id} (قالب: ${brand.appTemplate || "تلقائي"})`,
+    `رابط التطبيق: ${liveAppUrl} (قالب: ${brand.appTemplate || "تلقائي"})`,
     `الطلبات/الحجوزات المسجلة: ${records.length} • الإيرادات المسجلة: ${revenueEgp} ج.م`,
     `خطة المحتوى: ${plan.length} منشورات (${publishedCount} منشور فعلياً)`,
-    `واتساب: ${waConnected ? `مربوط (${brand.phone || brand.whatsapp})` : "غير مربوط"} • ميتا: ${metaConnected ? `متصل (${brand.metaPageName || brand.metaPageId})` : "غير متصل"}`
+    `واتساب: ${waConnected ? `متصل (${brand.phone || brand.whatsapp || "نشط"})` : "غير مربوط"} • ميتا: ${metaConnected ? `متصل (${brand.metaPageName || brand.metaPageId})` : "غير متصل"}`
   ].join(" | ");
 }
 
@@ -889,6 +925,7 @@ ${recentChatSummary ? `\n[سياق الذاكرة المشتركة مع شات �
 قواعد صارمة لشخصية جارفيس المتحدث (Executive Poise):
 - تحدث بالعامية المصرية المهذبة والرزينة (بدون مبالغة أو كلام إنشائي) لصوت طبيعي واضح.
 - أجب بأرقام وحقائق حقيقية من الذاكرة الحية أو من نتائج الأدوات فقط — ممنوع تأليف أي رقم أو سعر أو حالة غير موجودة.
+- عند أي أمر ببناء متجر إلكتروني كامل أو تطبيق ويب لبراند: استخدم فوراً أداة \`deploy_brand_web_app\` (أو \`onboard_new_client_brand\` مع \`provisionWebApp: true\`) لإنشاء ريبو GitHub ونشره فعلياً على Vercel (\`https://t2-tenant-<slug>.vercel.app\`) — وممنوع الزعم أن مسار \`t2os.app/store/...\` أو \`t2os.app/app/...\` هو المتجر المستقل على Vercel. ولا تُنشئ صفحة هبوط فقط إلا إذا طلب المستخدم صفحة هبوط صراحةً أو كان على باقة \`starter_2500\`.
 - عند أي أمر تنفيذي (نشر، تعديل سعر، إضافة منتج، مصروف، موظف، مورد، خزينة، ربط واتساب): نفّذ الأداة أولاً ثم قدّم تقريراً تنفيذياً دقيقاً في جملة أو جملتين.
 - عند أي سؤال عن المنتجات أو الأسعار أو المخزون أو المبيعات أو المصاريف أو تأكيد وجود/إضافة منتج في المتجر: استخدم 'manage_store_erp' ('get_summary' أو 'add_product' أو 'update_price') فوراً — وممنوع خلط طلبات المتجر بأدوات النشر على السوشيال ميديا ('create_and_publish_post').
 - لا تكرر تقارير قديمة إلا إذا سألك المستخدم عنها مباشرة.`;
@@ -1808,7 +1845,7 @@ ${conversationMemoryDirective}`;
       case "onboard_new_client_brand": {
         try {
           const category = String(args.category || "نشاط تجاري وخدمات").trim();
-          const initialName = String(args.businessIdeaOrName || category).trim();
+          const initialName = String(args.businessIdeaOrName || "").trim() || category;
           const phone = String(args.phone || "").trim();
           const kit = await generateBrandingAndSocialKit({
             brandName: initialName,
@@ -1816,6 +1853,9 @@ ${conversationMemoryDirective}`;
             phone: phone || "01013372674",
             isNewBusiness: args.isNewBusiness !== false,
           });
+          if (args.businessIdeaOrName && String(args.businessIdeaOrName).trim()) {
+            kit.brandName = String(args.businessIdeaOrName).trim();
+          }
           const flagshipApp = resolveFlagshipTemplate(`${category} ${initialName}`);
           const savedBrand = saveBrandedClientToVault(kit, { phone, whatsapp: phone });
           try {
@@ -1829,9 +1869,29 @@ ${conversationMemoryDirective}`;
               slogan: savedBrand.slogan,
               primaryColor: savedBrand.primaryColor,
               accentColor: savedBrand.accentColor,
+              appTemplate: flagshipApp.archetype === "products_erp_pos" ? "products_erp" : "services_booking",
               weekContentPlan: savedBrand.weekContentPlan,
             });
           } catch {}
+
+          let dedicatedDeploy: any = null;
+          if (args.provisionWebApp === true && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
+            try {
+              const { provisionDedicatedRepoAndVercel } = await import("./dedicatedDeployService");
+              dedicatedDeploy = await provisionDedicatedRepoAndVercel({
+                brandId: savedBrand.id,
+                brandName: savedBrand.name,
+                businessType: savedBrand.businessType,
+                phone: savedBrand.phone,
+                appTemplate: flagshipApp.archetype === "products_erp_pos" ? "products_erp" : "services_booking",
+                templateId: flagshipApp.templateKey,
+              });
+              if (dedicatedDeploy?.dedicatedLiveUrl) {
+                savedBrand.dedicatedLiveUrl = dedicatedDeploy.dedicatedLiveUrl;
+                savedBrand.dedicatedRepoUrl = dedicatedDeploy.dedicatedRepoUrl;
+              }
+            } catch {}
+          }
 
           backendExecutionResult = {
             success: true,
@@ -1842,11 +1902,14 @@ ${conversationMemoryDirective}`;
             logoUrl: kit.logoUrl,
             logoPrompt: kit.logoPrompt,
             colors: kit.colors,
+            ...(dedicatedDeploy?.dedicatedLiveUrl ? { dedicatedLiveUrl: dedicatedDeploy.dedicatedLiveUrl } : {}),
+            ...(dedicatedDeploy?.dedicatedRepoUrl ? { dedicatedRepoUrl: dedicatedDeploy.dedicatedRepoUrl } : {}),
             flagshipWebApp: {
               templateKey: flagshipApp.templateKey,
               name: flagshipApp.name,
               repoUrl: flagshipApp.repoUrl,
               referenceLiveUrl: flagshipApp.referenceLiveUrl,
+              liveDeployedUrl: dedicatedDeploy?.dedicatedLiveUrl || undefined,
               modulesEnabled: flagshipApp.modulesEnabled,
               descriptionAr: flagshipApp.adminCustomization.descriptionAr,
             },
@@ -1866,6 +1929,94 @@ ${conversationMemoryDirective}`;
           };
         } catch (err: any) {
           backendExecutionResult = { success: false, error: err?.message || "Failed to onboard client brand" };
+        }
+        break;
+      }
+
+      case "deploy_brand_web_app": {
+        try {
+          const brandInput = String(args.brandIdOrName || "").trim();
+          const englishSlugInput = String(args.englishSlug || "").trim();
+          const industry = String(args.industry || "متجر إلكتروني").trim();
+          const phone = String(args.phone || "").trim();
+          const currentBrands = getUnifiedGrowthBrands();
+          let target: any = currentBrands.find(
+            (b: any) =>
+              String(b.id || "").toLowerCase() === brandInput.toLowerCase() ||
+              String(b.slug || "").toLowerCase() === brandInput.toLowerCase() ||
+              String(b.name || "").trim().toLowerCase() === brandInput.toLowerCase()
+          );
+
+          const flagship = resolveFlagshipTemplate(`${args.templateId || ""} ${industry} ${brandInput}`);
+          const resolvedAppTpl =
+            args.appTemplate ||
+            (flagship.archetype === "products_erp_pos" ? "products_erp" : "services_booking");
+
+          if (!target) {
+            const { cloneOrSynthesizeBrand } = await import("./appClonerCrawlerService");
+            const cleanSlug =
+              (englishSlugInput || brandInput)
+                .toLowerCase()
+                .replace(/&/g, "-and-")
+                .replace(/[^a-z0-9-]+/g, "-")
+                .replace(/-+/g, "-")
+                .replace(/^-+|-+$/g, "") || `brand-${Date.now().toString(36)}`;
+            const synthesized = await cloneOrSynthesizeBrand({
+              name: brandInput || cleanSlug,
+              industry,
+              phone: phone || undefined,
+            });
+            const persisted: any = await syncBrandToAllEcosystems({
+              id: cleanSlug.replace(/-/g, "_"),
+              slug: cleanSlug,
+              name: brandInput || synthesized.name,
+              englishName: englishSlugInput || cleanSlug,
+              businessType: industry,
+              phone: phone || synthesized.phone,
+              appTemplate: resolvedAppTpl,
+              productsCatalog: synthesized.productsCatalog,
+              weekContentPlan: synthesized.weekContentPlan,
+              source: "Jarvis_Deploy_Brand_Web_App",
+            });
+            target = persisted?.brand || {
+              id: cleanSlug.replace(/-/g, "_"),
+              slug: cleanSlug,
+              name: brandInput || synthesized.name,
+              englishName: englishSlugInput || cleanSlug,
+              businessType: industry,
+              appTemplate: resolvedAppTpl,
+            };
+          }
+
+          const { provisionDedicatedRepoAndVercel } = await import("./dedicatedDeployService");
+          const deployRes = await provisionDedicatedRepoAndVercel({
+            brandId: target.id,
+            englishSlug: englishSlugInput || target.englishName || target.slug,
+            brandName: target.name,
+            businessType: target.businessType || industry,
+            phone: phone || target.phone,
+            templateId: (args.templateId as any) || flagship.templateKey,
+            appTemplate: resolvedAppTpl,
+          });
+
+          backendExecutionResult = {
+            success: deployRes.ok,
+            dedicatedLiveUrl: deployRes.dedicatedLiveUrl,
+            dedicatedRepoUrl: deployRes.dedicatedRepoUrl,
+            brandId: target.id,
+            status: deployRes.status,
+            message: deployRes.message,
+          };
+          executedAction = {
+            type: "OPEN_BRAND_HUB",
+            brandId: target.id,
+            result: deployRes,
+          };
+        } catch (err: any) {
+          backendExecutionResult = {
+            success: false,
+            error: err?.message || "Failed to deploy brand web app to Vercel",
+          };
         }
         break;
       }

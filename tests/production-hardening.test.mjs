@@ -854,3 +854,29 @@ test("22) Post-subscription market research produces full strategy + 8-item mixe
   assert.equal(savedRecord?.visualUrl, "https://cdn.example.com/auto_reel_test.mp4");
   assert.equal(savedRecord?.qaPassed, true);
 });
+
+test("23) No hardcoded fake metrics in brandVault/Jarvis UI & jarvisBrainEngine supports deploy_brand_web_app", () => {
+  const brandVaultSrc = fs.readFileSync(path.join(process.cwd(), "services", "brandVault.ts"), "utf8");
+  const convMatches = brandVaultSrc.match(/"conversationsCount"\s*:\s*(\d+)/g) || [];
+  assert.ok(convMatches.length > 0, "brandVault should contain conversationsCount entries");
+  for (const m of convMatches) {
+    const val = Number(m.split(":")[1].trim());
+    assert.equal(val, 0, `brandVault conversationsCount must be 0 instead of hardcoded ${val}`);
+  }
+
+  const constellationSrc = fs.readFileSync(
+    path.join(process.cwd(), "components", "ObsidianHolographicConstellation.tsx"),
+    "utf8"
+  );
+  const jarvisModalSrc = fs.readFileSync(
+    path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"),
+    "utf8"
+  );
+  assert.equal(/\.postsCount\s*\|\|\s*7/.test(constellationSrc), false, "ObsidianHolographicConstellation must not fallback postsCount to 7");
+  assert.equal(/\.weekContentPlan\s*\|\|\s*\[\]\)\.length\s*\|\|\s*7/.test(jarvisModalSrc), false, "JarvisBattleStationModal must not fallback weekContentPlan length to 7");
+
+  const brainSrc = fs.readFileSync(path.join(process.cwd(), "services", "jarvisBrainEngine.ts"), "utf8");
+  assert.ok(brainSrc.includes('name: "deploy_brand_web_app"'), "jarvisBrainEngine must declare deploy_brand_web_app tool");
+  assert.ok(brainSrc.includes('case "deploy_brand_web_app"'), "jarvisBrainEngine must handle deploy_brand_web_app");
+  assert.ok(brainSrc.includes("provisionDedicatedRepoAndVercel"), "jarvisBrainEngine must invoke provisionDedicatedRepoAndVercel");
+});

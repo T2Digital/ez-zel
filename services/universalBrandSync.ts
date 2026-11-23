@@ -25,6 +25,7 @@ export interface UniversalBrandPayload {
     whatsapp?: string;
     websiteUrl?: string;
     appUrl?: string;
+    appTemplate?: string;
     ownerEmail?: string;
     systemPrompt?: string;
     slogan?: string;
@@ -142,6 +143,7 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
             whatsapp: cleanPhone,
             websiteUrl: payload.websiteUrl || `https://${brandId}.t2-client.vercel.app`,
             appUrl: payload.appUrl || `/store/${brandId}`,
+            ...(payload.appTemplate ? { appTemplate: payload.appTemplate } : {}),
             ownerEmail: payload.ownerEmail || 'admin@t2.com',
             slogan: payload.slogan || `أفضل خدمات ${businessType} بضمان كامل`,
             systemPrompt: defaultSystemPrompt,

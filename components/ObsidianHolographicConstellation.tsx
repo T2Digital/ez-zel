@@ -53,12 +53,15 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   const [liveTelemetrySummary, setLiveTelemetrySummary] = useState<string>('نبض الألياف الضوئية متصل 100% بين الكواكب الأربعة والبراندات النشطة');
   const burstMultiplierRef = useRef<number>(1);
 
-  // Poll /api/telemetry/live every 10s for real live pulse status
+  // Poll /api/telemetry/live every 10s for real live pulse status (scoped to selectedBrandId when active)
   useEffect(() => {
     let mounted = true;
     const poll = async () => {
       try {
-        const res = await fetch('/api/telemetry/live');
+        const url = selectedBrandId
+          ? `/api/telemetry/live?brandId=${encodeURIComponent(selectedBrandId)}`
+          : '/api/telemetry/live';
+        const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
         if (!mounted) return;
@@ -69,9 +72,15 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
             : [];
         if (events.length > 0) {
           const latest = events[0];
-          setLiveTelemetrySummary(`${latest.source || 'T2OS'} ➔ ${latest.eventType || latest.type || 'SYNC'}: ${latest.summary || 'نبضة حية متزامنة'}`);
+          setLiveTelemetrySummary(
+            `[${latest.brandId || 'T2OS'}] ${latest.source || 'T2OS'} ➔ ${latest.eventType || 'SYNC'}: ${latest.summary || 'نبضة حية'}`
+          );
+        } else if (selectedBrandId) {
+          setLiveTelemetrySummary('لا توجد أحداث حية مسجلة لهذا البراند بعد (0 رسائل واتساب • 0 طلبات)');
         } else if (typeof data?.totalEvents === 'number') {
-          setLiveTelemetrySummary(`النبض الحي متصل • ${data.totalEvents} حدث (${data.whatsappMessages || 0} واتساب • ${data.orders || 0} طلب • ${data.bookings || 0} حجز)`);
+          setLiveTelemetrySummary(
+            `النبض الحي متصل • ${data?.totalEvents || 0} حدث (${data?.whatsappMessages || 0} واتساب • ${data?.orders || 0} طلب • ${data?.bookings || 0} حجز)`
+          );
         }
       } catch {}
     };
@@ -81,7 +90,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       mounted = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [selectedBrandId]);
 
   const triggerOpticalBurst = () => {
     burstMultiplierRef.current = 3.2;
@@ -747,11 +756,13 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           <div className="grid grid-cols-2 gap-2 my-2.5 text-[10px]">
             <div className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
               <span className="text-white/60">منشورات الاستوديو:</span>
-              <span className="font-bold text-cyan-300">{hoveredNode.brand.postsCount || 7} منشور</span>
+              <span className="font-bold text-cyan-300">{hoveredNode.brand.postsCount ?? 0} منشور</span>
             </div>
             <div className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
               <span className="text-white/60">محادثات الواتساب:</span>
-              <span className="font-bold text-emerald-400">{hoveredNode.brand.conversationsCount || 0} عميل</span>
+              <span className={`font-bold ${hoveredNode.brand.hasWhatsApp ? 'text-emerald-400' : 'text-amber-300'}`}>
+                {hoveredNode.brand.hasWhatsApp ? `${hoveredNode.brand.conversationsCount ?? 0} رسالة` : 'غير مربوط'}
+              </span>
             </div>
           </div>
 
