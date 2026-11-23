@@ -829,7 +829,7 @@ export const BRAND_VAULT: Record<string, BrandConfig> = {
     "accentColor": "#059669",
     "logoUrl": "/logo-algenedy.png",
     "address": "مصر — صالة العرض والورشة والمصنع",
-    "locationUrl": "https://t2os.app/al-genedy/",
+    "locationUrl": "https://al-genedy.vercel.app",
     "subscriptionPlan": "باقة النمو الذهبي (5,000 ج.م)",
     "catalog": {
       "claddingFacades": {

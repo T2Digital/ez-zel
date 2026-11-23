@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import type { Express, Request, Response } from "express";
-import { GoogleGenAI } from "@google/genai";
+import { generateContentWithRouter } from "../services/aiModelRouter";
 import { verifyAdminRequest } from "../services/serverAdminAuth";
 import { getLiveTelemetrySummary, recordLiveEvent, type LiveEventType } from "../services/liveTelemetryService";
 import { getTitoStudioBaseUrl } from "../services/titoStudioApiClient";
@@ -64,7 +64,6 @@ export async function conductAIMarketResearchAndStrategy(params: {
 
   if (apiKey && !apiKey.includes("MY_GEMINI")) {
     try {
-      const ai = new GoogleGenAI({ apiKey });
       const productsText = productsSample.length ? productsSample.slice(0, 8).join("، ") : "خدمات ومنتجات البراند الرئيسية";
       const prompt = `أنت خبير أبحاث سوق واستراتيجيات نمو رقمي في السوق المصري والعربي.
 المطلوب إجراء بحث سوق عملي وبناء استراتيجية تسويق وخطة محتوى من 8 قطع (تشمل صور + ريلز فيديو + كاروسيل) للبراند التالي:
@@ -99,20 +98,14 @@ export async function conductAIMarketResearchAndStrategy(params: {
 }
 اجعل contentPlan يحتوي على 8 عناصر متنوعة (منها على الأقل 2 نوع reel و 1 نوع video و 5 صور/كاروسيل).`;
 
-      let parsed: any = null;
-      for (const researchModel of ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-3.8-flash"]) {
-        try {
-          const res = await ai.models.generateContent({
-            model: researchModel,
-            contents: prompt,
-            config: { responseMimeType: "application/json" },
-          });
-          if (res.text) {
-            parsed = JSON.parse(res.text);
-            if (parsed?.marketResearch) break;
-          }
-        } catch {}
-      }
+      const routed = await generateContentWithRouter({
+        apiKey,
+        role: "text",
+        contents: prompt,
+        config: { responseMimeType: "application/json" },
+        serviceTag: "t2os-ez-zel:market-research",
+      });
+      const parsed: any = routed.text ? JSON.parse(routed.text) : null;
       if (
         parsed?.marketResearch &&
         Array.isArray(parsed?.painPoints) &&

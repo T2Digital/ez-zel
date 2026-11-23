@@ -100,7 +100,7 @@ export const FLAGSHIP_TEMPLATES: Record<FlagshipTemplateId, FlagshipTemplateSpec
     archetype: 'products_erp_pos',
     name: 'منظومة المطاعم والطلبات أونلاين (منيو + نادل ذكي AI + شاشة المطبخ + كاشير POS)',
     repoUrl: 'https://github.com/T2Digital/harb-restaurant-template.git',
-    referenceLiveUrl: 'https://harb-restaurant.vercel.app',
+    referenceLiveUrl: 'https://harb-rosy.vercel.app',
     modulesEnabled: [
       'Digital Food Menu & Cart (منيو مطعم تفاعلي وسلة طلبات)',
       'AI Waiter (نادل ذكي للرد على استفسارات المنيو واقتراح الوجبات)',
@@ -120,7 +120,7 @@ export const FLAGSHIP_TEMPLATES: Record<FlagshipTemplateId, FlagshipTemplateSpec
     archetype: 'products_erp_pos',
     name: 'منظومة الكافيهات وطلبات الطاولات QR (منيو طاولات + باريستا + كاشير وحسابات)',
     repoUrl: 'https://github.com/T2Digital/sehraya-cafe-template.git',
-    referenceLiveUrl: 'https://sehraya-cafe.vercel.app',
+    referenceLiveUrl: 'https://sahraya-cafe.vercel.app',
     modulesEnabled: [
       'QR Table Ordering (/table/:tableNumber منيو وطلبات من الطاولة)',
       'Captain & Barista Live Screen (شاشة الكابتن والباريستا والمطبخ)',
@@ -139,7 +139,7 @@ export const FLAGSHIP_TEMPLATES: Record<FlagshipTemplateId, FlagshipTemplateSpec
     archetype: 'services_bookings_crm',
     name: 'منظومة تأجير السيارات والليموزين (أسطول + عقود رسمية مطبوعة + عدادات وصيانة)',
     repoUrl: 'https://github.com/T2Digital/master-key-car-rental-template.git',
-    referenceLiveUrl: 'https://master-key-krm.vercel.app',
+    referenceLiveUrl: 'https://master-key-mu.vercel.app',
     modulesEnabled: [
       'Fleet & Booking Portal (معرض وحجز سيارات الأسطول أونلاين)',
       'Printable Official Contracts (توليد وطباعة عقود الإيجار الرسمية)',
@@ -158,7 +158,7 @@ export const FLAGSHIP_TEMPLATES: Record<FlagshipTemplateId, FlagshipTemplateSpec
     archetype: 'services_bookings_crm',
     name: 'منظومة العقارات والاستثمار العقاري (وحدات + مقارنة + حجز معاينة + مستشار AI)',
     repoUrl: 'https://github.com/T2Digital/nile-real-estate-template.git',
-    referenceLiveUrl: 'https://nile-real-estate.vercel.app',
+    referenceLiveUrl: 'https://nile-real-estate-demo.vercel.app',
     modulesEnabled: [
       'Properties Catalog & Compare (عرض العقارات ومقارنة الوحدات والمفضلة)',
       'Viewing Appointments Booking (حجز مواعيد المعاينة أونلاين)',

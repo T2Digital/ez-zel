@@ -263,6 +263,8 @@ export async function provisionDedicatedRepoAndVercel(input: {
     }
 
     // 5. Auto-inject required Environment Variables into the dedicated Vercel project
+    // SECURITY HARDENING: NEVER inject VITE_GEMINI_API_KEY or any secret with VITE_ prefix
+    // into client browser bundles. All AI calls must use server-side GEMINI_API_KEY or VITE_EZZEL_API_URL proxy.
     const envTarget = vercelProjectId || repoName;
     const rotatingGeminiKey = getNextHealthyGeminiKey();
     const envVarsToInject: Array<{ key: string; value: string }> = [
@@ -271,11 +273,10 @@ export async function provisionDedicatedRepoAndVercel(input: {
       { key: 'TENANT_ADMIN_PASSWORD', value: `T2@${adminPin}` },
       ...(rotatingGeminiKey
         ? [
-            { key: 'VITE_GEMINI_API_KEY', value: rotatingGeminiKey },
             { key: 'GEMINI_API_KEY', value: rotatingGeminiKey }
           ]
         : [])
-    ];
+    ].filter((ev) => !/^VITE_.*(KEY|SECRET|TOKEN|PASSWORD)/i.test(ev.key));
 
     for (const ev of envVarsToInject) {
       await fetch(`https://api.vercel.com/v10/projects/${encodeURIComponent(envTarget)}/env?upsert=true`, {

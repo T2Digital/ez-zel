@@ -702,7 +702,7 @@ async function startServer() {
           const studioLandingPageUrl = brand.studioLandingPageUrl || brand.landingPageUrl || `${studioBase}/landing/${encodeURIComponent(brandKey)}`;
           const storefrontUrl = appAccessMode === "landing_page"
               ? studioLandingPageUrl
-              : (slug === "al_genedy" ? `${publicBase}/al-genedy/` : (brand.vercelUrl || brand.deployedUrl || brand.dedicatedLiveUrl || `/store/${encodeURIComponent(brandKey)}`));
+              : (slug === "al_genedy" ? String(process.env.AL_GENEDY_STANDALONE_URL || 'https://al-genedy.vercel.app') : (brand.vercelUrl || brand.deployedUrl || brand.dedicatedLiveUrl || `/store/${encodeURIComponent(brandKey)}`));
           res.json({
               ok: true,
               brand,
@@ -4733,17 +4733,12 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       });
   }
 
-  // --- INTEGRATED APP MOUNT: AL-GENEDY ADVERTISING FULL 3D & ERP PLATFORM ---
-  const alGenedyDistPath = fs.existsSync(path.join(process.cwd(), 'dist', 'al-genedy'))
-      ? path.join(process.cwd(), 'dist', 'al-genedy')
-      : path.join(process.cwd(), 'public', 'al-genedy');
-  if (fs.existsSync(alGenedyDistPath)) {
-      app.use('/al-genedy', express.static(alGenedyDistPath));
-      app.get(['/al-genedy', '/al-genedy/*all'], (_req, res) => {
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-          res.sendFile(path.join(alGenedyDistPath, 'index.html'));
-      });
-  }
+  // --- AL-GENEDY ADVERTISING: INDEPENDENT STANDALONE VERCEL DEPLOYMENT ---
+  // Decoupled from ez-zel container; any legacy /al-genedy URL redirects to the standalone app.
+  const alGenedyStandaloneUrl = String(process.env.AL_GENEDY_STANDALONE_URL || 'https://al-genedy.vercel.app').replace(/\/+$/, '');
+  app.get(['/al-genedy', '/al-genedy/*all'], (_req, res) => {
+      return res.redirect(302, alGenedyStandaloneUrl);
+  });
 
   // --- INTEGRATED APP MOUNT: OFFICIAL SOVEREIGN MULTI-TENANT DROPSHIPPING STORE ENGINE (BATTAH) ---
   const shopDistPath = fs.existsSync(path.join(process.cwd(), 'dist', 'shop'))
