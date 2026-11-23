@@ -99,12 +99,20 @@ export async function conductAIMarketResearchAndStrategy(params: {
 }
 اجعل contentPlan يحتوي على 8 عناصر متنوعة (منها على الأقل 2 نوع reel و 1 نوع video و 5 صور/كاروسيل).`;
 
-      const res = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: { responseMimeType: "application/json" },
-      });
-      const parsed = JSON.parse(res.text || "{}");
+      let parsed: any = null;
+      for (const researchModel of ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-3.8-flash"]) {
+        try {
+          const res = await ai.models.generateContent({
+            model: researchModel,
+            contents: prompt,
+            config: { responseMimeType: "application/json" },
+          });
+          if (res.text) {
+            parsed = JSON.parse(res.text);
+            if (parsed?.marketResearch) break;
+          }
+        } catch {}
+      }
       if (
         parsed?.marketResearch &&
         Array.isArray(parsed?.painPoints) &&
