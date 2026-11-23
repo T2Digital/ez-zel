@@ -97,9 +97,15 @@ async function saveHubConfigPersistent(slug: string, payload: any): Promise<bool
 }
 
 function resolveRequesterContext(req: Request): { authenticated: boolean; isMaster: boolean; email: string } {
-  const adminKeyHeader = String(req.headers["x-admin-key"] || "").trim();
-  const expectedKey = String(process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || "").trim();
-  if (expectedKey && adminKeyHeader && adminKeyHeader === expectedKey) {
+  const adminKeyHeader = String(req.headers["x-admin-key"] || req.headers["x-admin-secret"] || "").trim();
+  const validSecrets = [
+    process.env.ADMIN_API_SECRET,
+    process.env.ADMIN_SECRET_KEY,
+    process.env.T2_AGENT_ADMIN_KEY,
+  ]
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
+  if (adminKeyHeader && validSecrets.includes(adminKeyHeader)) {
     return { authenticated: true, isMaster: true, email: "master@t2.local" };
   }
 
@@ -158,8 +164,7 @@ export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
     return "https://cleanmaster-eg.com";
   }
   if (slug === "al_genedy" || slug === "al-genedy" || slug.includes("genedy")) {
-    const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
-    return `${publicBase}/al-genedy/`;
+    return String(process.env.AL_GENEDY_STANDALONE_URL || "https://al-genedy.vercel.app").replace(/\/+$/, "");
   }
   const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
   return `${publicBase}/app/${brand?.slug || brand?.id || slug}`;

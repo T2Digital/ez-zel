@@ -1133,7 +1133,21 @@ async function startServer() {
               ...(Array.isArray(mergedFromIds) ? { mergedFromIds } : {}),
           });
           const { upsertBrandToTitoStudioFirestore } = await import("./services/titoStudioFirestoreBridge");
-          const matched = getUnifiedGrowthBrands().find((b: any) => b.id === canonicalId || b.canonicalId === canonicalId);
+          const { persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
+          let matched = getUnifiedGrowthBrands().find((b: any) => b.id === canonicalId || b.canonicalId === canonicalId || b.slug === slug);
+          if (!matched) {
+              matched = persistBrandUpdateAcrossEcosystem(String(canonicalId), {
+                  id: String(canonicalId),
+                  slug: String(slug || canonicalId),
+                  name: String(name || canonicalId),
+                  businessType: req.body?.businessType ? String(req.body.businessType) : 'تجارة إلكترونية',
+                  primaryColor: req.body?.primaryColor ? String(req.body.primaryColor) : '#06b6d4',
+                  appTemplate: appTemplate || 'products_erp',
+                  titoStudioClinicId: titoStudioClinicId ? String(titoStudioClinicId) : undefined,
+                  agentBrandId: agentBrandId ? String(agentBrandId) : String(canonicalId),
+                  lifecycleStage: lifecycleStage || 'trial',
+              } as any);
+          }
           if (matched) {
               await upsertBrandToTitoStudioFirestore(matched).catch(() => {});
           }
@@ -1228,17 +1242,16 @@ async function startServer() {
                   const adminKey = process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || "";
                   const headers: Record<string, string> = { "Content-Type": "application/json" };
                   if (adminKey) headers["x-admin-key"] = adminKey;
-                  const createResp = await fetch(`${agentBase}/api/admin/brands`, {
+                  const createResp = await fetch(`${agentBase}/api/brands/add`, {
                       method: "POST",
                       headers,
                       body: JSON.stringify({
-                          id: targetAgentId,
+                          brandId: targetAgentId,
                           name: brand.name,
                           businessType: brand.businessType || "خدمات وأعمال",
-                          phone: brand.phone || "",
-                          notificationWhatsApp: brand.whatsapp || brand.phone || "",
-                          metaPageId: brand.metaPageId || "",
-                          botPaused: true,
+                          dialect: "مصرية احترافية وسريعة",
+                          websiteUrl: brand.dedicatedLiveUrl || brand.appUrl || "",
+                          directKnowledge: brand.knowledgeBase || "",
                       }),
                       signal: AbortSignal.timeout(8000),
                   });
@@ -2366,7 +2379,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   app.post("/api/deploy/dedicated-tenant", requireAdminMiddleware, async (req, res) => {
       try {
           const { provisionDedicatedRepoAndVercel } = await import("./services/dedicatedDeployService");
-          const { brandId, englishSlug, brandName, businessType, phone, appTemplate, templateId } = req.body || {};
+          const { brandId, englishSlug, brandName, businessType, phone, primaryColor, productsCatalog, appTemplate, templateId } = req.body || {};
           if (!brandId && !brandName) return res.status(400).json({ ok: false, error: "brandId or brandName is required" });
           const result = await provisionDedicatedRepoAndVercel({
               brandId: String(brandId || englishSlug || brandName),
@@ -2374,6 +2387,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               brandName: brandName ? String(brandName) : undefined,
               businessType: businessType ? String(businessType) : undefined,
               phone: phone ? String(phone) : undefined,
+              primaryColor: primaryColor ? String(primaryColor) : undefined,
+              productsCatalog: Array.isArray(productsCatalog) ? productsCatalog : undefined,
               appTemplate,
               templateId,
           });

@@ -32,6 +32,8 @@ export async function provisionDedicatedRepoAndVercel(input: {
   brandName?: string;
   businessType?: string;
   phone?: string;
+  primaryColor?: string;
+  productsCatalog?: any[];
   appTemplate?: 'products_erp' | 'services_booking' | FlagshipTemplateId | string;
   templateId?: FlagshipTemplateId;
 }): Promise<DedicatedDeployResult> {
@@ -192,29 +194,51 @@ export async function provisionDedicatedRepoAndVercel(input: {
     const phoneDigits = String(brand.phone || '').replace(/\D/g, '');
     const adminPin = String((brand as any).adminPin || phoneDigits.slice(-6) || '373634');
     const adminEmail = String((brand as any).adminEmail || `owner@${asciiSlug}.t2.app`).toLowerCase();
+    const resolvedPrimaryColor = input.primaryColor || (brand as any).primaryColor || '#06b6d4';
+    const resolvedCatalog =
+      Array.isArray(input.productsCatalog) && input.productsCatalog.length > 0
+        ? input.productsCatalog
+        : Array.isArray((brand as any).productsCatalog)
+          ? (brand as any).productsCatalog
+          : [];
 
-    // 3. Inject brand tenant-config.json into the dedicated repo
+    // 2b. Poll until GitHub finishes asynchronous template generation (index.html exists)
+    let idxData: any = null;
+    for (let waitTry = 0; waitTry < 12; waitTry++) {
+      try {
+        const probeRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/index.html`, {
+          headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github+json' }
+        });
+        if (probeRes.ok) {
+          idxData = await probeRes.json();
+          break;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
+    // 3. Inject brand tenant-config.json into the dedicated repo (idempotent: include sha if already present)
     const configContent = Buffer.from(
       JSON.stringify(
         {
           id: brand.id,
           brandId: brand.id,
           slug: asciiSlug,
-          name: brand.name,
-          slogan: (brand as any).slogan || '',
+          name: input.brandName || brand.name,
+          slogan: (brand as any).slogan || input.businessType || brand.businessType || '',
           logoUrl: (brand as any).logoUrl || '',
-          phone: brand.phone || '',
-          whatsapp: (brand as any).whatsapp || brand.phone || '',
+          phone: input.phone || brand.phone || '',
+          whatsapp: (brand as any).whatsapp || input.phone || brand.phone || '',
           adminEmail,
           adminPin,
-          primaryColor: (brand as any).primaryColor || '#06b6d4',
+          primaryColor: resolvedPrimaryColor,
           accentColor: (brand as any).accentColor || '#0f172a',
           commercialRegister: (brand as any).commercialRegister || '',
           taxCardNumber: (brand as any).taxCardNumber || '',
           enableCash: typeof (brand as any).enableCash === 'boolean' ? (brand as any).enableCash : true,
           shippingCost: (brand as any).shippingCost,
           governorates: Array.isArray((brand as any).governorates) ? (brand as any).governorates : undefined,
-          productsCatalog: Array.isArray((brand as any).productsCatalog) ? (brand as any).productsCatalog : [],
+          productsCatalog: resolvedCatalog,
           templateId: resolvedKey,
           appTemplate: input.appTemplate || (brand as any).appTemplate || 'services_booking',
           ezZelApiBase: process.env.PUBLIC_BASE_URL || 'https://t2os.app'
@@ -224,6 +248,17 @@ export async function provisionDedicatedRepoAndVercel(input: {
       )
     ).toString('base64');
 
+    let existingCfgSha: string | undefined;
+    try {
+      const cfgProbe = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/public/tenant-config.json`, {
+        headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github+json' }
+      });
+      if (cfgProbe.ok) {
+        const cfgJson: any = await cfgProbe.json();
+        if (cfgJson?.sha) existingCfgSha = cfgJson.sha;
+      }
+    } catch {}
+
     await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/public/tenant-config.json`, {
       method: 'PUT',
       headers: {
@@ -232,29 +267,33 @@ export async function provisionDedicatedRepoAndVercel(input: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        message: `chore(tenant): configure dedicated brand ${brand.name}`,
-        content: configContent
+        message: `chore(tenant): configure dedicated brand ${input.brandName || brand.name}`,
+        content: configContent,
+        ...(existingCfgSha ? { sha: existingCfgSha } : {})
       })
     }).catch(() => {});
 
     // 3b. Rebrand index.html title/meta/logo in cloned repo so SSR/initial load matches the new brand
     try {
-      const idxRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/index.html`, {
-        headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github+json' }
-      });
-      if (idxRes.ok) {
-        const idxData: any = await idxRes.json();
+      if (!idxData) {
+        const idxRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/index.html`, {
+          headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github+json' }
+        });
+        if (idxRes.ok) idxData = await idxRes.json();
+      }
+      if (idxData?.content) {
         const rawHtml = Buffer.from(idxData.content || '', 'base64').toString('utf8');
-        const safeName = String(brand.name || brand.slug).replace(/[<>]/g, '');
-        const safeSlogan = String((brand as any).slogan || `متجر ونظام إدارة ${safeName}`).replace(/[<>]/g, '');
+        const safeName = String(input.brandName || brand.name || brand.slug).replace(/[<>]/g, '');
+        const safeSlogan = String((brand as any).slogan || input.businessType || brand.businessType || `متجر ونظام إدارة ${safeName}`).replace(/[<>]/g, '');
         const safeLogo = String((brand as any).logoUrl || '').trim();
         let rebrandedHtml = rawHtml
-          .replace(/بطاح الأصلي|كلين ماستر|مطعم حرب|كافيه سهرايا|ماستر كي لتأجير السيارات|النيل للاستثمار العقاري/g, safeName)
+          .replace(/بطاح الأصلي|كلين ماستر|مطعم حرب|كافيه سهرايا|ماستر كي لتأجير السيارات|النيل للاستثمار العقاري|بطاح/g, safeName)
+          .replace(/قطع غيار سيارات أصلية/g, safeSlogan)
           .replace(/تسوق أفضل قطع غيار السيارات الأصلية والإكسسوارات من [^."<]+/g, safeSlogan);
         if (safeLogo) {
           rebrandedHtml = rebrandedHtml.replace(/https:\/\/i\.ibb\.co\/LDdGwd87\/5-1\.png/g, safeLogo);
         }
-        await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/index.html`, {
+        const putIdx = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/index.html`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${githubToken}`,
@@ -267,6 +306,9 @@ export async function provisionDedicatedRepoAndVercel(input: {
             sha: idxData.sha
           })
         });
+        if (!putIdx.ok) {
+          console.warn('[DedicatedDeploy] index.html PUT status:', putIdx.status);
+        }
       }
     } catch {}
 
@@ -329,10 +371,11 @@ export async function provisionDedicatedRepoAndVercel(input: {
       }).catch(() => {});
     }
 
-    // 6. Trigger initial production deployment on Vercel (passing numeric GitHub repoId)
+    // 6. Trigger initial production deployment on Vercel (wait briefly after git commits, pass numeric repoId)
     let vercelDeploymentId = '';
     let vercelDeployError = '';
     try {
+      await new Promise((r) => setTimeout(r, 1500));
       const repoInfoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
         headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github+json' }
       });
