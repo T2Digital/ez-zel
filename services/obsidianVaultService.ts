@@ -1273,18 +1273,30 @@ export async function executeRealJarvisEcosystemAction(input: {
             await syncFromTitoStudioFirestore();
 
             // Automatically trigger Tito Studio Background Execution + QA Gate for Week-1 Trial Content
+            // Trial quota: strictly 2 image posts + 1 video/reel = 3 total posts
             try {
                 const { getTitoStudioBaseUrl } = await import('./titoStudioApiClient');
                 const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, '');
                 const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || '').trim();
-                const execItems = (Array.isArray(omniPlan) ? omniPlan : []).slice(0, 7).map((p: any, idx: number) => ({
-                    title: String(p.title || p.topic || `خطة الأسبوع — منشور ${idx + 1}`),
-                    type: p.type === 'video' || p.format === 'reel' ? 'video' : 'image',
-                    caption: String(p.caption || p.script || p.hook || p.title || ''),
-                    visualPrompt: String(p.visualPrompt || p.designBrief || ''),
-                    pillarLabel: String(p.pillar || 'خطة الأسبوع التجريبي'),
-                    scheduledPlatforms: Array.isArray(p.platforms) ? p.platforms : ['facebook', 'instagram'],
-                }));
+                const rawPlan = Array.isArray(omniPlan) ? omniPlan : [];
+                const mapPlanItem = (p: any, idx: number, forcedType?: 'image' | 'video') => ({
+                    title: String(p?.title || p?.topic || `خطة الأسبوع التجريبي — منشور ${idx + 1}`),
+                    type: forcedType || (p?.type === 'video' || p?.format === 'reel' ? 'video' : 'image'),
+                    caption: String(p?.caption || p?.script || p?.hook || p?.title || ''),
+                    visualPrompt: String(p?.visualPrompt || p?.designBrief || ''),
+                    pillarLabel: String(p?.pillar || 'خطة الأسبوع التجريبي'),
+                    scheduledPlatforms: Array.isArray(p?.platforms) ? p.platforms : ['facebook', 'instagram'],
+                });
+                const imageCandidates = rawPlan.filter((p: any) => p?.type !== 'video' && p?.format !== 'reel');
+                const videoCandidates = rawPlan.filter((p: any) => p?.type === 'video' || p?.format === 'reel');
+                const execItems = [
+                    ...imageCandidates.slice(0, 2).map((p: any, idx: number) => mapPlanItem(p, idx, 'image')),
+                    ...(videoCandidates.length > 0
+                        ? [mapPlanItem(videoCandidates[0], 2, 'video')]
+                        : rawPlan[2]
+                            ? [mapPlanItem(rawPlan[2], 2, 'video')]
+                            : []),
+                ].slice(0, 3);
                 if (studioKey && execItems.length > 0) {
                     fetch(`${studioBase}/api/execution/enqueue`, {
                         method: 'POST',

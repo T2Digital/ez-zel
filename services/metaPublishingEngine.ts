@@ -56,7 +56,7 @@ export async function publishPostWithCTA(params: MetaPublishParams) {
     payload.call_to_action = {
       type: ctaType,
       value: {
-        link: clientAppUrl || link || 'https://t2-studio.vercel.app'
+        link: clientAppUrl || link || 'https://studio.t2os.app'
       }
     };
   }

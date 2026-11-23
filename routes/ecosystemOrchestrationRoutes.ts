@@ -360,7 +360,16 @@ export function registerEcosystemOrchestrationRoutes(app: Express): void {
       });
 
       let whatsappNotified = false;
-      const phone = String(clientPhone || "").trim();
+      let phone = String(clientPhone || "").trim();
+      if (!phone) {
+        const matchedBrand: any = getUnifiedGrowthBrands().find(
+          (b: any) =>
+            b.id === safeBrandId ||
+            b.slug === safeBrandId ||
+            String((b as any).titoStudioClinicId || "") === safeBrandId
+        );
+        phone = String(matchedBrand?.whatsapp || matchedBrand?.phone || "").trim();
+      }
       if (phone) {
         const portalLink =
           showroomUrl || `https://studio.t2os.app/?view=clientPortal&brandId=${encodeURIComponent(safeBrandId)}`;
