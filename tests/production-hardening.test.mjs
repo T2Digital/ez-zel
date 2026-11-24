@@ -1128,3 +1128,108 @@ test("32) transliterateArabicToSlug produces clean Latin slugs & server.ts scope
     "GET /api/obsidian/graph must require admin auth unless scoped by brandId"
   );
 });
+
+test("33) Trial approve-post persists revisionCount across getUnifiedGrowthBrands and enforces 429 on 2nd revision", async () => {
+  const prevTenantSecret = process.env.TENANT_AUTH_SECRET;
+  if (!prevTenantSecret) {
+    process.env.TENANT_AUTH_SECRET = `test-secret-${Date.now()}`;
+  }
+  const {
+    persistBrandUpdateAcrossEcosystem,
+    getUnifiedGrowthBrands,
+    deleteBrandVaultState,
+  } = await importTs(path.join("services", "obsidianVaultService.ts"));
+  const { upsertBrandRegistryEntry, deleteBrandRegistryEntry } = await importTs(
+    path.join("services", "brandRegistryService.ts")
+  );
+  const { buildOmniChannelWeekPlan } = await importTs(
+    path.join("services", "titoStudioFirestoreBridge.ts")
+  );
+  const { registerClientPortalRoutes } = await importTs(path.join("routes", "clientPortalRoutes.ts"));
+  const { signClientPortalToken } = await importTs(path.join("routes", "tenantErpRoutes.ts"));
+
+  const testSlug = `trial-rev-cap-${Date.now()}`;
+  const futureTrialEnd = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+  const initialPlan = buildOmniChannelWeekPlan({
+    id: testSlug,
+    slug: testSlug,
+    name: "براند اختبار التعديل",
+    businessType: "تجارة إلكترونية",
+    phone: "01099887755",
+    isTrial: true,
+  });
+
+  try {
+    persistBrandUpdateAcrossEcosystem(testSlug, {
+      id: testSlug,
+      slug: testSlug,
+      name: "براند اختبار التعديل",
+      businessType: "تجارة إلكترونية",
+      phone: "01099887755",
+      subscriptionStatus: "trial",
+      planId: "trial_7d",
+      trialEndsAt: futureTrialEnd,
+      weekContentPlan: initialPlan,
+    });
+    upsertBrandRegistryEntry(testSlug, {
+      slug: testSlug,
+      name: "براند اختبار التعديل",
+      businessType: "تجارة إلكترونية",
+      planId: "trial_7d",
+      lifecycleStage: "trial",
+      subscriptionStatus: "trial",
+    });
+
+    const loadedBefore = getUnifiedGrowthBrands().find((b) => b.slug === testSlug || b.id === testSlug);
+    assert.ok(loadedBefore, "Test trial brand must resolve from getUnifiedGrowthBrands");
+    assert.equal(loadedBefore.weekContentPlan.length, 3, "Trial weekContentPlan must contain strictly 3 items");
+
+    const routes = {};
+    const mockApp = {
+      get(p, h) { routes[`GET ${p}`] = h; },
+      post(p, h) { routes[`POST ${p}`] = h; },
+    };
+    registerClientPortalRoutes(mockApp, {
+      getServerAI: () => null,
+      getRealEcosystemStats: () => ({}),
+      synthesizeSovereignSpeech: async () => null,
+    });
+
+    const portalToken = signClientPortalToken(testSlug);
+    const callApprovePost = async (feedback) => {
+      const res = {
+        statusCode: 200,
+        body: null,
+        status(c) { this.statusCode = c; return this; },
+        json(b) { this.body = b; return this; },
+      };
+      await routes["POST /api/client-portal/:slug/approve-post"](
+        {
+          params: { slug: testSlug },
+          headers: { "x-portal-token": portalToken },
+          query: {},
+          body: { postIndex: 0, decision: "revision_requested", feedback },
+        },
+        res
+      );
+      return res;
+    };
+
+    const first = await callApprovePost("تعديل أول");
+    assert.equal(first.statusCode, 200);
+    assert.equal(first.body.ok, true);
+    assert.equal(first.body.post?.revisionCount, 1);
+
+    const reloaded = getUnifiedGrowthBrands().find((b) => b.slug === testSlug || b.id === testSlug);
+    assert.equal(reloaded?.weekContentPlan?.[0]?.revisionCount, 1, "revisionCount must persist across getUnifiedGrowthBrands");
+
+    const second = await callApprovePost("تعديل ثاني");
+    assert.equal(second.statusCode, 429, `Expected 429 on 2nd revision, got ${second.statusCode}`);
+    assert.equal(second.body.limitReached, true);
+  } finally {
+    deleteBrandVaultState(testSlug);
+    await deleteBrandRegistryEntry(testSlug);
+    if (prevTenantSecret === undefined) delete process.env.TENANT_AUTH_SECRET;
+    else process.env.TENANT_AUTH_SECRET = prevTenantSecret;
+  }
+});

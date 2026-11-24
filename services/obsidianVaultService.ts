@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { writeJsonAtomic, savePersistentJson, getPersistentFilePath } from './persistentStorage';
 import { BRAND_VAULT } from './brandVault';
+import { findMatchingBrandRecord } from './brandIdentityNormalizer';
+import { applyRegistryToBrands } from './brandRegistryService';
 import { readBookings, saveBooking, broadcastGatewayEvent } from './microservicesGateway';
 import { publishBrandPost, launchAdCampaign, getPublishedLogs } from './growthAgencyEngine';
 import { cloneOrSynthesizeBrand } from './appClonerCrawlerService';
@@ -386,6 +388,7 @@ export function getUnifiedGrowthBrands(): any[] {
             id: cnt.id,
             firestoreDocId: cnt.id,
             day: cnt.title?.split(':')[0] || ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'][idx % 7],
+            mediaFormat: (cnt.type === 'video' || cnt.type === 'reel' || cnt.mediaFormat === 'video') ? 'video' : 'image',
             contentType: cnt.type === 'video' ? 'فيديو ريلز 9:16' : 'تصميم سوشيال 1:1',
             hook: cnt.hook || cnt.title || `عرض مميز من ${clinic.name}`,
             caption: cnt.caption || cnt.content || '',
@@ -394,8 +397,47 @@ export function getUnifiedGrowthBrands(): any[] {
             ctaBadge: cnt.ctaBadge || '🛒 احجز الآن بخصم 10%',
             ctaTargetUrl: cnt.ctaTargetUrl || `/store/${existing.slug || mappedKey}`,
             visualUrl: cnt.visualUrl || '',
+            videoUrl: cnt.videoUrl || '',
             status: cnt.status || 'scheduled'
         }));
+
+        const existingPlanArr = Array.isArray(existing.weekContentPlan) ? existing.weekContentPlan : [];
+        const isExistingTrial = existing.subscriptionStatus === 'trial' || existing.planId === 'trial_7d';
+        const mergedStudioWeekPosts = studioWeekPosts.map((sp: any, idx: number) => {
+            const matchedExisting =
+                existingPlanArr.find(
+                    (ep: any) =>
+                        (ep?.firestoreDocId && ep.firestoreDocId === sp.id) ||
+                        (ep?.id && ep.id === sp.id)
+                ) || existingPlanArr[idx];
+            if (!matchedExisting) return sp;
+            return {
+                ...sp,
+                ...(matchedExisting.revisionCount !== undefined ? { revisionCount: Number(matchedExisting.revisionCount) } : {}),
+                ...(matchedExisting.clientApproval !== undefined ? { clientApproval: matchedExisting.clientApproval } : {}),
+                ...(matchedExisting.clientFeedback !== undefined ? { clientFeedback: matchedExisting.clientFeedback } : {}),
+                ...(matchedExisting.updatedAt !== undefined ? { updatedAt: matchedExisting.updatedAt } : {}),
+                ...(matchedExisting.mediaFormat ? { mediaFormat: matchedExisting.mediaFormat } : {}),
+                ...(matchedExisting.videoUrl ? { videoUrl: matchedExisting.videoUrl } : {}),
+                status: matchedExisting.clientApproval ? matchedExisting.status : sp.status,
+            };
+        });
+        const resolvedStudioWeekPlan = isExistingTrial && existingPlanArr.length > 0
+            ? existingPlanArr.slice(0, 3).map((ep: any, idx: number) => {
+                const sp = mergedStudioWeekPosts.find(
+                    (s: any) =>
+                        (ep?.firestoreDocId && ep.firestoreDocId === s.id) ||
+                        (ep?.id && ep.id === s.id)
+                ) || mergedStudioWeekPosts[idx];
+                if (!sp) return ep;
+                return {
+                    ...sp,
+                    ...ep,
+                    visualUrl: (sp.visualUrl && !String(sp.visualUrl).startsWith('data:image/svg')) ? sp.visualUrl : ep.visualUrl,
+                    videoUrl: sp.videoUrl || ep.videoUrl,
+                };
+            })
+            : (isExistingTrial ? mergedStudioWeekPosts.slice(0, 3) : mergedStudioWeekPosts);
 
         const existingPhoneClean =
             existing.phone && existing.phone !== '01013373634' ? String(existing.phone).trim() : '';
@@ -434,8 +476,8 @@ export function getUnifiedGrowthBrands(): any[] {
                     ? existing.productsCatalog
                     : studioCatalog,
             weekContentPlan:
-                studioWeekPosts.length > 0
-                    ? studioWeekPosts
+                resolvedStudioWeekPlan.length > 0
+                    ? resolvedStudioWeekPlan
                     : existing.weekContentPlan || []
         });
     });
@@ -460,7 +502,6 @@ export function getUnifiedGrowthBrands(): any[] {
         };
     });
 
-    const { applyRegistryToBrands } = require('./brandRegistryService');
     return applyRegistryToBrands(finalBrands);
 }
 
@@ -732,21 +773,31 @@ export function parseObsidianBrandMarkdown(mdContent: string): {
 export function persistBrandUpdateAcrossEcosystem(brandId: string, updates: Record<string, any>): any {
     const cleanId = brandId.replace(/^(brand_|store_|agent_)/, '');
     const allCurrent = getUnifiedGrowthBrands();
-    const existingBrand = allCurrent.find(b => b.id === cleanId || b.slug === cleanId) || { id: cleanId, slug: cleanId, name: cleanId };
+    const existingBrand = findMatchingBrandRecord(allCurrent, cleanId) || { id: cleanId, slug: cleanId, name: cleanId };
+    const canonicalKey = String(existingBrand.id || cleanId);
 
     const mergedBrand = {
         ...existingBrand,
         ...updates,
-        id: cleanId,
-        slug: existingBrand.slug || cleanId,
+        id: canonicalKey,
+        slug: existingBrand.slug || canonicalKey,
         updatedAt: new Date().toISOString()
     };
 
-    // 1. Save to persistent Ez-Zel brands.json (+ Firestore mirror)
+    // 1. Save to persistent Ez-Zel brands.json (+ Firestore mirror) using canonicalKey and deduplicating hyphen/underscore variants
     try {
         const rawBrands = readMergedBrandsJsonFile();
-        rawBrands[cleanId] = {
-            ...(rawBrands[cleanId] || {}),
+        const normNeedle = canonicalKey.toLowerCase().replace(/[-_]+/g, '');
+        let previousVariantData: Record<string, any> = {};
+        for (const k of Object.keys(rawBrands)) {
+            if (k !== canonicalKey && k.toLowerCase().replace(/[-_]+/g, '') === normNeedle) {
+                previousVariantData = { ...previousVariantData, ...(rawBrands[k] || {}) };
+                delete rawBrands[k];
+            }
+        }
+        rawBrands[canonicalKey] = {
+            ...previousVariantData,
+            ...(rawBrands[canonicalKey] || {}),
             ...mergedBrand
         };
         savePersistentJson('t2_brands_vault', 'brands.json', rawBrands);
@@ -1251,12 +1302,42 @@ export async function executeRealJarvisEcosystemAction(input: {
                 }
             }
 
-            const cloned = await cloneOrSynthesizeBrand({
-                name,
+            const { resolveBrandTemplate } = await import('./tenantAppRenderer');
+            const { transliterateArabicToSlug } = await import('./brandIdentityNormalizer');
+            const { generateIndustryCatalogWithAI, scrapeWebsiteMetadata } = await import('./industryHydrationService');
+            const { createRotatingServerAI } = await import('./geminiKeyPool');
+            let hydrationAi: any = null;
+            try { hydrationAi = createRotatingServerAI(); } catch {}
+
+            const preResolvedTemplate = resolveBrandTemplate({
+                appTemplate: requestedTemplate,
                 industry,
-                phone,
-                websiteUrl,
-                skipBlockingRemoteSync: true
+                name
+            });
+
+            // Run brand cloning, industry AI hydration & website metadata scrape in parallel
+            const [cloned, hydratedCatalog, siteMeta] = await Promise.all([
+                cloneOrSynthesizeBrand({
+                    name,
+                    industry,
+                    phone,
+                    websiteUrl,
+                    skipBlockingRemoteSync: true
+                }),
+                generateIndustryCatalogWithAI({
+                    ai: hydrationAi,
+                    brandName: name,
+                    industry,
+                    appTemplate: preResolvedTemplate
+                }),
+                websiteUrl ? scrapeWebsiteMetadata(websiteUrl) : Promise.resolve({} as any)
+            ]);
+
+            const resolvedTemplate = resolveBrandTemplate({
+                appTemplate: requestedTemplate,
+                businessType: cloned.businessType,
+                industry,
+                name: cloned.name
             });
 
             // Enrich with strictly 3 Trial Posts (2 image + 1 video reel)
@@ -1269,30 +1350,6 @@ export async function executeRealJarvisEcosystemAction(input: {
                 existingPlan: cloned.weekContentPlan,
                 isTrial: true
             });
-            const { resolveBrandTemplate } = await import('./tenantAppRenderer');
-            const { transliterateArabicToSlug } = await import('./brandIdentityNormalizer');
-            const resolvedTemplate = resolveBrandTemplate({
-                appTemplate: requestedTemplate,
-                businessType: cloned.businessType,
-                industry,
-                name: cloned.name
-            });
-
-            // Fast Industry Hydration (capped at 3s)
-            const { generateIndustryCatalogWithAI, scrapeWebsiteMetadata } = await import('./industryHydrationService');
-            const { createRotatingServerAI } = await import('./geminiKeyPool');
-            let hydrationAi: any = null;
-            try { hydrationAi = createRotatingServerAI(); } catch {}
-
-            const [hydratedCatalog, siteMeta] = await Promise.all([
-                generateIndustryCatalogWithAI({
-                    ai: hydrationAi,
-                    brandName: cloned.name,
-                    industry,
-                    appTemplate: resolvedTemplate
-                }),
-                websiteUrl ? scrapeWebsiteMetadata(websiteUrl) : Promise.resolve({} as any)
-            ]);
 
             const finalCatalog =
                 Array.isArray(hydratedCatalog) && hydratedCatalog.length > 0
@@ -1456,25 +1513,17 @@ export async function executeRealJarvisEcosystemAction(input: {
                     const { getTitoStudioBaseUrl } = await import('./titoStudioApiClient');
                     const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, '');
                     const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || '').trim();
-                    const rawPlan = Array.isArray(omniPlan) ? omniPlan : [];
-                    const mapPlanItem = (p: any, idx: number, forcedType?: 'image' | 'video') => ({
-                        title: String(p?.title || p?.topic || `خطة الأسبوع التجريبي — منشور ${idx + 1}`),
-                        type: forcedType || (p?.type === 'video' || p?.format === 'reel' ? 'video' : 'image'),
+                    const rawPlan = Array.isArray(omniPlan) ? omniPlan.slice(0, 3) : [];
+                    const mapPlanItem = (p: any, idx: number) => ({
+                        id: String(p?.firestoreDocId || `jarvis_${enrichedBrand.id}_day_${idx + 1}`),
+                        title: String(p?.hook || p?.title || p?.topic || `خطة الأسبوع التجريبي — منشور ${idx + 1}`),
+                        type: (p?.mediaFormat === 'video' || p?.type === 'video' || p?.format === 'reel') ? 'video' : 'image',
                         caption: String(p?.caption || p?.script || p?.hook || p?.title || ''),
-                        visualPrompt: String(p?.visualPrompt || p?.designBrief || ''),
-                        pillarLabel: String(p?.pillar || 'خطة الأسبوع التجريبي'),
+                        visualPrompt: String(p?.omniPrompt || p?.visualPrompt || p?.designBrief || ''),
+                        pillarLabel: String(p?.pillarLabel || p?.pillar || 'خطة الأسبوع التجريبي'),
                         scheduledPlatforms: Array.isArray(p?.platforms) ? p.platforms : ['facebook', 'instagram'],
                     });
-                    const imageCandidates = rawPlan.filter((p: any) => p?.type !== 'video' && p?.format !== 'reel' && p?.mediaFormat !== 'video');
-                    const videoCandidates = rawPlan.filter((p: any) => p?.type === 'video' || p?.format === 'reel' || p?.mediaFormat === 'video');
-                    const execItems = [
-                        ...imageCandidates.slice(0, 2).map((p: any, idx: number) => mapPlanItem(p, idx, 'image')),
-                        ...(videoCandidates.length > 0
-                            ? [mapPlanItem(videoCandidates[0], 2, 'video')]
-                            : rawPlan[2]
-                                ? [mapPlanItem(rawPlan[2], 2, 'video')]
-                                : []),
-                    ].slice(0, 3);
+                    const execItems = rawPlan.map((p: any, idx: number) => mapPlanItem(p, idx));
                     if (studioKey && execItems.length > 0) {
                         await fetch(`${studioBase}/api/execution/enqueue`, {
                             method: 'POST',

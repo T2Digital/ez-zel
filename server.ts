@@ -4347,7 +4347,17 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   agentActiveCount: stats.agentActiveCount,
               });
           }
-          res.json({ success: true, ...stats });
+          const allClients = getEzZelPersonalClients();
+          const paidSubsCount = readPaymobSubscriptions().filter(
+              (s: any) => String(s?.status || "").toLowerCase() === "paid"
+          ).length;
+          res.json({
+              success: true,
+              ...stats,
+              ezzelClients: allClients,
+              unifiedBrandsCount: getUnifiedGrowthBrands().length,
+              paidSubscribersCount: paidSubsCount,
+          });
       } catch (e: any) {
           res.status(500).json({ error: e.message });
       }

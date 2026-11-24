@@ -295,7 +295,7 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
                         responseMimeType: 'application/json'
                     }
                 }),
-                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI_BLUEPRINT_TIMEOUT')), 3500))
+                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI_BLUEPRINT_TIMEOUT')), 2200))
             ]);
 
             const rawJson = (res as any).text || '{}';
@@ -369,7 +369,7 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
         ownerEmail: clonedBrand.ownerEmail,
         systemPrompt: clonedBrand.systemPrompt,
         productsCatalog: clonedBrand.productsCatalog,
-        weekContentPlan: clonedBrand.weekContentPlan
+        weekContentPlan: input.skipBlockingRemoteSync ? [] : clonedBrand.weekContentPlan
     };
     if (input.skipBlockingRemoteSync) {
         void syncBrandToAllEcosystems(syncPayload).catch(() => {});

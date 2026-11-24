@@ -164,7 +164,11 @@ export interface OmniWeekPostItem {
     omniPrompt?: string;
     turboFlowJobId?: string;
     turboFlowStatus?: 'not_required' | 'queued' | 'processing_in_flow' | 'completed';
-    status?: 'draft' | 'scheduled' | 'published';
+    status?: 'draft' | 'scheduled' | 'published' | 'revision_requested' | string;
+    revisionCount?: number;
+    clientApproval?: string;
+    clientFeedback?: string;
+    updatedAt?: string;
     firestoreDocId?: string;
 }
 
@@ -804,6 +808,10 @@ export function buildOmniChannelWeekPlan(brand: {
             turboFlowJobId,
             turboFlowStatus,
             status: existingItem?.status || 'draft',
+            ...(existingItem?.revisionCount !== undefined ? { revisionCount: Number(existingItem.revisionCount) } : {}),
+            ...(existingItem?.clientApproval !== undefined ? { clientApproval: existingItem.clientApproval } : {}),
+            ...(existingItem?.clientFeedback !== undefined ? { clientFeedback: existingItem.clientFeedback } : {}),
+            ...(existingItem?.updatedAt !== undefined ? { updatedAt: existingItem.updatedAt } : {}),
             firestoreDocId: existingItem?.firestoreDocId || `jarvis_${brand.id}_day_${idx + 1}`
         };
     });

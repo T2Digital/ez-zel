@@ -199,10 +199,23 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
               if (finJson?.success) {
                   const clientsArr = Array.isArray(finJson.ezzelClients) ? finJson.ezzelClients : [];
                   const activeClients = clientsArr.filter((c: any) => String(c.status || '').toLowerCase() === 'active');
+                  const clientsRevenueEgp = activeClients.reduce(
+                      (acc: number, c: any) => acc + Number(c.monthlySubscriptionEgp || 0),
+                      0
+                  );
                   setBackendAnalytics({
-                      totalAccounts: clientsArr.length,
-                      activePaidAccounts: Math.max(activeClients.length, Number(finJson.paidSubscribersCount || 0)),
-                      confirmedRevenueEgp: Number(finJson.realConfirmedRevenueEgp || 0),
+                      totalAccounts: Math.max(
+                          clientsArr.length,
+                          Number(finJson.unifiedBrandsCount || finJson.totalVaultBrandsCount || 0)
+                      ),
+                      activePaidAccounts: Math.max(
+                          activeClients.length,
+                          Number(finJson.paidSubscribersCount || finJson.agentActiveCount || 0)
+                      ),
+                      confirmedRevenueEgp: Math.max(
+                          Number(finJson.realConfirmedRevenueEgp || 0),
+                          clientsRevenueEgp
+                      ),
                       clientJoinDates: clientsArr.map((c: any) => String(c.joinedAt || '')).filter(Boolean),
                   });
               }
