@@ -278,6 +278,13 @@ export async function provisionDedicatedRepoAndVercel(input: {
     }
 
     // 3. Inject brand tenant-config.json into the dedicated repo (idempotent: include sha if already present)
+    const derivedCategories = Array.from(
+      new Set(
+        resolvedCatalog
+          .map((item: any) => String(item?.category || item?.mainCategory || '').trim())
+          .filter(Boolean)
+      )
+    );
     const configContent = Buffer.from(
       JSON.stringify(
         {
@@ -299,6 +306,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
           shippingCost: (brand as any).shippingCost,
           governorates: Array.isArray((brand as any).governorates) ? (brand as any).governorates : undefined,
           productsCatalog: resolvedCatalog,
+          ...(derivedCategories.length > 0 ? { appCustomization: { mainCategories: derivedCategories } } : {}),
           templateId: resolvedKey,
           appTemplate: input.appTemplate || (brand as any).appTemplate || 'services_booking',
           ezZelApiBase: process.env.PUBLIC_BASE_URL || 'https://t2os.app'
@@ -404,10 +412,16 @@ export async function provisionDedicatedRepoAndVercel(input: {
     // into client browser bundles. All AI calls must use server-side GEMINI_API_KEY or VITE_EZZEL_API_URL proxy.
     const envTarget = vercelProjectId || repoName;
     const rotatingGeminiKey = getNextHealthyGeminiKey();
+    const sharedTenantSecret = String(
+      process.env.TENANT_AUTH_SECRET || process.env.ADMIN_API_SECRET || ''
+    ).trim();
     const envVarsToInject: Array<{ key: string; value: string }> = [
       { key: 'VITE_EZZEL_API_URL', value: process.env.PUBLIC_BASE_URL || 'https://t2os.app' },
       { key: 'VITE_TENANT_BRAND_ID', value: String(brand.slug || brand.id) },
       { key: 'TENANT_ADMIN_PASSWORD', value: `T2@${adminPin}` },
+      ...(sharedTenantSecret
+        ? [{ key: 'TENANT_AUTH_SECRET', value: sharedTenantSecret }]
+        : []),
       ...(rotatingGeminiKey
         ? [
             { key: 'GEMINI_API_KEY', value: rotatingGeminiKey }

@@ -5,6 +5,7 @@ import {
   saveTenantErpState,
   getTenantPasswordRecord,
   setTenantPasswordRecord,
+  hashPassword,
   verifyPasswordHash,
   normalizeSlugKey,
 } from "../services/tenantErpStoreService";
@@ -56,6 +57,25 @@ const FULL_TENANT_ADMIN_PERMISSIONS = [
   "users",
   "settings",
 ];
+
+function sanitizeUserRecord(u: any) {
+  if (!u || typeof u !== "object") return u;
+  const { password, passwordHash, passwordSalt, ...rest } = u;
+  const normalizedUsername = String(rest.username || rest.email || "").trim().toLowerCase();
+  return {
+    ...rest,
+    ...(normalizedUsername ? { username: normalizedUsername } : {}),
+    hasPassword: Boolean(passwordHash || password || rest.hasPassword),
+  };
+}
+
+function sanitizeAdminErpState(state: Record<string, any>): Record<string, any> {
+  const { __auth: _stripAuth, ...safeState } = state || {};
+  if (Array.isArray(safeState.users)) {
+    safeState.users = safeState.users.map(sanitizeUserRecord);
+  }
+  return safeState;
+}
 
 export function signTenantToken(payloadObj: Record<string, any>): string {
   const payload = Buffer.from(JSON.stringify(payloadObj), "utf8").toString("base64url");
@@ -211,29 +231,84 @@ export function registerTenantErpRoutes(
       }
 
       const slugNorm = normalizeSlugKey(slug);
-      const brand = await resolveBrandForAuth(slug);
-      if (!brand) {
-        return res.status(404).json({ ok: false, error: "البراند غير مسجل" });
-      }
+      const brand = (await resolveBrandForAuth(slug)) || { id: slugNorm, slug: slugNorm, name: slugNorm };
 
       const { asciiSlug, expectedEmail, userObj, token } = buildAdminUserSession(brand, slugNorm);
-      const phoneDigits = String(brand.phone || brand.whatsapp || "").replace(/\D/g, "");
-      const adminPin = String(brand.adminPin || phoneDigits.slice(-6) || "");
-      const expectedPass = adminPin ? `T2@${adminPin}` : "";
-
+      const erpState = await loadTenantErpState(slugNorm);
       const hashSha = (v: string) => crypto.createHash("sha256").update(v).digest();
-      const emailMatch = crypto.timingSafeEqual(hashSha(emailInput), hashSha(expectedEmail));
+      const safeEqual = (a: string, b: string) => crypto.timingSafeEqual(hashSha(a), hashSha(b));
 
-      const customPassRec = await getTenantPasswordRecord(asciiSlug);
-      const passMatch = customPassRec
-        ? verifyPasswordHash(passInput, customPassRec.hash, customPassRec.salt)
-        : expectedPass.length > 0 && crypto.timingSafeEqual(hashSha(passInput), hashSha(expectedPass));
+      // Path A: Primary Brand Owner Admin
+      if (safeEqual(emailInput, expectedEmail)) {
+        const phoneDigits = String(brand.phone || brand.whatsapp || "").replace(/\D/g, "");
+        const adminPin = String(brand.adminPin || phoneDigits.slice(-6) || "");
+        const expectedPass = adminPin ? `T2@${adminPin}` : "";
 
-      if (!emailMatch || !passMatch) {
-        return res.status(401).json({ ok: false, error: "بيانات الدخول غير صحيحة لهذا البراند" });
+        const customPassRec = await getTenantPasswordRecord(asciiSlug);
+        const passMatch = customPassRec
+          ? verifyPasswordHash(passInput, customPassRec.hash, customPassRec.salt)
+          : expectedPass.length > 0 && safeEqual(passInput, expectedPass);
+
+        if (!passMatch) {
+          return res.status(401).json({ ok: false, error: "بيانات الدخول غير صحيحة لهذا البراند" });
+        }
+
+        const activeBranches = Array.isArray(erpState?.appCustomization?.activeBranches)
+          ? erpState.appCustomization.activeBranches
+          : [];
+        if (activeBranches.length > 0) {
+          userObj.branch = String(activeBranches[0]?.key || userObj.branch);
+          const keys = activeBranches.map((b: any) => String(b?.key || "")).filter(Boolean);
+          if (keys.length > 0) userObj.allowedBranches = keys;
+        }
+        const finalToken = signTenantToken({ ...userObj, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+        return res.json({ ok: true, token: finalToken || token, user: userObj });
       }
 
-      return res.json({ ok: true, token, user: userObj });
+      // Path B: Secondary Brand Owners & Staff created inside ERP Users management
+      const usersList: any[] = Array.isArray(erpState?.users) ? erpState.users : [];
+      const matchedUser = usersList.find(
+        (u: any) => String(u?.username || u?.email || "").trim().toLowerCase() === emailInput
+      );
+
+      if (matchedUser) {
+        const staffPassMatch =
+          matchedUser.passwordHash && matchedUser.passwordSalt
+            ? verifyPasswordHash(passInput, String(matchedUser.passwordHash), String(matchedUser.passwordSalt))
+            : Boolean(matchedUser.password) && safeEqual(passInput, String(matchedUser.password));
+
+        if (!staffPassMatch) {
+          return res.status(401).json({ ok: false, error: "بيانات الدخول غير صحيحة لهذا البراند" });
+        }
+
+        const staffRole = String(matchedUser.role || "seller");
+        const staffPerms =
+          staffRole === "admin" && (!Array.isArray(matchedUser.permissions) || matchedUser.permissions.length === 0)
+            ? FULL_TENANT_ADMIN_PERMISSIONS
+            : Array.isArray(matchedUser.permissions)
+              ? matchedUser.permissions
+              : [];
+        const staffBranch = String(matchedUser.branch || "main");
+        const staffAllowedBranches =
+          Array.isArray(matchedUser.allowedBranches) && matchedUser.allowedBranches.length > 0
+            ? matchedUser.allowedBranches
+            : [staffBranch];
+        const staffUserObj = {
+          id: String(matchedUser.id || `staff_${asciiSlug}`),
+          username: emailInput,
+          email: emailInput,
+          name: String(matchedUser.name || emailInput),
+          role: staffRole,
+          branch: staffBranch,
+          allowedBranches: staffAllowedBranches,
+          brandSlug: asciiSlug,
+          permissions: staffPerms,
+        };
+        const staffToken = signTenantToken({ ...staffUserObj, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+        return res.json({ ok: true, token: staffToken, user: staffUserObj });
+      }
+
+      return res.status(401).json({ ok: false, error: "بيانات الدخول غير صحيحة لهذا البراند" });
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message || "Tenant auth error" });
     }
@@ -266,13 +341,46 @@ export function registerTenantErpRoutes(
         return res.status(400).json({ ok: false, error: "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل" });
       }
 
-      const customRec = await getTenantPasswordRecord(decoded.brandSlug);
+      const slugNorm = normalizeSlugKey(decoded.brandSlug);
+      const brand = await resolveBrandForAuth(slugNorm);
+      const expectedPrimaryEmail = String(brand?.adminEmail || `owner@${slugNorm}.t2.app`).trim().toLowerCase();
+      const decodedEmail = String(decoded.email || decoded.username || "").trim().toLowerCase();
+
+      // Secondary owner / staff user password change
+      if (decodedEmail && decodedEmail !== expectedPrimaryEmail) {
+        const erpState = await loadTenantErpState(slugNorm);
+        const usersList: any[] = Array.isArray(erpState?.users) ? [...erpState.users] : [];
+        const userIdx = usersList.findIndex(
+          (u: any) => String(u?.username || u?.email || "").trim().toLowerCase() === decodedEmail
+        );
+        if (userIdx >= 0) {
+          const target = usersList[userIdx];
+          const okOld =
+            target.passwordHash && target.passwordSalt
+              ? verifyPasswordHash(oldPass, String(target.passwordHash), String(target.passwordSalt))
+              : Boolean(target.password) && oldPass === String(target.password);
+          if (!okOld) {
+            return res.status(403).json({ ok: false, error: "كلمة المرور الحالية غير صحيحة" });
+          }
+          const { password: _dropPlain, ...cleanUser } = target;
+          const hashed = hashPassword(newPass);
+          usersList[userIdx] = {
+            ...cleanUser,
+            passwordHash: hashed.hash,
+            passwordSalt: hashed.salt,
+            updatedAt: new Date().toISOString(),
+          };
+          await saveTenantErpState(slugNorm, { users: usersList });
+          return res.json({ ok: true, message: "تم تحديث كلمة المرور وتشفيرها بنجاح" });
+        }
+      }
+
+      const customRec = await getTenantPasswordRecord(slugNorm);
       if (customRec) {
         if (!verifyPasswordHash(oldPass, customRec.hash, customRec.salt)) {
           return res.status(403).json({ ok: false, error: "كلمة المرور الحالية غير صحيحة" });
         }
       } else {
-        const brand = await resolveBrandForAuth(decoded.brandSlug);
         const phoneDigits = String(brand?.phone || "").replace(/\D/g, "");
         const expectedDefault = brand?.adminPin
           ? `T2@${brand.adminPin}`
@@ -284,7 +392,7 @@ export function registerTenantErpRoutes(
         }
       }
 
-      await setTenantPasswordRecord(decoded.brandSlug, newPass);
+      await setTenantPasswordRecord(slugNorm, newPass);
       return res.json({ ok: true, message: "تم تحديث كلمة المرور وتشفيرها بنجاح" });
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message || "Failed to update password" });
@@ -359,8 +467,7 @@ export function registerTenantErpRoutes(
         });
       }
 
-      const { __auth: _stripAuth, ...safeAdminState } = fullState;
-      return res.json({ ok: true, scope: "admin", state: safeAdminState });
+      return res.json({ ok: true, scope: "admin", state: sanitizeAdminErpState(fullState) });
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message || "Failed to load ERP state" });
     }
@@ -378,9 +485,37 @@ export function registerTenantErpRoutes(
 
       const incoming = req.body?.state && typeof req.body.state === "object" ? req.body.state : req.body || {};
       const { __auth: _dropAuth, updatedAt: _dropTs, ...cleanPartial } = incoming;
+
+      if (Array.isArray(cleanPartial.users)) {
+        const existingState = await loadTenantErpState(slugNorm);
+        const existingUsers: any[] = Array.isArray(existingState?.users) ? existingState.users : [];
+        cleanPartial.users = cleanPartial.users.map((rawUser: any) => {
+          if (!rawUser || typeof rawUser !== "object") return rawUser;
+          const uEmail = String(rawUser.username || rawUser.email || "").trim().toLowerCase();
+          const prevUser = existingUsers.find(
+            (eu: any) =>
+              (rawUser.id && String(eu?.id) === String(rawUser.id)) ||
+              (uEmail && String(eu?.username || eu?.email || "").trim().toLowerCase() === uEmail)
+          );
+          const { password, hasPassword: _hp, ...restUser } = rawUser;
+          const normalizedUser: Record<string, any> = {
+            ...restUser,
+            ...(uEmail ? { username: uEmail, email: uEmail } : {}),
+          };
+          if (typeof password === "string" && password.trim().length > 0) {
+            const hashed = hashPassword(password);
+            normalizedUser.passwordHash = hashed.hash;
+            normalizedUser.passwordSalt = hashed.salt;
+          } else if (prevUser?.passwordHash && prevUser?.passwordSalt) {
+            normalizedUser.passwordHash = prevUser.passwordHash;
+            normalizedUser.passwordSalt = prevUser.passwordSalt;
+          }
+          return normalizedUser;
+        });
+      }
+
       const saved = await saveTenantErpState(slugNorm, cleanPartial);
-      const { __auth: _stripAuth, ...safeState } = saved;
-      return res.json({ ok: true, state: safeState });
+      return res.json({ ok: true, state: sanitizeAdminErpState(saved) });
     } catch (err: any) {
       return res.status(500).json({ ok: false, error: err?.message || "Failed to sync ERP state" });
     }

@@ -919,3 +919,93 @@ test("25) Ecosystem watchdog handles Agent disconnect webhooks & Daily Brief; Fa
   assert.equal(jarvisSrc.includes("25 Unified Brands"), false, "Jarvis must not show hardcoded 25 Unified Brands");
   assert.ok(jarvisSrc.includes("jarvisWorkspaceMode"), "Jarvis must expose clean Command/Ops workspace switcher");
 });
+
+test("26) Multi-user tenant sync hashes staff/secondary owner passwords, strips them on GET, and allows login", async () => {
+  const { registerTenantErpRoutes } = await importTs(path.join("routes", "tenantErpRoutes.ts"));
+  const routes = {};
+  const mockApp = {
+    get(p, h) { routes[`GET ${p}`] = h; },
+    post(p, h) { routes[`POST ${p}`] = h; },
+    options() {},
+  };
+  const testSlug = `multiuser-test-${Date.now()}`;
+  registerTenantErpRoutes(mockApp, {
+    getUnifiedGrowthBrands: () => [
+      { id: testSlug, slug: testSlug, name: "متجر اختبار", phone: "01013372674", whatsapp: "01013372674" },
+    ],
+    getClonedBrandByIdOrSlug: () => null,
+  });
+
+  const makeRes = () => ({
+    statusCode: 200,
+    headers: {},
+    body: null,
+    setHeader(k, v) { this.headers[k] = v; },
+    status(c) { this.statusCode = c; return this; },
+    json(b) { this.body = b; return this; },
+  });
+
+  const ownerLoginRes = makeRes();
+  await routes["POST /api/tenant-auth/login"](
+    { headers: {}, body: { brandSlug: testSlug, email: `owner@${testSlug}.t2.app`, password: "T2@372674" } },
+    ownerLoginRes
+  );
+  assert.equal(ownerLoginRes.statusCode, 200);
+  assert.equal(ownerLoginRes.body?.ok, true);
+  const ownerToken = ownerLoginRes.body?.token;
+  assert.ok(ownerToken);
+
+  const syncRes = makeRes();
+  await routes["POST /api/tenant-erp/:slug/sync"](
+    {
+      params: { slug: testSlug },
+      headers: { authorization: `Bearer ${ownerToken}` },
+      body: {
+        state: {
+          users: [
+            {
+              id: "owner_2",
+              name: "صاحب البراند الثاني",
+              username: "Partner@Example.com",
+              password: "OwnerPass2026!",
+              role: "admin",
+              branch: "main",
+              allowedBranches: ["main"],
+              permissions: ["dashboard", "users"],
+            },
+          ],
+        },
+      },
+    },
+    syncRes
+  );
+  assert.equal(syncRes.statusCode, 200);
+  assert.equal(syncRes.body?.ok, true);
+  assert.equal(syncRes.body?.state?.users?.[0]?.password, undefined);
+  assert.equal(syncRes.body?.state?.users?.[0]?.passwordHash, undefined);
+  assert.equal(syncRes.body?.state?.users?.[0]?.hasPassword, true);
+
+  const getRes = makeRes();
+  await routes["GET /api/tenant-erp/:slug/state"](
+    { params: { slug: testSlug }, headers: { authorization: `Bearer ${ownerToken}` } },
+    getRes
+  );
+  assert.equal(getRes.statusCode, 200);
+  assert.equal(getRes.body?.scope, "admin");
+  assert.equal(getRes.body?.state?.users?.[0]?.username, "partner@example.com");
+  assert.equal(getRes.body?.state?.users?.[0]?.password, undefined);
+  assert.equal(getRes.body?.state?.users?.[0]?.passwordHash, undefined);
+
+  const partnerLoginRes = makeRes();
+  await routes["POST /api/tenant-auth/login"](
+    { headers: {}, body: { brandSlug: testSlug, email: "partner@example.com", password: "OwnerPass2026!" } },
+    partnerLoginRes
+  );
+  assert.equal(partnerLoginRes.statusCode, 200);
+  assert.equal(partnerLoginRes.body?.ok, true);
+  assert.equal(partnerLoginRes.body?.user?.role, "admin");
+  assert.equal(partnerLoginRes.body?.user?.username, "partner@example.com");
+
+  const tempJson = path.join(process.cwd(), "data", "tenant_erp_state", `${testSlug}.json`);
+  if (fs.existsSync(tempJson)) fs.unlinkSync(tempJson);
+});

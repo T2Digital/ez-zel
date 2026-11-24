@@ -52,7 +52,7 @@ export function verifyPasswordHash(password: string, hash: string, salt: string)
   }
 }
 
-async function readShardDoc(docId: string): Promise<Record<string, any> | null> {
+async function readShardDocWithMeta(docId: string): Promise<{ data: Record<string, any>; updatedAtMs: number } | null> {
   try {
     const token = await getTitoStudioAuthToken().catch(() => null);
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -65,10 +65,18 @@ async function readShardDoc(docId: string): Promise<Record<string, any> | null> 
     const rawJson = doc?.fields?.stateJson?.stringValue;
     if (!rawJson) return null;
     const parsed = JSON.parse(rawJson);
-    return parsed && typeof parsed === 'object' ? parsed : null;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const updatedAtStr = doc?.fields?.updatedAt?.stringValue || '';
+    const updatedAtMs = updatedAtStr ? new Date(updatedAtStr).getTime() || 0 : 0;
+    return { data: parsed, updatedAtMs };
   } catch {
     return null;
   }
+}
+
+async function readShardDoc(docId: string): Promise<Record<string, any> | null> {
+  const res = await readShardDocWithMeta(docId);
+  return res ? res.data : null;
 }
 
 async function writeShardDoc(docId: string, key: string, shard: string, data: Record<string, any>): Promise<void> {
@@ -111,23 +119,35 @@ export async function loadTenantErpState(slug: string): Promise<Record<string, a
     try { localData = JSON.parse(fs.readFileSync(localPath, 'utf8')); } catch {}
   }
 
+  const localUpdatedAtMs = localData?.updatedAt ? new Date(String(localData.updatedAt)).getTime() || 0 : 0;
+
   try {
     const [catalog, orders, sales, ops, authRec] = await Promise.all([
-      readShardDoc(`t2_erp_${key}__catalog`),
-      readShardDoc(`t2_erp_${key}__orders`),
-      readShardDoc(`t2_erp_${key}__sales`),
-      readShardDoc(`t2_erp_${key}__ops`),
-      readShardDoc(`t2_erp_${key}__auth`),
+      readShardDocWithMeta(`t2_erp_${key}__catalog`),
+      readShardDocWithMeta(`t2_erp_${key}__orders`),
+      readShardDocWithMeta(`t2_erp_${key}__sales`),
+      readShardDocWithMeta(`t2_erp_${key}__ops`),
+      readShardDocWithMeta(`t2_erp_${key}__auth`),
     ]);
 
-    if (catalog || orders || sales || ops || authRec) {
+    const shouldOverlay = (meta: { data: Record<string, any>; updatedAtMs: number } | null): meta is { data: Record<string, any>; updatedAtMs: number } =>
+      Boolean(meta && (!localUpdatedAtMs || meta.updatedAtMs > localUpdatedAtMs));
+
+    const hasRemoteOverlay =
+      shouldOverlay(catalog) ||
+      shouldOverlay(orders) ||
+      shouldOverlay(sales) ||
+      shouldOverlay(ops) ||
+      shouldOverlay(authRec);
+
+    if (hasRemoteOverlay) {
       const merged: Record<string, any> = {
         ...localData,
-        ...(catalog || {}),
-        ...(orders || {}),
-        ...(sales || {}),
-        ...(ops || {}),
-        ...(authRec ? { __auth: authRec } : {}),
+        ...(shouldOverlay(catalog) ? catalog.data : {}),
+        ...(shouldOverlay(orders) ? orders.data : {}),
+        ...(shouldOverlay(sales) ? sales.data : {}),
+        ...(shouldOverlay(ops) ? ops.data : {}),
+        ...(shouldOverlay(authRec) ? { __auth: authRec.data } : {}),
       };
       try {
         fs.writeFileSync(localPath, JSON.stringify(merged, null, 2), 'utf8');
@@ -178,13 +198,19 @@ export async function saveTenantErpState(slug: string, partialState: Record<stri
 
 export async function getTenantPasswordRecord(slug: string): Promise<{ hash: string; salt: string; updatedAt?: string } | null> {
   const key = normalizeSlugKey(slug);
-  const remoteAuth = await readShardDoc(`t2_erp_${key}__auth`);
+  const [remoteAuth, state] = await Promise.all([
+    readShardDoc(`t2_erp_${key}__auth`),
+    loadTenantErpState(slug),
+  ]);
+  const localAuth = state?.__auth;
+  const localMs = localAuth?.updatedAt ? new Date(String(localAuth.updatedAt)).getTime() || 0 : 0;
+  const remoteMs = remoteAuth?.updatedAt ? new Date(String(remoteAuth.updatedAt)).getTime() || 0 : 0;
+
+  if (localAuth?.hash && localAuth?.salt && (!remoteAuth?.hash || localMs >= remoteMs)) {
+    return localAuth;
+  }
   if (remoteAuth?.hash && remoteAuth?.salt) {
     return remoteAuth as { hash: string; salt: string; updatedAt?: string };
-  }
-  const state = await loadTenantErpState(slug);
-  if (state?.__auth?.hash && state?.__auth?.salt) {
-    return state.__auth;
   }
   return null;
 }
