@@ -1091,6 +1091,7 @@ export async function upsertBrandToTitoStudioFirestore(brand: any): Promise<bool
  */
 export async function syncWeekPlanToTitoStudioFirestore(brand: any, weekPlan?: OmniWeekPostItem[]): Promise<number> {
     const clinicId = String(brand.titoStudioClinicId || brand.id || brand.slug);
+    const isTrialBrand = brand?.subscriptionStatus === 'trial' || brand?.planId === 'trial_7d';
     const plan = weekPlan || buildOmniChannelWeekPlan({
         id: brand.id || clinicId,
         slug: brand.slug || clinicId,
@@ -1099,7 +1100,8 @@ export async function syncWeekPlanToTitoStudioFirestore(brand: any, weekPlan?: O
         phone: brand.phone,
         primaryColor: brand.primaryColor,
         existingPlan: brand.weekContentPlan,
-        strategy: brand.marketingStrategy
+        strategy: brand.marketingStrategy,
+        isTrial: isTrialBrand
     });
 
     const cache = readTitoStudioCacheSync();

@@ -79,12 +79,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     (storeUser?.tier === 'sovereign' && Boolean(storeUser?.name?.includes('تيتو')))
   );
 
-  // Active Persona: Initialized to passed prop, or 'tito' for master admin, or 'visitor' for guests
+  // Active Persona: Initialized to passed prop (with URL ?persona=visitor override for QA/preview), 'tito' for master admin, or 'visitor' for guests
+  const urlPersonaOverride = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('persona') : null;
   const [persona, setPersona] = useState<'visitor' | 'trial' | 'client' | 'tito'>(() => {
+    if (urlPersonaOverride === 'visitor' || urlPersonaOverride === 'trial') return urlPersonaOverride;
     if (isMasterAdmin) return initialPersona === 'client' ? 'tito' : (initialPersona || 'tito');
     if (initialPersona) return initialPersona;
     return 'visitor';
   });
+  const [adminPreviewVisitor, setAdminPreviewVisitor] = useState<boolean>(() => urlPersonaOverride === 'visitor');
   const [textCommandInput, setTextCommandInput] = useState('');
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -216,18 +219,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   } | null>(null);
   const agentIframeRef = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isBrandSuperWindowOpen) setIsBrandSuperWindowOpen(false);
-        else if (studioEmbed?.open) setStudioEmbed(null);
-        else if (agentEmbed?.open) setAgentEmbed(null);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isBrandSuperWindowOpen, studioEmbed?.open, agentEmbed?.open]);
-
   const streamTranscriptWords = useCallback((fullText: string) => {
     if (streamTimerRef.current) clearInterval(streamTimerRef.current);
     const words = String(fullText || '').split(/\s+/).filter(Boolean);
@@ -307,6 +298,24 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [metaPageIdInput, setMetaPageIdInput] = useState<string>('');
   const [metaPageTokenInput, setMetaPageTokenInput] = useState<string>('');
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isWaConnectModalOpen) setIsWaConnectModalOpen(false);
+        else if (isMetaConnectModalOpen) setIsMetaConnectModalOpen(false);
+        else if (isBrandingModalOpen) setIsBrandingModalOpen(false);
+        else if (isCrmModalOpen) setIsCrmModalOpen(false);
+        else if (isMetaReadinessOpen) setIsMetaReadinessOpen(false);
+        else if (isBrandSuperWindowOpen) setIsBrandSuperWindowOpen(false);
+        else if (studioEmbed?.open) setStudioEmbed(null);
+        else if (agentEmbed?.open) setAgentEmbed(null);
+        else onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isWaConnectModalOpen, isMetaConnectModalOpen, isBrandingModalOpen, isCrmModalOpen, isMetaReadinessOpen, isBrandSuperWindowOpen, studioEmbed?.open, agentEmbed?.open, onClose]);
+
   // Two-Way Obsidian Markdown Editor & Live Catalog Editor State
   const [isEditingObsidianMd, setIsEditingObsidianMd] = useState<boolean>(false);
   const [isSavingObsidianMd, setIsSavingObsidianMd] = useState<boolean>(false);
@@ -366,11 +375,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const fetchObsidianVault = () => {
-    fetch('/api/obsidian/graph')
-      .then(r => r.json())
+  const fetchObsidianVault = (scopedBrandId?: string) => {
+    const canReadFullGraph = isMasterAdmin && !adminPreviewVisitor && persona === 'tito';
+    const targetId = scopedBrandId || (!canReadFullGraph ? (selectedBrandId || undefined) : undefined);
+    if (!canReadFullGraph && !targetId) return;
+    const url = canReadFullGraph ? '/api/obsidian/graph' : `/api/obsidian/graph?brandId=${encodeURIComponent(targetId!)}`;
+    fetch(url, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
       .then(d => {
-        if (d.success) {
+        if (d?.success) {
           setObsidianSnapshot(d);
           if (d.growthAgencyBrands && d.growthAgencyBrands.length > 0) {
             setAllBrandsList(d.growthAgencyBrands);
@@ -607,11 +620,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   }, []);
 
   const fetchDatabaseStats = async () => {
+    if (!isMasterAdmin || adminPreviewVisitor) return;
     const headers = await getAdminAuthHeaders();
     fetch('/api/system/real-financials', { credentials: 'include', headers })
-      .then(r => r.json())
+      .then(r => (r.ok ? r.json() : null))
       .then(d => {
-        if (d.success) {
+        if (d?.success) {
           setRealStats((prev: any) => ({
             ...prev,
             totalVaultBrandsCount: d.totalVaultBrandsCount ?? prev.totalVaultBrandsCount ?? 0,
@@ -629,6 +643,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       .catch(() => {});
   };
 
+  useEffect(() => {
+    if ((!isMasterAdmin || adminPreviewVisitor || persona !== 'tito') && activeDeckTab === 'obsidian_graph') {
+      setActiveDeckTab('brand_hub');
+    }
+  }, [isMasterAdmin, adminPreviewVisitor, persona, activeDeckTab]);
+
   // Fetch real database telemetry on open
   useEffect(() => {
     if (!isOpen) {
@@ -638,64 +658,84 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       return;
     }
 
-    fetchDatabaseStats();
-    fetchObsidianVault();
+    const canAccessFullFleet = isMasterAdmin && !adminPreviewVisitor;
 
-    // Fetch live market briefing (BTC / Gold)
-    fetch('/api/system/jarvis-briefing')
-      .then(r => r.json())
-      .then(d => {
-        if (d.success && d.metrics) {
-          setRealStats((prev: any) => ({
-            ...prev,
-            btcPrice: d.metrics.btcPrice,
-            gold21kEgp: d.metrics.gold21kEgp
-          }));
-        }
-      })
-      .catch(() => {});
-
-    // Fetch all brands with their weekly content plans
-    fetch('/api/cloner/brands')
-      .then(r => r.json())
-      .then(d => {
-        if (d.success && Array.isArray(d.brands) && d.brands.length > 0) {
-          setAllBrandsList(d.brands);
-          if (d.brands[0]?.weekContentPlan?.[0]) {
-            setSelectedPost({
-              ...d.brands[0].weekContentPlan[0],
-              brandId: d.brands[0].id,
-              brandName: d.brands[0].name,
-              platform: 'Instagram & Facebook (Meta Graph)',
-              status: 'PUBLISHED'
-            });
-          }
-        }
-      })
-      .catch(() => {});
-
-    // Preserve completed onboarding brand ONLY for non-admin visitors
+    // Preserve completed onboarding brand ONLY for non-admin visitors or preview-as-visitor
     let savedTrialBrand: any = null;
-    if (!isMasterAdmin) {
+    if (!canAccessFullFleet) {
       try {
         const rawTrial = localStorage.getItem('t2_active_trial_brand');
         if (rawTrial) savedTrialBrand = JSON.parse(rawTrial);
       } catch {}
     }
 
-    const activeInitial = isMasterAdmin
+    if (canAccessFullFleet) {
+      fetchDatabaseStats();
+      fetchObsidianVault();
+
+      // Fetch live market briefing (BTC / Gold)
+      fetch('/api/system/jarvis-briefing')
+        .then(r => r.json())
+        .then(d => {
+          if (d.success && d.metrics) {
+            setRealStats((prev: any) => ({
+              ...prev,
+              btcPrice: d.metrics.btcPrice,
+              gold21kEgp: d.metrics.gold21kEgp
+            }));
+          }
+        })
+        .catch(() => {});
+
+      // Fetch all brands with their weekly content plans (admin only)
+      (async () => {
+        const headers = await getAdminAuthHeaders();
+        fetch('/api/cloner/brands', { credentials: 'include', headers })
+          .then(r => (r.ok ? r.json() : null))
+          .then(d => {
+            if (d?.success && Array.isArray(d.brands) && d.brands.length > 0) {
+              setAllBrandsList(d.brands);
+              if (d.brands[0]?.weekContentPlan?.[0]) {
+                setSelectedPost({
+                  ...d.brands[0].weekContentPlan[0],
+                  brandId: d.brands[0].id,
+                  brandName: d.brands[0].name,
+                  platform: 'Instagram & Facebook (Meta Graph)',
+                  status: 'PUBLISHED'
+                });
+              }
+            }
+          })
+          .catch(() => {});
+      })();
+    } else if (savedTrialBrand?.id) {
+      const targetBrandId = savedTrialBrand.slug || savedTrialBrand.id;
+      fetchObsidianVault(targetBrandId);
+      fetch(`/api/cloner/brands?brandId=${encodeURIComponent(targetBrandId)}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          if (d?.success && Array.isArray(d.brands) && d.brands.length > 0) {
+            setAllBrandsList(d.brands);
+          }
+        })
+        .catch(() => {});
+    }
+
+    const activeInitial = canAccessFullFleet
       ? 'tito'
-      : savedTrialBrand?.id
+      : savedTrialBrand?.id && !adminPreviewVisitor
       ? 'trial'
+      : adminPreviewVisitor
+      ? 'visitor'
       : initialPersona || persona;
 
-    if (isMasterAdmin) {
+    if (canAccessFullFleet) {
       if (persona !== 'tito') setPersona('tito');
-    } else if (savedTrialBrand?.id) {
+    } else if (savedTrialBrand?.id && !adminPreviewVisitor) {
       setAllBrandsList(prev => (prev.some(b => b.id === savedTrialBrand.id) ? prev : [savedTrialBrand, ...prev]));
       setSelectedBrandId(prev => prev || savedTrialBrand.id);
       if (persona === 'visitor') setPersona('trial');
-    } else if (initialPersona && initialPersona !== persona) {
+    } else if (!adminPreviewVisitor && initialPersona && initialPersona !== persona) {
       setPersona(initialPersona);
     }
 
@@ -975,21 +1015,31 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const handleCreatePaymobCheckout = async (planId: 'starter_monthly' | 'growth_pro' | 'agency_unlimited' = 'growth_pro') => {
+  const handleCreatePaymobCheckout = async (planId: 'tier_5000' | 'tier_8500' | 'tier_12500' | 'starter_monthly' | 'growth_pro' | 'agency_unlimited' = 'tier_5000') => {
     try {
+      const amountMap: Record<string, number> = {
+        tier_5000: 5000,
+        tier_8500: 8500,
+        tier_12500: 12500,
+        growth_pro: 5000,
+        starter_monthly: 5000,
+        agency_unlimited: 12500
+      };
       const res = await fetch('/api/payments/paymob/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          brandId: currentSelectedBrand.id,
+          brandId: currentSelectedBrand.id || currentSelectedBrand.slug,
           brandName: currentSelectedBrand.name,
-          planId,
-          customerPhone: currentSelectedBrand.phone || '01013373634'
+          planId: planId === 'growth_pro' || planId === 'starter_monthly' ? 'tier_5000' : planId,
+          amountEgp: amountMap[planId] || 5000,
+          customerPhone: currentSelectedBrand.phone || ''
         })
       });
       const d = await res.json();
-      if (d.ok && d.paymentUrl) {
-        window.open(d.paymentUrl, '_blank');
+      if ((d.ok || d.success) && d.paymentUrl) {
+        const resolvedUrl = new URL(d.paymentUrl, window.location.origin).toString();
+        window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
         toast.success(`تم فتح بوابة الدفع الآلي Paymob لتفعيل الاشتراك!`);
         // Silent button activation
       }
@@ -1792,6 +1842,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </button>
             )}
 
+            {isMasterAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAdminPreviewVisitor((prev) => {
+                    const next = !prev;
+                    setPersona(next ? 'visitor' : 'tito');
+                    return next;
+                  });
+                }}
+                className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-black transition-all ${
+                  adminPreviewVisitor
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50'
+                    : 'bg-white/5 hover:bg-cyan-500/15 text-cyan-200 border-cyan-500/30'
+                }`}
+                title="معاينة رحلة الزائر والمجرب بدون صلاحيات الإدارة"
+              >
+                {adminPreviewVisitor ? '🛡️ العودة لوضع الإدارة' : '👁️ معاينة كزائر'}
+              </button>
+            )}
+
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               title={isFullscreen ? 'تصغير' : 'ملء الشاشة بالكامل'}
@@ -1927,7 +1998,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {/* Voice conversation is synced directly to main Shadow Chat */}
 
             {/* DYNAMIC JARVIS STAGE: Clean Dual-Mode Toggle + Neural Constellation or Distraction-Free Command Card */}
-            {persona !== 'visitor' && (
+            {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && (
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <div className="inline-flex items-center p-1 rounded-2xl bg-[#03091e]/90 border border-cyan-500/30 shadow-sm">
                   <button
@@ -2148,16 +2219,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 initialBusinessName={detectedVisitorBrand.businessName}
                 initialIndustry={detectedVisitorBrand.industry}
                 initialHasExistingBusiness={detectedVisitorBrand.hasExistingBusiness}
-                onSwitchToAdmin={isMasterAdmin ? () => setPersona('tito') : undefined}
+                onSwitchToAdmin={isMasterAdmin ? () => { setAdminPreviewVisitor(false); setPersona('tito'); } : undefined}
                 onComplete={(createdBrand?: any) => {
                   if (createdBrand?.id) {
                     setAllBrandsList(prev => [createdBrand, ...prev.filter(b => b.id !== createdBrand.id)]);
                     setSelectedBrandId(createdBrand.id);
                     try { localStorage.setItem('t2_active_trial_brand', JSON.stringify(createdBrand)); } catch {}
                   }
-                  fetchDatabaseStats();
-                  fetchObsidianVault();
+                  if (isMasterAdmin && !adminPreviewVisitor) fetchDatabaseStats();
+                  fetchObsidianVault(createdBrand?.slug || createdBrand?.id);
                   setPersona('trial');
+                  setActiveDeckTab('brand_hub');
                 }}
               />
             ) : (
@@ -2222,7 +2294,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       </button>
 
                       <button
-                        onClick={() => window.open((currentSelectedBrand as any).dedicatedLiveUrl || `/app/${currentSelectedBrand.slug || currentSelectedBrand.id}`, '_blank')}
+                        onClick={() => window.open(resolveBrandWebUrl(currentSelectedBrand), '_blank', 'noopener,noreferrer')}
                         className="py-1.5 px-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
                       >
                         <ExternalLink className="w-3 h-3" />
@@ -2267,20 +2339,21 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <button
                           onClick={async () => {
                             try {
-                              playShadowVoice(`جاري تجهيز رابط الدفع الآمن من Paymob لتفعيل الباقة الدائمة لبراند ${currentSelectedBrand.name}...`, 'male');
+                              playShadowVoice(`جاري تجهيز رابط الدفع الآمن من Paymob لتفعيل الباقة الدائمة (5,000 ج.م) لبراند ${currentSelectedBrand.name}...`, 'male');
                               const res = await fetch('/api/payments/paymob/create-checkout', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                  brandId: currentSelectedBrand.id,
+                                  brandId: currentSelectedBrand.id || currentSelectedBrand.slug,
                                   brandName: currentSelectedBrand.name,
-                                  planId: 'growth_pro',
-                                  amountEgp: 2950
+                                  planId: 'tier_5000',
+                                  amountEgp: 5000
                                 })
                               });
                               const data = await res.json();
                               if (data?.paymentUrl) {
-                                window.open(data.paymentUrl, '_blank', 'noopener,noreferrer');
+                                const resolvedPayUrl = new URL(data.paymentUrl, window.location.origin).toString();
+                                window.open(resolvedPayUrl, '_blank', 'noopener,noreferrer');
                               } else {
                                 alert(data?.error || 'تعذر إنشاء جلسة الدفع حالياً، يرجى المحاولة مرة أخرى.');
                               }
@@ -2290,7 +2363,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                           }}
                           className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black text-[10px] font-black shadow-lg shadow-amber-500/25 transition shrink-0"
                         >
-                          ⚡ تفعيل الاشتراك الدائم واستمرار الأرباح
+                          ⚡ تفعيل الاشتراك الدائم (5,000 ج.م)
                         </button>
                       </div>
                     </div>
@@ -2306,7 +2379,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             )}
 
             {/* TAB 0A: COMMAND FOCUS MODE OR 3D HOLOGRAPHIC NEURAL CONSTELLATION */}
-            {activeDeckTab === 'obsidian_graph' && jarvisWorkspaceMode === 'command' && (
+            {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && activeDeckTab === 'obsidian_graph' && jarvisWorkspaceMode === 'command' && (
               <div className="w-full max-w-4xl mx-auto flex flex-col gap-3 p-4 rounded-3xl bg-[#040b1d]/90 border border-cyan-500/30 backdrop-blur-xl font-['Cairo'] text-right animate-in fade-in duration-300">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
                   <div>
@@ -2373,7 +2446,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {activeDeckTab === 'obsidian_graph' && jarvisWorkspaceMode === 'ops' && (
+            {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && activeDeckTab === 'obsidian_graph' && jarvisWorkspaceMode === 'ops' && (
               <div className="w-full flex-1 min-h-0 flex flex-col gap-1.5 animate-in fade-in duration-300 font-['Cairo'] text-right">
                 {/* OPEN 3D HOLOGRAPHIC SPACE — FITS 100% IN VIEWPORT WITHOUT SCROLL */}
                 <div className="w-full flex-1 min-h-[260px] relative">

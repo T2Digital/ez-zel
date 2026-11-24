@@ -1104,3 +1104,27 @@ test("31) AI Cost Ledger accurately tracks usage costs and computes 50% platform
   assert.ok(row.totalAiCostEgp > 0);
   assert.ok(row.netMarginEgp < 2500 && row.netMarginEgp > 2400);
 });
+
+test("32) transliterateArabicToSlug produces clean Latin slugs & server.ts scopes /api/cloner/brands and /api/obsidian/graph", async () => {
+  const { transliterateArabicToSlug, toCanonicalSlug } = await importTs(
+    path.join("services", "brandIdentityNormalizer.ts")
+  );
+  const arSlug = transliterateArabicToSlug("مؤسسة النور للتوريدات");
+  assert.ok(arSlug.length >= 6, `Expected meaningful transliterated slug, got ${arSlug}`);
+  assert.notEqual(arSlug, "qa");
+  assert.equal(toCanonicalSlug("مؤسسة النور للتوريدات"), arSlug);
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(
+    serverSrc.includes('app.get("/api/cloner/brands"') &&
+      serverSrc.includes("req.query.brandId") &&
+      serverSrc.includes("verifyAdminRequest(req)"),
+    "GET /api/cloner/brands must require admin auth unless scoped by brandId"
+  );
+  assert.ok(
+    serverSrc.includes('app.get("/api/obsidian/graph"') &&
+      serverSrc.includes("req.query.brandId") &&
+      serverSrc.includes("verifyAdminRequest(req)"),
+    "GET /api/obsidian/graph must require admin auth unless scoped by brandId"
+  );
+});

@@ -385,6 +385,15 @@ export async function pgGetAiUsageSummary(days = 30): Promise<any[]> {
   }
 }
 
+export async function pgDeleteBrandCostLedger(brandId: string): Promise<void> {
+  if (!(await initPostgresSchema()) || !brandId) return;
+  const p = getPgPool();
+  if (!p) return;
+  try {
+    await p.query("DELETE FROM t2_ai_cost_ledger WHERE brand_id = $1", [brandId]);
+  } catch {}
+}
+
 export async function pgExportAllTablesForBackup(): Promise<Record<string, any> | null> {
   if (!(await initPostgresSchema())) return null;
   const p = getPgPool();

@@ -315,15 +315,18 @@ export const titoStudioApi = {
       cryptobelarabi: "brand_1779846650608",
     };
     const safeClinicId = aliasMap[norm] || (clinicId && clinicId !== "1" ? clinicId : "brand_1779847291377");
+    const isPublicClientView = view === "clientPortal" || view === "showroom";
     const qs = new URLSearchParams({
       embed: "1",
       view: view || "calendar",
       hideSidebar: "1",
       hideHeader: "1",
       clinicId: safeClinicId,
+      brandId: safeClinicId,
+      theme: "dark",
     });
     const resolvedKey = (apiKey || process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || "").trim();
-    if (resolvedKey) qs.set("apiKey", resolvedKey);
+    if (resolvedKey && !isPublicClientView) qs.set("apiKey", resolvedKey);
     return `${base}/?${qs.toString()}`;
   },
 };

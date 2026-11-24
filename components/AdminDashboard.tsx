@@ -67,6 +67,12 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       totalPaymobRevenueEgp: number;
       paidSubscriptions: Array<{ orderId?: string; brandId?: string; amountEgp?: number }>;
   }>({ paidCount: 0, totalPaymobRevenueEgp: 0, paidSubscriptions: [] });
+  const [backendAnalytics, setBackendAnalytics] = useState<{
+      totalAccounts: number;
+      activePaidAccounts: number;
+      confirmedRevenueEgp: number;
+      clientJoinDates: string[];
+  }>({ totalAccounts: 0, activePaidAccounts: 0, confirmedRevenueEgp: 0, clientJoinDates: [] });
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [globalRules, setGlobalRules] = useState('');
@@ -84,20 +90,23 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   const [selectedPayoutMarketer, setSelectedPayoutMarketer] = useState<UserProfile | null>(null);
 
   const getGrowthData = () => {
-    // Generate data for the last 7 days based on real profiles
     const data = [];
     const now = new Date();
-    // Normalize to start of today for precise bucketing
     now.setHours(23, 59, 59, 999);
-    
+    const joinTimestamps: number[] =
+      realProfiles.length > 0
+        ? realProfiles.map((p) => Number(p.joinedAt || 0)).filter(Boolean)
+        : backendAnalytics.clientJoinDates
+            .map((d) => new Date(d).getTime())
+            .filter((t) => !Number.isNaN(t) && t > 0);
+    const baselineFallback = realProfiles.length === 0 ? backendAnalytics.totalAccounts : 0;
+
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
       const dayEnd = d.getTime();
-      
       const dayName = d.toLocaleDateString('ar-EG', { weekday: 'short' });
-      const usersUpToDay = realProfiles.filter(p => p.joinedAt && p.joinedAt <= dayEnd).length;
-      
-      data.push({ name: dayName, users: usersUpToDay });
+      const countUpToDay = joinTimestamps.filter((ts) => ts <= dayEnd).length;
+      data.push({ name: dayName, users: Math.max(countUpToDay, baselineFallback > 0 && joinTimestamps.length === 0 ? baselineFallback : 0) });
     }
     return data;
   };
@@ -113,17 +122,23 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   });
 
   const calculateTotalExpectedProfit = () => {
-      // Dynamic revenue ONLY from verified Paymob payments or Admin manual activations (zero hardcoded values, no double counting)
       let total = Number(paymobRevenueSummary.totalPaymobRevenueEgp || 0);
       manualOrExtraSubscribers.forEach(p => {
           const anyP = p as any;
           const amount = Number(anyP.paidAmountEgp || anyP.planAmountEgp || anyP.monthlySubscriptionEgp || 0);
           if (amount > 0) total += amount;
       });
+      if (total === 0 && backendAnalytics.confirmedRevenueEgp > 0) {
+          total = backendAnalytics.confirmedRevenueEgp;
+      }
       return total;
   };
 
-  const totalVerifiedActiveCount = manualOrExtraSubscribers.length + Number(paymobRevenueSummary.paidCount || 0);
+  const displayedTotalMembers = Math.max(realProfiles.length, backendAnalytics.totalAccounts);
+  const totalVerifiedActiveCount = Math.max(
+      manualOrExtraSubscribers.length + Number(paymobRevenueSummary.paidCount || 0),
+      backendAnalytics.activePaidAccounts
+  );
   const expectedProfit = calculateTotalExpectedProfit();
   const growthData = getGrowthData();
 
@@ -165,19 +180,30 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
               setCoupons(allCoupons);
           } catch(e) {}
 
-          // Fetch live Paymob revenue summary for Admin Analytics
+          // Fetch live Paymob revenue summary & real backend analytics
           try {
               const headers = await getAdminAuthHeaders();
-              const revResp = await fetch('/api/admin/revenue/summary', {
-                  credentials: 'include',
-                  headers,
-              });
+              const [revResp, finResp] = await Promise.all([
+                  fetch('/api/admin/revenue/summary', { credentials: 'include', headers }),
+                  fetch('/api/system/real-financials', { credentials: 'include', headers }),
+              ]);
               const revJson = await revResp.json().catch(() => null);
               if (revJson?.ok) {
                   setPaymobRevenueSummary({
                       paidCount: Number(revJson.paidCount || 0),
                       totalPaymobRevenueEgp: Number(revJson.totalPaymobRevenueEgp || 0),
                       paidSubscriptions: Array.isArray(revJson.paidSubscriptions) ? revJson.paidSubscriptions : [],
+                  });
+              }
+              const finJson = await finResp.json().catch(() => null);
+              if (finJson?.success) {
+                  const clientsArr = Array.isArray(finJson.ezzelClients) ? finJson.ezzelClients : [];
+                  const activeClients = clientsArr.filter((c: any) => String(c.status || '').toLowerCase() === 'active');
+                  setBackendAnalytics({
+                      totalAccounts: clientsArr.length,
+                      activePaidAccounts: Math.max(activeClients.length, Number(finJson.paidSubscribersCount || 0)),
+                      confirmedRevenueEgp: Number(finJson.realConfirmedRevenueEgp || 0),
+                      clientJoinDates: clientsArr.map((c: any) => String(c.joinedAt || '')).filter(Boolean),
                   });
               }
           } catch {}
@@ -825,7 +851,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         <h4 className="text-[10px] uppercase font-black text-white/40 mb-1">إجمالي الأعضاء</h4>
                         <div className="text-2xl font-black text-white flex items-center gap-2">
-                            {realProfiles.length} <Users className="w-4 h-4 text-white/20" />
+                            {displayedTotalMembers} <Users className="w-4 h-4 text-white/20" />
                         </div>
                     </div>
                     <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">

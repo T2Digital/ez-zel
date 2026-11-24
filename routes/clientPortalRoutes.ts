@@ -76,18 +76,25 @@ async function verifyClientPortalWriteAccess(
   slug: string,
   brand?: any
 ): Promise<{ ok: boolean; actor: "admin" | "client" }> {
-  const adminAuth = await verifyAdminRequest(req);
-  if (adminAuth.ok) return { ok: true, actor: "admin" };
-  const authHeader = String(req.headers.authorization || "");
-  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  const token = String(
-    req.headers["x-portal-token"] || req.query.token || req.body?.portalToken || bearer || ""
+  const explicitPortalToken = String(
+    req.headers["x-portal-token"] || req.query.token || req.body?.portalToken || ""
   ).trim();
-  if (!token) return { ok: false, actor: "client" };
   const candidates = [slug, brand?.slug, brand?.id, brand?.canonicalId]
     .filter(Boolean)
     .map((s: any) => String(s));
-  const matched = candidates.some((c: string) => verifyClientPortalToken(token, c));
+
+  if (explicitPortalToken) {
+    const matched = candidates.some((c: string) => verifyClientPortalToken(explicitPortalToken, c));
+    if (matched) return { ok: true, actor: "client" };
+  }
+
+  const adminAuth = await verifyAdminRequest(req);
+  if (adminAuth.ok) return { ok: true, actor: "admin" };
+
+  const authHeader = String(req.headers.authorization || "");
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!bearer) return { ok: false, actor: "client" };
+  const matched = candidates.some((c: string) => verifyClientPortalToken(bearer, c));
   return { ok: matched, actor: "client" };
 }
 
@@ -316,6 +323,50 @@ export function registerClientPortalRoutes(
       res.json({ ok: true, post: plan[idx], brand: updatedBrand });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || "Approval failed" });
+    }
+  });
+
+  app.post("/api/client-portal/:slug/whatsapp-pair", async (req: Request, res: Response) => {
+    try {
+      const slug = String(req.params.slug || "").toLowerCase();
+      const rawPhone = String(req.body?.phone || "").replace(/[^0-9]/g, "");
+      if (rawPhone.length < 10) {
+        return res.status(400).json({ ok: false, error: "يرجى إدخال رقم واتساب صحيح (10 أرقام على الأقل)." });
+      }
+      const brand: any = findMatchingBrandRecord(getUnifiedGrowthBrands(), slug);
+      if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+
+      const access = await verifyClientPortalWriteAccess(req, slug, brand);
+      if (!access.ok) {
+        return res.status(401).json({
+          ok: false,
+          error: "غير مصرح — يرجى فتح بوابة العميل عبر الرابط الموثق (?token=...) لربط الواتساب.",
+        });
+      }
+      const subWindow = resolveBrandSubscriptionWindow(brand);
+      if (access.actor !== "admin" && subWindow.subscriptionStatus === "expired") {
+        return res.status(402).json({
+          ok: false,
+          expired: true,
+          error: "انتهت فترة التجربة — يرجى الترقية إلى باقة 5,000 ج.م أو أعلى لإعادة ربط واتساب.",
+        });
+      }
+
+      const { executeRealJarvisEcosystemAction } = await import("../services/obsidianVaultService");
+      const result = await executeRealJarvisEcosystemAction({
+        actionType: "CONNECT_WHATSAPP_PAIRING",
+        brandId: brand.id || brand.slug || slug,
+        data: { phone: rawPhone },
+      });
+      res.json({
+        ok: Boolean(result?.success),
+        pairingCode: result?.pairingCode || "",
+        qrDataUrl: result?.qrDataUrl || "",
+        liveBaileysConnected: Boolean(result?.liveBaileysConnected),
+        message: result?.message || "تعذر توليد كود الربط حالياً",
+      });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || "WhatsApp pairing failed" });
     }
   });
 }

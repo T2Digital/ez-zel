@@ -42,7 +42,8 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
     }
   }, [initialBusinessName, initialIndustry, initialHasExistingBusiness]);
   const [salesChannel, setSalesChannel] = useState('');
-  const [phone, setPhone] = useState('01013373634');
+  const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [suggestedNames, setSuggestedNames] = useState<string[]>([]);
   const [suggestedSlogans, setSuggestedSlogans] = useState<string[]>([]);
@@ -70,6 +71,8 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   // Real Provisioned Output & Live Connection Windows
   const [generatedBrand, setGeneratedBrand] = useState<any>(null);
   const [generatedAppUrl, setGeneratedAppUrl] = useState('');
+  const [clientPortalUrl, setClientPortalUrl] = useState('');
+  const [ssoStoreAdminUrl, setSsoStoreAdminUrl] = useState('');
   const [ownerCredentials, setOwnerCredentials] = useState<{ email: string; password: string; pin?: string } | null>(null);
   const [weekPlan, setWeekPlan] = useState<any[]>([]);
 
@@ -113,7 +116,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
         body: JSON.stringify({
           brandName: target,
           category: industry || target,
-          phone: phone || '01013373634',
+          phone: phone.trim(),
           isNewBusiness: false
         })
       });
@@ -163,6 +166,8 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
             generatedBrand,
             generatedAppUrl,
             optionalFlagshipUrl,
+            clientPortalUrl,
+            ssoStoreAdminUrl,
             socialLinks,
             hasExistingBusiness,
             savedAt: Date.now()
@@ -170,7 +175,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
         );
       } catch {}
     }
-  }, [generatedBrand, generatedAppUrl, optionalFlagshipUrl, socialLinks, brandName, industry, phone, hasExistingBusiness]);
+  }, [generatedBrand, generatedAppUrl, optionalFlagshipUrl, clientPortalUrl, ssoStoreAdminUrl, socialLinks, brandName, industry, phone, hasExistingBusiness]);
 
   useEffect(() => {
     try {
@@ -181,6 +186,8 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
         setGeneratedBrand(saved.generatedBrand);
         setGeneratedAppUrl(saved.generatedAppUrl);
         if (saved.optionalFlagshipUrl) setOptionalFlagshipUrl(saved.optionalFlagshipUrl);
+        if (saved.clientPortalUrl) setClientPortalUrl(saved.clientPortalUrl);
+        if (saved.ssoStoreAdminUrl) setSsoStoreAdminUrl(saved.ssoStoreAdminUrl);
         if (saved.socialLinks) setSocialLinks(saved.socialLinks);
         if (saved.brandName) setBrandName(saved.brandName);
         if (saved.phone) setPhone(saved.phone);
@@ -223,7 +230,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
         body: JSON.stringify({
           brandName: chosenIndustry,
           category: chosenIndustry,
-          phone: phone || '01013373634',
+          phone: phone.trim(),
           isNewBusiness: true
         })
       });
@@ -261,6 +268,12 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
     if (customChannel) setSalesChannel(customChannel);
     const targetName = brandName.trim() || 'براند النخبة الرقمي';
     const targetIndustry = industry || customChannel || 'خدمات وتجارة';
+    const normalizedPhone = phone.replace(/\D/g, '');
+    if (normalizedPhone.length < 10) {
+      setPhoneError('من فضلك أدخل رقم موبايل / واتساب صحيح (10 أرقام على الأقل)');
+      return;
+    }
+    setPhoneError('');
 
     setIsGenerating(true);
     try {
@@ -279,7 +292,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           data: {
             businessName: targetName,
             industry: targetIndustry,
-            phone: phone || '01013373634',
+            phone: phone.trim(),
             websiteUrl,
             slogan: selectedSlogan || undefined,
             logoUrl: suggestedLogoUrl || undefined,
@@ -299,6 +312,8 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
         const fallbackAppUrl = `${window.location.origin}/app/${data.brand.slug || data.brand.id}`;
         setGeneratedAppUrl(data.flagshipUrl || fallbackAppUrl);
         if (data.optionalFlagshipUrl) setOptionalFlagshipUrl(data.optionalFlagshipUrl);
+        if (data.clientPortalUrl) setClientPortalUrl(data.clientPortalUrl);
+        if (data.ssoStoreAdminUrl) setSsoStoreAdminUrl(data.ssoStoreAdminUrl);
         if (data.ownerCredentials) setOwnerCredentials(data.ownerCredentials);
         if (Array.isArray(data.brand.weekContentPlan)) {
           setWeekPlan(data.brand.weekContentPlan);
@@ -394,6 +409,8 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 try { localStorage.removeItem('ezzel_visitor_journey_v1'); } catch {}
                 setGeneratedBrand(null);
                 setGeneratedAppUrl('');
+                setClientPortalUrl('');
+                setSsoStoreAdminUrl('');
                 setStep(1);
               }}
               className="text-[10px] text-white/60 hover:text-white bg-white/5 px-2 py-1 rounded-lg border border-white/10"
@@ -560,10 +577,12 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   <input 
                     type="tel" 
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono"
+                    onChange={(e) => { setPhone(e.target.value); if (phoneError) setPhoneError(''); }}
+                    placeholder="010xxxxxxxx"
+                    className={`w-full bg-[#141b2d] border ${phoneError ? 'border-rose-500' : 'border-white/10'} rounded-xl px-3 py-1.5 text-xs text-white font-mono`}
                     dir="ltr"
                   />
+                  {phoneError && <p className="text-[10px] text-rose-400 mt-1 font-bold">{phoneError}</p>}
                 </div>
               </div>
 
@@ -619,11 +638,12 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
               <input 
                 type="tel" 
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="01013373634"
-                className="w-full bg-[#141b2d] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono"
+                onChange={(e) => { setPhone(e.target.value); if (phoneError) setPhoneError(''); }}
+                placeholder="010xxxxxxxx"
+                className={`w-full bg-[#141b2d] border ${phoneError ? 'border-rose-500' : 'border-white/10'} rounded-xl px-3 py-1.5 text-xs text-white font-mono`}
                 dir="ltr"
               />
+              {phoneError && <p className="text-[10px] text-rose-400 mt-1 font-bold">{phoneError}</p>}
             </div>
           </div>
 
@@ -780,7 +800,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 <p className="text-[10px] text-emerald-300 font-mono">{generatedAppUrl}</p>
               </div>
             </div>
-            <div className="flex flex-col gap-1 shrink-0">
+            <div className="flex flex-col gap-1.5 shrink-0">
               <a 
                 href={generatedAppUrl || `/app/${generatedBrand?.slug || 'clean_master'}`}
                 target="_blank" 
@@ -790,6 +810,26 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                 <ExternalLink className="w-3.5 h-3.5" />
                 {existingAppChoice === 'existing_site' && hasExistingBusiness ? 'فتح موقعك المربوط' : 'فتح تطبيقك الحي'}
               </a>
+              {(clientPortalUrl || generatedBrand?.slug) && (
+                <a
+                  href={clientPortalUrl || `/client/${generatedBrand?.slug || generatedBrand?.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1.5 rounded-lg bg-purple-500/25 hover:bg-purple-500/40 text-purple-100 border border-purple-400/50 text-[10px] font-black text-center flex items-center justify-center gap-1"
+                >
+                  <span>🎯 بوابة العميل الموحدة (المحتوى والوكيل)</span>
+                </a>
+              )}
+              {ssoStoreAdminUrl && (
+                <a
+                  href={ssoStoreAdminUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border border-amber-400/50 text-[10px] font-black text-center flex items-center justify-center gap-1"
+                >
+                  <span>🔐 دخول لوحة المتجر بضغطة واحدة (SSO)</span>
+                </a>
+              )}
               {optionalFlagshipUrl && optionalFlagshipUrl !== generatedAppUrl && (
                 <a
                   href={optionalFlagshipUrl}
@@ -841,7 +881,9 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
 
               {waPairingData ? (
                 <div className="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center gap-2.5">
-                  <img src={waPairingData.qrDataUrl} alt="WhatsApp QR" className="w-16 h-16 rounded-lg bg-white p-1 shrink-0" />
+                  {waPairingData.qrDataUrl ? (
+                    <img src={waPairingData.qrDataUrl} alt="WhatsApp QR" className="w-16 h-16 rounded-lg bg-white p-1 shrink-0" />
+                  ) : null}
                   <div className="space-y-1 text-right">
                     <div className="text-[10px] text-white/70">كود الربط المباشر للهاتف:</div>
                     <div className="text-xs font-mono font-black text-amber-300 bg-black/60 px-2 py-1 rounded border border-amber-500/30">

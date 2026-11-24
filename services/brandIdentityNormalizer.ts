@@ -6,14 +6,32 @@ import crypto from "crypto";
  * and T2 Agent (`agentBrandId`), preventing `-` vs `_` mismatches.
  */
 
-export function toCanonicalSlug(raw: string, fallback = "default"): string {
-  const cleaned = String(raw || "")
-    .trim()
+export function transliterateArabicToSlug(raw: string, fallback = "brand"): string {
+  const map: Record<string, string> = {
+    'ا': 'a', 'أ': 'a', 'إ': 'e', 'آ': 'a', 'ى': 'a', 'ء': '', 'ؤ': 'w', 'ئ': 'y',
+    'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'g', 'ح': 'h', 'خ': 'kh',
+    'د': 'd', 'ذ': 'z', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh',
+    'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh',
+    'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+    'ه': 'h', 'ة': 'a', 'و': 'w', 'ي': 'y',
+    '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+    '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+  };
+  let out = '';
+  for (const ch of String(raw || '').trim()) {
+    out += Object.prototype.hasOwnProperty.call(map, ch) ? map[ch] : ch;
+  }
+  const cleaned = out
     .toLowerCase()
-    .replace(/&/g, "-and-")
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/&/g, '-and-')
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return cleaned || fallback;
+}
+
+export function toCanonicalSlug(raw: string, fallback = "default"): string {
+  const cleaned = transliterateArabicToSlug(raw, "");
   return cleaned || fallback;
 }
 

@@ -13,6 +13,17 @@ const CapabilitiesGuide: React.FC<Props> = ({ onClose, onJoin, onAffiliate }) =>
   const [activeCap, setActiveCap] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        stopVoice();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   const capabilities = [
     {
       icon: <Brain className="w-6 h-6 text-cyan-400" />,

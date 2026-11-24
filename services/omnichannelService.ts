@@ -293,6 +293,10 @@ class OmnichannelService {
      */
     public async sendTelegramMessage(text: string, options?: { parseMode?: string; buttons?: any[] }): Promise<{ success: boolean; messageId?: string; error?: string }> {
         try {
+            const adminToken = typeof window !== 'undefined' ? window.localStorage.getItem('t2os_admin_token') : null;
+            if (!adminToken) {
+                return { success: false, error: 'Skipped telegram telemetry without admin session' };
+            }
             console.log(`[TELEGRAM] Sending to Chat ${this.config.telegramChatId}: ${text}`);
             
             // Call server proxy or direct API

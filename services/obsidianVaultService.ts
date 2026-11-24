@@ -397,6 +397,13 @@ export function getUnifiedGrowthBrands(): any[] {
             status: cnt.status || 'scheduled'
         }));
 
+        const existingPhoneClean =
+            existing.phone && existing.phone !== '01013373634' ? String(existing.phone).trim() : '';
+        const existingWaClean =
+            existing.whatsapp && existing.whatsapp !== '01013373634' && existing.whatsapp !== '201013373634'
+                ? String(existing.whatsapp).trim()
+                : '';
+
         mergedMap.set(mappedKey, {
             ...existing,
             id: mappedKey,
@@ -406,8 +413,8 @@ export function getUnifiedGrowthBrands(): any[] {
             name: existing.name || (clinic.name ? clinic.name.trim() : mappedKey),
             englishName: clinic.englishName || existing.englishName || mappedKey,
             businessType: existing.businessType || clinic.customIndustry || clinic.industry || 'خدمات وأعمال',
-            phone: (clinic.phone || clinic.whatsappNumber || existing.phone || '01013373634').trim(),
-            whatsapp: (clinic.whatsappNumber || clinic.phone || existing.whatsapp || '01013373634').trim(),
+            phone: (existingPhoneClean || clinic.phone || clinic.whatsappNumber || existing.phone || '01013373634').trim(),
+            whatsapp: (existingWaClean || clinic.whatsappNumber || clinic.phone || existing.whatsapp || '01013373634').trim(),
             primaryColor: clinic.primaryColor || existing.primaryColor || '#06b6d4',
             logo: clinic.logo || existing.logo || '',
             status: existing.status || 'شغال',
@@ -435,6 +442,7 @@ export function getUnifiedGrowthBrands(): any[] {
 
     // 5. Enrich EVERY brand with the 7-Day Omni-Channel CTA Matrix & Visual Previews
     const finalBrands = Array.from(mergedMap.values()).map((brand: any) => {
+        const isTrialBrand = brand.subscriptionStatus === 'trial' || brand.planId === 'trial_7d';
         const omniPlan = buildOmniChannelWeekPlan({
             id: brand.id,
             slug: brand.slug || brand.id,
@@ -442,7 +450,8 @@ export function getUnifiedGrowthBrands(): any[] {
             businessType: brand.businessType,
             phone: brand.phone,
             primaryColor: brand.primaryColor,
-            existingPlan: brand.weekContentPlan
+            existingPlan: brand.weekContentPlan,
+            isTrial: isTrialBrand
         });
         return {
             ...brand,
@@ -767,6 +776,27 @@ export function persistBrandUpdateAcrossEcosystem(brandId: string, updates: Reco
     upsertBrandToTitoStudioFirestore(mergedBrand).catch(() => {});
 
     return mergedBrand;
+}
+
+export function deleteBrandVaultState(normSlug: string): void {
+    const cleanNeedle = String(normSlug || '').trim().toLowerCase().replace(/[-_]+/g, '');
+    if (!cleanNeedle) return;
+    try {
+        const rawBrands = readMergedBrandsJsonFile();
+        let changed = false;
+        for (const [k, v] of Object.entries(rawBrands)) {
+            const keyNorm = String(k || '').toLowerCase().replace(/[-_]+/g, '');
+            const idNorm = String((v as any)?.id || '').toLowerCase().replace(/[-_]+/g, '');
+            const slugNorm = String((v as any)?.slug || '').toLowerCase().replace(/[-_]+/g, '');
+            if (keyNorm === cleanNeedle || idNorm === cleanNeedle || slugNorm === cleanNeedle) {
+                delete rawBrands[k];
+                changed = true;
+            }
+        }
+        if (changed) {
+            savePersistentJson('t2_brands_vault', 'brands.json', rawBrands);
+        }
+    } catch {}
 }
 
 /**
@@ -1198,9 +1228,14 @@ export async function executeRealJarvisEcosystemAction(input: {
                     const reusedSlug = existingBrand.slug || existingBrand.id;
                     const reusedTpl = (existingBrand as any).appTemplate === 'products_erp' ? 'products_erp' : 'services_booking';
                     const { buildFlagshipTenantUrl } = await import('./tenantAppRenderer');
+                    const { signClientPortalToken, issueOwnerSsoToken } = await import('../routes/tenantErpRoutes');
+                    const publicBase = (process.env.PUBLIC_BASE_URL || 'https://t2os.app').replace(/\/+$/, '');
                     const reusedFlagship = (existingBrand as any).appMode === 'existing_site' && existingBrand.websiteUrl
                         ? existingBrand.websiteUrl
                         : buildFlagshipTenantUrl(reusedSlug, reusedTpl);
+                    const portalTok = signClientPortalToken(reusedSlug);
+                    const ssoTok = issueOwnerSsoToken(existingBrand, reusedSlug);
+                    const ssoSep = reusedFlagship.includes('?') ? '&' : '?';
                     return {
                         success: true,
                         reusedTrial: true,
@@ -1208,6 +1243,8 @@ export async function executeRealJarvisEcosystemAction(input: {
                         trialClient: existingActiveTrial,
                         storeUrl: `/store/${existingBrand.slug}`,
                         flagshipUrl: reusedFlagship,
+                        clientPortalUrl: `${publicBase}/client/${encodeURIComponent(reusedSlug)}?token=${encodeURIComponent(portalTok)}`,
+                        ssoStoreAdminUrl: `${reusedFlagship}${ssoSep}ssoToken=${encodeURIComponent(ssoTok)}#dashboard`,
                         studioPostsCount: Array.isArray(existingBrand.weekContentPlan) ? existingBrand.weekContentPlan.length : 0,
                         message: `يوجد اشتراك تجربة مجانية ساري بالفعل لهذا الرقم لبراند (${existingBrand.name}) حتى تاريخ ${existingActiveTrial.trialEndsAt}. تم استعادة نفس التجربة مباشرة!`
                     };
@@ -1218,20 +1255,22 @@ export async function executeRealJarvisEcosystemAction(input: {
                 name,
                 industry,
                 phone,
-                websiteUrl
+                websiteUrl,
+                skipBlockingRemoteSync: true
             });
 
-            // Enrich with 3-Day Day-on-Day Trial Matrix (Sat, Mon, Wed) & sync to Tito Studio Firebase Firestore + T2 Agent
+            // Enrich with strictly 3 Trial Posts (2 image + 1 video reel)
             const omniPlan = buildOmniChannelWeekPlan({
                 id: cloned.id,
                 slug: cloned.slug,
                 name: cloned.name,
                 businessType: cloned.businessType,
-                phone: cloned.phone,
+                phone,
                 existingPlan: cloned.weekContentPlan,
                 isTrial: true
             });
             const { resolveBrandTemplate } = await import('./tenantAppRenderer');
+            const { transliterateArabicToSlug } = await import('./brandIdentityNormalizer');
             const resolvedTemplate = resolveBrandTemplate({
                 appTemplate: requestedTemplate,
                 businessType: cloned.businessType,
@@ -1239,7 +1278,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 name: cloned.name
             });
 
-            // Deep Industry Hydration: generate real domain catalog + scrape existing website metadata in parallel
+            // Fast Industry Hydration (capped at 3s)
             const { generateIndustryCatalogWithAI, scrapeWebsiteMetadata } = await import('./industryHydrationService');
             const { createRotatingServerAI } = await import('./geminiKeyPool');
             let hydrationAi: any = null;
@@ -1263,10 +1302,7 @@ export async function executeRealJarvisEcosystemAction(input: {
             const finalLogoUrl = logoUrl || (cloned as any).logoUrl || siteMeta?.ogImage || '';
 
             const adminPin = normalizedPhone.slice(-6) || String(Math.floor(100000 + Math.random() * 900000));
-            const asciiSlug = String(cloned.slug || cloned.id || 'brand')
-                .toLowerCase()
-                .replace(/[^a-z0-9-]+/g, '-')
-                .replace(/^-+|-+$/g, '') || `brand-${Date.now().toString().slice(-4)}`;
+            const asciiSlug = transliterateArabicToSlug(cloned.slug || cloned.id || name, '') || `brand-${Date.now().toString().slice(-4)}`;
             const adminEmail = `owner@${asciiSlug}.t2.app`;
             const adminPassword = `T2@${adminPin}`;
 
@@ -1293,8 +1329,17 @@ export async function executeRealJarvisEcosystemAction(input: {
                 }).catch(() => {});
             }
 
+            const storeSlug = cloned.slug || asciiSlug || cloned.id;
+            const { buildFlagshipTenantUrl } = await import('./tenantAppRenderer');
+            const generatedFlagshipUrl = buildFlagshipTenantUrl(storeSlug, resolvedTemplate);
+            const trialStartedAt = new Date().toISOString();
+            const trialEndsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+
             const enrichedBrand = persistBrandUpdateAcrossEcosystem(cloned.id, {
                 ...cloned,
+                slug: storeSlug,
+                phone,
+                whatsapp: normalizedPhone.startsWith('0') ? `2${normalizedPhone}` : normalizedPhone,
                 slogan: finalSlogan,
                 logoUrl: finalLogoUrl,
                 primaryColor: finalPrimaryColor,
@@ -1311,53 +1356,71 @@ export async function executeRealJarvisEcosystemAction(input: {
                 },
                 adminPin,
                 adminEmail,
-                weekContentPlan: omniPlan
+                weekContentPlan: omniPlan,
+                vercelUrl: (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl,
+                liveUrl: (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl,
+                subscriptionStatus: 'trial',
+                planId: 'trial_7d',
+                trialStartedAt,
+                trialEndsAt,
             } as any);
-            await upsertBrandToTitoStudioFirestore(enrichedBrand);
-            const studioPostsCount = await syncWeekPlanToTitoStudioFirestore(enrichedBrand, omniPlan);
-            await syncFromTitoStudioFirestore();
 
-            // Automatically trigger Tito Studio Background Execution + QA Gate for Week-1 Trial Content
-            // Trial quota: strictly 2 image posts + 1 video/reel = 3 total posts
+            // Immediately register canonical brand & seed Cloud ERP state for multi-tenant store.t2os.app / book.t2os.app
             try {
-                const { getTitoStudioBaseUrl } = await import('./titoStudioApiClient');
-                const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, '');
-                const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || '').trim();
-                const rawPlan = Array.isArray(omniPlan) ? omniPlan : [];
-                const mapPlanItem = (p: any, idx: number, forcedType?: 'image' | 'video') => ({
-                    title: String(p?.title || p?.topic || `خطة الأسبوع التجريبي — منشور ${idx + 1}`),
-                    type: forcedType || (p?.type === 'video' || p?.format === 'reel' ? 'video' : 'image'),
-                    caption: String(p?.caption || p?.script || p?.hook || p?.title || ''),
-                    visualPrompt: String(p?.visualPrompt || p?.designBrief || ''),
-                    pillarLabel: String(p?.pillar || 'خطة الأسبوع التجريبي'),
-                    scheduledPlatforms: Array.isArray(p?.platforms) ? p.platforms : ['facebook', 'instagram'],
+                const { upsertBrandRegistryEntry } = await import('./brandRegistryService');
+                upsertBrandRegistryEntry(cloned.id, {
+                    slug: storeSlug,
+                    name: cloned.name,
+                    businessType: industry,
+                    primaryColor: finalPrimaryColor,
+                    appTemplate: resolvedTemplate,
+                    planId: 'trial_7d',
+                    planAmount: 5000,
+                    titoStudioClinicId: cloned.id,
+                    agentBrandId: storeSlug,
+                    appUrl: generatedFlagshipUrl,
+                    lifecycleStage: 'trial',
+                    subscriptionStatus: 'trial',
                 });
-                const imageCandidates = rawPlan.filter((p: any) => p?.type !== 'video' && p?.format !== 'reel');
-                const videoCandidates = rawPlan.filter((p: any) => p?.type === 'video' || p?.format === 'reel');
-                const execItems = [
-                    ...imageCandidates.slice(0, 2).map((p: any, idx: number) => mapPlanItem(p, idx, 'image')),
-                    ...(videoCandidates.length > 0
-                        ? [mapPlanItem(videoCandidates[0], 2, 'video')]
-                        : rawPlan[2]
-                            ? [mapPlanItem(rawPlan[2], 2, 'video')]
-                            : []),
-                ].slice(0, 3);
-                if (studioKey && execItems.length > 0) {
-                    fetch(`${studioBase}/api/execution/enqueue`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'x-api-key': studioKey },
-                        body: JSON.stringify({
-                            clinicId: String((enrichedBrand as any).titoStudioClinicId || enrichedBrand.id),
-                            brandName: enrichedBrand.name,
-                            items: execItems,
-                            triggerSource: 'trial_7d_auto_provision',
-                        }),
-                        signal: AbortSignal.timeout(8000),
-                    }).catch(() => {});
-                }
             } catch {}
 
-            // Also add to Ez-Zel Clients as a 7-Day Free Trial subscriber
+            try {
+                const { loadTenantErpState, saveTenantErpState } = await import('./tenantErpStoreService');
+                const existingErp = await loadTenantErpState(storeSlug).catch(() => ({} as any));
+                const seededProducts = (Array.isArray(finalCatalog) ? finalCatalog : []).map((p: any, idx: number) => {
+                    const img = p?.image || p?.imageUrl || 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&auto=format&fit=crop&q=80';
+                    const num = Math.max(50, Number(p?.numericPrice ?? p?.unitPrice ?? parseInt(String(p?.price || '500').replace(/[^\d]/g, ''), 10)) || 500);
+                    return {
+                        id: idx + 1,
+                        name: String(p?.name || `منتج ${idx + 1}`),
+                        sku: `SKU-${idx + 1}`,
+                        mainCategory: String(p?.category || industry || 'عام'),
+                        category: String(p?.category || industry || 'عام'),
+                        brand: cloned.name,
+                        sellingPrice: num,
+                        purchasePrice: Math.round(num * 0.65),
+                        stock: { main: 25 },
+                        reorderPoint: 5,
+                        description: String(p?.description || ''),
+                        images: [img],
+                    };
+                });
+                await saveTenantErpState(storeSlug, {
+                    ...existingErp,
+                    products: Array.isArray(existingErp?.products) && existingErp.products.length > 0 ? existingErp.products : seededProducts,
+                    storefrontSettings: {
+                        ...(existingErp?.storefrontSettings || {}),
+                        companyName: cloned.name,
+                        phone,
+                        whatsappNumber: normalizedPhone.startsWith('0') ? `2${normalizedPhone}` : normalizedPhone,
+                        address: 'القاهرة، مصر',
+                        primaryColor: finalPrimaryColor,
+                        logoUrl: finalLogoUrl,
+                    },
+                });
+            } catch {}
+
+            // Also add to Ez-Zel Clients as a 7-Day Free Trial subscriber (min upgrade tier 5,000 EGP)
             const clients = getEzZelPersonalClients();
             const newClient = {
                 id: `ezzel_trial_${Date.now()}`,
@@ -1366,9 +1429,9 @@ export async function executeRealJarvisEcosystemAction(input: {
                 plan: '7-Day Free Trial (Full Ecosystem)',
                 voicePersona: 'Gemini Puck 24kHz',
                 status: 'trial',
-                activeTasksCount: 7,
+                activeTasksCount: 3,
                 memoryNodesCount: 15,
-                monthlySubscriptionEgp: 2190,
+                monthlySubscriptionEgp: 5000,
                 affiliateEarningsEgp: 0,
                 joinedAt: new Date().toISOString().split('T')[0],
                 phone,
@@ -1382,20 +1445,51 @@ export async function executeRealJarvisEcosystemAction(input: {
 
             syncAndBuildObsidianVault();
 
-            const storeSlug = cloned.slug || cloned.id;
-            const { buildFlagshipTenantUrl } = await import('./tenantAppRenderer');
-            const generatedFlagshipUrl = buildFlagshipTenantUrl(storeSlug, resolvedTemplate);
-            const trialStartedAt = new Date().toISOString();
-            const trialEndsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+            // Non-blocking background sync to Tito Studio (strictly 3 trial posts) + Execution Engine
+            const studioPostsCount = Math.min(3, Array.isArray(omniPlan) ? omniPlan.length : 3);
+            void (async () => {
+                try {
+                    await upsertBrandToTitoStudioFirestore(enrichedBrand);
+                    await syncWeekPlanToTitoStudioFirestore(enrichedBrand, omniPlan.slice(0, 3));
+                    await syncFromTitoStudioFirestore();
 
-            persistBrandUpdateAcrossEcosystem(cloned.id, {
-                vercelUrl: (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl,
-                liveUrl: (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl,
-                subscriptionStatus: 'trial',
-                planId: 'trial_7d',
-                trialStartedAt,
-                trialEndsAt,
-            } as any);
+                    const { getTitoStudioBaseUrl } = await import('./titoStudioApiClient');
+                    const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, '');
+                    const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || '').trim();
+                    const rawPlan = Array.isArray(omniPlan) ? omniPlan : [];
+                    const mapPlanItem = (p: any, idx: number, forcedType?: 'image' | 'video') => ({
+                        title: String(p?.title || p?.topic || `خطة الأسبوع التجريبي — منشور ${idx + 1}`),
+                        type: forcedType || (p?.type === 'video' || p?.format === 'reel' ? 'video' : 'image'),
+                        caption: String(p?.caption || p?.script || p?.hook || p?.title || ''),
+                        visualPrompt: String(p?.visualPrompt || p?.designBrief || ''),
+                        pillarLabel: String(p?.pillar || 'خطة الأسبوع التجريبي'),
+                        scheduledPlatforms: Array.isArray(p?.platforms) ? p.platforms : ['facebook', 'instagram'],
+                    });
+                    const imageCandidates = rawPlan.filter((p: any) => p?.type !== 'video' && p?.format !== 'reel' && p?.mediaFormat !== 'video');
+                    const videoCandidates = rawPlan.filter((p: any) => p?.type === 'video' || p?.format === 'reel' || p?.mediaFormat === 'video');
+                    const execItems = [
+                        ...imageCandidates.slice(0, 2).map((p: any, idx: number) => mapPlanItem(p, idx, 'image')),
+                        ...(videoCandidates.length > 0
+                            ? [mapPlanItem(videoCandidates[0], 2, 'video')]
+                            : rawPlan[2]
+                                ? [mapPlanItem(rawPlan[2], 2, 'video')]
+                                : []),
+                    ].slice(0, 3);
+                    if (studioKey && execItems.length > 0) {
+                        await fetch(`${studioBase}/api/execution/enqueue`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'x-api-key': studioKey },
+                            body: JSON.stringify({
+                                clinicId: String((enrichedBrand as any).titoStudioClinicId || enrichedBrand.id),
+                                brandName: enrichedBrand.name,
+                                items: execItems,
+                                triggerSource: 'trial_7d_auto_provision',
+                            }),
+                            signal: AbortSignal.timeout(8000),
+                        }).catch(() => {});
+                    }
+                } catch {}
+            })();
 
             const wantsDedicatedRepo = Boolean(
                 (data as any)?.dedicatedRepo === true ||
@@ -1426,11 +1520,19 @@ export async function executeRealJarvisEcosystemAction(input: {
                 : generatedFlagshipUrl;
             const flagshipUrl = (appMode === 'existing_site' && websiteUrl) ? websiteUrl : finalLiveAppUrl;
 
+            const { signClientPortalToken, issueOwnerSsoToken } = await import('../routes/tenantErpRoutes');
+            const publicBase = (process.env.PUBLIC_BASE_URL || 'https://t2os.app').replace(/\/+$/, '');
+            const clientPortalUrl = `${publicBase}/client/${encodeURIComponent(storeSlug)}?token=${encodeURIComponent(signClientPortalToken(storeSlug))}`;
+            const ownerSsoToken = issueOwnerSsoToken(enrichedBrand, storeSlug);
+            const ssoSep = flagshipUrl.includes('?') ? '&' : '?';
+            const ssoStoreAdminUrl = `${flagshipUrl}${ssoSep}ssoToken=${encodeURIComponent(ownerSsoToken)}#dashboard`;
+
             return {
                 success: true,
                 brand: {
                     ...enrichedBrand,
                     vercelUrl: flagshipUrl,
+                    liveUrl: flagshipUrl,
                     subscriptionStatus: 'trial',
                     planId: 'trial_7d',
                     trialStartedAt,
@@ -1441,6 +1543,8 @@ export async function executeRealJarvisEcosystemAction(input: {
                 trialClient: newClient,
                 storeUrl: flagshipUrl,
                 flagshipUrl,
+                clientPortalUrl,
+                ssoStoreAdminUrl,
                 optionalFlagshipUrl: finalLiveAppUrl,
                 ...(dedicatedResult?.dedicatedLiveUrl ? { dedicatedLiveUrl: dedicatedResult.dedicatedLiveUrl } : {}),
                 ...(dedicatedResult?.dedicatedRepoUrl ? { dedicatedRepoUrl: dedicatedResult.dedicatedRepoUrl } : {}),
@@ -1452,7 +1556,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 appTemplate: resolvedTemplate,
                 appMode,
                 studioPostsCount,
-                message: `تم بناء وتجهيز متجر وتطبيق (${cloned.name}) على القالب الاحترافي (${resolvedTemplate === 'products_erp' ? 'Battah Store + ERP + CRM + POS' : 'Clean Master Services + Calendar + Finance'})، وتسجيله في تيتو ستوديو وتيتو أجنت وجدولة (${studioPostsCount}) منشورات للأسبوع المجاني!`
+                message: `تم بناء وتجهيز متجر وتطبيق (${cloned.name}) في لحظات وجدولة (${studioPostsCount}) منشورات للأسبوع المجاني!`
             };
         }
 

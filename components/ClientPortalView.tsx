@@ -48,6 +48,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatSending, setChatSending] = useState(false);
+  const [waPhoneInput, setWaPhoneInput] = useState('');
+  const [waPairBusy, setWaPairBusy] = useState(false);
+  const [waPairResult, setWaPairResult] = useState<{ pairingCode?: string; qrDataUrl?: string; message?: string; ok?: boolean } | null>(null);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
 
   const loadPortal = async () => {
     setLoading(true);
@@ -102,14 +106,71 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
         body: JSON.stringify({ postIndex, decision, feedback, portalToken }),
       });
       const data = await res.json();
-      if (res.status === 401 || res.status === 402) {
-        setAuthBanner(data?.error || 'الرابط غير موثق أو انتهت صلاحية الاشتراك.');
+      if (res.status === 401 || res.status === 402 || res.status === 429) {
+        setAuthBanner(data?.error || 'تم الوصول للحد المسموح أو الرابط غير موثق.');
         if (data?.upgradeUrl) setUpgradeUrl(data.upgradeUrl);
       } else if (data.ok && data.brand) {
         setBrand(data.brand);
       }
     } finally {
       setBusyIdx(null);
+    }
+  };
+
+  const handleTriggerUpgrade5000 = async () => {
+    setUpgradeBusy(true);
+    setAuthBanner('');
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (portalToken) headers['x-portal-token'] = portalToken;
+      const res = await fetch('/api/payments/paymob/create-checkout', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          brandId: brand?.id || slug,
+          brandName: brand?.name || slug,
+          planId: 'tier_5000',
+          amountEgp: 5000,
+          customerPhone: brand?.phone || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.paymentUrl) {
+        const target = new URL(data.paymentUrl, window.location.origin).toString();
+        window.open(target, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.href = upgradeUrl;
+      }
+    } catch {
+      window.location.href = upgradeUrl;
+    } finally {
+      setUpgradeBusy(false);
+    }
+  };
+
+  const handlePairWhatsappPortal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned = (waPhoneInput || brand?.phone || '').replace(/[^0-9]/g, '');
+    if (cleaned.length < 10) {
+      setWaPairResult({ ok: false, message: 'اكتب رقم واتساب صحيح (10 أرقام على الأقل).' });
+      return;
+    }
+    setWaPairBusy(true);
+    setWaPairResult(null);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (portalToken) headers['x-portal-token'] = portalToken;
+      const res = await fetch(`/api/client-portal/${encodeURIComponent(slug)}/whatsapp-pair`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ phone: cleaned, portalToken }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setWaPairResult(data);
+    } catch (err: any) {
+      setWaPairResult({ ok: false, message: err?.message || 'تعذر الاتصال بخادم واتساب' });
+    } finally {
+      setWaPairBusy(false);
     }
   };
 
@@ -252,6 +313,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
               <ExternalLink className="w-3.5 h-3.5" />
               <span>{appAccessMode === 'landing_page' ? 'فتح اللاندنج بيدج' : 'معاينة المتجر للعملاء'}</span>
             </a>
+            {(subscriptionStatus === 'trial' || subscriptionStatus === 'expired') && (
+              <button
+                type="button"
+                disabled={upgradeBusy}
+                onClick={handleTriggerUpgrade5000}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 text-xs font-black flex items-center gap-1.5 hover:brightness-110 shadow-lg shadow-amber-500/20 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{upgradeBusy ? 'جاري التجهيز...' : '⚡ تفعيل باقة 5,000 ج.م'}</span>
+              </button>
+            )}
           </div>
         </header>
 
@@ -264,12 +336,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                   ? 'انتهت مدة التجربة المجانية (7 أيام) — للاستكمال بنفس التطبيق والأجنت يرجى التفعيل بدايةً من باقة 5,000 ج.م (50% إعلانات ممولة).'
                   : 'هذا الرابط للمعاينة فقط — لفتح لوحة المتجر بضغطة واحدة أو اعتماد المنشورات افتح الرابط الموثق (?token=...).')}
             </span>
-            <a
-              href={upgradeUrl}
-              className="px-4 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black hover:bg-amber-300 transition"
+            <button
+              type="button"
+              onClick={handleTriggerUpgrade5000}
+              className="px-4 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black hover:bg-amber-300 transition cursor-pointer"
             >
               تفعيل باقة 5,000 ج.م أو أعلى الآن
-            </a>
+            </button>
           </div>
         )}
 
@@ -430,23 +503,86 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
           </div>
         )}
 
-        {/* Tab 2: T2 Agent Client Dashboard */}
+        {/* Tab 2: Native T2 Agent WhatsApp & Channels Setup Hub */}
         {activeTab === 'agent' && (
-          <div className="rounded-3xl bg-[#071122]/80 border border-emerald-500/30 overflow-hidden">
-            <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between text-xs">
-              <span className="font-bold text-emerald-300">لوحة تيتو أجنت والواتساب المخصصة لـ {brand.name}</span>
+          <div className="rounded-3xl bg-[#071122]/85 border border-emerald-500/30 p-5 md:p-6 flex flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <div>
+                <h3 className="text-base font-black text-emerald-300">🤖 ربط واتساب الذكي وقنوات التواصل لـ {brand.name}</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  اربط رقم الواتساب بالكود المباشر ليعمل الأجنت 24/7 في الرد على العملاء، وإغلاق الطلبات على واتساب وماسنجر وتعليقات فيسبوك وإنستجرام.
+                </p>
+              </div>
               {(portals.agentFullDashboardUrl || portals.agentDashboardUrl) && (
-                <a href={portals.agentFullDashboardUrl || portals.agentDashboardUrl} target="_blank" rel="noreferrer" className="text-cyan-300 hover:underline flex items-center gap-1">
-                  <span>فتح لوحة الأيجنت كاملة</span>
-                  <ExternalLink className="w-3 h-3" />
+                <a
+                  href={portals.agentFullDashboardUrl || portals.agentDashboardUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 text-xs font-black flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>فتح لوحة الأجنت المتقدمة</span>
                 </a>
               )}
             </div>
-            {portals.agentDashboardUrl ? (
-              <iframe src={portals.agentDashboardUrl} title="T2 Agent Client Dashboard" className="w-full h-[720px] border-0 bg-[#070b14]" />
-            ) : (
-              <div className="p-8 text-center text-xs text-slate-400">رابط لوحة الأيجنت غير متاح حالياً</div>
-            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handlePairWhatsappPortal} className="rounded-2xl bg-black/50 border border-white/10 p-4 space-y-3">
+                <div className="text-xs font-black text-white">📱 استخراج كود الاقتران الفوري لواتساب (Pairing Code / QR)</div>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    value={waPhoneInput || brand.phone || ''}
+                    onChange={(e) => setWaPhoneInput(e.target.value)}
+                    placeholder="010xxxxxxxx"
+                    className="flex-1 bg-[#0b172c] border border-white/15 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={waPairBusy}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {waPairBusy ? 'جاري الاستخراج...' : 'توليد الكود الآن'}
+                  </button>
+                </div>
+                {waPairResult && (
+                  <div className={`p-3 rounded-xl border text-xs space-y-2 ${waPairResult.ok ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' : 'bg-amber-950/30 border-amber-500/40 text-amber-200'}`}>
+                    {waPairResult.pairingCode && (
+                      <div className="font-mono text-base font-black text-amber-300 tracking-widest">
+                        كود الربط: {waPairResult.pairingCode}
+                      </div>
+                    )}
+                    {waPairResult.qrDataUrl && (
+                      <img src={waPairResult.qrDataUrl} alt="WhatsApp QR" className="w-28 h-28 rounded-lg bg-white p-1" />
+                    )}
+                    <div>{waPairResult.message}</div>
+                  </div>
+                )}
+              </form>
+
+              <div className="rounded-2xl bg-black/50 border border-white/10 p-4 space-y-3">
+                <div className="text-xs font-black text-white">🌐 حالة القنوات والحدود التشغيلية لبراندك</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                    <div className="text-[10px] text-slate-400">واتساب الذكي</div>
+                    <div className="font-black text-emerald-300 mt-0.5">{brand.whatsappConnected ? 'متصل 🟢' : 'جاهز للربط'}</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                    <div className="text-[10px] text-slate-400">فيسبوك وماسنجر</div>
+                    <div className="font-black text-blue-300 mt-0.5">{brand.metaConnected || brand.socialLinks?.facebook ? 'مربوط 🟢' : 'غير مربوط'}</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                    <div className="text-[10px] text-slate-400">TikTok</div>
+                    <div className="font-black text-purple-300 mt-0.5">{brand.socialLinks?.tiktok || 'غير مربوط'}</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                    <div className="text-[10px] text-slate-400">حد رسائل الباقة</div>
+                    <div className="font-black text-amber-300 mt-0.5">{subscriptionStatus === 'trial' ? '500 رسالة / أسبوع التجربة' : '5,000 رسالة / شهر'}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

@@ -669,8 +669,22 @@ async function startServer() {
 
   let cachedObsidianGraph: { ts: number; data: any } | null = null;
 
-  app.get("/api/cloner/brands", (req, res) => {
+  app.get("/api/cloner/brands", async (req, res) => {
       try {
+          const requestedBrandId = String(req.query.brandId || "").trim();
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) {
+              if (!requestedBrandId) {
+                  return res.status(401).json({ success: false, error: "Admin authorization required" });
+              }
+              const single = getClonedBrandByIdOrSlug(requestedBrandId);
+              if (!single) {
+                  return res.status(404).json({ success: false, error: "Brand not found" });
+              }
+              const singleArr = [single];
+              const payload = req.query.full === "1" ? singleArr : stripLargeInlineStrings(singleArr);
+              return res.json({ success: true, count: singleArr.length, brands: payload });
+          }
           const brands = getUnifiedGrowthBrands();
           const payload = req.query.full === "1" ? brands : stripLargeInlineStrings(brands);
           res.json({ success: true, count: brands.length, brands: payload });
@@ -680,8 +694,13 @@ async function startServer() {
   });
 
   // --- OBSIDIAN KNOWLEDGE GRAPH & UNIFIED ECOSYSTEM VAULT API --- //
-  app.get("/api/obsidian/graph", (req, res) => {
+  app.get("/api/obsidian/graph", async (req, res) => {
       try {
+          const requestedBrandId = String(req.query.brandId || "").trim();
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok && !requestedBrandId) {
+              return res.status(401).json({ success: false, error: "Admin authorization required" });
+          }
           const wantFull = req.query.full === "1";
           const forceRefresh = req.query.refresh === "1";
           const now = Date.now();
@@ -693,7 +712,39 @@ async function startServer() {
               cachedObsidianGraph = { ts: now, data: snapshot };
           }
           const allBrands = Array.isArray(snapshot.growthAgencyBrands) ? snapshot.growthAgencyBrands : [];
-          const activeBrands = allBrands.filter((b: any) => b?.lifecycleStage !== "paused_archive");
+          let activeBrands = allBrands.filter((b: any) => b?.lifecycleStage !== "paused_archive");
+          let nodes = snapshot.nodes || [];
+          let edges = snapshot.edges || [];
+
+          if (!auth.ok && requestedBrandId) {
+              const normNeedle = requestedBrandId.toLowerCase().replace(/[-_]+/g, "");
+              activeBrands = activeBrands.filter((b: any) => {
+                  const idKey = String(b?.id || "").toLowerCase().replace(/[-_]+/g, "");
+                  const slugKey = String(b?.slug || "").toLowerCase().replace(/[-_]+/g, "");
+                  return idKey === normNeedle || slugKey === normNeedle;
+              });
+              const allowedIds = new Set(activeBrands.flatMap((b: any) => [b.id, b.slug]).filter(Boolean));
+              nodes = nodes.filter((n: any) => !n.brandId || allowedIds.has(n.brandId));
+              const nodeIds = new Set(nodes.map((n: any) => n.id));
+              edges = edges.filter((e: any) => nodeIds.has(e.source) && nodeIds.has(e.target));
+              return res.json(stripLargeInlineStrings({
+                  success: true,
+                  vaultPath: snapshot.vaultPath,
+                  lastSyncedAt: snapshot.lastSyncedAt,
+                  nodes,
+                  edges,
+                  ezZelPersonalClients: [],
+                  growthAgencyBrands: activeBrands,
+                  summary: {
+                      totalNodes: nodes.length,
+                      totalEdges: edges.length,
+                      totalEzZelClients: 0,
+                      totalGrowthBrands: activeBrands.length,
+                      totalMRR: 0,
+                  },
+              }));
+          }
+
           const responsePayload: any = {
               success: true,
               ...snapshot,
@@ -1016,26 +1067,85 @@ async function startServer() {
 
           try {
               const { getPersistentDataDir, readPersistentJson } = await import("./services/persistentStorage");
-              const erpFile = path.join(getPersistentDataDir(), "tenant_erp_state", `${normSlug}.json`);
+              const { pgDeleteBrandCostLedger } = await import("./services/postgresService");
+              const { deleteBrandVaultState } = await import("./services/obsidianVaultService");
+              const dataDir = getPersistentDataDir();
+              const erpFile = path.join(dataDir, "tenant_erp_state", `${normSlug}.json`);
               if (fs.existsSync(erpFile)) fs.unlinkSync(erpFile);
 
-              const cloned = readPersistentJson<any[]>("app_cloner_brands.json", []);
-              if (Array.isArray(cloned)) {
-                  const nextCloned = cloned.filter(
-                      (b: any) => !areBrandIdsEquivalent(b?.slug, normSlug) && !areBrandIdsEquivalent(b?.id, normSlug)
-                  );
-                  if (nextCloned.length !== cloned.length) {
-                      savePersistentJson("app_cloner_brands", "app_cloner_brands.json", nextCloned);
+              const vaultMd = path.join(process.cwd(), "obsidian_vault", "01_Growth_Agency_Brands", `${normSlug}.md`);
+              const vaultMdUnderscore = path.join(process.cwd(), "obsidian_vault", "01_Growth_Agency_Brands", `${normSlug.replace(/-/g, "_")}.md`);
+              if (fs.existsSync(vaultMd)) fs.unlinkSync(vaultMd);
+              if (fs.existsSync(vaultMdUnderscore)) fs.unlinkSync(vaultMdUnderscore);
+
+              deleteBrandVaultState(normSlug);
+              await pgDeleteBrandCostLedger(normSlug).catch(() => {});
+
+              for (const fname of [
+                  { key: "tenants_vault", file: "tenants.json" },
+                  { key: "tenant_records", file: "tenant_records.json" },
+                  { key: "ezzel_clients", file: "ezzel_clients.json" },
+                  { key: "paymob_subscriptions", file: "paymob_subscriptions.json" },
+                  { key: "t2_ai_cost_ledger_local", file: "ai_cost_ledger_local.json" },
+              ]) {
+                  const arr = readPersistentJson<any[]>(fname.file, []);
+                  if (Array.isArray(arr)) {
+                      const filtered = arr.filter(
+                          (x: any) =>
+                              !areBrandIdsEquivalent(x?.slug, normSlug) &&
+                              !areBrandIdsEquivalent(x?.id, normSlug) &&
+                              !areBrandIdsEquivalent(x?.brandId, normSlug) &&
+                              !areBrandIdsEquivalent(x?.linkedBrandId, normSlug)
+                      );
+                      if (filtered.length !== arr.length) {
+                          savePersistentJson(fname.key, fname.file, filtered);
+                      }
                   }
               }
 
-              const clients = readPersistentJson<any[]>("ezzel_clients.json", []);
-              if (Array.isArray(clients)) {
-                  const nextClients = clients.filter((c: any) => !areBrandIdsEquivalent(c?.linkedBrandId, normSlug));
-                  if (nextClients.length !== clients.length) {
-                      savePersistentJson("ezzel_clients", "ezzel_clients.json", nextClients);
+              for (const cacheFp of [
+                  path.join(dataDir, "tito_studio_cache.json"),
+                  path.join(process.cwd(), "data", "tito_studio_cache.json"),
+              ]) {
+                  if (fs.existsSync(cacheFp)) {
+                      try {
+                          const sc = JSON.parse(fs.readFileSync(cacheFp, "utf8"));
+                          if (sc && typeof sc === "object") {
+                              if (Array.isArray(sc.clinics)) {
+                                  sc.clinics = sc.clinics.filter(
+                                      (c: any) => !areBrandIdsEquivalent(c?.slug, normSlug) && !areBrandIdsEquivalent(c?.id, normSlug)
+                                  );
+                              }
+                              if (Array.isArray(sc.content)) {
+                                  sc.content = sc.content.filter((c: any) => !areBrandIdsEquivalent(c?.clinicId, normSlug));
+                              }
+                              fs.writeFileSync(cacheFp, JSON.stringify(sc, null, 2), "utf8");
+                          }
+                      } catch {}
                   }
               }
+
+              // Remote deletions from T2 Studio & T2 Agent (non-fatal)
+              const studioKey = String(process.env.TITO_STUDIO_API_KEY || process.env.T2_REMOTE_API_KEY || "").trim();
+              const agentKey = String(process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || "").trim();
+              const { getTitoStudioBaseUrl } = await import("./services/titoStudioApiClient");
+              const { getT2AgentBaseUrl } = await import("./services/t2AgentApiClient");
+              await Promise.allSettled([
+                  studioKey
+                      ? fetch(`${getTitoStudioBaseUrl().replace(/\/+$/, "")}/api/brands/${encodeURIComponent(normSlug)}`, {
+                            method: "DELETE",
+                            headers: { "x-api-key": studioKey },
+                            signal: AbortSignal.timeout(6000),
+                        })
+                      : Promise.resolve(null),
+                  agentKey
+                      ? fetch(`${getT2AgentBaseUrl().replace(/\/+$/, "")}/api/brands/${encodeURIComponent(normSlug)}`, {
+                            method: "DELETE",
+                            headers: { "x-admin-key": agentKey },
+                            signal: AbortSignal.timeout(6000),
+                        })
+                      : Promise.resolve(null),
+              ]);
           } catch {}
 
           cachedObsidianGraph = null;
@@ -4423,7 +4533,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   });
 
   // --- BRANDING FORGE & SOCIAL LAUNCH KIT API ---
-  app.post("/api/branding/forge", requireAdminMiddleware, async (req, res) => {
+  app.post("/api/branding/forge", createRateLimiter(15, 60 * 1000, "branding-forge"), async (req, res) => {
       try {
           const { brandName, category, targetAudience, phone, isNewBusiness, currentAssets } = req.body;
           if (!brandName && !category) return res.status(400).json({ error: "اسم البراند أو مجال المشروع مطلوب" });

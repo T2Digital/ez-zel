@@ -5,6 +5,7 @@ import { broadcastGatewayEvent } from './microservicesGateway';
 import { syncBrandToAllEcosystems } from './universalBrandSync';
 import { resolveFlagshipTemplate, FlagshipTemplateSpec } from './tenantFactory';
 import { getPersistentFilePath, savePersistentJson } from './persistentStorage';
+import { transliterateArabicToSlug } from './brandIdentityNormalizer';
 
 export interface CloneBrandInput {
     name?: string;
@@ -14,6 +15,7 @@ export interface CloneBrandInput {
     websiteUrl?: string;
     phone?: string;
     ownerEmail?: string;
+    skipBlockingRemoteSync?: boolean;
 }
 
 export interface ClonedBrandOutput {
@@ -208,16 +210,19 @@ export async function cloneOrSynthesizeBrand(input: CloneBrandInput): Promise<Cl
     const ownerEmail = input.ownerEmail?.trim() || 'client@t2digital.com';
     const websiteUrl = input.websiteUrl?.trim() || '';
 
-    // Slug generator
-    const slug = name
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, '')
-        .trim()
-        .replace(/\s+/g, '-') || `brand-${Date.now().toString(36)}`;
+    // Arabic-aware Slug generator with collision suffix only if held by a different brand
+    const baseSlug = transliterateArabicToSlug(name, '') || `brand-${Date.now().toString(36)}`;
+    const existingBrands = readMergedClonerBrands();
+    const normExisting = Object.values(existingBrands).find((b: any) =>
+      String(b?.slug || b?.id || '').toLowerCase().replace(/_/g, '-') === baseSlug
+    );
+    const slug = (normExisting && String(normExisting.name || '').trim() !== name)
+      ? `${baseSlug}-${Date.now().toString(36).slice(-3)}`
+      : baseSlug;
     const brandId = slug.replace(/-/g, '_');
 
     let crawledText = '';
-    if (websiteUrl && websiteUrl.startsWith('http')) {
+    if (websiteUrl && websiteUrl.startsWith('http') && !input.skipBlockingRemoteSync) {
         console.log(`🕷️ [App Cloner] Crawling target website: ${websiteUrl}...`);
         crawledText = await crawlUrlContent(websiteUrl);
     }
@@ -276,27 +281,34 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
 يجب أن تعيد كائن JSON صالح فقط دون كود ماركداون خارجي.`;
 
     let parsed: any = null;
-    try {
-        const ai = getGeminiClient();
-        const res = await ai.models.generateContent({
-            model: 'gemini-3.5-flash-lite',
-            contents: prompt,
-            config: {
-                temperature: 0.3,
-                responseMimeType: 'application/json'
-            }
-        });
-
-        const rawJson = res.text || '{}';
-        try {
-            parsed = JSON.parse(rawJson);
-        } catch {
-            const clean = rawJson.replace(/```json/gi, '').replace(/```/g, '').trim();
-            parsed = JSON.parse(clean);
-        }
-    } catch (aiErr: any) {
-        console.warn(`[App Cloner] Gemini blueprint fallback activated (${aiErr?.message})`);
+    if (input.skipBlockingRemoteSync) {
         parsed = generateSyntheticEgyptianBlueprint(name, industry, phone);
+    } else {
+        try {
+            const ai = getGeminiClient();
+            const res = await Promise.race([
+                ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                    config: {
+                        temperature: 0.3,
+                        responseMimeType: 'application/json'
+                    }
+                }),
+                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI_BLUEPRINT_TIMEOUT')), 3500))
+            ]);
+
+            const rawJson = (res as any).text || '{}';
+            try {
+                parsed = JSON.parse(rawJson);
+            } catch {
+                const clean = rawJson.replace(/```json/gi, '').replace(/```/g, '').trim();
+                parsed = JSON.parse(clean);
+            }
+        } catch (aiErr: any) {
+            console.warn(`[App Cloner] Gemini blueprint fallback activated (${aiErr?.message})`);
+            parsed = generateSyntheticEgyptianBlueprint(name, industry, phone);
+        }
     }
 
     const appUrl = `https://${slug}.t2-client.vercel.app`;
@@ -345,23 +357,28 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
     saveTenantToDisk(clonedBrand);
 
     // Synchronize to T2 Agent & Tito Studio Firestore simultaneously
-    try {
-        await syncBrandToAllEcosystems({
-            id: clonedBrand.id,
-            slug: clonedBrand.slug,
-            name: clonedBrand.name,
-            businessType: clonedBrand.businessType,
-            phone: clonedBrand.phone,
-            whatsapp: clonedBrand.phone,
-            websiteUrl: clonedBrand.websiteUrl,
-            appUrl: clonedBrand.appUrl,
-            ownerEmail: clonedBrand.ownerEmail,
-            systemPrompt: clonedBrand.systemPrompt,
-            productsCatalog: clonedBrand.productsCatalog,
-            weekContentPlan: clonedBrand.weekContentPlan
-        });
-    } catch (syncErr: any) {
-        console.warn('[App Cloner] Universal sync non-blocking warning:', syncErr?.message);
+    const syncPayload = {
+        id: clonedBrand.id,
+        slug: clonedBrand.slug,
+        name: clonedBrand.name,
+        businessType: clonedBrand.businessType,
+        phone: clonedBrand.phone,
+        whatsapp: clonedBrand.phone,
+        websiteUrl: clonedBrand.websiteUrl,
+        appUrl: clonedBrand.appUrl,
+        ownerEmail: clonedBrand.ownerEmail,
+        systemPrompt: clonedBrand.systemPrompt,
+        productsCatalog: clonedBrand.productsCatalog,
+        weekContentPlan: clonedBrand.weekContentPlan
+    };
+    if (input.skipBlockingRemoteSync) {
+        void syncBrandToAllEcosystems(syncPayload).catch(() => {});
+    } else {
+        try {
+            await syncBrandToAllEcosystems(syncPayload);
+        } catch (syncErr: any) {
+            console.warn('[App Cloner] Universal sync non-blocking warning:', syncErr?.message);
+        }
     }
 
     // Broadcast live event to open Jarvis and Dashboard instances

@@ -104,7 +104,7 @@ const AffiliateDashboard: React.FC<Props> = ({ user, onBack, onUpdateUser }) => 
       );
   }
 
-  const referralLink = `https://Ez-zel.vercel.app/?ref=${user.affiliate.referralCode}`;
+  const referralLink = `https://t2os.app/?ref=${user.affiliate.referralCode}`;
 
   const copyToClipboard = () => {
       navigator.clipboard.writeText(referralLink);

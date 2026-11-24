@@ -343,7 +343,9 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                         <div className="flex justify-center">
                             <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-0.5 rounded-full flex items-center gap-1">
                                 <Sparkles className="w-3 h-3 text-amber-400" />
-                                {tierPrices[selectedTier].adBadge} (50% من قيمة الباقة)
+                                {billingCycle === 'yearly'
+                                  ? `${(Number(tierPrices[selectedTier].monthly.egp.replace(/,/g, '')) * 5).toLocaleString()} ج.م إعلانات ممولة سنوياً (50% من قيمة الباقة)`
+                                  : `${tierPrices[selectedTier].adBadge} (50% من قيمة الباقة)`}
                             </span>
                         </div>
 
