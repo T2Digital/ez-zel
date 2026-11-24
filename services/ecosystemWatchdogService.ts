@@ -1,7 +1,54 @@
+import fs from "fs";
+import Redis from "ioredis";
 import { runLiveEcosystemHealthProbe } from "./ecosystemConfigService";
 import { t2AgentApi } from "./t2AgentApiClient";
 import { getUnifiedGrowthBrands } from "./obsidianVaultService";
 import { readBookings } from "./microservicesGateway";
+import { getPersistentDataDir } from "./persistentStorage";
+import { pingPostgres } from "./postgresService";
+
+export interface DiskHealthStats {
+  usedPct: number;
+  freeGb: number;
+  totalGb: number;
+}
+
+export function getDiskHealthStats(): DiskHealthStats | null {
+  try {
+    const statFn = (fs as any).statfsSync;
+    if (typeof statFn !== "function") return null;
+    const st = statFn(getPersistentDataDir());
+    const bsize = Number(st.bsize || 4096);
+    const totalBytes = Number(st.blocks || 0) * bsize;
+    const freeBytes = Number(st.bavail || st.bfree || 0) * bsize;
+    if (totalBytes <= 0) return null;
+    const usedPct = Math.min(100, Math.round(((totalBytes - freeBytes) / totalBytes) * 100));
+    return {
+      usedPct,
+      freeGb: Number((freeBytes / 1073741824).toFixed(2)),
+      totalGb: Number((totalBytes / 1073741824).toFixed(2)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function pingRedisHealth(): Promise<{ configured: boolean; connected: boolean; latencyMs?: number }> {
+  const url = String(process.env.REDIS_URL || "").trim();
+  if (!url.startsWith("redis")) return { configured: false, connected: false };
+  const t0 = Date.now();
+  let client: Redis | null = null;
+  try {
+    client = new Redis(url, { connectTimeout: 4000, maxRetriesPerRequest: 1, lazyConnect: true });
+    await client.connect();
+    await client.ping();
+    return { configured: true, connected: true, latencyMs: Date.now() - t0 };
+  } catch {
+    return { configured: true, connected: false };
+  } finally {
+    if (client) client.disconnect();
+  }
+}
 
 export interface WatchdogSnapshot {
   checkedAt: string;
@@ -9,6 +56,9 @@ export interface WatchdogSnapshot {
   titoStudioStatus: string;
   t2AgentStatus: string;
   rssMb: number;
+  diskUsedPct?: number;
+  diskFreeGb?: number;
+  postgresOk?: boolean;
   titoStudioUptimeSec?: number;
   t2AgentUptimeSec?: number;
 }
@@ -131,17 +181,36 @@ async function checkServiceTransition(input: {
 
 async function runWatchdogTick(getStudioUrl: () => string, getAgentUrl: () => string) {
   try {
-    const probe = await runLiveEcosystemHealthProbe(getStudioUrl(), getAgentUrl());
+    const [probe, pgHealth] = await Promise.all([
+      runLiveEcosystemHealthProbe(getStudioUrl(), getAgentUrl()),
+      pingPostgres().catch(() => ({ configured: false, connected: false })),
+    ]);
     const rssMb = Math.round(process.memoryUsage().rss / 1048576);
+    const disk = getDiskHealthStats();
     const snap: WatchdogSnapshot = {
       checkedAt: probe.checkedAt,
       ezZelOk: probe.ezZel.status === "CONNECTED",
       titoStudioStatus: probe.titoStudio.status,
       t2AgentStatus: probe.t2Agent.status,
       rssMb,
+      ...(disk ? { diskUsedPct: disk.usedPct, diskFreeGb: disk.freeGb } : {}),
+      postgresOk: pgHealth.configured ? pgHealth.connected : undefined,
       titoStudioUptimeSec: probe.titoStudio.uptimeSeconds,
       t2AgentUptimeSec: probe.t2Agent.uptimeSeconds,
     };
+
+    if (disk && disk.usedPct >= 85) {
+      await emitAlertWithCooldown(
+        "vps_disk_high",
+        `💾 <b>[T2OS Disk Alert]</b> امتلاء قرص السيرفر وصل إلى <b>${disk.usedPct}%</b> (المتاح <b>${disk.freeGb} GB</b> من ${disk.totalGb} GB)!`
+      );
+    }
+    if (pgHealth.configured && !pgHealth.connected) {
+      await emitAlertWithCooldown(
+        "postgres_down",
+        `🛢️ <b>[T2OS Database Alert]</b> تعذر الاتصال بقاعدة بيانات PostgreSQL عند ${snap.checkedAt}`
+      );
+    }
 
     watchdogState.snapshots.unshift(snap);
     if (watchdogState.snapshots.length > HISTORY_LIMIT) {
@@ -309,10 +378,12 @@ export function startEcosystemWatchdog(getStudioUrl: () => string, getAgentUrl: 
 export function getWatchdogStatus() {
   const botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
   const chatId = (process.env.TELEGRAM_ADMIN_CHAT_ID || "").trim();
+  const disk = getDiskHealthStats();
   return {
     active: watchdogState.started,
     telegramConfigured: Boolean(botToken && chatId && !botToken.includes("ShadowBotOfficial")),
     rssMb: Math.round(process.memoryUsage().rss / 1048576),
+    disk,
     latest: watchdogState.snapshots[0] || null,
     historyCount: watchdogState.snapshots.length,
     history: watchdogState.snapshots,

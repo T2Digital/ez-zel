@@ -71,6 +71,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/ai/design-architect",
   "/api/dropshipping/public/",
   "/api/al-genedy/",
+  "/api/telemetry/ai-usage",
 ];
 
 function isTrustedSameOrigin(req: Request): boolean {

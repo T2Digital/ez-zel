@@ -1385,9 +1385,26 @@ export async function executeRealJarvisEcosystemAction(input: {
             const storeSlug = cloned.slug || cloned.id;
             const { buildFlagshipTenantUrl } = await import('./tenantAppRenderer');
             const generatedFlagshipUrl = buildFlagshipTenantUrl(storeSlug, resolvedTemplate);
+            const trialStartedAt = new Date().toISOString();
+            const trialEndsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+
+            persistBrandUpdateAcrossEcosystem(cloned.id, {
+                vercelUrl: (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl,
+                liveUrl: (appMode === 'existing_site' && websiteUrl) ? websiteUrl : generatedFlagshipUrl,
+                subscriptionStatus: 'trial',
+                planId: 'trial_7d',
+                trialStartedAt,
+                trialEndsAt,
+            } as any);
+
+            const wantsDedicatedRepo = Boolean(
+                (data as any)?.dedicatedRepo === true ||
+                (data as any)?.planId === 'enterprise_20000' ||
+                (data as any)?.planId === 'sovereign_50000'
+            );
 
             let dedicatedResult: any = null;
-            if (appMode !== 'existing_site' && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
+            if (appMode !== 'existing_site' && wantsDedicatedRepo && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
                 try {
                     const { provisionDedicatedRepoAndVercel } = await import('./dedicatedDeployService');
                     dedicatedResult = await provisionDedicatedRepoAndVercel({
@@ -1397,7 +1414,8 @@ export async function executeRealJarvisEcosystemAction(input: {
                     if (dedicatedResult?.ok && dedicatedResult?.dedicatedLiveUrl) {
                         persistBrandUpdateAcrossEcosystem(cloned.id, {
                             dedicatedRepoUrl: dedicatedResult.dedicatedRepoUrl,
-                            dedicatedLiveUrl: dedicatedResult.dedicatedLiveUrl
+                            dedicatedLiveUrl: dedicatedResult.dedicatedLiveUrl,
+                            vercelUrl: dedicatedResult.dedicatedLiveUrl,
                         } as any);
                     }
                 } catch {}
@@ -1412,11 +1430,16 @@ export async function executeRealJarvisEcosystemAction(input: {
                 success: true,
                 brand: {
                     ...enrichedBrand,
+                    vercelUrl: flagshipUrl,
+                    subscriptionStatus: 'trial',
+                    planId: 'trial_7d',
+                    trialStartedAt,
+                    trialEndsAt,
                     ...(dedicatedResult?.dedicatedLiveUrl ? { dedicatedLiveUrl: dedicatedResult.dedicatedLiveUrl } : {}),
                     ...(dedicatedResult?.dedicatedRepoUrl ? { dedicatedRepoUrl: dedicatedResult.dedicatedRepoUrl } : {})
                 },
                 trialClient: newClient,
-                storeUrl: `/app/${storeSlug}`,
+                storeUrl: flagshipUrl,
                 flagshipUrl,
                 optionalFlagshipUrl: finalLiveAppUrl,
                 ...(dedicatedResult?.dedicatedLiveUrl ? { dedicatedLiveUrl: dedicatedResult.dedicatedLiveUrl } : {}),

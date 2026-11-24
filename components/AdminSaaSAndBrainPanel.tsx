@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Brain, CheckCircle2, CreditCard, RefreshCw, Save, Sparkles, Wrench } from 'lucide-react';
+import { Brain, CheckCircle2, CreditCard, DollarSign, RefreshCw, Save, Sparkles, Wrench } from 'lucide-react';
 
 interface SaasPlanItem {
   id: string;
@@ -34,15 +34,17 @@ export const AdminSaaSAndBrainPanel: React.FC = () => {
   const [savingPlans, setSavingPlans] = useState(false);
   const [savingBrain, setSavingBrain] = useState(false);
   const [repairingAutoHouse, setRepairingAutoHouse] = useState(false);
+  const [aiCostSummary, setAiCostSummary] = useState<any>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       const headers = await getAdminHeaders();
-      const [plansRes, brainRes] = await Promise.all([
+      const [plansRes, brainRes, aiCostRes] = await Promise.all([
         fetch('/api/saas/plans', { headers }),
         fetch('/api/jarvis/brain-config', { headers }),
+        fetch('/api/admin/ai-costs/summary?days=30', { headers }),
       ]);
       const plansData = await plansRes.json().catch(() => null);
       if (plansData?.ok && plansData?.plans) {
@@ -52,6 +54,10 @@ export const AdminSaaSAndBrainPanel: React.FC = () => {
       if (brainData?.ok && brainData?.config) {
         setCustomDirective(brainData.config.customDirective || '');
         setDirectiveUpdatedAt(brainData.config.updatedAt || '');
+      }
+      const aiCostJson = await aiCostRes.json().catch(() => null);
+      if (aiCostJson?.ok) {
+        setAiCostSummary(aiCostJson);
       }
     } catch (err: any) {
       setStatusMsg({ type: 'err', text: err?.message || 'تعذر تحميل البيانات الحية' });
@@ -321,6 +327,81 @@ export const AdminSaaSAndBrainPanel: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Real-Time AI Cost & Brand Profit Margin Ledger */}
+      <div className="bg-[#111] border border-emerald-500/30 rounded-3xl p-5 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <DollarSign className="w-5 h-5 text-emerald-400" />
+            <div>
+              <h4 className="text-sm font-black text-white">سجل تكاليف الذكاء الاصطناعي وصافي ربحية البراندات (30 يوم)</h4>
+              <p className="text-[11px] text-white/50">
+                متابعة استهلاك Gemini & Veo من التلات خدمات (Core + Studio + Agent) مقابل صافي الدخل بعد خصم 50% ميزانية الإعلانات
+              </p>
+            </div>
+          </div>
+          {aiCostSummary?.totals && (
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+              <span className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-slate-200">
+                المكالمات: {aiCostSummary.totals.totalCalls ?? 0}
+              </span>
+              <span className="px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                تكلفة AI: {aiCostSummary.totals.totalCostEgp ?? 0} ج.م (\${aiCostSummary.totals.totalCostUsd ?? 0})
+              </span>
+              <span className="px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                صافي الدخل (50%): {aiCostSummary.totals.totalNetSystemRevenueEgp ?? 0} ج.م
+              </span>
+            </div>
+          )}
+        </div>
+
+        {Array.isArray(aiCostSummary?.perBrand) && aiCostSummary.perBrand.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-white/10 text-white/50 text-[11px]">
+                  <th className="py-2 px-3">البراند</th>
+                  <th className="py-2 px-3">العمليات (AI)</th>
+                  <th className="py-2 px-3">تكلفة AI (USD / ج.م)</th>
+                  <th className="py-2 px-3">الاشتراك / صافي 50%</th>
+                  <th className="py-2 px-3">الربح الصافي بعد AI</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {aiCostSummary.perBrand.slice(0, 25).map((row: any) => (
+                  <tr key={row.brandId} className="hover:bg-white/[0.03]">
+                    <td className="py-2.5 px-3 font-bold text-white">
+                      {row.brandName}
+                      <span className="block text-[10px] text-white/40 font-mono">{row.brandId}</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-cyan-300 font-bold">
+                      {(row.textAndAgentCalls || 0) + (row.imagesGenerated || 0) + (row.videosGenerated || 0)}
+                      <span className="block text-[10px] text-white/45 font-normal">
+                        نص {row.textAndAgentCalls || 0} • صور {row.imagesGenerated || 0} • ريلز {row.videosGenerated || 0}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-amber-300 font-bold">
+                      {row.totalAiCostEgp} ج.م <span className="text-[10px] text-white/40">(\${row.totalAiCostUsd})</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-200">
+                      {row.subscriptionEgp} ج.م ← <span className="text-emerald-300">{row.netSystemRevenueEgp} ج.م</span>
+                    </td>
+                    <td className="py-2.5 px-3 font-black">
+                      <span className={row.netMarginEgp >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        {row.netMarginEgp} ج.م ({row.netMarginPct}%)
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-6 text-xs text-white/45">
+            لا توجد عمليات AI مسجلة بعد في هذه النافذة الزمنية — ستظهر التكاليف والهوامش لحظياً فور تشغيل التوليد أو الردود.
           </div>
         )}
       </div>

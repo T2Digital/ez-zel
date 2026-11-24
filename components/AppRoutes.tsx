@@ -66,9 +66,6 @@ export const AppRoutes: React.FC = () => {
     workspace: "/workspace",
     affiliate: "/affiliate",
     widget: "/widget",
-    music: "/music",
-    world: "/world",
-    metaverse: "/metaverse",
     pending_review: "/pending",
     blocked: "/blocked",
     loading: "/loading",
@@ -84,9 +81,6 @@ export const AppRoutes: React.FC = () => {
     "/workspace": "workspace",
     "/affiliate": "affiliate",
     "/widget": "widget",
-    "/music": "music",
-    "/world": "world",
-    "/metaverse": "metaverse",
     "/pending": "pending_review",
     "/blocked": "blocked",
     "/loading": "loading",
@@ -142,8 +136,6 @@ export const AppRoutes: React.FC = () => {
       navigateToView("workspace");
     } else if (section === "admin") {
       navigateToView("admin");
-    } else if (section === "music") {
-      navigateToView("music");
     }
   };
 
@@ -446,10 +438,6 @@ export const AppRoutes: React.FC = () => {
           )
         }
       />
-
-      <Route path="/music" element={<Navigate to="/" replace />} />
-      <Route path="/world" element={<Navigate to="/" replace />} />
-      <Route path="/metaverse" element={<Navigate to="/" replace />} />
 
       <Route
         path="/pending"

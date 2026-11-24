@@ -36,3 +36,8 @@ dist-ssr
 data/
 obsidian_vault/
 temp_uploads/
+
+# Built static artifacts that inflate build context & Docker layers
+android/app/src/main/assets/public/
+ios/App/App/public/
+public/al-genedy/

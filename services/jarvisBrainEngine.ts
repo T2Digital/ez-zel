@@ -1874,8 +1874,15 @@ ${conversationMemoryDirective}`;
             });
           } catch {}
 
+          const { buildFlagshipTenantUrl } = await import("./tenantAppRenderer");
+          const onboardAppTpl = flagshipApp.archetype === "products_erp_pos" ? "products_erp" : "services_booking";
+          const instantMultiTenantUrl = buildFlagshipTenantUrl(savedBrand.slug || savedBrand.id, onboardAppTpl);
+          const wantsDedicatedDeploy = Boolean(
+            args.dedicatedRepo === true || args.planId === "enterprise_20000" || args.planId === "sovereign_50000"
+          );
+
           let dedicatedDeploy: any = null;
-          if (args.provisionWebApp === true && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
+          if (args.provisionWebApp === true && wantsDedicatedDeploy && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
             try {
               const { provisionDedicatedRepoAndVercel } = await import("./dedicatedDeployService");
               dedicatedDeploy = await provisionDedicatedRepoAndVercel({
@@ -1883,7 +1890,7 @@ ${conversationMemoryDirective}`;
                 brandName: savedBrand.name,
                 businessType: savedBrand.businessType,
                 phone: savedBrand.phone,
-                appTemplate: flagshipApp.archetype === "products_erp_pos" ? "products_erp" : "services_booking",
+                appTemplate: onboardAppTpl,
                 templateId: flagshipApp.templateKey,
               });
               if (dedicatedDeploy?.dedicatedLiveUrl) {
@@ -1892,6 +1899,18 @@ ${conversationMemoryDirective}`;
               }
             } catch {}
           }
+          const finalLiveUrl = dedicatedDeploy?.dedicatedLiveUrl || instantMultiTenantUrl;
+          savedBrand.vercelUrl = finalLiveUrl;
+
+          try {
+            const { triggerTrialOnboardingCycle } = await import("../routes/ecosystemOrchestrationRoutes");
+            void triggerTrialOnboardingCycle({
+              brandId: savedBrand.id,
+              brandName: savedBrand.name,
+              industry: savedBrand.businessType || category,
+              dialect: "اللهجة المصرية الاحترافية",
+            }).catch(() => {});
+          } catch {}
 
           backendExecutionResult = {
             success: true,
@@ -1902,14 +1921,14 @@ ${conversationMemoryDirective}`;
             logoUrl: kit.logoUrl,
             logoPrompt: kit.logoPrompt,
             colors: kit.colors,
-            ...(dedicatedDeploy?.dedicatedLiveUrl ? { dedicatedLiveUrl: dedicatedDeploy.dedicatedLiveUrl } : {}),
+            dedicatedLiveUrl: finalLiveUrl,
             ...(dedicatedDeploy?.dedicatedRepoUrl ? { dedicatedRepoUrl: dedicatedDeploy.dedicatedRepoUrl } : {}),
             flagshipWebApp: {
               templateKey: flagshipApp.templateKey,
               name: flagshipApp.name,
               repoUrl: flagshipApp.repoUrl,
               referenceLiveUrl: flagshipApp.referenceLiveUrl,
-              liveDeployedUrl: dedicatedDeploy?.dedicatedLiveUrl || undefined,
+              liveDeployedUrl: finalLiveUrl,
               modulesEnabled: flagshipApp.modulesEnabled,
               descriptionAr: flagshipApp.adminCustomization.descriptionAr,
             },
@@ -1988,16 +2007,41 @@ ${conversationMemoryDirective}`;
             };
           }
 
-          const { provisionDedicatedRepoAndVercel } = await import("./dedicatedDeployService");
-          const deployRes = await provisionDedicatedRepoAndVercel({
-            brandId: target.id,
-            englishSlug: englishSlugInput || target.englishName || target.slug,
-            brandName: target.name,
-            businessType: target.businessType || industry,
-            phone: phone || target.phone,
-            templateId: (args.templateId as any) || flagship.templateKey,
-            appTemplate: resolvedAppTpl,
-          });
+          const { buildFlagshipTenantUrl } = await import("./tenantAppRenderer");
+          const multiTenantUrl = buildFlagshipTenantUrl(target.slug || target.id, resolvedAppTpl);
+          const wantsDedicated = Boolean(
+            args.dedicatedRepo === true ||
+            args.planId === "enterprise_20000" ||
+            args.planId === "sovereign_50000"
+          );
+
+          let deployRes: any = {
+            ok: true,
+            dedicatedLiveUrl: multiTenantUrl,
+            dedicatedRepoUrl: undefined,
+            status: "live_multi_tenant",
+            message: `تم إطلاق التطبيق السريع لـ ${target.name} فوريًا على المحرك الموحد: ${multiTenantUrl}`,
+          };
+          if (wantsDedicated && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
+            const { provisionDedicatedRepoAndVercel } = await import("./dedicatedDeployService");
+            deployRes = await provisionDedicatedRepoAndVercel({
+              brandId: target.id,
+              englishSlug: englishSlugInput || target.englishName || target.slug,
+              brandName: target.name,
+              businessType: target.businessType || industry,
+              phone: phone || target.phone,
+              templateId: (args.templateId as any) || flagship.templateKey,
+              appTemplate: resolvedAppTpl,
+            });
+          } else {
+            try {
+              const { persistBrandUpdateAcrossEcosystem } = await import("./obsidianVaultService");
+              persistBrandUpdateAcrossEcosystem(target.id, {
+                vercelUrl: multiTenantUrl,
+                appTemplate: resolvedAppTpl,
+              } as any);
+            } catch {}
+          }
 
           backendExecutionResult = {
             success: deployRes.ok,

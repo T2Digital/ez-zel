@@ -143,9 +143,8 @@ export const PAYMOB_PLANS: Record<string, {
     }
 };
 
-// Clean array of official 5 tiers
+// Clean array of official active upgrade tiers (minimum 5,000 EGP post-trial)
 export const PAYMOB_TIERS = [
-    PAYMOB_PLANS.tier_2500,
     PAYMOB_PLANS.tier_5000,
     PAYMOB_PLANS.tier_10000,
     PAYMOB_PLANS.tier_25000,

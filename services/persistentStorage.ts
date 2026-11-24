@@ -1,5 +1,8 @@
 import fs from "fs";
 import path from "path";
+import { isPostgresConfigured, initPostgresSchema, pgGetKv, pgSetKv } from "./postgresService";
+
+const kvMemoryCache = new Map<string, any>();
 
 let firebaseProjectId = "";
 let firebaseApiKey = "";
@@ -165,18 +168,27 @@ export function writeJsonAtomic(filePath: string, payload: any): void {
  */
 export function savePersistentJson(docKey: string, filename: string, payload: any): void {
   const filePath = getPersistentFilePath(filename);
+  kvMemoryCache.set(filename, payload);
   writeJsonAtomic(filePath, payload);
+  if (isPostgresConfigured()) {
+    void pgSetKv(docKey, filename, payload).catch(() => {});
+  }
   void mirrorStateToFirestore(docKey, payload);
 }
 
 /**
- * Reads JSON from local disk, or falls back to defaultValue.
+ * Reads JSON from in-memory cache, local disk, or falls back to defaultValue.
  */
 export function readPersistentJson<T = any>(filename: string, defaultValue: T): T {
   try {
     const filePath = getPersistentFilePath(filename);
     if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
+      const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
+      kvMemoryCache.set(filename, parsed);
+      return parsed;
+    }
+    if (kvMemoryCache.has(filename)) {
+      return kvMemoryCache.get(filename) as T;
     }
   } catch {}
   return defaultValue;
@@ -198,20 +210,50 @@ export const CRITICAL_PERSISTENT_STATE_KEYS = [
   { docKey: "t2_lifecycle_events", filename: "t2_lifecycle_events.json" },
   { docKey: "t2_brands_vault", filename: "brands.json" },
   { docKey: "t2_brand_hub_configs", filename: "brand_hub_configs.json" },
+  { docKey: "t2_ai_cost_ledger_local", filename: "ai_cost_ledger_local.json" },
 ] as const;
 
 /**
- * Hydrates local disk files from Firestore on server boot if they are missing
- * (e.g., right after a Render deploy/restart).
+ * Hydrates local disk files from PostgreSQL (primary) or Firestore (legacy fallback) on server boot,
+ * and seeds PostgreSQL automatically from existing local files when migrating for the first time.
  */
 export async function hydrateCriticalStateOnBoot(): Promise<void> {
+  const pgReady = isPostgresConfigured() ? await initPostgresSchema() : false;
+
   await Promise.allSettled(
     CRITICAL_PERSISTENT_STATE_KEYS.map(async (item) => {
       const localPath = getPersistentFilePath(item.filename);
-      if (!fs.existsSync(localPath)) {
+      const localExists = fs.existsSync(localPath);
+
+      if (pgReady) {
+        const pgData = await pgGetKv(item.docKey);
+        if (pgData !== null) {
+          kvMemoryCache.set(item.filename, pgData);
+          if (!localExists) {
+            writeJsonAtomic(localPath, pgData);
+            console.log(`[PersistentStorage] Hydrated ${item.filename} from PostgreSQL.`);
+          }
+          return;
+        }
+        if (localExists) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(localPath, "utf8"));
+            kvMemoryCache.set(item.filename, parsed);
+            await pgSetKv(item.docKey, item.filename, parsed);
+            console.log(`[PersistentStorage] Migrated ${item.filename} -> PostgreSQL.`);
+            return;
+          } catch {}
+        }
+      }
+
+      if (!localExists) {
         const cloudData = await restoreStateFromFirestore(item.docKey);
         if (cloudData) {
+          kvMemoryCache.set(item.filename, cloudData);
           writeJsonAtomic(localPath, cloudData);
+          if (pgReady) {
+            await pgSetKv(item.docKey, item.filename, cloudData).catch(() => {});
+          }
           console.log(`[PersistentStorage] Hydrated ${item.filename} from Firestore cloud backup.`);
         }
       }

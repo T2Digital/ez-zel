@@ -1009,3 +1009,98 @@ test("26) Multi-user tenant sync hashes staff/secondary owner passwords, strips 
   const tempJson = path.join(process.cwd(), "data", "tenant_erp_state", `${testSlug}.json`);
   if (fs.existsSync(tempJson)) fs.unlinkSync(tempJson);
 });
+
+test("27) brandIdentityNormalizer unifies slug/underscore variants & postgresService handles graceful degradation", async () => {
+  const { toCanonicalSlug, toCanonicalAgentId, areBrandIdsEquivalent, findMatchingBrandRecord } = await importTs(
+    path.join("services", "brandIdentityNormalizer.ts")
+  );
+  assert.equal(toCanonicalSlug("Al_Genedy"), "al-genedy");
+  assert.equal(toCanonicalAgentId("al-genedy"), "al_genedy");
+  assert.equal(areBrandIdsEquivalent("al-genedy", "al_genedy"), true);
+  assert.equal(areBrandIdsEquivalent("mm-shoes", "other-brand"), false);
+
+  const matched = findMatchingBrandRecord(
+    [{ id: "al_genedy", slug: "al-genedy", name: "الجنيدي" }],
+    "al-genedy"
+  );
+  assert.equal(matched?.name, "الجنيدي");
+
+  const { pingPostgres } = await importTs(path.join("services", "postgresService.ts"));
+  const pgStatus = await pingPostgres();
+  assert.equal(typeof pgStatus.configured, "boolean");
+});
+
+test("28) Trial planMode='trial_3' generates strictly 2 image posts + 1 reel while paid default returns 8 items", async () => {
+  const prevGeminiKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = "";
+  try {
+    const { conductAIMarketResearchAndStrategy } = await importTs(path.join("routes", "ecosystemOrchestrationRoutes.ts"));
+    const trialPack = await conductAIMarketResearchAndStrategy({
+      brandName: "متجر التجربة السريع",
+      industry: "أحذية وإكسسوارات",
+      planMode: "trial_3",
+    });
+    assert.equal(trialPack.contentPlan.length, 3);
+    assert.equal(trialPack.contentPlan.filter((i) => i.type === "image").length, 2);
+    assert.equal(trialPack.contentPlan.filter((i) => i.type === "reel").length, 1);
+
+    const paidPack = await conductAIMarketResearchAndStrategy({
+      brandName: "متجر التجربة السريع",
+      industry: "أحذية وإكسسوارات",
+    });
+    assert.equal(paidPack.contentPlan.length, 8);
+  } finally {
+    process.env.GEMINI_API_KEY = prevGeminiKey || "";
+  }
+});
+
+test("29) Multi-Tenant URL builder, ClientPortal SSO, 1-revision trial limit & 5,000 EGP min upgrade policy", async () => {
+  const { buildFlagshipTenantUrl } = await importTs(path.join("services", "tenantAppRenderer.ts"));
+  const storeUrl = buildFlagshipTenantUrl("demo_brand", "products_erp");
+  const bookUrl = buildFlagshipTenantUrl("demo_clinic", "services_booking");
+  assert.ok(storeUrl.includes("/s/demo-brand"), `Expected /s/demo-brand, got ${storeUrl}`);
+  assert.ok(bookUrl.includes("/b/demo-clinic"), `Expected /b/demo-clinic, got ${bookUrl}`);
+
+  const { registerClientPortalRoutes } = await importTs(path.join("routes", "clientPortalRoutes.ts"));
+  const { signClientPortalToken } = await importTs(path.join("routes", "tenantErpRoutes.ts"));
+  const portalSrc = fs.readFileSync(path.join(process.cwd(), "routes", "clientPortalRoutes.ts"), "utf8");
+  assert.ok(portalSrc.includes("ssoStoreAdminUrl"), "clientPortalRoutes must expose ssoStoreAdminUrl");
+  assert.ok(portalSrc.includes("maxRevisions = isTrial ? 1 : 2"), "clientPortalRoutes must limit trial revisions to 1 per post");
+  assert.ok(typeof registerClientPortalRoutes === "function" && typeof signClientPortalToken("demo-brand") === "string");
+
+  const pricingSrc = fs.readFileSync(path.join(process.cwd(), "components", "Pricing.tsx"), "utf8");
+  assert.equal(pricingSrc.includes("'tier_2500'"), false, "Pricing.tsx must set 5,000 EGP (tier_5000) as minimum tier");
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(serverSrc.includes("minUpgradeEgp: 5000"), "server.ts Paymob checkout must enforce 5,000 EGP minimum upgrade");
+});
+
+test("30) Status report exposes ecosystem components, Redis/Postgres checks, disk stats & backup cadence", async () => {
+  const { buildPublicStatusReport } = await importTs(path.join("routes", "statusPageRoutes.ts"));
+  const report = await buildPublicStatusReport();
+  assert.equal(report.ok, true);
+  assert.ok(Array.isArray(report.components) && report.components.length >= 6);
+  const ids = report.components.map((c) => c.id);
+  assert.ok(ids.includes("ez_zel") && ids.includes("postgres") && ids.includes("redis"));
+  assert.equal(report.infrastructure.backup.intervalHours, 6);
+});
+
+test("31) AI Cost Ledger accurately tracks usage costs and computes 50% platform net margins", async () => {
+  const { estimateAiOperationCostUsd, recordAiCostEvent, getBrandAiCostMarginsSummary } = await importTs(
+    path.join("services", "aiCostLedgerService.ts")
+  );
+  const vidCost = estimateAiOperationCostUsd({ brandId: "b1", service: "t2-studio", operation: "video", model: "veo-3.1" });
+  const imgCost = estimateAiOperationCostUsd({ brandId: "b1", service: "t2-studio", operation: "image", model: "gemini-flash-image" });
+  assert.ok(vidCost >= 0.25 && imgCost > 0.01);
+
+  const testSlug = `cost-ledger-e2e-${Date.now()}`;
+  await recordAiCostEvent({ brandId: testSlug, service: "t2-studio", operation: "image", model: "gemini-2.5-flash-image" });
+  const summary = await getBrandAiCostMarginsSummary(
+    [{ id: testSlug, slug: testSlug, name: "براند تكاليف", planAmount: 5000, subscriptionStatus: "active" }],
+    30
+  );
+  const row = summary.perBrand.find((r) => r.brandId === testSlug);
+  assert.ok(row, "Ledger must return brand margin row");
+  assert.equal(row.netSystemRevenueEgp, 2500);
+  assert.ok(row.totalAiCostEgp > 0);
+  assert.ok(row.netMarginEgp < 2500 && row.netMarginEgp > 2400);
+});

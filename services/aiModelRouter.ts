@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { sendTelegramOpsAlert } from "./ecosystemWatchdogService";
+import { recordAiCostEvent } from "./aiCostLedgerService";
 
 export type AiModelRole = "text" | "vision" | "image" | "video";
 
@@ -101,6 +102,7 @@ export async function generateContentWithRouter(params: {
   contents: any;
   config?: Record<string, any>;
   serviceTag?: string;
+  brandId?: string;
 }): Promise<{ text: string; modelUsed: string }> {
   const models = getModelPool(params.role);
   const ai = new GoogleGenAI({ apiKey: params.apiKey });
@@ -115,6 +117,15 @@ export async function generateContentWithRouter(params: {
         config: params.config as any,
       });
       if (res?.text) {
+        const usageMeta: any = (res as any)?.usageMetadata || {};
+        void recordAiCostEvent({
+          brandId: params.brandId || "system",
+          service: "ez-zel",
+          operation: params.role === "vision" ? "vision" : "text",
+          model,
+          inputUnits: usageMeta.promptTokenCount || (typeof params.contents === "string" ? Math.ceil(params.contents.length / 4) : 900),
+          outputUnits: usageMeta.candidatesTokenCount || Math.ceil(res.text.length / 4),
+        }).catch(() => {});
         return { text: res.text, modelUsed: model };
       }
     } catch (err: any) {

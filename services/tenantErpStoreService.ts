@@ -2,10 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getTitoStudioAuthToken } from './titoStudioFirestoreBridge';
+import { isPostgresConfigured, pgLoadTenantErp, pgSaveTenantErp } from './postgresService';
+import { getPersistentDataDir } from './persistentStorage';
 
 const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || 't2-content-studio';
 const FIRESTORE_SETTINGS_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/agency_settings`;
-const LOCAL_DIR = path.join(process.cwd(), 'data', 'tenant_erp_state');
+const getLocalDir = () => path.join(getPersistentDataDir(), 'tenant_erp_state');
+const LEGACY_LOCAL_DIR = path.join(process.cwd(), 'data', 'tenant_erp_state');
 
 const SHARD_KEYS = {
   catalog: ['products', 'broadcasts', 'discountCodes', 'storefrontSettings', 'settings', 'counters', 'appCustomization'] as const,
@@ -25,7 +28,8 @@ const SHARD_KEYS = {
 };
 
 function ensureLocalDir() {
-  if (!fs.existsSync(LOCAL_DIR)) fs.mkdirSync(LOCAL_DIR, { recursive: true });
+  const dir = getLocalDir();
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 export function normalizeSlugKey(slug: string): string {
@@ -113,13 +117,35 @@ function pickShardKeys(source: Record<string, any>, keys: readonly string[]): Re
 export async function loadTenantErpState(slug: string): Promise<Record<string, any>> {
   const key = normalizeSlugKey(slug);
   ensureLocalDir();
-  const localPath = path.join(LOCAL_DIR, `${key}.json`);
+  const localPath = path.join(getLocalDir(), `${key}.json`);
+  const legacyPath = path.join(LEGACY_LOCAL_DIR, `${key}.json`);
   let localData: Record<string, any> = {};
-  if (fs.existsSync(localPath)) {
-    try { localData = JSON.parse(fs.readFileSync(localPath, 'utf8')); } catch {}
+  const sourceFile = fs.existsSync(localPath) ? localPath : fs.existsSync(legacyPath) ? legacyPath : '';
+  if (sourceFile) {
+    try { localData = JSON.parse(fs.readFileSync(sourceFile, 'utf8')); } catch {}
   }
 
   const localUpdatedAtMs = localData?.updatedAt ? new Date(String(localData.updatedAt)).getTime() || 0 : 0;
+
+  if (isPostgresConfigured()) {
+    try {
+      const pgRec = await pgLoadTenantErp(key);
+      if (pgRec) {
+        const pgMs = pgRec.updatedAt ? new Date(pgRec.updatedAt).getTime() || 0 : 0;
+        const pgMerged = {
+          ...localData,
+          ...(pgMs >= localUpdatedAtMs ? pgRec.state : localData),
+          ...((pgRec.authRecord && (!localData.__auth || pgMs >= localUpdatedAtMs))
+            ? { __auth: pgRec.authRecord }
+            : {}),
+        };
+        try { fs.writeFileSync(localPath, JSON.stringify(pgMerged, null, 2), 'utf8'); } catch {}
+        return pgMerged;
+      } else if (Object.keys(localData).length > 0) {
+        await pgSaveTenantErp(key, localData, localData.__auth || null);
+      }
+    } catch {}
+  }
 
   try {
     const [catalog, orders, sales, ops, authRec] = await Promise.all([
@@ -152,6 +178,9 @@ export async function loadTenantErpState(slug: string): Promise<Record<string, a
       try {
         fs.writeFileSync(localPath, JSON.stringify(merged, null, 2), 'utf8');
       } catch {}
+      if (isPostgresConfigured()) {
+        void pgSaveTenantErp(key, merged, merged.__auth || null).catch(() => {});
+      }
       return merged;
     }
   } catch {}
@@ -162,13 +191,20 @@ export async function loadTenantErpState(slug: string): Promise<Record<string, a
 export async function saveTenantErpState(slug: string, partialState: Record<string, any>): Promise<Record<string, any>> {
   const key = normalizeSlugKey(slug);
   ensureLocalDir();
-  const localPath = path.join(LOCAL_DIR, `${key}.json`);
+  const localPath = path.join(getLocalDir(), `${key}.json`);
   const existing = await loadTenantErpState(key);
-  const nextState = {
+  let nextState: Record<string, any> = {
     ...existing,
     ...partialState,
     updatedAt: new Date().toISOString()
   };
+
+  if (isPostgresConfigured()) {
+    const pgSaved = await pgSaveTenantErp(key, partialState, partialState.__auth);
+    if (pgSaved) {
+      nextState = pgSaved;
+    }
+  }
 
   try {
     fs.writeFileSync(localPath, JSON.stringify(nextState, null, 2), 'utf8');
@@ -179,7 +215,7 @@ export async function saveTenantErpState(slug: string, partialState: Record<stri
     const incomingForShard = pickShardKeys(partialState, shardKeyList);
     if (Object.keys(incomingForShard).length > 0) {
       const mergedShard = {
-        ...pickShardKeys(existing, shardKeyList),
+        ...pickShardKeys(nextState, shardKeyList),
         ...incomingForShard,
       };
       writes.push(writeShardDoc(`t2_erp_${key}__${shardName}`, key, shardName, mergedShard));
@@ -198,6 +234,12 @@ export async function saveTenantErpState(slug: string, partialState: Record<stri
 
 export async function getTenantPasswordRecord(slug: string): Promise<{ hash: string; salt: string; updatedAt?: string } | null> {
   const key = normalizeSlugKey(slug);
+  if (isPostgresConfigured()) {
+    const pgRec = await pgLoadTenantErp(key);
+    if (pgRec?.authRecord?.hash && pgRec?.authRecord?.salt) {
+      return pgRec.authRecord as { hash: string; salt: string; updatedAt?: string };
+    }
+  }
   const [remoteAuth, state] = await Promise.all([
     readShardDoc(`t2_erp_${key}__auth`),
     loadTenantErpState(slug),
@@ -219,8 +261,8 @@ export async function setTenantPasswordRecord(slug: string, newPassword: string)
   const key = normalizeSlugKey(slug);
   const { hash, salt } = hashPassword(newPassword);
   const authRec = { hash, salt, updatedAt: new Date().toISOString() };
-  await writeShardDoc(`t2_erp_${key}__auth`, key, 'auth', authRec);
   await saveTenantErpState(slug, { __auth: authRec });
+  await writeShardDoc(`t2_erp_${key}__auth`, key, 'auth', authRec);
 }
 
 export async function sendZeroTouchOnboardingPacket(input: {

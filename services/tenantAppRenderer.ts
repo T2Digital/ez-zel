@@ -33,10 +33,12 @@ export function buildFlagshipTenantUrl(slug: string, appTemplate: TenantAppTempl
     return `https://${cleanSlug}.${cleanDomain}`;
   }
 
-  const baseUrl = isProducts
-    ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://battah.vercel.app')
-    : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://cleanmaster-lac.vercel.app');
-  return `${baseUrl.replace(/\/$/, '')}/?brandId=${encodeURIComponent(slug)}`;
+  const baseUrl = (isProducts
+    ? (process.env.BATTAH_MULTI_TENANT_URL || 'https://store.t2os.app')
+    : (process.env.CLEAN_MASTER_MULTI_TENANT_URL || 'https://book.t2os.app')
+  ).replace(/\/$/, '');
+  const routePrefix = isProducts ? 's' : 'b';
+  return `${baseUrl}/${routePrefix}/${encodeURIComponent(cleanSlug)}`;
 }
 
 function escapeHtml(value: any): string {

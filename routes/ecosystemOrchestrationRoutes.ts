@@ -52,21 +52,86 @@ export interface MarketResearchStrategyOutput {
   source: "gemini_ai" | "domain_fallback";
 }
 
+type ContentPlanItem = MarketResearchStrategyOutput["contentPlan"][number];
+
+function enforceContentPlanMode(
+  items: ContentPlanItem[],
+  planMode: "trial_3" | "paid_8",
+  brandName: string,
+  industry: string,
+  painPoints: string[],
+  strategicPillars: string[]
+): ContentPlanItem[] {
+  if (planMode !== "trial_3") {
+    return items.slice(0, 8);
+  }
+  const normalized = Array.isArray(items) ? items : [];
+  const imageItems = normalized.filter((it) => it.type !== "reel" && it.type !== "video").slice(0, 2);
+  const reelItems = normalized.filter((it) => it.type === "reel" || it.type === "video").slice(0, 1);
+
+  while (imageItems.length < 2) {
+    const idx = imageItems.length;
+    const pain = painPoints[idx % Math.max(1, painPoints.length)] || `تحديات الجودة في ${industry}`;
+    imageItems.push({
+      title: `${brandName} — بوست تعريفي #${idx + 1}`,
+      type: "image",
+      caption: `مع ${brandName} بنقدملك أفضل تجربة احترافية في ${industry}. تواصل معنا الآن عبر واتساب أو اطلب مباشرة من المتجر!`,
+      visualPrompt: `تصميم جرافيك سوشيال ميديا احترافي لبراند ${brandName} في مجال ${industry} يعالج "${pain}"`,
+      pillarLabel: strategicPillars[idx % Math.max(1, strategicPillars.length)] || "التوعية والثقة",
+      painPoint: pain,
+      scheduledPlatforms: ["facebook", "instagram"],
+    });
+  }
+
+  if (reelItems.length === 0) {
+    const pain = painPoints[0] || `سرعة التنفيذ والجودة في ${industry}`;
+    reelItems.push({
+      title: `${brandName} — ريل تعريفي سريع`,
+      type: "reel",
+      caption: `شاهد كيف يختصر ${brandName} عليك الوقت والمجهود في ${industry}. احجز أو اطلب الآن!`,
+      visualPrompt: `فيديو ريل عمودي قصير ديناميكي لبراند ${brandName} في مجال ${industry} يستعرض المنتج/الخدمة بإضاءة سينمائية`,
+      pillarLabel: strategicPillars[3] || "ريلز سريعة الانتشار",
+      painPoint: pain,
+      scheduledPlatforms: ["instagram", "facebook", "tiktok"],
+    });
+  } else {
+    reelItems[0] = { ...reelItems[0], type: "reel" };
+  }
+
+  // Strictly 2 image posts + 1 reel video = 3 items total for 7-day free trial
+  return [imageItems[0], imageItems[1], reelItems[0]];
+}
+
 export async function conductAIMarketResearchAndStrategy(params: {
   brandName: string;
   industry: string;
   city?: string;
   productsSample?: string[];
   dialect?: string;
+  planMode?: "trial_3" | "paid_8";
 }): Promise<MarketResearchStrategyOutput> {
-  const { brandName, industry, city = "مصر", productsSample = [], dialect = "اللهجة المصرية الاحترافية" } = params;
+  const {
+    brandName,
+    industry,
+    city = "مصر",
+    productsSample = [],
+    dialect = "اللهجة المصرية الاحترافية",
+    planMode = "paid_8",
+  } = params;
+  const isTrial3 = planMode === "trial_3";
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
 
   if (apiKey && !apiKey.includes("MY_GEMINI")) {
     try {
       const productsText = productsSample.length ? productsSample.slice(0, 8).join("، ") : "خدمات ومنتجات البراند الرئيسية";
+      const planCountInstruction = isTrial3
+        ? "المطلوب إجراء بحث سوق عملي وبناء استراتيجية تسويق وخطة محتوى للأسبوع التجريبي من 3 قطع بالضبط (2 بوست صورة image + 1 فيديو ريل reel) للبراند التالي:"
+        : "المطلوب إجراء بحث سوق عملي وبناء استراتيجية تسويق وخطة محتوى من 8 قطع (تشمل صور + ريلز فيديو + كاروسيل) للبراند التالي:";
+      const planTailInstruction = isTrial3
+        ? "اجعل contentPlan يحتوي على 3 عناصر بالضبط فقط: 2 نوع image و 1 نوع reel."
+        : "اجعل contentPlan يحتوي على 8 عناصر متنوعة (منها على الأقل 2 نوع reel و 1 نوع video و 5 صور/كاروسيل).";
       const prompt = `أنت خبير أبحاث سوق واستراتيجيات نمو رقمي في السوق المصري والعربي.
-المطلوب إجراء بحث سوق عملي وبناء استراتيجية تسويق وخطة محتوى من 8 قطع (تشمل صور + ريلز فيديو + كاروسيل) للبراند التالي:
+${planCountInstruction}
 - اسم البراند: ${brandName}
 - المجال: ${industry}
 - الموقع/السوق: ${city}
@@ -96,7 +161,7 @@ export async function conductAIMarketResearchAndStrategy(params: {
     }
   ]
 }
-اجعل contentPlan يحتوي على 8 عناصر متنوعة (منها على الأقل 2 نوع reel و 1 نوع video و 5 صور/كاروسيل).`;
+${planTailInstruction}`;
 
       const routed = await generateContentWithRouter({
         apiKey,
@@ -111,8 +176,23 @@ export async function conductAIMarketResearchAndStrategy(params: {
         Array.isArray(parsed?.painPoints) &&
         parsed.painPoints.length >= 3 &&
         Array.isArray(parsed?.contentPlan) &&
-        parsed.contentPlan.length >= 4
+        parsed.contentPlan.length >= (isTrial3 ? 2 : 4)
       ) {
+        const mappedPain = parsed.painPoints.map(String).slice(0, 6);
+        const mappedPillars = Array.isArray(parsed.strategicPillars)
+          ? parsed.strategicPillars.map(String).slice(0, 5)
+          : ["التوعية والثقة", "إثبات الجودة", "العروض والتحويل", "الريلز والانتشار"];
+        const mappedItems: ContentPlanItem[] = parsed.contentPlan.slice(0, 8).map((item: any, idx: number) => ({
+          title: String(item.title || `${brandName} — محتوى استراتيجي #${idx + 1}`),
+          type: (["image", "reel", "video", "carousel", "story"].includes(item.type) ? item.type : idx % 3 === 1 ? "reel" : "image") as any,
+          caption: String(item.caption || `مع ${brandName} بنقدملك أفضل تجربة في ${industry}. تواصل معنا الآن عبر واتساب أو اطلب من المتجر!`),
+          visualPrompt: String(item.visualPrompt || `تصميم إعلاني عصري لبراند ${brandName} في مجال ${industry}`),
+          pillarLabel: String(item.pillarLabel || "استراتيجية علاج آلام البيزنس"),
+          painPoint: String(item.painPoint || parsed.painPoints[idx % parsed.painPoints.length]),
+          scheduledPlatforms: Array.isArray(item.scheduledPlatforms) && item.scheduledPlatforms.length
+            ? item.scheduledPlatforms.map(String)
+            : ["facebook", "instagram"],
+        }));
         return {
           marketResearch: String(parsed.marketResearch),
           marketingStrategy: {
@@ -121,21 +201,9 @@ export async function conductAIMarketResearchAndStrategy(params: {
             coreOffer: String(parsed.marketingStrategy?.coreOffer || `استشارة/طلب مباشر مع متابعة فورية عبر واتساب`),
             conversionFunnel: String(parsed.marketingStrategy?.conversionFunnel || `إعلان وعي وريلز → تفاعل ورسائل واتساب/متجر → إتمام الطلب والمتابعة`),
           },
-          painPoints: parsed.painPoints.map(String).slice(0, 6),
-          strategicPillars: Array.isArray(parsed.strategicPillars)
-            ? parsed.strategicPillars.map(String).slice(0, 5)
-            : ["التوعية والثقة", "إثبات الجودة", "العروض والتحويل", "الريلز والانتشار"],
-          contentPlan: parsed.contentPlan.slice(0, 8).map((item: any, idx: number) => ({
-            title: String(item.title || `${brandName} — محتوى استراتيجي #${idx + 1}`),
-            type: (["image", "reel", "video", "carousel", "story"].includes(item.type) ? item.type : idx % 3 === 1 ? "reel" : "image") as any,
-            caption: String(item.caption || `مع ${brandName} بنقدملك أفضل تجربة في ${industry}. تواصل معنا الآن عبر واتساب أو اطلب من المتجر!`),
-            visualPrompt: String(item.visualPrompt || `تصميم إعلاني عصري لبراند ${brandName} في مجال ${industry}`),
-            pillarLabel: String(item.pillarLabel || "استراتيجية علاج آلام البيزنس"),
-            painPoint: String(item.painPoint || parsed.painPoints[idx % parsed.painPoints.length]),
-            scheduledPlatforms: Array.isArray(item.scheduledPlatforms) && item.scheduledPlatforms.length
-              ? item.scheduledPlatforms.map(String)
-              : ["facebook", "instagram"],
-          })),
+          painPoints: mappedPain,
+          strategicPillars: mappedPillars,
+          contentPlan: enforceContentPlanMode(mappedItems, planMode, brandName, industry, mappedPain, mappedPillars),
           source: "gemini_ai",
         };
       }
@@ -156,17 +224,10 @@ export async function conductAIMarketResearchAndStrategy(params: {
     "العروض والتحويل المباشر",
     "ريلز قصيرة سريعة الانتشار",
   ];
-  const types: Array<"image" | "reel" | "video" | "carousel" | "story"> = [
-    "image",
-    "reel",
-    "carousel",
-    "image",
-    "reel",
-    "video",
-    "image",
-    "story",
-  ];
-  const contentPlan = types.map((type, idx) => {
+  const types: Array<"image" | "reel" | "video" | "carousel" | "story"> = isTrial3
+    ? ["image", "image", "reel"]
+    : ["image", "reel", "carousel", "image", "reel", "video", "image", "story"];
+  const rawFallback = types.map((type, idx) => {
     const pain = painPoints[idx % painPoints.length];
     const pillar = strategicPillars[idx % strategicPillars.length];
     return {
@@ -190,7 +251,7 @@ export async function conductAIMarketResearchAndStrategy(params: {
     },
     painPoints,
     strategicPillars,
-    contentPlan,
+    contentPlan: enforceContentPlanMode(rawFallback, planMode, brandName, industry, painPoints, strategicPillars),
     source: "domain_fallback",
   };
 }
@@ -328,6 +389,144 @@ export async function triggerPostSubscriptionGrowthCycle(input: {
     strategySavedToStudio,
     researchSource: strategyPack.source,
     painPoints: strategyPack.painPoints,
+  };
+}
+
+export async function triggerTrialOnboardingCycle(input: {
+  brandId: string;
+  brandName?: string;
+  industry?: string;
+  city?: string;
+  productsSample?: string[];
+  dialect?: string;
+}): Promise<{
+  ok: boolean;
+  brandId: string;
+  trialStartedAt: string;
+  trialEndsAt: string;
+  contentItemsCount: number;
+  studioEnqueued: boolean;
+  studioJobId?: string;
+}> {
+  const brands = getUnifiedGrowthBrands();
+  const brand: any = brands.find(
+    (b: any) => b.id === input.brandId || b.slug === input.brandId
+  );
+  const brandName = String(input.brandName || brand?.name || input.brandId);
+  const industry = String(input.industry || brand?.businessType || brand?.industry || "تجارة وخدمات");
+  const city = String(input.city || brand?.city || brand?.location || "مصر");
+  const productsSample: string[] = Array.isArray(input.productsSample) && input.productsSample.length > 0
+    ? input.productsSample
+    : Array.isArray(brand?.productsCatalog)
+      ? brand.productsCatalog.map((p: any) => String(p?.name || p || "")).filter(Boolean)
+      : [];
+
+  const trialStartedAt = new Date().toISOString();
+  const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Strictly 2 image posts + 1 reel video for 7-day free trial
+  const strategyPack = await conductAIMarketResearchAndStrategy({
+    brandName,
+    industry,
+    city,
+    productsSample,
+    dialect: input.dialect || brand?.dialect || "اللهجة المصرية الاحترافية",
+    planMode: "trial_3",
+  });
+
+  const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
+  const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || "").trim();
+  const clinicId = String(brand?.titoStudioClinicId || brand?.id || input.brandId);
+
+  let studioEnqueued = false;
+  let studioJobId: string | undefined;
+
+  if (studioKey) {
+    try {
+      await fetch(`${studioBase}/api/strategy/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": studioKey },
+        body: JSON.stringify({
+          clinicId,
+          brandName,
+          marketResearch: strategyPack.marketResearch,
+          marketingStrategy: strategyPack.marketingStrategy,
+          painPoints: strategyPack.painPoints,
+          strategicPillars: strategyPack.strategicPillars,
+          contentPlan: strategyPack.contentPlan,
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch {}
+
+    try {
+      const execRes = await fetch(`${studioBase}/api/execution/enqueue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": studioKey },
+        body: JSON.stringify({
+          clinicId,
+          brandName,
+          items: strategyPack.contentPlan.slice(0, 3),
+          triggerSource: "trial_7d_auto_provision",
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (execRes.ok) {
+        const eJson: any = await execRes.json().catch(() => ({}));
+        studioEnqueued = Boolean(eJson?.success);
+        studioJobId = eJson?.jobId;
+      }
+    } catch {}
+  }
+
+  // Ensure T2 Agent channels (WhatsApp + Messenger + Comments) & 7-day trial limits are flagged
+  try {
+    const agentBrandId = String(brand?.agentBrandId || brand?.slug || input.brandId);
+    await t2AgentApi.executeExternalAdminAction("update_brand_trial", {
+      brandId: agentBrandId,
+      subscriptionStatus: "TRIAL",
+      trialStartsAt: trialStartedAt,
+      trialEndsAt,
+      monthlyQuotaLimit: 500,
+      channels: { whatsapp: true, messenger: true, comments: true },
+    }).catch(() => {});
+  } catch {}
+
+  try {
+    persistBrandUpdateAcrossEcosystem(brand?.id || input.brandId, {
+      subscriptionStatus: "trial",
+      planId: "trial_7d",
+      trialStartedAt,
+      trialEndsAt,
+      weekContentPlan: strategyPack.contentPlan,
+      marketResearchReport: strategyPack.marketResearch,
+      marketingStrategy: strategyPack.marketingStrategy,
+      strategicPainPoints: strategyPack.painPoints,
+      strategicPillars: strategyPack.strategicPillars,
+      agentChannels: { whatsapp: true, messenger: true, comments: true },
+    } as any);
+  } catch {}
+
+  try {
+    const { upsertBrandRegistryEntry } = await import("../services/brandRegistryService");
+    upsertBrandRegistryEntry(brand?.slug || brand?.id || input.brandId, {
+      slug: brand?.slug || input.brandId,
+      name: brandName,
+      lifecycleStage: "trial",
+      subscriptionStatus: "trial",
+      trialStartedAt,
+      trialEndsAt,
+    });
+  } catch {}
+
+  return {
+    ok: true,
+    brandId: input.brandId,
+    trialStartedAt,
+    trialEndsAt,
+    contentItemsCount: strategyPack.contentPlan.length,
+    studioEnqueued,
+    studioJobId,
   };
 }
 

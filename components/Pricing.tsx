@@ -127,20 +127,12 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
       stopVoice();
     };
   }, []);
-  const [selectedTier, setSelectedTier] = useState<'tier_2500' | 'tier_5000' | 'tier_10000' | 'tier_25000' | 'tier_50000'>('tier_5000');
+  const [selectedTier, setSelectedTier] = useState<'tier_5000' | 'tier_10000' | 'tier_25000' | 'tier_50000'>('tier_5000');
 
   const tierPrices = {
-    tier_2500: {
-      name: 'الانطلاق (2,500 ج)',
-      monthly: { egp: '2,500', usd: '50', label: 'شهرياً • 1,250 ج إعلانات ممولة لنشاطك (نصف الباقة) + صفحة هبوط بيعية + 8 تصاميم و2 فيديو + وكيل واتساب الذكي', discount: '' },
-      yearly: { egp: '25,000', usd: '500', label: 'سنوياً • 12,500 ج إعلانات ممولة + صفحة هبوط بيعية + وكيل واتساب الذكي', discount: 'وفر 5,000 ج.م' },
-      adBadge: '1,250 ج.م إعلانات ممولة مباشرة',
-      commissionMonthly: '250',
-      commissionYearly: '2,500'
-    },
     tier_5000: {
       name: 'النمو الذهبي (5,000 ج)',
-      monthly: { egp: '5,000', usd: '100', label: 'شهرياً • 2,500 ج إعلانات ممولة (نصف الباقة) + تطبيق PWA مخصص + فيديوهات ريلز Turbo Flow', discount: '' },
+      monthly: { egp: '5,000', usd: '100', label: 'الحد الأدنى للاستكمال بعد أسبوع التجربة • 2,500 ج إعلانات ممولة (50%) + تطبيق ويب متكامل + الأجنت (واتساب/ماسنجر/تعليقات) + فيديوهات ريلز', discount: '' },
       yearly: { egp: '50,000', usd: '1,000', label: 'سنوياً • 25,000 ج إعلانات ممولة + أتمتة كاملة', discount: 'وفر 10,000 ج.م' },
       adBadge: '2,500 ج.م إعلانات ممولة مباشرة',
       commissionMonthly: '500',
@@ -322,10 +314,13 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
 
                     {/* UNIFIED PRICING TIERS, DETAILS & ACTIONS INSIDE THE CARD */}
                     <div className="mt-4 pt-4 border-t border-white/10 space-y-2.5 text-center">
-                        {/* Tier Selector: 5 Official Tiers (2.5K - 5K - 10K - 25K - 50K) */}
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-black text-amber-300">
+                            تجربة 7 أيام مجاناً: تطبيق ويب كامل + أجنت واتساب وماسنجر وتعليقات + 2 بوست و1 ريل (والاستكمال من باقة 5,000 ج)
+                        </div>
+                        {/* Tier Selector: 4 Official Upgrade Tiers (5K - 10K - 25K - 50K) */}
                         <div className="flex justify-center py-0.5">
                             <div className="bg-black/80 p-1.5 rounded-2xl border border-white/10 flex flex-wrap justify-center gap-1.5 text-[10px] font-black select-none max-w-full">
-                                {(['tier_2500', 'tier_5000', 'tier_10000', 'tier_25000', 'tier_50000'] as const).map((tierKey) => {
+                                {(['tier_5000', 'tier_10000', 'tier_25000', 'tier_50000'] as const).map((tierKey) => {
                                     const isSelected = selectedTier === tierKey;
                                     return (
                                         <button

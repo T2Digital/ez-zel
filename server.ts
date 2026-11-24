@@ -79,6 +79,8 @@ import { generateBrandingAndSocialKit, saveBrandedClientToVault } from "./servic
 import { syncBrandToAllEcosystems, reconcileAllBrands } from "./services/universalBrandSync";
 import { runJarvisBrainConversation } from "./services/jarvisBrainEngine";
 import { getPersistentFilePath, savePersistentJson, hydrateCriticalStateOnBoot } from "./services/persistentStorage";
+import { registerStatusPageRoutes } from "./routes/statusPageRoutes";
+import { registerAiCostLedgerRoutes } from "./routes/aiCostLedgerRoutes";
 import { registerCommunicationsRoutes } from "./routes/communicationsRoutes";
 import { registerMetaAndAgencyRoutes } from "./routes/metaAndAgencyRoutes";
 import { registerProxyAndSystemRoutes } from "./routes/proxyAndSystemRoutes";
@@ -424,6 +426,7 @@ async function startServer() {
   app.get("/api/health", (_req, res) => {
       res.json({ ok: true, uptime: process.uptime() });
   });
+  registerStatusPageRoutes(app);
 
   // --- SOVEREIGN ADMIN SESSION ENDPOINTS (/api/auth/admin-*) --- //
   app.post("/api/auth/admin-session", async (req, res) => {
@@ -613,222 +616,8 @@ async function startServer() {
       }
   });
 
-  async function verifyClientPortalWriteAccess(req: express.Request, slug: string, brand?: any): Promise<{ ok: boolean; actor: 'admin' | 'client' }> {
-      const adminAuth = await verifyAdminRequest(req);
-      if (adminAuth.ok) return { ok: true, actor: 'admin' };
-      const authHeader = String(req.headers.authorization || "");
-      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-      const token = String(req.headers["x-portal-token"] || req.query.token || req.body?.portalToken || bearer || "").trim();
-      if (!token) return { ok: false, actor: 'client' };
-      const { verifyClientPortalToken } = await import("./routes/tenantErpRoutes");
-      const candidates = [slug, brand?.slug, brand?.id, brand?.canonicalId].filter(Boolean).map((s: any) => String(s));
-      const matched = candidates.some((c: string) => verifyClientPortalToken(token, c));
-      return { ok: matched, actor: 'client' };
-  }
-
-  function resolveBrandSubscriptionWindow(brand: any) {
-      const clients = getEzZelPersonalClients();
-      const linkedClient = clients.find(
-          (c: any) => c.linkedBrandId === brand.id || c.linkedBrandId === brand.slug
-      );
-      const subs = readPaymobSubscriptions();
-      const paidSub = subs.find(
-          (s: any) =>
-              (s.brandId === brand.id || s.brandId === brand.slug) &&
-              String(s.status || "").toLowerCase() === "paid"
-      );
-      const { isSubscriptionActiveNow } = require("./services/paymobService");
-      let subscriptionStatus: "active" | "trial" | "expired" = "active";
-      let trialEndsAt = linkedClient?.trialEndsAt || "";
-      let expiresAt = paidSub?.expiresAt || "";
-      if (paidSub) {
-          subscriptionStatus = isSubscriptionActiveNow(paidSub) ? "active" : "expired";
-      } else if (linkedClient?.status === "trial" && trialEndsAt) {
-          subscriptionStatus = new Date(trialEndsAt).getTime() <= Date.now() ? "expired" : "trial";
-      } else if ((brand as any).subscriptionStatus === "expired" || (brand as any).subscriptionStatus === "revoked") {
-          subscriptionStatus = "expired";
-      }
-      return { subscriptionStatus, trialEndsAt, expiresAt, paidSub, linkedClient };
-  }
-
-  app.get("/api/admin/brands/:slug/portal-link", async (req, res) => {
-      try {
-          const auth = await verifyAdminRequest(req);
-          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
-          const slug = String(req.params.slug || "").trim();
-          const { signClientPortalToken } = await import("./routes/tenantErpRoutes");
-          const token = signClientPortalToken(slug);
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
-          res.json({
-              ok: true,
-              slug,
-              token,
-              portalUrl: `${publicBase}/client/${encodeURIComponent(slug)}?token=${encodeURIComponent(token)}`,
-          });
-      } catch (err: any) {
-          res.status(500).json({ ok: false, error: err?.message });
-      }
-  });
-
-  app.get("/api/client-portal/:slug", async (req, res) => {
-      try {
-          const slug = String(req.params.slug || "").toLowerCase();
-          const { getUnifiedGrowthBrands } = await import("./services/obsidianVaultService");
-          const brands = getUnifiedGrowthBrands();
-          const brand: any = brands.find(
-              (b: any) =>
-                  String(b.slug || "").toLowerCase() === slug ||
-                  String(b.id || "").toLowerCase() === slug
-          );
-          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
-          const { resolveBrandPlanSpec, resolveBrandAppAccessMode, getBrandMonthlyQuotaStatus } = await import("./services/saasPlansService");
-          const planSpec = resolveBrandPlanSpec(brand);
-          const appAccessMode = resolveBrandAppAccessMode(brand);
-          const quota = getBrandMonthlyQuotaStatus(brand);
-          const subWindow = resolveBrandSubscriptionWindow(brand);
-          const accessCheck = await verifyClientPortalWriteAccess(req, slug, brand);
-          const { titoStudioApi } = await import("./services/titoStudioApiClient");
-          const { t2AgentApi } = await import("./services/t2AgentApiClient");
-          const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, "");
-          const agentBase = (process.env.T2_AGENT_URL || "https://agent.t2os.app").replace(/\/+$/, "");
-          const brandKey = String(brand.slug || brand.id);
-          const studioClinicKey = String(brand.titoStudioClinicId || brand.studioBrandId || brandKey);
-          const agentBrandKey = String(brand.agentBrandId || brandKey);
-          const studioShowroomUrl = titoStudioApi.buildStudioEmbedUrl("clientPortal", studioClinicKey);
-
-          let agentApiKey = "";
-          try {
-              const keysRes: any = await t2AgentApi.getBrandKeys(agentBrandKey);
-              agentApiKey = String(keysRes?.apiKey || keysRes?.keys?.apiKey || keysRes?.data?.apiKey || "");
-          } catch {}
-          const agentDashboardUrl = t2AgentApi.buildAgentEmbedUrl("crm", agentBrandKey, agentApiKey || undefined);
-
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
-          const studioLandingPageUrl = brand.studioLandingPageUrl || brand.landingPageUrl || `${studioBase}/landing/${encodeURIComponent(brandKey)}`;
-          const storefrontUrl = appAccessMode === "landing_page"
-              ? studioLandingPageUrl
-              : (slug === "al_genedy" ? String(process.env.AL_GENEDY_STANDALONE_URL || 'https://al-genedy.vercel.app') : (brand.vercelUrl || brand.deployedUrl || brand.dedicatedLiveUrl || `/store/${encodeURIComponent(brandKey)}`));
-          res.json({
-              ok: true,
-              brand,
-              planSpec,
-              appAccessMode,
-              quota,
-              subscriptionStatus: subWindow.subscriptionStatus,
-              trialEndsAt: subWindow.trialEndsAt,
-              expiresAt: subWindow.expiresAt,
-              portalAuthValid: accessCheck.ok,
-              upgradeUrl: `${publicBase}/pricing?brandId=${encodeURIComponent(brandKey)}`,
-              portals: {
-                  studioShowroomUrl,
-                  agentDashboardUrl,
-                  agentFullDashboardUrl: agentDashboardUrl,
-                  storefrontUrl,
-                  studioLandingPageUrl,
-              }
-          });
-      } catch (err: any) {
-          res.status(500).json({ ok: false, error: err?.message || "Portal error" });
-      }
-  });
-
-  app.post("/api/client-portal/:slug/account-manager", async (req, res) => {
-      try {
-          const slug = String(req.params.slug || "").toLowerCase();
-          const userMsg = String(req.body?.message || "").trim();
-          if (!userMsg) return res.status(400).json({ ok: false, error: "Message is required" });
-          const { getUnifiedGrowthBrands } = await import("./services/obsidianVaultService");
-          const brand: any = getUnifiedGrowthBrands().find(
-              (b: any) =>
-                  String(b.slug || "").toLowerCase() === slug ||
-                  String(b.id || "").toLowerCase() === slug
-          );
-          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
-
-          const access = await verifyClientPortalWriteAccess(req, slug, brand);
-          if (!access.ok) {
-              return res.status(401).json({ ok: false, error: "غير مصرح — يرجى فتح بوابة العميل عبر الرابط الموثق (?token=...) للتحدث مع مدير الحساب." });
-          }
-          const subWindow = resolveBrandSubscriptionWindow(brand);
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
-          if (access.actor !== "admin" && subWindow.subscriptionStatus === "expired") {
-              return res.status(402).json({
-                  ok: false,
-                  expired: true,
-                  upgradeUrl: `${publicBase}/pricing?brandId=${encodeURIComponent(brand.slug || brand.id)}`,
-                  error: "انتهت صلاحية الاشتراك/التجربة — يرجى التجديد لتفعيل مدير الحساب الذكي.",
-              });
-          }
-
-          const { runJarvisBrainConversation } = await import("./services/jarvisBrainEngine");
-          const rawHistory = Array.isArray(req.body?.history) ? req.body.history : [];
-          const normalizedHistory = rawHistory.map((m: any) => ({
-              role: (m?.role === "assistant" || m?.role === "model" ? "model" : "user") as "user" | "model",
-              text: String(m?.text || m?.content || ""),
-          })).filter((m: any) => m.text);
-          const scopedPrompt = `[توجيه مدير الحساب المخصص للبراند "${brand.name}" (${brand.slug || brand.id}) فقط — ركز على هذا البراند بالكامل وممنوع ذكر أي براند آخر]:\nرسالة العميل: ${userMsg}`;
-          const result = await runJarvisBrainConversation({
-              message: scopedPrompt,
-              history: normalizedHistory,
-              persona: "client",
-              selectedBrandId: brand.slug || brand.id,
-              skipTts: true,
-              ai: getServerAI(),
-              stats: getRealEcosystemStats(),
-              synthesizeSpeech: synthesizeSovereignSpeech,
-          });
-          res.json({ ok: true, replyText: result?.replyText || "تم استلام طلبك وجاري المتابعة على حساب براندك." });
-      } catch (err: any) {
-          res.status(500).json({ ok: false, error: err?.message || "Account Manager error" });
-      }
-  });
-
-  app.post("/api/client-portal/:slug/approve-post", async (req, res) => {
-      try {
-          const slug = String(req.params.slug || "").toLowerCase();
-          const { postIndex, decision = "approved", feedback = "" } = req.body || {};
-          const { getUnifiedGrowthBrands, persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
-          const brands = getUnifiedGrowthBrands();
-          const brand: any = brands.find(
-              (b: any) =>
-                  String(b.slug || "").toLowerCase() === slug ||
-                  String(b.id || "").toLowerCase() === slug
-          );
-          if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
-
-          const access = await verifyClientPortalWriteAccess(req, slug, brand);
-          if (!access.ok) {
-              return res.status(401).json({ ok: false, error: "غير مصرح — يرجى فتح بوابة العميل عبر الرابط الموثق (?token=...) لاعتماد المنشورات." });
-          }
-          const subWindow = resolveBrandSubscriptionWindow(brand);
-          const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
-          if (access.actor !== "admin" && subWindow.subscriptionStatus === "expired") {
-              return res.status(402).json({
-                  ok: false,
-                  expired: true,
-                  upgradeUrl: `${publicBase}/pricing?brandId=${encodeURIComponent(brand.slug || brand.id)}`,
-                  error: "انتهت صلاحية الاشتراك/التجربة — يرجى التجديد لاعتماد المنشورات.",
-              });
-          }
-
-          const plan = Array.isArray(brand.weekContentPlan) ? [...brand.weekContentPlan] : [];
-          const idx = Number(postIndex);
-          if (!Number.isInteger(idx) || idx < 0 || idx >= plan.length) {
-              return res.status(400).json({ ok: false, error: "Invalid postIndex" });
-          }
-          plan[idx] = {
-              ...plan[idx],
-              clientApproval: decision,
-              clientFeedback: feedback,
-              status: decision === "approved" ? "scheduled" : "revision_requested",
-              updatedAt: new Date().toISOString()
-          };
-          const updatedBrand = persistBrandUpdateAcrossEcosystem(brand.id || brand.slug, { weekContentPlan: plan }) || { ...brand, weekContentPlan: plan };
-          res.json({ ok: true, post: plan[idx], brand: updatedBrand });
-      } catch (err: any) {
-          res.status(500).json({ ok: false, error: err?.message || "Approval failed" });
-      }
-  });
+  const { registerClientPortalRoutes, resolveBrandSubscriptionWindow } = await import("./routes/clientPortalRoutes");
+  registerClientPortalRoutes(app, { getServerAI, getRealEcosystemStats, synthesizeSovereignSpeech });
 
   // --- AUTOMATED APP CLONER & MARKET CRAWLER API --- //
   app.post(["/api/cloner/clone-brand", "/api/cloner/clone"], requireAdminMiddleware, async (req, res) => {
@@ -1717,11 +1506,25 @@ async function startServer() {
   app.post("/api/payments/paymob/create-checkout", async (req, res) => {
       try {
           const { brandId, brandName, planId, amountEgp, customerName, customerEmail, customerPhone } = req.body || {};
+          const rawPlan = String(planId || "growth_5000").toLowerCase();
+          const requestedAmount = amountEgp !== undefined && amountEgp !== null && amountEgp !== "" ? Number(amountEgp) : 5000;
+          if (
+              rawPlan.includes("2500") ||
+              rawPlan.includes("starter") ||
+              !Number.isFinite(requestedAmount) ||
+              requestedAmount < 5000
+          ) {
+              return res.status(400).json({
+                  ok: false,
+                  minUpgradeEgp: 5000,
+                  error: "الحد الأدنى للاستكمال والترقية بعد أسبوع التجربة المجانية هو باقة النمو 5,000 ج.م (2,500 ج.م إعلانات ممولة + تطبيق الويب الكامل + الأجنت).",
+              });
+          }
           const checkout = await createPaymobCheckoutSession({
               brandId: brandId || 'el_baraka',
               brandName: brandName || 'براند تيتو',
-              planId: planId || 'growth_pro',
-              amountEgp: Number(amountEgp) || 2950,
+              planId: planId || 'growth_5000',
+              amountEgp: requestedAmount,
               customerName: customerName || brandName || 'عميل منظومة النمو',
               customerEmail: customerEmail || 'client@t2-studio.app',
               customerPhone: customerPhone || '01013373634'
@@ -1814,6 +1617,8 @@ async function startServer() {
                   upsertBrandRegistryEntry(brandId, {
                       slug: brandId,
                       lifecycleStage: 'active_client',
+                      subscriptionStatus: 'active',
+                      paidExpiresAt: expiresAt,
                   });
               } catch {}
 
@@ -1828,6 +1633,9 @@ async function startServer() {
 
               try {
                   const { persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
+                  const { buildFlagshipTenantUrl } = await import("./services/tenantAppRenderer");
+                  const existingBrand = getUnifiedGrowthBrands().find((b: any) => b.id === brandId || b.slug === brandId);
+                  const fallbackLiveUrl = buildFlagshipTenantUrl(existingBrand?.slug || brandId, (existingBrand as any)?.appTemplate || "products_erp");
                   persistBrandUpdateAcrossEcosystem(brandId, {
                       planId: planSpec.id,
                       planAmount: amountEgp,
@@ -1836,8 +1644,18 @@ async function startServer() {
                       paymobOrderId: orderId,
                       activationSource: 'paymob_verified',
                       expiresAt,
+                      paidExpiresAt: expiresAt,
                       botPaused: false,
-                  });
+                      ...(existingBrand?.vercelUrl ? {} : { vercelUrl: fallbackLiveUrl }),
+                  } as any);
+              } catch {}
+
+              try {
+                  const { t2AgentApi } = await import("./services/t2AgentApiClient");
+                  const st: any = await t2AgentApi.getBrandStatus(brandId).catch(() => null);
+                  if (st?.isPaused) {
+                      await t2AgentApi.togglePauseBot(brandId).catch(() => {});
+                  }
               } catch {}
 
               try {
@@ -1857,8 +1675,9 @@ async function startServer() {
                   payload: { planId: planSpec.id, orderId, amountEgp, appAccessMode, expiresAt }
               });
 
-              // ONLY provision dedicated GitHub repo + Vercel full_app when plan unlocks full_app (never for starter_2500 landing_page)
-              if (appAccessMode === 'full_app') {
+              // ONLY clone dedicated GitHub repo + Vercel project for Enterprise/Sovereign (>= 20,000 EGP);
+              // standard growth_5000 & pro_10000 run instantaneously on the shared Multi-Tenant store/booking engines.
+              if (appAccessMode === 'full_app' && (amountEgp >= 20000 || planSpec.id === 'enterprise_20000' || planSpec.id === 'sovereign_50000')) {
                   import("./services/dedicatedDeployService")
                       .then(({ provisionDedicatedRepoAndVercel }) => provisionDedicatedRepoAndVercel({ brandId }))
                       .catch(() => {});
@@ -2777,24 +2596,13 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       const cleanPhone = String(brand.phone || "01013373634").replace(/[^0-9]/g, "");
       const wa = cleanPhone.startsWith("0") ? `2${cleanPhone}` : cleanPhone;
 
-      // Check subscription / 7-day trial status
-      const clients = getEzZelPersonalClients();
-      const linkedClient = clients.find((c: any) => c.linkedBrandId === brand.id);
-      const subs = readPaymobSubscriptions();
-      const anyPaidSub = subs.find((s: any) => (s.brandId === brand.id || s.brandId === brand.slug) && s.status === "paid");
-      const { isSubscriptionActiveNow } = await import("./services/paymobService");
-      const paidSub = isSubscriptionActiveNow(anyPaidSub) ? anyPaidSub : null;
-      let subscriptionStatus: "active" | "trial" | "expired" = "active";
-      let trialEndsAt = linkedClient?.trialEndsAt || "";
-      let trialDaysLeft: number | null = null;
-      if (anyPaidSub && !paidSub) {
-          subscriptionStatus = "expired";
-      } else if (!paidSub && linkedClient?.status === "trial" && trialEndsAt) {
-          const endMs = new Date(trialEndsAt).getTime();
-          const diffDays = Math.ceil((endMs - Date.now()) / 86400000);
-          trialDaysLeft = Math.max(0, diffDays);
-          subscriptionStatus = diffDays <= 0 ? "expired" : "trial";
-      }
+      // Check subscription / 7-day trial status using unified helper
+      const subWindow = resolveBrandSubscriptionWindow(brand);
+      const subscriptionStatus = subWindow.subscriptionStatus;
+      const trialEndsAt = subWindow.trialEndsAt;
+      const trialDaysLeft = subWindow.trialDaysLeft;
+      const paidSub = subWindow.subscriptionStatus === "active" ? subWindow.paidSub : null;
+      const linkedClient = subWindow.linkedClient;
 
       const { resolveBrandPlanSpec, resolveBrandAppAccessMode } = await import("./services/saasPlansService");
       const { resolveBrandTemplate } = await import("./services/tenantAppRenderer");
@@ -2881,6 +2689,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   const { registerBackupAndOpsRoutes } = await import("./routes/backupAndOpsRoutes");
   registerBackupAndOpsRoutes(app);
+
+  registerAiCostLedgerRoutes(app, { getUnifiedGrowthBrands });
 
   const { registerEcosystemOrchestrationRoutes } = await import("./routes/ecosystemOrchestrationRoutes");
   registerEcosystemOrchestrationRoutes(app);
@@ -3931,11 +3741,18 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               planAmount: req.body?.planAmount,
           });
           const isStarterLandingOnly = requestedAccessMode === 'landing_page';
-          const hasAutoVercelDeploy = !isStarterLandingOnly && Boolean(process.env.VERCEL_TOKEN && process.env.GITHUB_TOKEN);
+          const wantsDedicatedRepo = Boolean(
+              req.body?.dedicatedRepo === true ||
+              req.body?.planId === 'enterprise_20000' ||
+              req.body?.planId === 'sovereign_50000'
+          );
+          const hasAutoVercelDeploy = !isStarterLandingOnly && wantsDedicatedRepo && Boolean(process.env.VERCEL_TOKEN && process.env.GITHUB_TOKEN);
+          const { buildFlagshipTenantUrl } = await import("./services/tenantAppRenderer");
+          const appTpl = flagship.archetype === 'products_erp_pos' ? 'products_erp' : 'services_booking';
           const studioLandingUrl = `${studioBase}/landing/${slug}`;
           const liveUrl = isStarterLandingOnly
               ? studioLandingUrl
-              : (hasAutoVercelDeploy ? `https://t2-tenant-${slug}.vercel.app` : `${publicBase}/app/${slug}`);
+              : buildFlagshipTenantUrl(slug, appTpl);
           const repoName = `t2-tenant-${slug}`;
           const githubUrl = `https://github.com/T2Digital/${repoName}`;
 
@@ -3988,11 +3805,28 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
                   slug,
                   name: businessName,
                   lifecycleStage: req.body?.selfGrowth ? "self_growth" : "trial",
+                  subscriptionStatus: req.body?.paid ? "active" : "trial",
+                  trialEndsAt: req.body?.paid ? undefined : new Date(Date.now() + 7 * 86400000).toISOString(),
                   appTemplate: flagship.archetype === "products_erp_pos" ? "products_erp" : "services_booking",
                   titoStudioClinicId: slug,
                   agentBrandId: slug,
               });
           } catch {}
+
+          if (req.body?.triggerTrial !== false && !req.body?.paid) {
+              import("./routes/ecosystemOrchestrationRoutes")
+                  .then(({ triggerTrialOnboardingCycle }) =>
+                      triggerTrialOnboardingCycle({
+                          brandId: slug,
+                          brandName: businessName,
+                          industry: req.body?.industry || pricingNotes || "تجارة وخدمات",
+                          productsSample: Array.isArray(req.body?.productsCatalog)
+                              ? req.body.productsCatalog.map((p: any) => String(p?.name || p || "")).filter(Boolean)
+                              : [],
+                      })
+                  )
+                  .catch(() => {});
+          }
 
           let deployResult: any = null;
           if (hasAutoVercelDeploy) {
@@ -4831,7 +4665,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   // --- AL-GENEDY ADVERTISING: INDEPENDENT STANDALONE VERCEL DEPLOYMENT ---
   // Decoupled from ez-zel container; any legacy /al-genedy URL redirects to the standalone app.
-  const alGenedyStandaloneUrl = String(process.env.AL_GENEDY_STANDALONE_URL || 'https://al-genedy.vercel.app').replace(/\/+$/, '');
+  const alGenedyStandaloneUrl = String(process.env.AL_GENEDY_STANDALONE_URL || 'https://elgenedy.com').replace(/\/+$/, '');
   app.get(['/al-genedy', '/al-genedy/*all'], (_req, res) => {
       return res.redirect(302, alGenedyStandaloneUrl);
   });

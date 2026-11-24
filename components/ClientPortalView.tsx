@@ -10,6 +10,7 @@ interface PortalLinks {
   agentDashboardUrl?: string;
   agentFullDashboardUrl?: string;
   storefrontUrl?: string;
+  ssoStoreAdminUrl?: string | null;
   studioLandingPageUrl?: string;
 }
 
@@ -20,6 +21,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
   const [appAccessMode, setAppAccessMode] = useState<'landing_page' | 'full_app'>('full_app');
   const [quota, setQuota] = useState<any>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'trial' | 'expired'>('active');
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
+  const [trialPolicy, setTrialPolicy] = useState<any>(null);
   const [upgradeUrl, setUpgradeUrl] = useState<string>(`/pricing?brandId=${encodeURIComponent(slug)}`);
   const [portalAuthValid, setPortalAuthValid] = useState<boolean>(true);
   const [authBanner, setAuthBanner] = useState<string>('');
@@ -60,6 +63,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
       setAppAccessMode(data.appAccessMode || 'full_app');
       setQuota(data.quota || null);
       if (data.subscriptionStatus) setSubscriptionStatus(data.subscriptionStatus);
+      setTrialDaysLeft(typeof data.trialDaysLeft === 'number' ? data.trialDaysLeft : null);
+      setTrialPolicy(data.trialPolicy || null);
       if (data.upgradeUrl) setUpgradeUrl(data.upgradeUrl);
       setPortalAuthValid(data.portalAuthValid !== false);
       if (chatHistory.length === 0) {
@@ -169,33 +174,53 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
 
   const posts: any[] = Array.isArray(brand.weekContentPlan) ? brand.weekContentPlan : [];
   const storefrontHref = portals.storefrontUrl || `/store/${brand.slug || brand.id}`;
+  const ssoAdminHref = portals.ssoStoreAdminUrl || null;
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#020611] text-white font-['Cairo'] p-4 md:p-8">
       <div className="max-w-6xl mx-auto flex flex-col gap-5">
         <header className="rounded-3xl bg-[#071122]/85 border border-cyan-500/25 p-5 md:p-6 flex flex-wrap items-center justify-between gap-4 backdrop-blur-xl">
           <div>
-            <div className="text-xs text-cyan-300 font-bold flex items-center gap-1.5">
+            <div className="text-xs text-cyan-300 font-bold flex items-center gap-1.5 flex-wrap">
               <Sparkles className="w-4 h-4" />
               <span>بوابة العميل الموحدة • {planSpec?.nameAr || 'الظل T2OS'}</span>
+              {subscriptionStatus === 'trial' && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-black">
+                  أسبوع التجربة المجانية • متبقي {trialDaysLeft ?? 7} يوم (2 بوست + 1 ريل)
+                </span>
+              )}
             </div>
             <h1 className="text-2xl font-black mt-1">{brand.name}</h1>
             <p className="text-xs text-slate-400 mt-1">
               {brand.businessType || 'نشاط تجاري'} • وضع الوصول:{' '}
               <span className="text-amber-300 font-bold">
-                {appAccessMode === 'landing_page' ? 'لاندنج بيدج (2,500)' : 'تطبيق ويب متكامل'}
+                {appAccessMode === 'landing_page' ? 'لاندنج بيدج' : 'تطبيق ويب متكامل (ERP + متجر)'}
               </span>
               {quota && (
                 <>
                   {' '}
-                  • رصيد الشهر: <span className="text-emerald-300 font-bold">{quota.designsRemaining ?? quota.monthlyDesigns ?? 0} تصميم</span> /{' '}
-                  <span className="text-cyan-300 font-bold">{quota.videosRemaining ?? quota.monthlyVideos ?? 0} فيديو</span>
+                  • رصيد الشهر: <span className="text-emerald-300 font-bold">{quota.designsRemaining ?? quota.monthlyDesigns ?? 2} بوست</span> /{' '}
+                  <span className="text-cyan-300 font-bold">{quota.videosRemaining ?? quota.monthlyVideos ?? 1} ريل</span>
                 </>
               )}
+              {trialPolicy?.maxRevisionsPerPost ? (
+                <> • حد التعديل: <span className="text-white/80 font-bold">{trialPolicy.maxRevisionsPerPost} لكل منشور</span></>
+              ) : null}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {ssoAdminHref && (
+              <a
+                href={ssoAdminHref}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 hover:opacity-95"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>فتح لوحة تحكم المتجر (دخول مباشر)</span>
+              </a>
+            )}
             {portals.studioShowroomUrl && (
               <a
                 href={portals.studioShowroomUrl}
@@ -222,10 +247,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
               href={storefrontHref}
               target="_blank"
               rel="noreferrer"
-              className="px-4 py-2 rounded-xl bg-cyan-400 text-slate-950 text-xs font-black flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-white text-xs font-black flex items-center gap-1.5 hover:bg-white/20"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>{appAccessMode === 'landing_page' ? 'فتح اللاندنج بيدج' : 'معاينة المتجر/التطبيق'}</span>
+              <span>{appAccessMode === 'landing_page' ? 'فتح اللاندنج بيدج' : 'معاينة المتجر للعملاء'}</span>
             </a>
           </div>
         </header>
@@ -236,14 +261,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
             <span className="font-bold text-amber-200">
               {authBanner ||
                 (subscriptionStatus === 'expired'
-                  ? 'انتهت مدة التجربة/الاشتراك الحالية — يرجى تجديد الباقة لاستمرار النشر ومدير الحساب.'
-                  : 'هذا الرابط للمعاينة فقط — لإعتماد المنشورات أو محادثة مدير الحساب افتح الرابط الموثق (?token=...).')}
+                  ? 'انتهت مدة التجربة المجانية (7 أيام) — للاستكمال بنفس التطبيق والأجنت يرجى التفعيل بدايةً من باقة 5,000 ج.م (50% إعلانات ممولة).'
+                  : 'هذا الرابط للمعاينة فقط — لفتح لوحة المتجر بضغطة واحدة أو اعتماد المنشورات افتح الرابط الموثق (?token=...).')}
             </span>
             <a
               href={upgradeUrl}
               className="px-4 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-black hover:bg-amber-300 transition"
             >
-              ترقية وتفعيل الاشتراك الآن
+              تفعيل باقة 5,000 ج.م أو أعلى الآن
             </a>
           </div>
         )}
@@ -298,19 +323,32 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-3xl bg-[#071122]/85 border border-cyan-500/30 p-5 flex flex-col justify-between gap-4">
               <div>
-                <div className="text-[11px] font-bold text-cyan-300">1. المتجر والتطبيق</div>
+                <div className="text-[11px] font-bold text-cyan-300">1. المتجر ولوحة الإدارة (SSO)</div>
                 <h3 className="text-base font-black mt-1">{brand.name}</h3>
-                <p className="text-xs text-slate-400 mt-1">كتالوج المنتجات والطلبات المباشرة للعملاء</p>
+                <p className="text-xs text-slate-400 mt-1">كتالوج المنتجات والطلبات المباشرة والدخول الفوري للإدارة</p>
               </div>
-              <a
-                href={storefrontHref}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2.5 rounded-xl bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>فتح التطبيق الآن</span>
-              </a>
+              <div className="space-y-2">
+                {ssoAdminHref && (
+                  <a
+                    href={ssoAdminHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>دخول مباشر للوحة المتجر</span>
+                  </a>
+                )}
+                <a
+                  href={storefrontHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-2 rounded-xl bg-white/10 border border-white/15 text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-white/20"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>معاينة المتجر للعملاء</span>
+                </a>
+              </div>
             </div>
 
             <div className="rounded-3xl bg-[#071122]/85 border border-purple-500/30 p-5 flex flex-col justify-between gap-4">

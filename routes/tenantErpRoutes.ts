@@ -113,6 +113,28 @@ export function verifyClientPortalToken(token: string, expectedSlug: string): bo
   return normalizeSlugKey(String(data.slug)) === normalizeSlugKey(String(expectedSlug || ""));
 }
 
+export function issueOwnerSsoToken(brand: any, fallbackSlug: string): string {
+  const asciiSlug =
+    String(brand?.slug || brand?.englishName || brand?.id || fallbackSlug || "brand")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || fallbackSlug;
+  const expectedEmail = String(brand?.adminEmail || `owner@${asciiSlug}.t2.app`).trim().toLowerCase();
+  return signTenantToken({
+    id: `admin_${asciiSlug}`,
+    username: expectedEmail,
+    email: expectedEmail,
+    name: `مدير ${brand?.name || asciiSlug}`,
+    role: "admin",
+    branch: "main",
+    allowedBranches: ["main"],
+    brandSlug: asciiSlug,
+    permissions: FULL_TENANT_ADMIN_PERMISSIONS,
+    sso: true,
+    exp: Date.now() + 7 * 86400000,
+  });
+}
+
 export function registerTenantErpRoutes(
   app: Express,
   deps: {
@@ -445,7 +467,56 @@ export function registerTenantErpRoutes(
   async function handleTenantStateGet(slugParam: string, req: Request, res: Response) {
     try {
       const slugNorm = normalizeSlugKey(slugParam);
-      const fullState = await loadTenantErpState(slugNorm);
+      let fullState = await loadTenantErpState(slugNorm);
+
+      if (!Array.isArray(fullState.products) || fullState.products.length === 0) {
+        const brandForSeed = await resolveBrandForAuth(slugParam).catch(() => null);
+        if (brandForSeed) {
+          const catalog = Array.isArray(brandForSeed.productsCatalog) ? brandForSeed.productsCatalog : [];
+          const seededProducts = catalog.map((item: any, idx: number) => {
+            const numericPrice =
+              Number(item?.numericPrice ?? String(item?.price || "").replace(/[^\d.]/g, "")) || 500;
+            const imgs =
+              Array.isArray(item?.images) && item.images.length > 0
+                ? item.images.filter(Boolean)
+                : [item?.imageUrl || brandForSeed.logoUrl || ""].filter(Boolean);
+            return {
+              id: Date.now() + idx + 1,
+              sku: `SKU-${idx + 101}`,
+              name: String(item?.name || item?.name_ar || `منتج ${idx + 1}`),
+              category: String(item?.category || brandForSeed.businessType || "عام"),
+              purchasePrice: Math.round(numericPrice * 0.65),
+              costPrice: Math.round(numericPrice * 0.65),
+              sellingPrice: numericPrice,
+              price: numericPrice,
+              image: imgs[0] || "",
+              images: imgs,
+              stock: { main: 25 },
+              description: String(item?.description || item?.description_ar || brandForSeed.slogan || ""),
+            };
+          });
+          if (seededProducts.length > 0 || brandForSeed.name) {
+            const cats = Array.from(new Set(seededProducts.map((p: any) => p.category).filter(Boolean))).map(
+              (c, i) => ({
+                id: `cat_${i + 1}`,
+                name: String(c),
+              })
+            );
+            fullState = {
+              ...fullState,
+              ...(seededProducts.length > 0 ? { products: seededProducts } : {}),
+              appCustomization: {
+                ...(fullState.appCustomization || {}),
+                ...(cats.length > 0 && !fullState.appCustomization?.mainCategories
+                  ? { mainCategories: cats }
+                  : {}),
+                companyName: fullState.appCustomization?.companyName || brandForSeed.name,
+              },
+            };
+            await saveTenantErpState(slugNorm, fullState).catch(() => {});
+          }
+        }
+      }
 
       const authHeader = String(req.headers.authorization || "");
       const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";

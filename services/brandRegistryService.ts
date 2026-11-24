@@ -1,5 +1,7 @@
 import { readPersistentJson, savePersistentJson } from './persistentStorage';
 import { resolveBrandTemplate, TenantAppTemplate } from './tenantAppRenderer';
+import { areBrandIdsEquivalent, toAlnumLookupKey, toCanonicalAgentId, toCanonicalSlug } from './brandIdentityNormalizer';
+import { isPostgresConfigured, pgUpsertTenant } from './postgresService';
 
 export type BrandLifecycleStage = 'active_client' | 'trial' | 'paused_archive' | 'self_growth';
 
@@ -18,6 +20,10 @@ export interface CanonicalBrandEntry {
   agentBrandId?: string;
   planId?: string;
   planAmount?: number;
+  trialStartedAt?: string;
+  trialEndsAt?: string;
+  paidExpiresAt?: string;
+  subscriptionStatus?: 'active' | 'trial' | 'expired';
   mergedFromIds?: string[];
   notes?: string;
   updatedAt: string;
@@ -199,23 +205,64 @@ export function upsertBrandRegistryEntry(
 ): CanonicalBrandEntry {
   const key = String(canonicalId || '').trim();
   const state = getBrandRegistryState();
-  const existing = state.brands[key] || {
-    canonicalId: key,
-    slug: updates.slug || key,
+  const matchedKey =
+    state.brands[key]
+      ? key
+      : Object.keys(state.brands).find((k) => {
+          const item = state.brands[k];
+          return (
+            areBrandIdsEquivalent(k, key) ||
+            areBrandIdsEquivalent(item?.slug, key) ||
+            areBrandIdsEquivalent(item?.canonicalId, key) ||
+            (updates.slug ? areBrandIdsEquivalent(item?.slug, updates.slug) : false)
+          );
+        }) || key;
+
+  const existing = state.brands[matchedKey] || {
+    canonicalId: matchedKey,
+    slug: toCanonicalSlug(updates.slug || matchedKey),
     lifecycleStage: state.defaultStage || 'paused_archive',
     updatedAt: new Date().toISOString(),
   };
 
+  const resolvedSlug = toCanonicalSlug(updates.slug || existing.slug || matchedKey);
   const merged: CanonicalBrandEntry = {
     ...existing,
     ...updates,
-    canonicalId: key,
-    slug: updates.slug || existing.slug || key,
+    canonicalId: existing.canonicalId || matchedKey,
+    slug: resolvedSlug,
+    titoStudioClinicId: updates.titoStudioClinicId || existing.titoStudioClinicId || existing.canonicalId || matchedKey,
+    agentBrandId: toCanonicalAgentId(updates.agentBrandId || existing.agentBrandId || resolvedSlug),
     updatedAt: new Date().toISOString(),
   };
 
-  state.brands[key] = merged;
+  state.brands[merged.canonicalId] = merged;
   saveBrandRegistryState(state);
+
+  if (isPostgresConfigured()) {
+    void pgUpsertTenant({
+      canonicalId: merged.canonicalId,
+      slug: merged.slug,
+      name: merged.name || merged.canonicalId,
+      industry: merged.businessType,
+      appTemplate: merged.appTemplate || 'products_erp',
+      lifecycleStage: merged.lifecycleStage,
+      subscriptionStatus:
+        merged.subscriptionStatus ||
+        (merged.lifecycleStage === 'active_client' ? 'active' : merged.lifecycleStage === 'paused_archive' ? 'expired' : 'trial'),
+      planId: merged.planId || (merged.lifecycleStage === 'active_client' ? 'growth_5000' : 'trial_7d'),
+      planAmountEgp: merged.planAmount || 0,
+      trialStartedAt: merged.trialStartedAt || null,
+      trialEndsAt: merged.trialEndsAt || null,
+      paidExpiresAt: merged.paidExpiresAt || null,
+      titoStudioId: merged.titoStudioClinicId,
+      agentBrandId: merged.agentBrandId,
+      storeUrl: merged.appUrl,
+      dedicatedLiveUrl: merged.dedicatedLiveUrl,
+      metadata: { notes: merged.notes, primaryColor: merged.primaryColor },
+    }).catch(() => {});
+  }
+
   return merged;
 }
 
@@ -266,11 +313,16 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
       state.brands[b.id] ||
       state.brands[b.slug] ||
       Object.values(state.brands).find(
-        (e) => normalizeKey(e.canonicalId) === normId || normalizeKey(e.slug) === normSlug
+        (e) =>
+          areBrandIdsEquivalent(e.canonicalId, b.id) ||
+          areBrandIdsEquivalent(e.slug, b.slug || b.id) ||
+          toAlnumLookupKey(e.slug || e.canonicalId) === toAlnumLookupKey(b.slug || b.id)
       );
 
     seenCanonicalIds.add(normalizeKey(entry?.canonicalId || b.id));
     seenCanonicalIds.add(normalizeKey(entry?.slug || b.slug || b.id));
+    seenCanonicalIds.add(toAlnumLookupKey(entry?.canonicalId || b.id));
+    seenCanonicalIds.add(toAlnumLookupKey(entry?.slug || b.slug || b.id));
 
     const lifecycleStage: BrandLifecycleStage = entry?.lifecycleStage || defaultStage;
     const isPaused = lifecycleStage === 'paused_archive';
@@ -302,6 +354,10 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
       agentBrandId: entry?.agentBrandId || b.agentBrandId || b.id,
       planId: resolvedPlanId,
       planAmount: resolvedPlanAmount,
+      ...(entry?.trialStartedAt || b.trialStartedAt ? { trialStartedAt: entry?.trialStartedAt || b.trialStartedAt } : {}),
+      ...(entry?.trialEndsAt || b.trialEndsAt ? { trialEndsAt: entry?.trialEndsAt || b.trialEndsAt } : {}),
+      ...(entry?.paidExpiresAt || b.paidExpiresAt ? { paidExpiresAt: entry?.paidExpiresAt || b.paidExpiresAt } : {}),
+      ...(entry?.subscriptionStatus || b.subscriptionStatus ? { subscriptionStatus: entry?.subscriptionStatus || b.subscriptionStatus } : {}),
       subscriptionPlan: lifecycleStage === 'active_client' ? `باقة النمو الذهبي (${resolvedPlanAmount.toLocaleString('en-US')} ج.م)` : (b.subscriptionPlan || 'متوقف'),
       status: isPaused ? 'متوقف' : (b.status && b.status !== 'متوقف' ? b.status : 'شغال'),
       botPaused: isPaused ? true : Boolean(b.botPaused),
@@ -313,7 +369,13 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
     if (!entry?.canonicalId) continue;
     const normCid = normalizeKey(entry.canonicalId);
     const normEntrySlug = normalizeKey(entry.slug || entry.canonicalId);
-    if (seenCanonicalIds.has(normCid) || seenCanonicalIds.has(normEntrySlug) || mergedAliases.has(normCid)) {
+    if (
+      seenCanonicalIds.has(normCid) ||
+      seenCanonicalIds.has(normEntrySlug) ||
+      seenCanonicalIds.has(toAlnumLookupKey(normCid)) ||
+      seenCanonicalIds.has(toAlnumLookupKey(normEntrySlug)) ||
+      mergedAliases.has(normCid)
+    ) {
       continue;
     }
     const lifecycleStage: BrandLifecycleStage = entry.lifecycleStage || defaultStage;
@@ -338,6 +400,10 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
       appUrl: entry.dedicatedLiveUrl || entry.appUrl || `/store/${entry.slug || entry.canonicalId}`,
       planId: entry.planId || (lifecycleStage === 'active_client' ? 'growth_5000' : ''),
       planAmount,
+      ...(entry.trialStartedAt ? { trialStartedAt: entry.trialStartedAt } : {}),
+      ...(entry.trialEndsAt ? { trialEndsAt: entry.trialEndsAt } : {}),
+      ...(entry.paidExpiresAt ? { paidExpiresAt: entry.paidExpiresAt } : {}),
+      ...(entry.subscriptionStatus ? { subscriptionStatus: entry.subscriptionStatus } : {}),
       subscriptionPlan:
         lifecycleStage === 'active_client'
           ? `باقة النمو الذهبي (${Number(planAmount).toLocaleString('en-US')} ج.م)`

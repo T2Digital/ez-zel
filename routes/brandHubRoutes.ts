@@ -8,6 +8,7 @@ import { verifyAdminRequest } from "../services/serverAdminAuth";
 import { ACTIVE_GEMINI_TEXT_MODELS } from "../services/geminiKeyPool";
 import { calculateCodProfitability } from "../services/dropshippingEngineService";
 import { getPersistentFilePath, savePersistentJson } from "../services/persistentStorage";
+import { buildFlagshipTenantUrl } from "../services/tenantAppRenderer";
 
 const BUNDLED_HUB_CONFIG_FILE = path.join(process.cwd(), "data", "brand_hub_configs.json");
 const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || "t2-content-studio";
@@ -168,10 +169,10 @@ export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
     return "https://cleanmaster-eg.com";
   }
   if (slug === "al_genedy" || slug === "al-genedy" || slug.includes("genedy")) {
-    return String(process.env.AL_GENEDY_STANDALONE_URL || "https://al-genedy.vercel.app").replace(/\/+$/, "");
+    return String(process.env.AL_GENEDY_STANDALONE_URL || "https://elgenedy.com").replace(/\/+$/, "");
   }
-  const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
-  return `${publicBase}/app/${brand?.slug || brand?.id || slug}`;
+  const appTpl = String(brand?.appTemplate || "products_erp");
+  return buildFlagshipTenantUrl(brand?.slug || brand?.id || slug, appTpl);
 }
 
 function findBrandAndTenant(idOrSlug: string, deps: BrandHubDeps) {
