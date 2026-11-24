@@ -10,8 +10,62 @@ export interface DedicatedDeployResult {
   repoName?: string;
   dedicatedRepoUrl?: string;
   dedicatedLiveUrl?: string;
+  vercelPreviewUrl?: string;
+  vercelDeploymentId?: string;
+  vercelDeployError?: string;
+  welcomeKit?: {
+    storeUrl: string;
+    studioShowroomUrl: string;
+    agentQrUrl: string;
+    clientPortalUrl: string;
+    adminEmail: string;
+    adminPin: string;
+  };
   missingEnv?: string[];
   message: string;
+}
+
+async function enrichCatalogWithGeneratedVisuals(
+  catalog: any[],
+  opts: { brandName: string; businessType: string; primaryColor: string }
+): Promise<any[]> {
+  if (!Array.isArray(catalog) || catalog.length === 0) return [];
+  const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || '').trim();
+  if (!studioKey) return catalog;
+
+  const { getTitoStudioBaseUrl } = await import('./titoStudioApiClient');
+  const studioBase = getTitoStudioBaseUrl().replace(/\/+$/, '');
+  const cloned = catalog.map((item) => ({ ...item }));
+  const missingIndices = cloned
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ item }) => !item?.imageUrl && !(Array.isArray(item?.images) && item.images.length > 0))
+    .slice(0, 6);
+
+  for (let i = 0; i < missingIndices.length; i += 2) {
+    const batch = missingIndices.slice(i, i + 2);
+    await Promise.allSettled(
+      batch.map(async ({ item, idx }) => {
+        const prompt = `Studio commercial e-commerce product photography for "${item.name || 'منتج مميز'}" (${opts.businessType || 'تجارة إلكترونية'}), brand "${opts.brandName}", clean studio background, soft natural shadows, high resolution, zero text.`;
+        const res = await fetch(`${studioBase}/api/studio/generate-product-visual`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': studioKey },
+          body: JSON.stringify({
+            brandName: opts.brandName,
+            primaryColor: opts.primaryColor,
+            type: 'product',
+            prompt,
+          }),
+          signal: AbortSignal.timeout(25000),
+        });
+        const data: any = await res.json().catch(() => null);
+        if (res.ok && data?.success && data?.url) {
+          cloned[idx].imageUrl = data.url;
+          cloned[idx].images = [data.url];
+        }
+      })
+    );
+  }
+  return cloned;
 }
 
 const TEMPLATE_REPO_MAP: Record<FlagshipTemplateId, string> = {
@@ -196,12 +250,17 @@ export async function provisionDedicatedRepoAndVercel(input: {
     const adminPin = String((brand as any).adminPin || phoneDigits.slice(-6) || '373634');
     const adminEmail = String((brand as any).adminEmail || `owner@${asciiSlug}.t2.app`).toLowerCase();
     const resolvedPrimaryColor = input.primaryColor || (brand as any).primaryColor || '#06b6d4';
-    const resolvedCatalog =
+    const rawCatalog =
       Array.isArray(input.productsCatalog) && input.productsCatalog.length > 0
         ? input.productsCatalog
         : Array.isArray((brand as any).productsCatalog)
           ? (brand as any).productsCatalog
           : [];
+    const resolvedCatalog = await enrichCatalogWithGeneratedVisuals(rawCatalog, {
+      brandName: input.brandName || brand.name || asciiSlug,
+      businessType: input.businessType || brand.businessType || 'تجارة إلكترونية',
+      primaryColor: resolvedPrimaryColor,
+    });
 
     // 2b. Poll until GitHub finishes asynchronous template generation (index.html exists)
     let idxData: any = null;
@@ -417,6 +476,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
       dedicatedRepoUrl: repoUrl,
       dedicatedLiveUrl,
       appUrl: dedicatedLiveUrl,
+      productsCatalog: resolvedCatalog,
       adminEmail,
       adminPin
     } as any);
@@ -427,6 +487,43 @@ export async function provisionDedicatedRepoAndVercel(input: {
       dedicatedLiveUrl,
       appUrl: dedicatedLiveUrl
     });
+
+    // Live non-disruptive catalog & price sync to T2 Agent
+    try {
+      const { getT2AgentBaseUrl } = await import('./t2AgentApiClient');
+      const agentBase = getT2AgentBaseUrl().replace(/\/+$/, '');
+      const agentBrandId = String((brand as any).agentBrandId || brand.slug || brand.id)
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_');
+      const agentAdminKey = String(process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || '').trim();
+      const syncHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (agentAdminKey) syncHeaders['x-admin-key'] = agentAdminKey;
+      fetch(`${agentBase}/api/brands/${encodeURIComponent(agentBrandId)}/sync-catalog`, {
+        method: 'POST',
+        headers: syncHeaders,
+        body: JSON.stringify({
+          name: input.brandName || brand.name,
+          businessType: input.businessType || brand.businessType,
+          websiteUrl: dedicatedLiveUrl,
+          productsCatalog: resolvedCatalog,
+        }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {});
+    } catch {}
+
+    const studioClinicId = String((brand as any).titoStudioClinicId || brand.id);
+    const agentSlotId = String((brand as any).agentBrandId || brand.slug || brand.id)
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_');
+    const ezBaseUrl = String(process.env.PUBLIC_BASE_URL || 'https://t2os.app').replace(/\/+$/, '');
+    const welcomeKit = {
+      storeUrl: dedicatedLiveUrl,
+      studioShowroomUrl: `https://studio.t2os.app/?view=clientPortal&brandId=${encodeURIComponent(studioClinicId)}`,
+      agentQrUrl: `https://agent.t2os.app/dashboard?brandId=${encodeURIComponent(agentSlotId)}`,
+      clientPortalUrl: `${ezBaseUrl}/portal/${encodeURIComponent(brand.slug || brand.id)}`,
+      adminEmail,
+      adminPin,
+    };
 
     // Zero-Touch Onboarding notification (WhatsApp + Telegram)
     try {
@@ -449,6 +546,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
       repoName,
       dedicatedRepoUrl: repoUrl,
       dedicatedLiveUrl,
+      welcomeKit,
       ...(vercelPreviewUrl ? { vercelPreviewUrl } : {}),
       ...(vercelDeploymentId ? { vercelDeploymentId } : {}),
       ...(vercelDeployError ? { vercelDeployError } : {}),

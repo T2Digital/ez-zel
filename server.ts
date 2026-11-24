@@ -34,7 +34,12 @@ import {
     saveEcosystemConfig,
     runLiveEcosystemHealthProbe
 } from "./services/ecosystemConfigService";
-import { startEcosystemWatchdog, getWatchdogStatus } from "./services/ecosystemWatchdogService";
+import {
+    startEcosystemWatchdog,
+    getWatchdogStatus,
+    handleAgentDisconnectEvent,
+    buildAndSendDailyCeoBrief,
+} from "./services/ecosystemWatchdogService";
 import { startOffServerBackupScheduler } from "./services/offServerBackupService";
 import { getTitoStudioBaseUrl } from "./services/titoStudioApiClient";
 import { getT2AgentBaseUrl } from "./services/t2AgentApiClient";
@@ -1048,10 +1053,18 @@ async function startServer() {
                   const catalogCount = Array.isArray(b.productsCatalog) ? b.productsCatalog.length : 0;
                   const targetAgentId = String(b.agentBrandId || b.slug || b.id).toLowerCase();
                   const agentMatch = agentBrands.find(
-                      (ab: any) =>
-                          String(ab.id || "").toLowerCase() === targetAgentId ||
-                          String(ab.slug || "").toLowerCase() === targetAgentId ||
-                          String(ab.id || "").toLowerCase() === String(b.id || "").toLowerCase()
+                      (ab: any) => {
+                          const abKey = String(ab.brandId || ab.id || ab.slug || "").toLowerCase();
+                          const abAlt = String(ab.id || "").toLowerCase();
+                          const abSlug = String(ab.slug || "").toLowerCase();
+                          return (
+                              abKey === targetAgentId ||
+                              abAlt === targetAgentId ||
+                              abSlug === targetAgentId ||
+                              abKey === String(b.id || "").toLowerCase() ||
+                              abKey === String(b.slug || "").toLowerCase()
+                          );
+                      }
                   );
                   const rawAgentStatus = String(agentMatch?.status || agentMatch?.whatsappStatus || "").toUpperCase();
                   const agentWhatsappConnected = Boolean(
@@ -1063,6 +1076,7 @@ async function startServer() {
                       : agentWhatsappConnected
                         ? "CONNECTED"
                         : "DISCONNECTED";
+                  const agentQrReady = Boolean(agentMatch && rawAgentStatus === "SCAN_QR");
 
                   const identityReady = Boolean(b.name && b.appTemplate && catalogCount > 0);
                   const studioReady = Boolean(b.titoStudioClinicId && Array.isArray(b.weekContentPlan) && b.weekContentPlan.length > 0);
@@ -1106,6 +1120,7 @@ async function startServer() {
                           metaReady,
                           agentReady,
                           agentStatus,
+                          agentQrReady,
                           planReady,
                           missingItems,
                       },
@@ -4768,6 +4783,34 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   app.get("/api/system/watchdog-status", (_req, res) => {
       res.json({ ok: true, ...getWatchdogStatus() });
+  });
+
+  app.post("/api/agent/events/disconnect", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          const headerKey = String(req.headers["x-admin-key"] || req.headers["x-admin-secret"] || "").trim();
+          const validAgentKeys = [process.env.T2_AGENT_ADMIN_KEY, process.env.ADMIN_SECRET_KEY]
+              .map((k) => String(k || "").trim())
+              .filter(Boolean);
+          if (!auth.ok && !(headerKey && validAgentKeys.includes(headerKey))) {
+              return res.status(401).json({ ok: false, error: "Unauthorized agent webhook" });
+          }
+          const result = await handleAgentDisconnectEvent(req.body || {});
+          res.json(result);
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Webhook failed" });
+      }
+  });
+
+  app.post("/api/admin/watchdog/daily-brief", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+          const result = await buildAndSendDailyCeoBrief(true);
+          res.json({ ok: true, ...result });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Daily brief error" });
+      }
   });
 
   registerProxyAndSystemRoutes(app, { getServerAI, synthesizeSovereignSpeech, getCleanServerGeminiKey });

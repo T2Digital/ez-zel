@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, CheckCircle2, ExternalLink, Film, MessageSquare, Send, Sparkles } from 'lucide-react';
+import { Bot, Check, CheckCircle2, Copy, ExternalLink, Film, LayoutGrid, MessageSquare, Send, Sparkles } from 'lucide-react';
 
 interface ClientPortalViewProps {
   slug: string;
@@ -36,7 +36,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
       return '';
     }
   });
-  const [activeTab, setActiveTab] = useState<'showroom' | 'agent' | 'account_manager' | 'posts'>('showroom');
+  const [activeTab, setActiveTab] = useState<'overview' | 'showroom' | 'agent' | 'account_manager' | 'posts'>('overview');
+  const [copiedWelcome, setCopiedWelcome] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyIdx, setBusyIdx] = useState<number | null>(null);
@@ -250,6 +251,15 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
         {/* Navigation Tabs */}
         <div className="flex flex-wrap gap-2">
           <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition flex items-center gap-1.5 ${
+              activeTab === 'overview' ? 'bg-white text-slate-950' : 'bg-[#071122] text-slate-300 border border-white/10 hover:border-cyan-400/40'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>📊 نظرة عامة وروابطي</span>
+          </button>
+          <button
             onClick={() => setActiveTab('showroom')}
             className={`px-4 py-2.5 rounded-2xl text-xs font-black transition ${
               activeTab === 'showroom' ? 'bg-purple-600 text-white' : 'bg-[#071122] text-slate-300 border border-white/10 hover:border-purple-400/40'
@@ -282,6 +292,85 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
             📋 اعتماد المنشورات السريع ({posts.length})
           </button>
         </div>
+
+        {/* Tab 0: Overview & Welcome Kit */}
+        {activeTab === 'overview' && (
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-3xl bg-[#071122]/85 border border-cyan-500/30 p-5 flex flex-col justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-bold text-cyan-300">1. المتجر والتطبيق</div>
+                <h3 className="text-base font-black mt-1">{brand.name}</h3>
+                <p className="text-xs text-slate-400 mt-1">كتالوج المنتجات والطلبات المباشرة للعملاء</p>
+              </div>
+              <a
+                href={storefrontHref}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-2.5 rounded-xl bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>فتح التطبيق الآن</span>
+              </a>
+            </div>
+
+            <div className="rounded-3xl bg-[#071122]/85 border border-purple-500/30 p-5 flex flex-col justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-bold text-purple-300">2. تيتو استوديو (المحتوى)</div>
+                <h3 className="text-base font-black mt-1">الرصيد: {quota?.designsRemaining ?? quota?.monthlyDesigns ?? 2} تصميم / {quota?.videosRemaining ?? quota?.monthlyVideos ?? 1} فيديو</h3>
+                <p className="text-xs text-slate-400 mt-1">مراجعة واعتماد التصميمات والريلز الجاهزة للنشر</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('showroom')}
+                className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-black cursor-pointer"
+              >
+                فتح صالة العرض
+              </button>
+            </div>
+
+            <div className="rounded-3xl bg-[#071122]/85 border border-emerald-500/30 p-5 flex flex-col justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-bold text-emerald-300">3. تيتو أجنت (الواتساب)</div>
+                <h3 className="text-base font-black mt-1">{brand.whatsappConnected ? 'واتساب متصل ويعمل 24/7' : 'جاهز لربط QR'}</h3>
+                <p className="text-xs text-slate-400 mt-1">الرد الآلي على العملاء وتحويل الحجوزات للوحة</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('agent')}
+                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer"
+              >
+                فتح لوحة الأيجنت والـ QR
+              </button>
+            </div>
+
+            <div className="rounded-3xl bg-[#071122]/85 border border-amber-500/30 p-5 flex flex-col justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-bold text-amber-300">4. باقة الترحيب السريعة</div>
+                <h3 className="text-base font-black mt-1">{planSpec?.nameAr || 'باقة التشغيل الذكي'}</h3>
+                <p className="text-xs text-slate-400 mt-1">انسخ جميع روابط متجرك وبوابتك بضغطة واحدة</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const txt = [
+                    `باقة الترحيب لبراند: ${brand.name}`,
+                    `المتجر: ${storefrontHref}`,
+                    portals.studioShowroomUrl ? `تيتو استوديو (الشو روم): ${portals.studioShowroomUrl}` : '',
+                    (portals.agentFullDashboardUrl || portals.agentDashboardUrl) ? `تيتو أجنت (واتساب QR): ${portals.agentFullDashboardUrl || portals.agentDashboardUrl}` : '',
+                    `بوابة العميل: ${typeof window !== 'undefined' ? window.location.href : ''}`,
+                  ].filter(Boolean).join('\n');
+                  navigator.clipboard?.writeText(txt).catch(() => {});
+                  setCopiedWelcome(true);
+                  setTimeout(() => setCopiedWelcome(false), 2500);
+                }}
+                className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {copiedWelcome ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedWelcome ? 'تم نسخ الروابط!' : 'نسخ باقة الترحيب'}</span>
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Tab 1: T2 Studio Showroom Only */}
         {activeTab === 'showroom' && (

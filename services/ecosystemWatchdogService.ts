@@ -1,4 +1,7 @@
 import { runLiveEcosystemHealthProbe } from "./ecosystemConfigService";
+import { t2AgentApi } from "./t2AgentApiClient";
+import { getUnifiedGrowthBrands } from "./obsidianVaultService";
+import { readBookings } from "./microservicesGateway";
 
 export interface WatchdogSnapshot {
   checkedAt: string;
@@ -29,6 +32,8 @@ const watchdogState: {
   prevAgentStatus: string;
   prevStudioUptime?: number;
   prevAgentUptime?: number;
+  prevWhatsAppStatuses: Record<string, string>;
+  lastBriefDateCairo?: string;
   lastAlertAt: Record<string, number>;
   lastAlerts: WatchdogAlertEntry[];
 } = {
@@ -36,6 +41,7 @@ const watchdogState: {
   snapshots: [],
   prevStudioStatus: "UNKNOWN",
   prevAgentStatus: "UNKNOWN",
+  prevWhatsAppStatuses: {},
   lastAlertAt: {},
   lastAlerts: [],
 };
@@ -169,6 +175,31 @@ async function runWatchdogTick(getStudioUrl: () => string, getAgentUrl: () => st
       );
     }
 
+    // Poll WhatsApp fleet statuses from T2 Agent and alert if any connected brand disconnects
+    try {
+      const fleetRes: any = await Promise.race([
+        t2AgentApi.getAllBrandsHealth(),
+        new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
+      const fleet = Array.isArray(fleetRes?.brands) ? fleetRes.brands : (Array.isArray(fleetRes) ? fleetRes : []);
+      for (const item of fleet) {
+        const bId = String(item?.brandId || item?.id || "").trim();
+        if (!bId) continue;
+        const curWa = String(item?.status || (item?.connected ? "CONNECTED" : "DISCONNECTED")).toUpperCase();
+        const isConnectedNow = item?.connected === true || curWa === "CONNECTED" || curWa === "OPEN" || curWa === "READY";
+        const normalizedState = isConnectedNow ? "CONNECTED" : curWa;
+        const prevWa = watchdogState.prevWhatsAppStatuses[bId];
+        if (prevWa === "CONNECTED" && !isConnectedNow) {
+          const qrUrl = `https://agent.t2os.app/dashboard?brandId=${encodeURIComponent(bId)}`;
+          await emitAlertWithCooldown(
+            `wa_disconnect_${bId}`,
+            `📵 <b>[T2OS WhatsApp Alert]</b> فصل اتصال واتساب لبراند <b>${item?.name || bId}</b> (<code>${normalizedState}</code>)\n🔗 <a href="${qrUrl}">فتح لوحة الأيجنت وتجديد QR فوراً</a>`
+          );
+        }
+        watchdogState.prevWhatsAppStatuses[bId] = normalizedState;
+      }
+    } catch {}
+
     watchdogState.prevStudioStatus = snap.titoStudioStatus;
     watchdogState.prevAgentStatus = snap.t2AgentStatus;
     if (typeof snap.titoStudioUptimeSec === "number") {
@@ -182,6 +213,82 @@ async function runWatchdogTick(getStudioUrl: () => string, getAgentUrl: () => st
   }
 }
 
+export async function handleAgentDisconnectEvent(payload: {
+  brandId: string;
+  brandName?: string;
+  status?: string;
+  statusCode?: number;
+  dashboardUrl?: string;
+}): Promise<{ ok: boolean; brandId: string; alerted: boolean }> {
+  const brandId = String(payload?.brandId || "").trim();
+  if (!brandId) return { ok: false, brandId: "", alerted: false };
+  const label = payload.brandName || brandId;
+  const reason = payload.status || "DISCONNECTED";
+  const dashboardUrl = payload.dashboardUrl || `https://agent.t2os.app/dashboard?brandId=${encodeURIComponent(brandId)}`;
+  watchdogState.prevWhatsAppStatuses[brandId] = String(reason).toUpperCase();
+  await emitAlertWithCooldown(
+    `wa_disconnect_${brandId}`,
+    `📵 <b>[T2OS Instant Alert]</b> انقطع اتصال واتساب لبراند <b>${label}</b> (<code>${reason}</code>${payload.statusCode ? ` / ${payload.statusCode}` : ""})\n🔗 <a href="${dashboardUrl}">فتح لوحة الأيجنت وإعادة الربط</a>`
+  );
+  return { ok: true, brandId, alerted: true };
+}
+
+export async function buildAndSendDailyCeoBrief(force = false): Promise<{
+  sent: boolean;
+  reason?: string;
+  summaryText: string;
+}> {
+  const cairoParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Cairo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const getPart = (t: string) => cairoParts.find((p) => p.type === t)?.value || "00";
+  const todayCairo = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+  const hourCairo = Number(getPart("hour"));
+
+  if (!force) {
+    if (hourCairo !== 9 || watchdogState.lastBriefDateCairo === todayCairo) {
+      return { sent: false, reason: "outside_schedule_or_already_sent", summaryText: "" };
+    }
+  }
+
+  const allBrands = getUnifiedGrowthBrands();
+  const activeBrands = allBrands.filter((b: any) => b?.lifecycleStage !== "paused_archive");
+  const bookings = readBookings();
+
+  let waConnected = 0;
+  let waDisconnected = 0;
+  try {
+    const fleetRes: any = await Promise.race([
+      t2AgentApi.getAllBrandsHealth(),
+      new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+    ]);
+    const fleet = Array.isArray(fleetRes?.brands) ? fleetRes.brands : (Array.isArray(fleetRes) ? fleetRes : []);
+    for (const item of fleet) {
+      const s = String(item?.status || "").toUpperCase();
+      if (item?.connected === true || s === "CONNECTED" || s === "OPEN" || s === "READY") waConnected++;
+      else waDisconnected++;
+    }
+  } catch {}
+
+  const latest = watchdogState.snapshots[0];
+  const rssMb = Math.round(process.memoryUsage().rss / 1048576);
+  const summaryText =
+    `☀️ <b>تقرير الصباح التنفيذي — منظومة T2OS (${todayCairo})</b>\n` +
+    `• البراندات النشطة والتجريبية: <b>${activeBrands.length}</b> (من إجمالي ${allBrands.length})\n` +
+    `• جلسات الواتساب (Agent): <b>${waConnected}</b> متصل | <b>${waDisconnected}</b> غير متصل\n` +
+    `• إجمالي الحجوزات المسجلة: <b>${bookings.length}</b>\n` +
+    `• صحة المحركات: الظل ✅ (${rssMb} MB) | الاستوديو: <code>${latest?.titoStudioStatus || "CONNECTED"}</code> | الأيجنت: <code>${latest?.t2AgentStatus || "CONNECTED"}</code>`;
+
+  watchdogState.lastBriefDateCairo = todayCairo;
+  const tg = await sendTelegramOpsAlert(summaryText);
+  return { sent: tg.ok, reason: tg.reason, summaryText };
+}
+
 export function startEcosystemWatchdog(getStudioUrl: () => string, getAgentUrl: () => string): void {
   if (watchdogState.started) return;
   watchdogState.started = true;
@@ -193,6 +300,10 @@ export function startEcosystemWatchdog(getStudioUrl: () => string, getAgentUrl: 
   setInterval(() => {
     runWatchdogTick(getStudioUrl, getAgentUrl);
   }, 10 * 60 * 1000).unref();
+
+  setInterval(() => {
+    void buildAndSendDailyCeoBrief(false);
+  }, 60 * 60 * 1000).unref();
 }
 
 export function getWatchdogStatus() {

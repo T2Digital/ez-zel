@@ -898,3 +898,24 @@ test("24) Persistent storage includes brands/hub configs and preserves external 
   assert.ok(depSrc.includes("upsertBrandRegistryEntry"), "dedicatedDeployService must sync deployed URL to brandRegistryService");
   assert.ok(!depSrc.includes("if (depJson?.url) dedicatedLiveUrl ="), "dedicatedDeployService must not overwrite clean alias URL with preview URL");
 });
+
+test("25) Ecosystem watchdog handles Agent disconnect webhooks & Daily Brief; Factory enriches visuals & syncs catalog", () => {
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(serverSrc.includes("ab.brandId || ab.id"), "/api/admin/brands/registry must match Agent brandId field");
+  assert.ok(serverSrc.includes("/api/agent/events/disconnect"), "server.ts must expose Agent disconnect webhook");
+  assert.ok(serverSrc.includes("/api/admin/watchdog/daily-brief"), "server.ts must expose Daily CEO Brief endpoint");
+
+  const wdSrc = fs.readFileSync(path.join(process.cwd(), "services", "ecosystemWatchdogService.ts"), "utf8");
+  assert.ok(wdSrc.includes("handleAgentDisconnectEvent"), "ecosystemWatchdogService must export handleAgentDisconnectEvent");
+  assert.ok(wdSrc.includes("buildAndSendDailyCeoBrief"), "ecosystemWatchdogService must export buildAndSendDailyCeoBrief");
+
+  const depSrc = fs.readFileSync(path.join(process.cwd(), "services", "dedicatedDeployService.ts"), "utf8");
+  assert.ok(depSrc.includes("/api/studio/generate-product-visual"), "dedicatedDeployService must call Studio product visual endpoint");
+  assert.ok(depSrc.includes("/sync-catalog"), "dedicatedDeployService must sync catalog to T2 Agent");
+  assert.ok(depSrc.includes("welcomeKit"), "dedicatedDeployService must return Welcome Kit links");
+
+  const jarvisSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.equal(jarvisSrc.includes("358 real chats"), false, "Jarvis must not show hardcoded 358 real chats");
+  assert.equal(jarvisSrc.includes("25 Unified Brands"), false, "Jarvis must not show hardcoded 25 Unified Brands");
+  assert.ok(jarvisSrc.includes("jarvisWorkspaceMode"), "Jarvis must expose clean Command/Ops workspace switcher");
+});

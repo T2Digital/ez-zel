@@ -133,11 +133,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   // Real Live Ecosystem Event Stream (Zero Fake Simulation Logs)
   const [cyberLogs, setCyberLogs] = useState<string[]>([
-    '[SECOND_BRAIN]: Obsidian Neural Knowledge Graph synchronized (25 Unified Brands).',
-    '[FIRESTORE]: Connected to t2-content-studio Cloud (17 Clinics + 8 Agency Brands).',
-    '[VOICE_ENGINE]: Gemini 24kHz Human Voice (Puck / Kore) locked at 100% fidelity.',
-    '[WA_AGENT]: Clean Master Egypt & Sale Gates webhooks active (358 real chats).',
-    '[PWA_CLONER]: Multi-Tenant Storefront routes (/store/:slug) online.'
+    '[T2OS]: جاري مزامنة الأنظمة الحية (الظل + الاستوديو + الأيجنت)...'
   ]);
 
   // Two-Way Live Conversation State
@@ -292,6 +288,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'
   const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(initialPersona === 'client' ? 'brand_hub' : 'obsidian_graph');
+  const [jarvisWorkspaceMode, setJarvisWorkspaceMode] = useState<'command' | 'ops'>('ops');
   const [isExecutingAutonomousAgency, setIsExecutingAutonomousAgency] = useState<boolean>(false);
   const [autonomousAgencyData, setAutonomousAgencyData] = useState<any>(null);
   const [activeDynamicWidget, setActiveDynamicWidget] = useState<{ widgetType: string; data: any } | null>(null);
@@ -1857,8 +1854,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* THE GIANT HOLOGRAPHIC ARC REACTOR — RENDERED IN TOP BAR WHEN SUB-DECK OPEN OR FOR VISITOR; MERGED INTO CONSTELLATION CENTER ON MAIN GRID */}
-            {(persona === 'visitor' || activeDeckTab !== 'obsidian_graph') && (
+            {/* THE GIANT HOLOGRAPHIC ARC REACTOR — RENDERED IN TOP BAR WHEN SUB-DECK OPEN, IN COMMAND MODE, OR FOR VISITOR; MERGED INTO CONSTELLATION CENTER IN OPS MODE */}
+            {(persona === 'visitor' || activeDeckTab !== 'obsidian_graph' || jarvisWorkspaceMode === 'command') && (
               <button
                 type="button"
                 onClick={() => {
@@ -1929,20 +1926,52 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             {/* Voice conversation is synced directly to main Shadow Chat */}
 
-            {/* DYNAMIC JARVIS STAGE: Neural Constellation is the sole default stage; dynamic views appear on demand */}
-            {persona !== 'visitor' ? (
-              activeDeckTab !== 'obsidian_graph' ? (
-                <div className="flex items-center justify-center">
+            {/* DYNAMIC JARVIS STAGE: Clean Dual-Mode Toggle + Neural Constellation or Distraction-Free Command Card */}
+            {persona !== 'visitor' && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <div className="inline-flex items-center p-1 rounded-2xl bg-[#03091e]/90 border border-cyan-500/30 shadow-sm">
                   <button
+                    type="button"
+                    onClick={() => {
+                      setJarvisWorkspaceMode('command');
+                      setActiveDeckTab('obsidian_graph');
+                    }}
+                    className={`px-3 py-1 rounded-xl text-[11px] font-black transition cursor-pointer ${
+                      jarvisWorkspaceMode === 'command' && activeDeckTab === 'obsidian_graph'
+                        ? 'bg-cyan-400 text-slate-950'
+                        : 'text-white/75 hover:text-white'
+                    }`}
+                  >
+                    ⚡ وضع الأوامر والصوت
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJarvisWorkspaceMode('ops');
+                      setActiveDeckTab('obsidian_graph');
+                    }}
+                    className={`px-3 py-1 rounded-xl text-[11px] font-black transition cursor-pointer ${
+                      jarvisWorkspaceMode === 'ops' && activeDeckTab === 'obsidian_graph'
+                        ? 'bg-cyan-500/25 border border-cyan-400/50 text-cyan-200'
+                        : 'text-white/75 hover:text-white'
+                    }`}
+                  >
+                    🛰️ غرفة العمليات والأوبسيديان
+                  </button>
+                </div>
+                {activeDeckTab !== 'obsidian_graph' && (
+                  <button
+                    type="button"
                     onClick={() => setActiveDeckTab('obsidian_graph')}
                     className="py-1.5 px-3.5 rounded-full bg-cyan-950/50 hover:bg-cyan-500/20 border border-cyan-400/35 text-cyan-200 text-[11px] font-bold flex items-center gap-1.5 transition backdrop-blur-xl cursor-pointer font-['Cairo']"
                   >
                     <Layers className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>العودة للشبكة العصبية 3D</span>
+                    <span>العودة للواجهة الرئيسية</span>
                   </button>
-                </div>
-              ) : null
-            ) : (
+                )}
+              </div>
+            )}
+            {persona === 'visitor' && (
               <div className="w-full max-w-lg py-2 px-3 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-xs font-bold font-['Cairo']">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
@@ -2276,8 +2305,75 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               />
             )}
 
-            {/* TAB 0A: 2026 SOVEREIGN 3D HOLOGRAPHIC NEURAL CONSTELLATION (OPEN SPACE HERO THEATER) */}
-            {activeDeckTab === 'obsidian_graph' && (
+            {/* TAB 0A: COMMAND FOCUS MODE OR 3D HOLOGRAPHIC NEURAL CONSTELLATION */}
+            {activeDeckTab === 'obsidian_graph' && jarvisWorkspaceMode === 'command' && (
+              <div className="w-full max-w-4xl mx-auto flex flex-col gap-3 p-4 rounded-3xl bg-[#040b1d]/90 border border-cyan-500/30 backdrop-blur-xl font-['Cairo'] text-right animate-in fade-in duration-300">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                  <div>
+                    <div className="text-xs font-black text-cyan-300">⚡ وضع القيادة التنفيذية المركز</div>
+                    <p className="text-[11px] text-white/60">شاشة هادئة للصوت والأوامر الفورية والتحكم السريع في أي براند</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedBrandId || currentSelectedBrand?.id || ''}
+                      onChange={(e) => handleSelectBrand(e.target.value)}
+                      className="bg-black/70 border border-cyan-500/35 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    >
+                      {allBrandsList.map((b) => (
+                        <option key={b.id} value={b.id} className="bg-slate-950 text-white">
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setActiveDeckTab('brand_hub')}
+                      className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/45 text-cyan-200 text-xs font-black cursor-pointer"
+                    >
+                      إدارة 4 أركان
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setJarvisWorkspaceMode('ops')}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold cursor-pointer"
+                    >
+                      فتح الشبكة 3D
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-2xl bg-black/50 border border-white/10 flex flex-col gap-1.5">
+                    <div className="text-[11px] font-bold text-cyan-300">آخر استجابة من جارفيس</div>
+                    <div className="text-xs text-white/90 leading-relaxed min-h-[56px]">
+                      {transcript || 'جاهز لتنفيذ أمرك الصوتي أو النصي فوراً — جرب مثلاً: أنشئ براند جديد أو اعرض جاهزية المنظومة.'}
+                    </div>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-black/50 border border-white/10 flex flex-col gap-1.5">
+                    <div className="text-[11px] font-bold text-emerald-300">
+                      حالة البراند المحدد: {currentSelectedBrand?.name || 'غير محدد'}
+                    </div>
+                    <div className="text-xs text-white/80">
+                      واتساب: {(currentSelectedBrand as any)?.whatsappConnected ? `متصل (${(currentSelectedBrand as any)?.liveWhatsappMessagesCount ?? 0} رسالة)` : 'غير مربوط'} • منشورات الاستوديو:{' '}
+                      {Number((currentSelectedBrand as any)?.studioPostsCount ?? (Array.isArray(currentSelectedBrand?.weekContentPlan) ? currentSelectedBrand.weekContentPlan.length : 0))}
+                    </div>
+                    {currentSelectedBrand && (
+                      <a
+                        href={resolveBrandWebUrl(currentSelectedBrand)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex items-center gap-1.5 text-xs font-black text-cyan-300 hover:underline w-fit"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>فتح المتجر / التطبيق المباشر</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeDeckTab === 'obsidian_graph' && jarvisWorkspaceMode === 'ops' && (
               <div className="w-full flex-1 min-h-0 flex flex-col gap-1.5 animate-in fade-in duration-300 font-['Cairo'] text-right">
                 {/* OPEN 3D HOLOGRAPHIC SPACE — FITS 100% IN VIEWPORT WITHOUT SCROLL */}
                 <div className="w-full flex-1 min-h-[260px] relative">
