@@ -196,6 +196,8 @@ export const CRITICAL_PERSISTENT_STATE_KEYS = [
   { docKey: "t2_utm_attributions", filename: "t2_utm_attributions.json" },
   { docKey: "t2_social_publish_queue", filename: "t2_social_publish_queue.json" },
   { docKey: "t2_lifecycle_events", filename: "t2_lifecycle_events.json" },
+  { docKey: "t2_brands_vault", filename: "brands.json" },
+  { docKey: "t2_brand_hub_configs", filename: "brand_hub_configs.json" },
 ] as const;
 
 /**

@@ -880,3 +880,21 @@ test("23) No hardcoded fake metrics in brandVault/Jarvis UI & jarvisBrainEngine 
   assert.ok(brainSrc.includes('case "deploy_brand_web_app"'), "jarvisBrainEngine must handle deploy_brand_web_app");
   assert.ok(brainSrc.includes("provisionDedicatedRepoAndVercel"), "jarvisBrainEngine must invoke provisionDedicatedRepoAndVercel");
 });
+
+test("24) Persistent storage includes brands/hub configs and preserves external Vercel URLs across Obsidian & Registry", () => {
+  const persistSrc = fs.readFileSync(path.join(process.cwd(), "services", "persistentStorage.ts"), "utf8");
+  assert.ok(persistSrc.includes('docKey: "t2_brands_vault"') && persistSrc.includes('filename: "brands.json"'));
+  assert.ok(persistSrc.includes('docKey: "t2_brand_hub_configs"') && persistSrc.includes('filename: "brand_hub_configs.json"'));
+
+  const obsSrc = fs.readFileSync(path.join(process.cwd(), "services", "obsidianVaultService.ts"), "utf8");
+  assert.ok(obsSrc.includes("getPersistentFilePath('brands.json')"));
+  assert.ok(obsSrc.includes("savePersistentJson('t2_brands_vault'"));
+  assert.ok(obsSrc.includes("resolveBrandExternalOrStoreUrl"));
+
+  const regSrc = fs.readFileSync(path.join(process.cwd(), "services", "brandRegistryService.ts"), "utf8");
+  assert.ok(regSrc.includes("seenCanonicalIds") && regSrc.includes("Object.values(state.brands)"), "applyRegistryToBrands must synthesize unmatched state.brands entries");
+
+  const depSrc = fs.readFileSync(path.join(process.cwd(), "services", "dedicatedDeployService.ts"), "utf8");
+  assert.ok(depSrc.includes("upsertBrandRegistryEntry"), "dedicatedDeployService must sync deployed URL to brandRegistryService");
+  assert.ok(!depSrc.includes("if (depJson?.url) dedicatedLiveUrl ="), "dedicatedDeployService must not overwrite clean alias URL with preview URL");
+});

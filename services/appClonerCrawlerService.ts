@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import { broadcastGatewayEvent } from './microservicesGateway';
 import { syncBrandToAllEcosystems } from './universalBrandSync';
 import { resolveFlagshipTemplate, FlagshipTemplateSpec } from './tenantFactory';
+import { getPersistentFilePath, savePersistentJson } from './persistentStorage';
 
 export interface CloneBrandInput {
     name?: string;
@@ -377,15 +378,28 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
     return clonedBrand;
 }
 
+function readMergedClonerBrands(): Record<string, any> {
+    let brandsMap: Record<string, any> = {};
+    try {
+        const bundledPath = path.join(process.cwd(), 'data', 'brands.json');
+        if (fs.existsSync(bundledPath)) {
+            brandsMap = { ...brandsMap, ...JSON.parse(fs.readFileSync(bundledPath, 'utf8')) };
+        }
+    } catch {}
+    try {
+        const persistentPath = getPersistentFilePath('brands.json');
+        if (fs.existsSync(persistentPath)) {
+            brandsMap = { ...brandsMap, ...JSON.parse(fs.readFileSync(persistentPath, 'utf8')) };
+        }
+    } catch {}
+    return brandsMap;
+}
+
 function saveBrandToDisk(brand: ClonedBrandOutput) {
     try {
-        const filePath = path.join(process.cwd(), 'data', 'brands.json');
-        let brandsMap: Record<string, any> = {};
-        if (fs.existsSync(filePath)) {
-            brandsMap = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        }
+        const brandsMap = readMergedClonerBrands();
         brandsMap[brand.id] = brand;
-        fs.writeFileSync(filePath, JSON.stringify(brandsMap, null, 2), 'utf8');
+        savePersistentJson('t2_brands_vault', 'brands.json', brandsMap);
     } catch (err: any) {
         console.error('[App Cloner] Failed to update brands.json:', err?.message);
     }
@@ -393,10 +407,12 @@ function saveBrandToDisk(brand: ClonedBrandOutput) {
 
 function saveTenantToDisk(brand: ClonedBrandOutput) {
     try {
-        const filePath = path.join(process.cwd(), 'data', 'tenants.json');
+        const persistentPath = getPersistentFilePath('tenants.json');
+        const bundledPath = path.join(process.cwd(), 'data', 'tenants.json');
+        const readPath = fs.existsSync(persistentPath) ? persistentPath : bundledPath;
         let tenantsList: any[] = [];
-        if (fs.existsSync(filePath)) {
-            tenantsList = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (fs.existsSync(readPath)) {
+            tenantsList = JSON.parse(fs.readFileSync(readPath, 'utf8'));
         }
         const existingIdx = tenantsList.findIndex((t: any) => t.id === brand.id || t.slug === brand.slug);
         const tenantEntry = {
@@ -418,7 +434,7 @@ function saveTenantToDisk(brand: ClonedBrandOutput) {
         } else {
             tenantsList.unshift(tenantEntry);
         }
-        fs.writeFileSync(filePath, JSON.stringify(tenantsList, null, 2), 'utf8');
+        savePersistentJson('tenants_vault', 'tenants.json', tenantsList);
     } catch (err: any) {
         console.error('[App Cloner] Failed to update tenants.json:', err?.message);
     }
@@ -426,13 +442,10 @@ function saveTenantToDisk(brand: ClonedBrandOutput) {
 
 export function getClonedBrandByIdOrSlug(idOrSlug: string): ClonedBrandOutput | null {
     try {
-        const filePath = path.join(process.cwd(), 'data', 'brands.json');
-        if (fs.existsSync(filePath)) {
-            const brandsMap = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            if (brandsMap[idOrSlug]) return brandsMap[idOrSlug];
-            const found = Object.values(brandsMap).find((b: any) => b.slug === idOrSlug || b.id === idOrSlug);
-            if (found) return found as ClonedBrandOutput;
-        }
+        const brandsMap = readMergedClonerBrands();
+        if (brandsMap[idOrSlug]) return brandsMap[idOrSlug];
+        const found = Object.values(brandsMap).find((b: any) => b.slug === idOrSlug || b.id === idOrSlug);
+        if (found) return found as ClonedBrandOutput;
     } catch {}
     return null;
 }

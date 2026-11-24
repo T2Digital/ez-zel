@@ -7,6 +7,11 @@ export interface CanonicalBrandEntry {
   canonicalId: string;
   slug: string;
   name?: string;
+  businessType?: string;
+  primaryColor?: string;
+  dedicatedLiveUrl?: string;
+  dedicatedRepoUrl?: string;
+  appUrl?: string;
   lifecycleStage: BrandLifecycleStage;
   appTemplate?: TenantAppTemplate;
   titoStudioClinicId?: string;
@@ -133,6 +138,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     appTemplate: 'products_erp',
     titoStudioClinicId: 'al_genedy',
     agentBrandId: 'al_genedy',
+    appUrl: process.env.AL_GENEDY_STANDALONE_URL || 'https://al-genedy.vercel.app',
     planId: 'growth_5000',
     planAmount: 5000,
   },
@@ -247,6 +253,7 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
   });
 
   const out: any[] = [];
+  const seenCanonicalIds = new Set<string>();
   for (const b of rawBrands) {
     if (!b || !b.id) continue;
     const normId = normalizeKey(b.id);
@@ -262,18 +269,33 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
         (e) => normalizeKey(e.canonicalId) === normId || normalizeKey(e.slug) === normSlug
       );
 
+    seenCanonicalIds.add(normalizeKey(entry?.canonicalId || b.id));
+    seenCanonicalIds.add(normalizeKey(entry?.slug || b.slug || b.id));
+
     const lifecycleStage: BrandLifecycleStage = entry?.lifecycleStage || defaultStage;
     const isPaused = lifecycleStage === 'paused_archive';
     const resolvedTemplate = entry?.appTemplate || resolveBrandTemplate(b);
 
     const resolvedPlanId = entry?.planId || b.planId || (lifecycleStage === 'active_client' ? 'growth_5000' : b.planId);
     const resolvedPlanAmount = entry?.planAmount ?? b.planAmount ?? (lifecycleStage === 'active_client' ? 5000 : 0);
+    const resolvedDedicatedUrl = entry?.dedicatedLiveUrl || b.dedicatedLiveUrl || undefined;
+    const resolvedAppUrl =
+      [entry?.dedicatedLiveUrl, entry?.appUrl, b.dedicatedLiveUrl, b.appUrl].find(
+        (u) => typeof u === 'string' && /^https?:\/\//i.test(u.trim())
+      ) ||
+      b.appUrl ||
+      `/store/${entry?.slug || b.slug || b.id}`;
 
     out.push({
       ...b,
       canonicalId: entry?.canonicalId || b.id,
       slug: entry?.slug || b.slug || b.id,
       name: entry?.name || b.name || b.id,
+      businessType: entry?.businessType || b.businessType,
+      primaryColor: entry?.primaryColor || b.primaryColor,
+      dedicatedLiveUrl: resolvedDedicatedUrl,
+      dedicatedRepoUrl: entry?.dedicatedRepoUrl || b.dedicatedRepoUrl,
+      appUrl: resolvedAppUrl,
       lifecycleStage,
       appTemplate: resolvedTemplate,
       titoStudioClinicId: entry?.titoStudioClinicId || b.titoStudioClinicId || b.id,
@@ -284,6 +306,49 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
       status: isPaused ? 'متوقف' : (b.status && b.status !== 'متوقف' ? b.status : 'شغال'),
       botPaused: isPaused ? true : Boolean(b.botPaused),
       registrySynced: Boolean(entry),
+    });
+  }
+
+  for (const entry of Object.values(state.brands)) {
+    if (!entry?.canonicalId) continue;
+    const normCid = normalizeKey(entry.canonicalId);
+    const normEntrySlug = normalizeKey(entry.slug || entry.canonicalId);
+    if (seenCanonicalIds.has(normCid) || seenCanonicalIds.has(normEntrySlug) || mergedAliases.has(normCid)) {
+      continue;
+    }
+    const lifecycleStage: BrandLifecycleStage = entry.lifecycleStage || defaultStage;
+    const isPaused = lifecycleStage === 'paused_archive';
+    const planAmount = entry.planAmount ?? (lifecycleStage === 'active_client' ? 5000 : 0);
+    out.push({
+      id: entry.canonicalId,
+      canonicalId: entry.canonicalId,
+      slug: entry.slug || entry.canonicalId,
+      name: entry.name || entry.canonicalId,
+      businessType: entry.businessType || 'تجارة إلكترونية',
+      primaryColor: entry.primaryColor || '#06b6d4',
+      phone: '',
+      whatsapp: '',
+      conversationsCount: 0,
+      lifecycleStage,
+      appTemplate: entry.appTemplate || 'products_erp',
+      titoStudioClinicId: entry.titoStudioClinicId || entry.canonicalId,
+      agentBrandId: entry.agentBrandId || entry.canonicalId,
+      dedicatedLiveUrl: entry.dedicatedLiveUrl,
+      dedicatedRepoUrl: entry.dedicatedRepoUrl,
+      appUrl: entry.dedicatedLiveUrl || entry.appUrl || `/store/${entry.slug || entry.canonicalId}`,
+      planId: entry.planId || (lifecycleStage === 'active_client' ? 'growth_5000' : ''),
+      planAmount,
+      subscriptionPlan:
+        lifecycleStage === 'active_client'
+          ? `باقة النمو الذهبي (${Number(planAmount).toLocaleString('en-US')} ج.م)`
+          : lifecycleStage === 'trial'
+            ? 'تجربة مجانية 7 أيام'
+            : 'متوقف',
+      status: isPaused ? 'متوقف' : 'شغال',
+      botPaused: isPaused,
+      productsCatalog: [],
+      weekContentPlan: [],
+      registrySynced: true,
     });
   }
 

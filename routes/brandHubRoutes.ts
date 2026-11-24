@@ -7,8 +7,9 @@ import { getTitoStudioAuthToken } from "../services/titoStudioFirestoreBridge";
 import { verifyAdminRequest } from "../services/serverAdminAuth";
 import { ACTIVE_GEMINI_TEXT_MODELS } from "../services/geminiKeyPool";
 import { calculateCodProfitability } from "../services/dropshippingEngineService";
+import { getPersistentFilePath, savePersistentJson } from "../services/persistentStorage";
 
-const HUB_CONFIG_FILE = path.join(process.cwd(), "data", "brand_hub_configs.json");
+const BUNDLED_HUB_CONFIG_FILE = path.join(process.cwd(), "data", "brand_hub_configs.json");
 const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || "t2-content-studio";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 const MASTER_EMAILS = new Set([
@@ -27,8 +28,14 @@ interface BrandHubDeps {
 
 function readLocalHubConfigs(): Record<string, any> {
   try {
-    if (!fs.existsSync(HUB_CONFIG_FILE)) return {};
-    return JSON.parse(fs.readFileSync(HUB_CONFIG_FILE, "utf8")) || {};
+    const persistentPath = getPersistentFilePath("brand_hub_configs.json");
+    if (fs.existsSync(persistentPath)) {
+      return JSON.parse(fs.readFileSync(persistentPath, "utf8")) || {};
+    }
+    if (fs.existsSync(BUNDLED_HUB_CONFIG_FILE)) {
+      return JSON.parse(fs.readFileSync(BUNDLED_HUB_CONFIG_FILE, "utf8")) || {};
+    }
+    return {};
   } catch {
     return {};
   }
@@ -36,10 +43,7 @@ function readLocalHubConfigs(): Record<string, any> {
 
 function writeLocalHubConfigs(data: Record<string, any>): void {
   try {
-    if (!fs.existsSync(path.dirname(HUB_CONFIG_FILE))) {
-      fs.mkdirSync(path.dirname(HUB_CONFIG_FILE), { recursive: true });
-    }
-    fs.writeFileSync(HUB_CONFIG_FILE, JSON.stringify(data, null, 2), "utf8");
+    savePersistentJson("t2_brand_hub_configs", "brand_hub_configs.json", data);
   } catch (err) {
     console.warn("[BrandHub] Failed writing local cache:", err);
   }

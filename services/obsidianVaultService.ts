@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { writeJsonAtomic, savePersistentJson } from './persistentStorage';
+import { writeJsonAtomic, savePersistentJson, getPersistentFilePath } from './persistentStorage';
 import { BRAND_VAULT } from './brandVault';
 import { readBookings, saveBooking, broadcastGatewayEvent } from './microservicesGateway';
 import { publishBrandPost, launchAdCampaign, getPublishedLogs } from './growthAgencyEngine';
@@ -54,10 +54,49 @@ export interface ObsidianVaultSnapshot {
 }
 
 const VAULT_ROOT = path.join(process.cwd(), 'obsidian_vault');
-const BRANDS_JSON_PATH = path.join(process.cwd(), 'data', 'brands.json');
+const BUNDLED_BRANDS_JSON_PATH = path.join(process.cwd(), 'data', 'brands.json');
 const TENANTS_JSON_PATH = path.join(process.cwd(), 'data', 'tenants.json');
 const EZZEL_CLIENTS_PATH = path.join(process.cwd(), 'data', 'ezzel_clients.json');
 const T2_AGENT_BRANDS_PATH = process.env.T2_AGENT_BRANDS_PATH || '';
+
+function getBrandsJsonPath(): string {
+    return getPersistentFilePath('brands.json');
+}
+
+function readMergedBrandsJsonFile(): Record<string, any> {
+    let merged: Record<string, any> = {};
+    try {
+        if (fs.existsSync(BUNDLED_BRANDS_JSON_PATH)) {
+            const parsed = JSON.parse(fs.readFileSync(BUNDLED_BRANDS_JSON_PATH, 'utf8'));
+            if (parsed && typeof parsed === 'object') merged = { ...parsed };
+        }
+    } catch {}
+    try {
+        const persistentPath = getBrandsJsonPath();
+        if (persistentPath !== BUNDLED_BRANDS_JSON_PATH && fs.existsSync(persistentPath)) {
+            const parsed = JSON.parse(fs.readFileSync(persistentPath, 'utf8'));
+            if (parsed && typeof parsed === 'object') {
+                for (const [k, v] of Object.entries(parsed)) {
+                    merged[k] = { ...(merged[k] || {}), ...(v as any) };
+                }
+            }
+        }
+    } catch {}
+    return merged;
+}
+
+export function resolveBrandExternalOrStoreUrl(slugOrKey: string, ...candidates: any[]): string {
+    for (const c of candidates) {
+        if (typeof c === 'string') {
+            const trimmed = c.trim();
+            if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        }
+    }
+    if (slugOrKey === 'al_genedy') {
+        return process.env.AL_GENEDY_STANDALONE_URL || 'https://al-genedy.vercel.app';
+    }
+    return `/store/${slugOrKey}`;
+}
 
 function ensureVaultDirectories() {
     const dirs = [
@@ -186,7 +225,7 @@ export function getUnifiedGrowthBrands(): any[] {
             metaPageName: b.metaPageName || b.name,
             metaPageId: b.metaPageId || '',
             subscriptionPlan: b.subscriptionPlan || 'VIP غير محدود',
-            appUrl: `/store/${b.id}`,
+            appUrl: resolveBrandExternalOrStoreUrl(b.id, b.dedicatedLiveUrl, b.appUrl),
             liveUrl: `https://${b.id.replace(/_/g, '-')}.vercel.app`,
             productsCatalog: Object.entries(b.catalog || {}).map(([k, v]: [string, any], idx) => ({
                 id: k || `srv_${idx}`,
@@ -242,32 +281,36 @@ export function getUnifiedGrowthBrands(): any[] {
         });
     });
 
-    // 2. Overlay from data/brands.json (Cloned & enriched brands)
-    if (fs.existsSync(BRANDS_JSON_PATH)) {
-        try {
-            const rawBrands = JSON.parse(fs.readFileSync(BRANDS_JSON_PATH, 'utf8'));
-            Object.values(rawBrands).forEach((cb: any) => {
-                if (!cb || (!cb.id && !cb.slug)) return;
-                const key = cb.id || cb.slug;
-                const existing = mergedMap.get(key) || {};
-                mergedMap.set(key, {
-                    ...existing,
-                    ...cb,
-                    id: key,
-                    slug: cb.slug || key,
-                    name: cb.name || existing.name || key,
-                    businessType: cb.businessType || existing.businessType || 'نشاط تجاري',
-                    phone: cb.phone || existing.phone || '01013373634',
-                    appUrl: `/store/${cb.slug || key}`,
-                    productsCatalog: Array.isArray(cb.productsCatalog) && cb.productsCatalog.length > 0
-                        ? cb.productsCatalog
-                        : (existing.productsCatalog || []),
-                    weekContentPlan: Array.isArray(cb.weekContentPlan) && cb.weekContentPlan.length > 0
-                        ? cb.weekContentPlan
-                        : (existing.weekContentPlan || [])
-                });
+    // 2. Overlay from data/brands.json (bundled + persistent /var/data)
+    {
+        const rawBrands = readMergedBrandsJsonFile();
+        Object.values(rawBrands).forEach((cb: any) => {
+            if (!cb || (!cb.id && !cb.slug)) return;
+            const key = cb.id || cb.slug;
+            const existing = mergedMap.get(key) || {};
+            mergedMap.set(key, {
+                ...existing,
+                ...cb,
+                id: key,
+                slug: cb.slug || key,
+                name: cb.name || existing.name || key,
+                businessType: cb.businessType || existing.businessType || 'نشاط تجاري',
+                phone: cb.phone || existing.phone || '01013373634',
+                appUrl: resolveBrandExternalOrStoreUrl(
+                    cb.slug || key,
+                    cb.dedicatedLiveUrl,
+                    cb.appUrl,
+                    existing.dedicatedLiveUrl,
+                    existing.appUrl
+                ),
+                productsCatalog: Array.isArray(cb.productsCatalog) && cb.productsCatalog.length > 0
+                    ? cb.productsCatalog
+                    : (existing.productsCatalog || []),
+                weekContentPlan: Array.isArray(cb.weekContentPlan) && cb.weekContentPlan.length > 0
+                    ? cb.weekContentPlan
+                    : (existing.weekContentPlan || [])
             });
-        } catch {}
+        });
     }
 
     // 3. Overlay from T2-Agent brands.json if configured via T2_AGENT_BRANDS_PATH
@@ -285,7 +328,7 @@ export function getUnifiedGrowthBrands(): any[] {
                     businessType: ab.businessType || existing.businessType || 'نشاط تجاري',
                     phone: ab.notificationWhatsApp || ab.bookingReceiverPhone || existing.phone || '01013373634',
                     status: ab.status || existing.status || 'شغال',
-                    appUrl: `/store/${existing.slug || ab.id}`,
+                    appUrl: resolveBrandExternalOrStoreUrl(existing.slug || ab.id, existing.dedicatedLiveUrl, existing.appUrl),
                     productsCatalog: existing.productsCatalog || [],
                     weekContentPlan: existing.weekContentPlan || []
                 });
@@ -372,7 +415,13 @@ export function getUnifiedGrowthBrands(): any[] {
             metaPageName: clinic.selectedMetaPage?.name || existing.metaPageName || clinic.name,
             metaPageId: clinic.selectedMetaPage?.id || existing.metaPageId || '',
             metaToken: clinic.metaToken || existing.metaToken || '',
-            appUrl: `/store/${existing.slug || clinic.slug || mappedKey}`,
+            appUrl: resolveBrandExternalOrStoreUrl(
+                existing.slug || clinic.slug || mappedKey,
+                existing.dedicatedLiveUrl,
+                existing.appUrl,
+                clinic.appUrl,
+                clinic.websiteUrl
+            ),
             productsCatalog:
                 existing.productsCatalog && existing.productsCatalog.length > 0
                     ? existing.productsCatalog
@@ -466,6 +515,7 @@ ${ezzelClients.map(c => `- [[02_EzZel_Personal_Clients/${c.id}|${c.name}]] — $
         const brandBookings = bookings.filter(bk => bk.brandId === b.id);
         const brandPublished = publishedLogs.filter(lg => lg.brandId === b.id);
         const isBotOnline = b.id === 'clean_master' || b.id === 'besho' || b.status === 'شغال' || b.status === 'نشط';
+        const resolvedStoreUrl = resolveBrandExternalOrStoreUrl(b.slug || b.id, b.dedicatedLiveUrl, b.appUrl);
 
         const brandNodeId = `brand_${b.id}`;
         nodes.push({
@@ -486,7 +536,7 @@ ${ezzelClients.map(c => `- [[02_EzZel_Personal_Clients/${c.id}|${c.name}]] — $
                 publishedCount: brandPublished.length,
                 bookingsCount: brandBookings.length,
                 metaConnected: !!b.metaConnected,
-                storeUrl: `/store/${b.slug || b.id}`
+                storeUrl: resolvedStoreUrl
             }
         });
 
@@ -516,7 +566,7 @@ ${ezzelClients.map(c => `- [[02_EzZel_Personal_Clients/${c.id}|${c.name}]] — $
                 color: '#38bdf8',
                 x: sx,
                 y: sy,
-                metrics: { url: `/store/${b.slug || b.id}`, items: (b.productsCatalog || []).length }
+                metrics: { url: resolvedStoreUrl, items: (b.productsCatalog || []).length }
             });
             edges.push({
                 id: `edge_store_${b.id}`,
@@ -555,7 +605,7 @@ name: "${b.name}"
 category: "${b.businessType}"
 phone: "${b.phone}"
 status: "${isBotOnline ? 'شغال' : 'متوقف'}"
-storefront: "/store/${b.slug || b.id}"
+storefront: "${resolvedStoreUrl}"
 meta_connected: ${!!b.metaConnected}
 updated_at: "${new Date().toISOString()}"
 ---
@@ -563,7 +613,7 @@ updated_at: "${new Date().toISOString()}"
 # 🏢 [[${b.name}]]
 - **التصنيف:** ${b.businessType}
 - **رقم واتساب المبيعات:** \`${b.phone}\`
-- **رابط متجر وتطبيق البراند (PWA):** [فتح المتجر التفاعلي](/store/${b.slug || b.id})
+- **رابط متجر وتطبيق البراند (PWA):** [فتح المتجر التفاعلي](${resolvedStoreUrl})
 - **حالة الربط مع Meta:** ${b.metaConnected ? `متصل (${b.metaPageName})` : 'جاهز للربط الفوري'}
 
 ## 🔗 العقد المتصلة في أوبسيديان
@@ -683,19 +733,14 @@ export function persistBrandUpdateAcrossEcosystem(brandId: string, updates: Reco
         updatedAt: new Date().toISOString()
     };
 
-    // 1. Save to Ez-Zel data/brands.json
+    // 1. Save to persistent Ez-Zel brands.json (+ Firestore mirror)
     try {
-        if (!fs.existsSync(path.dirname(BRANDS_JSON_PATH))) {
-            fs.mkdirSync(path.dirname(BRANDS_JSON_PATH), { recursive: true });
-        }
-        const rawBrands = fs.existsSync(BRANDS_JSON_PATH)
-            ? JSON.parse(fs.readFileSync(BRANDS_JSON_PATH, 'utf8'))
-            : {};
+        const rawBrands = readMergedBrandsJsonFile();
         rawBrands[cleanId] = {
             ...(rawBrands[cleanId] || {}),
             ...mergedBrand
         };
-        fs.writeFileSync(BRANDS_JSON_PATH, JSON.stringify(rawBrands, null, 2), 'utf8');
+        savePersistentJson('t2_brands_vault', 'brands.json', rawBrands);
     } catch {}
 
     // 2. Save to T2-Agent brands.json if explicitly configured via T2_AGENT_BRANDS_PATH

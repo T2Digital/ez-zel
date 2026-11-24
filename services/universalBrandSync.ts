@@ -5,10 +5,37 @@ import { broadcastGatewayEvent } from './microservicesGateway';
 import { upsertBrandToTitoStudioFirestore, readTitoStudioCacheSync, syncWeekPlanToTitoStudioFirestore } from './titoStudioFirestoreBridge';
 import { titoStudioApi } from './titoStudioApiClient';
 import { t2AgentApi } from './t2AgentApiClient';
+import { getPersistentFilePath, savePersistentJson } from './persistentStorage';
 
 const EZ_ZEL_DATA_DIR = path.join(process.cwd(), 'data');
-const EZ_ZEL_BRANDS_FILE = path.join(EZ_ZEL_DATA_DIR, 'brands.json');
-const EZ_ZEL_TENANTS_FILE = path.join(EZ_ZEL_DATA_DIR, 'tenants.json');
+const BUNDLED_EZ_ZEL_BRANDS_FILE = path.join(EZ_ZEL_DATA_DIR, 'brands.json');
+const BUNDLED_EZ_ZEL_TENANTS_FILE = path.join(EZ_ZEL_DATA_DIR, 'tenants.json');
+
+function getEzZelBrandsFile(): string {
+    return getPersistentFilePath('brands.json');
+}
+
+function getEzZelTenantsFile(): string {
+    return getPersistentFilePath('tenants.json');
+}
+
+function readEzBrandsSafe(): Record<string, any> {
+    const bundled = readJsonSafe<Record<string, any>>(BUNDLED_EZ_ZEL_BRANDS_FILE, {});
+    const pFile = getEzZelBrandsFile();
+    if (pFile === BUNDLED_EZ_ZEL_BRANDS_FILE) return bundled;
+    const persistent = readJsonSafe<Record<string, any>>(pFile, {});
+    return { ...bundled, ...persistent };
+}
+
+function readEzTenantsSafe(): any[] {
+    const pFile = getEzZelTenantsFile();
+    if (fs.existsSync(pFile)) {
+        const list = readJsonSafe<any[]>(pFile, []);
+        if (Array.isArray(list)) return list;
+    }
+    const bundled = readJsonSafe<any[]>(BUNDLED_EZ_ZEL_TENANTS_FILE, []);
+    return Array.isArray(bundled) ? bundled : [];
+}
 
 const T2_AGENT_DIR = 'D:/new new/t2-agent-nov-1-2026-5-06-22-pm';
 const T2_AGENT_DATA_DIR = path.join(T2_AGENT_DIR, 'data');
@@ -128,11 +155,12 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
 
     const nowIso = new Date().toISOString();
 
-    // A. Sync to Ez-Zel data/brands.json
+    // A. Sync to Ez-Zel persistent brands.json (+ Firestore mirror)
     let ezBrandsOk = false;
     try {
-        const ezBrands = readJsonSafe<Record<string, any>>(EZ_ZEL_BRANDS_FILE, {});
+        const ezBrands = readEzBrandsSafe();
         ezBrands[brandId] = {
+            ...(ezBrands[brandId] || {}),
             id: brandId,
             slug,
             name,
@@ -142,7 +170,7 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
             phone: cleanPhone,
             whatsapp: cleanPhone,
             websiteUrl: payload.websiteUrl || `https://${brandId}.t2-client.vercel.app`,
-            appUrl: payload.appUrl || `/store/${brandId}`,
+            appUrl: payload.appUrl || ezBrands[brandId]?.appUrl || `/store/${brandId}`,
             ...(payload.appTemplate ? { appTemplate: payload.appTemplate } : {}),
             ownerEmail: payload.ownerEmail || 'admin@t2.com',
             slogan: payload.slogan || `أفضل خدمات ${businessType} بضمان كامل`,
@@ -160,15 +188,16 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
             metaToken: payload.metaToken || '',
             updatedAt: nowIso
         };
-        ezBrandsOk = writeJsonSafe(EZ_ZEL_BRANDS_FILE, ezBrands);
+        savePersistentJson('t2_brands_vault', 'brands.json', ezBrands);
+        ezBrandsOk = true;
     } catch (e: any) {
         console.error('[Universal Sync] Error updating Ez-Zel brands:', e?.message);
     }
 
-    // B. Sync to Ez-Zel data/tenants.json
+    // B. Sync to Ez-Zel persistent tenants.json (+ Firestore mirror)
     let ezTenantsOk = false;
     try {
-        let ezTenants = readJsonSafe<any[]>(EZ_ZEL_TENANTS_FILE, []);
+        let ezTenants = readEzTenantsSafe();
         if (!Array.isArray(ezTenants)) ezTenants = [];
         const existingIdx = ezTenants.findIndex((t: any) => t.id === brandId || t.brandId === brandId || t.id === `tenant_${brandId}`);
         const tenantEntry = {
@@ -193,7 +222,8 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
         } else {
             ezTenants.unshift(tenantEntry);
         }
-        ezTenantsOk = writeJsonSafe(EZ_ZEL_TENANTS_FILE, ezTenants);
+        savePersistentJson('tenants_vault', 'tenants.json', ezTenants);
+        ezTenantsOk = true;
     } catch (e: any) {
         console.error('[Universal Sync] Error updating Ez-Zel tenants:', e?.message);
     }
@@ -370,7 +400,7 @@ export async function reconcileAllBrands(): Promise<{
         titoStudioClinicsCount: number;
     };
 }> {
-    const ezBrands = readJsonSafe<Record<string, any>>(EZ_ZEL_BRANDS_FILE, {});
+    const ezBrands = readEzBrandsSafe();
     const agentBrands = readJsonSafe<Record<string, any>>(T2_AGENT_BRANDS_FILE, {});
     const studioCache = readTitoStudioCacheSync();
 
@@ -476,8 +506,8 @@ export async function reconcileAllBrands(): Promise<{
     }
 
     // Final Counts Verification
-    const freshEzBrands = readJsonSafe<Record<string, any>>(EZ_ZEL_BRANDS_FILE, {});
-    const freshEzTenants = readJsonSafe<any[]>(EZ_ZEL_TENANTS_FILE, []);
+    const freshEzBrands = readEzBrandsSafe();
+    const freshEzTenants = readEzTenantsSafe();
     const freshAgentBrands = readJsonSafe<Record<string, any>>(T2_AGENT_BRANDS_FILE, {});
     const freshStudioCache = readTitoStudioCacheSync();
 

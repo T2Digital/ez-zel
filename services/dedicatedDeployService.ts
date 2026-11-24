@@ -1,4 +1,5 @@
 import { getUnifiedGrowthBrands, persistBrandUpdateAcrossEcosystem } from './obsidianVaultService';
+import { upsertBrandRegistryEntry } from './brandRegistryService';
 import { getNextHealthyGeminiKey } from './geminiKeyPool';
 import { FlagshipTemplateId, resolveFlagshipTemplate } from './tenantFactory';
 
@@ -374,6 +375,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
     // 6. Trigger initial production deployment on Vercel (wait briefly after git commits, pass numeric repoId)
     let vercelDeploymentId = '';
     let vercelDeployError = '';
+    let vercelPreviewUrl: string | undefined;
     try {
       await new Promise((r) => setTimeout(r, 1500));
       const repoInfoRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
@@ -403,7 +405,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
       const depJson: any = await depRes.json().catch(() => ({}));
       if (depRes.ok) {
         vercelDeploymentId = depJson?.id || depJson?.uid || '';
-        if (depJson?.url) dedicatedLiveUrl = `https://${depJson.url}`;
+        if (depJson?.url) vercelPreviewUrl = `https://${depJson.url}`;
       } else {
         vercelDeployError = depJson?.error?.message || `HTTP ${depRes.status}`;
       }
@@ -414,9 +416,17 @@ export async function provisionDedicatedRepoAndVercel(input: {
     persistBrandUpdateAcrossEcosystem(brand.id, {
       dedicatedRepoUrl: repoUrl,
       dedicatedLiveUrl,
+      appUrl: dedicatedLiveUrl,
       adminEmail,
       adminPin
     } as any);
+    upsertBrandRegistryEntry(brand.id, {
+      slug: brand.slug || brand.id,
+      name: input.brandName || brand.name,
+      dedicatedRepoUrl: repoUrl,
+      dedicatedLiveUrl,
+      appUrl: dedicatedLiveUrl
+    });
 
     // Zero-Touch Onboarding notification (WhatsApp + Telegram)
     try {
@@ -426,7 +436,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
         slug: asciiSlug,
         brandName: brand.name,
         phone: brand.phone || '',
-        liveAppUrl: `https://${repoName}.vercel.app`,
+        liveAppUrl: dedicatedLiveUrl,
         adminEmail,
         tempPassword: `T2@${adminPin}`
       });
@@ -439,6 +449,7 @@ export async function provisionDedicatedRepoAndVercel(input: {
       repoName,
       dedicatedRepoUrl: repoUrl,
       dedicatedLiveUrl,
+      ...(vercelPreviewUrl ? { vercelPreviewUrl } : {}),
       ...(vercelDeploymentId ? { vercelDeploymentId } : {}),
       ...(vercelDeployError ? { vercelDeployError } : {}),
       message: `تم إنشاء مستودع مستقل (${repoUrl}) وربطه على Vercel (${dedicatedLiveUrl}) بنجاح للعميل المدفوع!`

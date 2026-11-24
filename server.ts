@@ -958,6 +958,7 @@ async function startServer() {
               }
           }
           const result = await executeRealJarvisEcosystemAction(req.body || {});
+          cachedObsidianGraph = null;
           res.json(result);
       } catch (err: any) {
           res.status(500).json({ success: false, error: err?.message });
@@ -1093,6 +1094,8 @@ async function startServer() {
                       planId: b.planId || (b.lifecycleStage === "active_client" ? "growth_5000" : ""),
                       planAmount: Number(b.planAmount ?? (b.lifecycleStage === "active_client" ? 5000 : 0)),
                       subscriptionPlan: b.subscriptionPlan || "",
+                      appUrl: b.dedicatedLiveUrl || b.appUrl || `/store/${b.slug || b.id}`,
+                      dedicatedLiveUrl: b.dedicatedLiveUrl || "",
                       catalogCount,
                       status: b.status || "متوقف",
                       registrySynced: Boolean(b.registrySynced),
@@ -1118,12 +1121,34 @@ async function startServer() {
       try {
           const auth = await verifyAdminRequest(req);
           if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
-          const { canonicalId, slug, name, lifecycleStage, appTemplate, titoStudioClinicId, agentBrandId, planId, planAmount, mergedFromIds } = req.body || {};
+          const {
+              canonicalId,
+              slug,
+              name,
+              businessType,
+              primaryColor,
+              dedicatedLiveUrl,
+              dedicatedRepoUrl,
+              appUrl,
+              productsCatalog,
+              lifecycleStage,
+              appTemplate,
+              titoStudioClinicId,
+              agentBrandId,
+              planId,
+              planAmount,
+              mergedFromIds,
+          } = req.body || {};
           if (!canonicalId) return res.status(400).json({ ok: false, error: "canonicalId is required" });
           const { upsertBrandRegistryEntry } = await import("./services/brandRegistryService");
           const entry = upsertBrandRegistryEntry(String(canonicalId), {
               ...(slug ? { slug: String(slug) } : {}),
               ...(name ? { name: String(name) } : {}),
+              ...(businessType ? { businessType: String(businessType) } : {}),
+              ...(primaryColor ? { primaryColor: String(primaryColor) } : {}),
+              ...(dedicatedLiveUrl ? { dedicatedLiveUrl: String(dedicatedLiveUrl) } : {}),
+              ...(dedicatedRepoUrl ? { dedicatedRepoUrl: String(dedicatedRepoUrl) } : {}),
+              ...(appUrl ? { appUrl: String(appUrl) } : {}),
               ...(lifecycleStage ? { lifecycleStage } : {}),
               ...(appTemplate ? { appTemplate } : {}),
               ...(titoStudioClinicId ? { titoStudioClinicId: String(titoStudioClinicId) } : {}),
@@ -1134,23 +1159,25 @@ async function startServer() {
           });
           const { upsertBrandToTitoStudioFirestore } = await import("./services/titoStudioFirestoreBridge");
           const { persistBrandUpdateAcrossEcosystem } = await import("./services/obsidianVaultService");
-          let matched = getUnifiedGrowthBrands().find((b: any) => b.id === canonicalId || b.canonicalId === canonicalId || b.slug === slug);
-          if (!matched) {
-              matched = persistBrandUpdateAcrossEcosystem(String(canonicalId), {
-                  id: String(canonicalId),
-                  slug: String(slug || canonicalId),
-                  name: String(name || canonicalId),
-                  businessType: req.body?.businessType ? String(req.body.businessType) : 'تجارة إلكترونية',
-                  primaryColor: req.body?.primaryColor ? String(req.body.primaryColor) : '#06b6d4',
-                  appTemplate: appTemplate || 'products_erp',
-                  titoStudioClinicId: titoStudioClinicId ? String(titoStudioClinicId) : undefined,
-                  agentBrandId: agentBrandId ? String(agentBrandId) : String(canonicalId),
-                  lifecycleStage: lifecycleStage || 'trial',
-              } as any);
+          const persisted = persistBrandUpdateAcrossEcosystem(String(canonicalId), {
+              id: String(canonicalId),
+              slug: String(slug || canonicalId),
+              ...(name ? { name: String(name) } : {}),
+              ...(businessType ? { businessType: String(businessType) } : {}),
+              ...(primaryColor ? { primaryColor: String(primaryColor) } : {}),
+              ...(appTemplate ? { appTemplate } : {}),
+              ...(titoStudioClinicId ? { titoStudioClinicId: String(titoStudioClinicId) } : {}),
+              ...(agentBrandId ? { agentBrandId: String(agentBrandId) } : {}),
+              ...(lifecycleStage ? { lifecycleStage } : {}),
+              ...(dedicatedLiveUrl ? { dedicatedLiveUrl: String(dedicatedLiveUrl) } : {}),
+              ...(dedicatedRepoUrl ? { dedicatedRepoUrl: String(dedicatedRepoUrl) } : {}),
+              ...(appUrl ? { appUrl: String(appUrl) } : {}),
+              ...(Array.isArray(productsCatalog) && productsCatalog.length > 0 ? { productsCatalog } : {}),
+          } as any);
+          if (persisted) {
+              await upsertBrandToTitoStudioFirestore(persisted).catch(() => {});
           }
-          if (matched) {
-              await upsertBrandToTitoStudioFirestore(matched).catch(() => {});
-          }
+          cachedObsidianGraph = null;
           res.json({ ok: true, entry, message: `تم تحديث تصنيف وهوية (${entry.name || entry.canonicalId}) في Firestore بنجاح` });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });
@@ -1181,6 +1208,7 @@ async function startServer() {
                   planAmount: 5000,
               });
           }
+          cachedObsidianGraph = null;
           res.json({
               ok: true,
               activatedCount: coreList.length,
@@ -1199,6 +1227,7 @@ async function startServer() {
           const { bulkSetBrandLifecycle } = await import("./services/brandRegistryService");
           const allBrands = getUnifiedGrowthBrands();
           const state = bulkSetBrandLifecycle(allBrands.map((b: any) => b.id), "paused_archive");
+          cachedObsidianGraph = null;
           res.json({ ok: true, count: Object.keys(state.brands).length, message: "تم تحويل جميع البراندات إلى (متوقف/أرشيف) كوضع افتراضي موحد" });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });
@@ -2392,6 +2421,7 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               appTemplate,
               templateId,
           });
+          if (result?.ok) cachedObsidianGraph = null;
           res.json(result);
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message || "Dedicated deploy failed" });
