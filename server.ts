@@ -988,6 +988,63 @@ async function startServer() {
       }
   });
 
+  app.delete("/api/admin/brands/:slug", async (req, res) => {
+      try {
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok) return res.status(401).json({ ok: false, error: "Admin authorization required" });
+
+          const rawSlug = String(req.params.slug || "").trim();
+          const { toCanonicalSlug, areBrandIdsEquivalent } = await import("./services/brandIdentityNormalizer");
+          const normSlug = toCanonicalSlug(rawSlug, "");
+          if (!normSlug) return res.status(400).json({ ok: false, error: "Valid slug is required" });
+
+          const protectedSlugs = new Set(["al-genedy", "clean-master", "auto-house", "mm-shoes", "battah"]);
+          if (protectedSlugs.has(normSlug)) {
+              return res.status(403).json({ ok: false, error: `Protected flagship brand '${normSlug}' cannot be deleted` });
+          }
+
+          const existingTenants = getPersistedTenants();
+          const filteredTenants = existingTenants.filter(
+              (t: any) => !areBrandIdsEquivalent(t?.slug, normSlug) && !areBrandIdsEquivalent(t?.id, normSlug)
+          );
+          if (filteredTenants.length !== existingTenants.length) {
+              savePersistedTenants(filteredTenants);
+          }
+
+          const { deleteBrandRegistryEntry } = await import("./services/brandRegistryService");
+          await deleteBrandRegistryEntry(normSlug);
+
+          try {
+              const { getPersistentDataDir, readPersistentJson } = await import("./services/persistentStorage");
+              const erpFile = path.join(getPersistentDataDir(), "tenant_erp_state", `${normSlug}.json`);
+              if (fs.existsSync(erpFile)) fs.unlinkSync(erpFile);
+
+              const cloned = readPersistentJson<any[]>("app_cloner_brands.json", []);
+              if (Array.isArray(cloned)) {
+                  const nextCloned = cloned.filter(
+                      (b: any) => !areBrandIdsEquivalent(b?.slug, normSlug) && !areBrandIdsEquivalent(b?.id, normSlug)
+                  );
+                  if (nextCloned.length !== cloned.length) {
+                      savePersistentJson("app_cloner_brands", "app_cloner_brands.json", nextCloned);
+                  }
+              }
+
+              const clients = readPersistentJson<any[]>("ezzel_clients.json", []);
+              if (Array.isArray(clients)) {
+                  const nextClients = clients.filter((c: any) => !areBrandIdsEquivalent(c?.linkedBrandId, normSlug));
+                  if (nextClients.length !== clients.length) {
+                      savePersistentJson("ezzel_clients", "ezzel_clients.json", nextClients);
+                  }
+              }
+          } catch {}
+
+          cachedObsidianGraph = null;
+          res.json({ ok: true, deleted: normSlug });
+      } catch (err: any) {
+          res.status(500).json({ ok: false, error: err?.message || "Failed deleting brand" });
+      }
+  });
+
   app.post("/api/admin/brands/registry/activate-core-package", async (req, res) => {
       try {
           const auth = await verifyAdminRequest(req);

@@ -407,3 +407,24 @@ export async function pgExportAllTablesForBackup(): Promise<Record<string, any> 
     return null;
   }
 }
+
+export async function pgDeleteTenant(slugOrId: string): Promise<boolean> {
+  if (!(await initPostgresSchema())) return false;
+  const p = getPgPool();
+  if (!p) return false;
+  const clean = String(slugOrId || "").trim().toLowerCase();
+  if (!clean) return false;
+  try {
+    await Promise.all([
+      p.query(
+        "DELETE FROM t2_tenants WHERE LOWER(slug) = $1 OR LOWER(canonical_id) = $1 OR LOWER(agent_brand_id) = $1",
+        [clean]
+      ),
+      p.query("DELETE FROM t2_tenant_erp_states WHERE LOWER(slug) = $1", [clean]),
+    ]);
+    return true;
+  } catch (err: any) {
+    console.warn(`[Postgres] pgDeleteTenant(${clean}) failed:`, err?.message);
+    return false;
+  }
+}

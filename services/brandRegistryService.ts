@@ -1,7 +1,7 @@
 import { readPersistentJson, savePersistentJson } from './persistentStorage';
 import { resolveBrandTemplate, TenantAppTemplate } from './tenantAppRenderer';
 import { areBrandIdsEquivalent, toAlnumLookupKey, toCanonicalAgentId, toCanonicalSlug } from './brandIdentityNormalizer';
-import { isPostgresConfigured, pgUpsertTenant } from './postgresService';
+import { isPostgresConfigured, pgDeleteTenant, pgUpsertTenant } from './postgresService';
 
 export type BrandLifecycleStage = 'active_client' | 'trial' | 'paused_archive' | 'self_growth';
 
@@ -264,6 +264,30 @@ export function upsertBrandRegistryEntry(
   }
 
   return merged;
+}
+
+export async function deleteBrandRegistryEntry(slugOrId: string): Promise<boolean> {
+  const key = String(slugOrId || '').trim();
+  const state = getBrandRegistryState();
+  let removed = false;
+  for (const k of Object.keys(state.brands)) {
+    const item = state.brands[k];
+    if (
+      areBrandIdsEquivalent(k, key) ||
+      areBrandIdsEquivalent(item?.slug, key) ||
+      areBrandIdsEquivalent(item?.canonicalId, key)
+    ) {
+      delete state.brands[k];
+      removed = true;
+    }
+  }
+  if (removed) {
+    saveBrandRegistryState(state);
+  }
+  if (isPostgresConfigured()) {
+    await pgDeleteTenant(toCanonicalSlug(key, key)).catch(() => {});
+  }
+  return removed;
 }
 
 export function bulkSetBrandLifecycle(
