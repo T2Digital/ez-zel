@@ -733,7 +733,9 @@ export function buildOmniChannelWeekPlan(brand: {
         const ctaBadge = existingItem?.ctaBadge || slot.ctaBadge;
         const ctaActionText = existingItem?.ctaActionText || slot.ctaActionText;
         const ctaTargetUrl = existingItem?.ctaTargetUrl || slot.ctaTargetUrl;
-        const mediaFormat: 'image' | 'video' = existingItem?.mediaFormat || slot.mediaFormat;
+        const mediaFormat: 'image' | 'video' = brand.isTrial
+            ? slot.mediaFormat
+            : (existingItem?.mediaFormat || slot.mediaFormat);
         const omniPrompt = existingItem?.omniPrompt || slot.omniPrompt;
         const postId = existingItem?.id || `${brand.id}_day_${idx + 1}`;
 
@@ -793,7 +795,7 @@ export function buildOmniChannelWeekPlan(brand: {
             mediaFormat,
             pillar: slot.pillar,
             pillarLabel: slot.pillarLabel,
-            contentType: existingItem?.contentType || slot.contentType,
+            contentType: brand.isTrial ? slot.contentType : (existingItem?.contentType || slot.contentType),
             hook,
             caption: strategicCaption,
             bestTime: existingItem?.bestTime || slot.bestTime,
@@ -1120,7 +1122,9 @@ export async function syncWeekPlanToTitoStudioFirestore(brand: any, weekPlan?: O
         const post = plan[i];
         const docId = post.firestoreDocId || `jarvis_${clinicId}_day_${i + 1}`;
         const postDate = post.dateIso ? new Date(post.dateIso) : new Date(Date.now() + i * 86400000);
-        const isVideo = post.mediaFormat === 'video' || post.contentType.includes('فيديو') || post.contentType.includes('Reel');
+        const isVideo = post.mediaFormat
+            ? post.mediaFormat === 'video'
+            : (post.contentType.includes('فيديو') || post.contentType.includes('Reel'));
 
         const contentDoc: Record<string, any> = {
             id: docId,

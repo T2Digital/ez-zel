@@ -1156,8 +1156,11 @@ test("33) Trial approve-post persists revisionCount across getUnifiedGrowthBrand
     name: "براند اختبار التعديل",
     businessType: "تجارة إلكترونية",
     phone: "01099887755",
+    existingPlan: [{ contentType: "Reel فيديو", hook: "خطاف تجريبي أول" }],
     isTrial: true,
   });
+  assert.equal(initialPlan.filter((i) => i.mediaFormat === "image").length, 2, "Trial must contain strictly 2 image posts");
+  assert.equal(initialPlan.filter((i) => i.mediaFormat === "video").length, 1, "Trial must contain strictly 1 video reel");
 
   try {
     persistBrandUpdateAcrossEcosystem(testSlug, {

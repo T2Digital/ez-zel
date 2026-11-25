@@ -166,28 +166,15 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
   useEffect(() => { 
       if ('Notification' in window && Notification.permission === 'granted') setNotificationsEnabled(true);
       const initData = async () => {
-          const adminProf = await shadowDB.getProfile('admin@shadow.com');
-          if (adminProf) setAdminProfile(adminProf);
-          const [allProfiles, allFeedback, rules, keys] = await Promise.all([shadowDB.getAllProfiles(), shadowDB.getAllFeedback(), shadowDB.getGlobalRules(), shadowDB.getSystemKeys()]);
-          setProfiles(allProfiles);
-          setFeedbacks(allFeedback.reverse());
-          setGlobalRules(rules);
-          if (keys) setSystemKeys(keys as any);
-          
-          // Fetch coupons
-          try {
-              const allCoupons = await shadowDB.getAllCoupons?.() || [];
-              setCoupons(allCoupons);
-          } catch(e) {}
-
-          // Fetch live Paymob revenue summary & real backend analytics
+          // 1. Fetch live Paymob revenue summary & real backend analytics first (never blocked by Firebase SDK errors)
           try {
               const headers = await getAdminAuthHeaders();
-              const [revResp, finResp] = await Promise.all([
-                  fetch('/api/admin/revenue/summary', { credentials: 'include', headers }),
-                  fetch('/api/system/real-financials', { credentials: 'include', headers }),
+              const [revResp, finResp, regResp] = await Promise.all([
+                  fetch('/api/admin/revenue/summary', { credentials: 'include', headers }).catch(() => null),
+                  fetch('/api/system/real-financials', { credentials: 'include', headers }).catch(() => null),
+                  fetch('/api/admin/brands/registry', { credentials: 'include', headers }).catch(() => null),
               ]);
-              const revJson = await revResp.json().catch(() => null);
+              const revJson = revResp ? await revResp.json().catch(() => null) : null;
               if (revJson?.ok) {
                   setPaymobRevenueSummary({
                       paidCount: Number(revJson.paidCount || 0),
@@ -195,9 +182,15 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                       paidSubscriptions: Array.isArray(revJson.paidSubscriptions) ? revJson.paidSubscriptions : [],
                   });
               }
-              const finJson = await finResp.json().catch(() => null);
-              if (finJson?.success) {
-                  const clientsArr = Array.isArray(finJson.ezzelClients) ? finJson.ezzelClients : [];
+              const finJson = finResp ? await finResp.json().catch(() => null) : null;
+              const regJson = regResp ? await regResp.json().catch(() => null) : null;
+              const regBrands = Array.isArray(regJson?.brands) ? regJson.brands : [];
+              const regActive = regBrands.filter((b: any) => b.lifecycleStage === 'active_client');
+              const regTrial = regBrands.filter((b: any) => b.lifecycleStage === 'trial');
+              const regRevenue = regActive.reduce((acc: number, b: any) => acc + Number(b.planAmount || 5000), 0);
+
+              if (finJson?.success || regBrands.length > 0) {
+                  const clientsArr = Array.isArray(finJson?.ezzelClients) ? finJson.ezzelClients : [];
                   const activeClients = clientsArr.filter((c: any) => String(c.status || '').toLowerCase() === 'active');
                   const clientsRevenueEgp = activeClients.reduce(
                       (acc: number, c: any) => acc + Number(c.monthlySubscriptionEgp || 0),
@@ -206,22 +199,51 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                   setBackendAnalytics({
                       totalAccounts: Math.max(
                           clientsArr.length,
-                          Number(finJson.unifiedBrandsCount || finJson.totalVaultBrandsCount || 0)
+                          regActive.length + regTrial.length,
+                          Number(finJson?.totalVaultBrandsCount || 0)
                       ),
                       activePaidAccounts: Math.max(
                           activeClients.length,
-                          Number(finJson.paidSubscribersCount || finJson.agentActiveCount || 0)
+                          regActive.length,
+                          Number(finJson?.paidSubscribersCount || 0)
                       ),
                       confirmedRevenueEgp: Math.max(
-                          Number(finJson.realConfirmedRevenueEgp || 0),
-                          clientsRevenueEgp
+                          Number(finJson?.realConfirmedRevenueEgp || 0),
+                          clientsRevenueEgp,
+                          regRevenue
                       ),
                       clientJoinDates: clientsArr.map((c: any) => String(c.joinedAt || '')).filter(Boolean),
                   });
               }
           } catch {}
 
-          shadowDB.subscribeToAdminFeed((updated) => { if(updated.length > 0) setProfiles(updated); }, (updated) => { if(updated.length > 0) setFeedbacks(updated.reverse()); });
+          // 2. Load Firestore / ShadowDB supplementary collections independently
+          try {
+              const adminProf = await shadowDB.getProfile('admin@shadow.com').catch(() => null);
+              if (adminProf) setAdminProfile(adminProf);
+              const [allProfiles, allFeedback, rules, keys] = await Promise.all([
+                  shadowDB.getAllProfiles().catch(() => [] as UserProfile[]),
+                  shadowDB.getAllFeedback().catch(() => [] as DBFeedback[]),
+                  shadowDB.getGlobalRules().catch(() => ''),
+                  shadowDB.getSystemKeys().catch(() => null),
+              ]);
+              if (allProfiles.length > 0) setProfiles(allProfiles);
+              if (allFeedback.length > 0) setFeedbacks(allFeedback.reverse());
+              if (rules) setGlobalRules(rules);
+              if (keys) setSystemKeys(keys as any);
+          } catch {}
+
+          try {
+              const allCoupons = (await shadowDB.getAllCoupons?.()) || [];
+              setCoupons(allCoupons);
+          } catch {}
+
+          try {
+              shadowDB.subscribeToAdminFeed(
+                  (updated) => { if (updated.length > 0) setProfiles(updated); },
+                  (updated) => { if (updated.length > 0) setFeedbacks(updated.reverse()); }
+              );
+          } catch {}
       };
       initData();
 
@@ -874,7 +896,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                             {totalVerifiedActiveCount} <CheckCircle className="w-4 h-4 text-emerald-500/30" />
                         </div>
                         <div className="text-[10px] text-white/40 mt-1">
-                            يدوي: {manualOrExtraSubscribers.length} | Paymob: {paymobRevenueSummary.paidCount}
+                            يدوي/نشط: {Math.max(manualOrExtraSubscribers.length, Math.max(0, totalVerifiedActiveCount - Number(paymobRevenueSummary.paidCount || 0)))} | Paymob: {paymobRevenueSummary.paidCount}
                         </div>
                     </div>
                     <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">
@@ -895,8 +917,8 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
 
                 <div className="p-6 bg-[#080808]/80 backdrop-blur-md rounded-[32px] border border-white/5 w-full flex flex-col justify-center min-h-[350px]">
                      <h4 className="text-sm font-bold text-white mb-6">نمو الأعضاء (آخر 7 أيام)</h4>
-                     <div className="flex-1 w-full relative min-h-[250px]">
-                         <ResponsiveContainer width="100%" height="100%">
+                     <div className="w-full h-[260px] min-h-[260px] relative">
+                         <ResponsiveContainer width="100%" height={260}>
                             <AreaChart data={growthData}>
                                 <defs>
                                     <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
