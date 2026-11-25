@@ -1065,7 +1065,13 @@ test("29) Multi-Tenant URL builder, ClientPortal SSO, 1-revision trial limit & 5
   const { signClientPortalToken } = await importTs(path.join("routes", "tenantErpRoutes.ts"));
   const portalSrc = fs.readFileSync(path.join(process.cwd(), "routes", "clientPortalRoutes.ts"), "utf8");
   assert.ok(portalSrc.includes("ssoStoreAdminUrl"), "clientPortalRoutes must expose ssoStoreAdminUrl");
-  assert.ok(portalSrc.includes("maxRevisions = isTrial ? 1 : 2"), "clientPortalRoutes must limit trial revisions to 1 per post");
+  assert.ok(portalSrc.includes("maxRevisions = isTrial ? 1 :"), "clientPortalRoutes must limit trial revisions to 1 per post");
+  const { SAAS_PLANS } = await importTs(path.join("services", "saasPlansService.ts"));
+  assert.equal(SAAS_PLANS.trial_7d.maxRevisionsPerPost, 1);
+  assert.equal(SAAS_PLANS.growth_5000.maxRevisionsPerPost, 2);
+  assert.equal(SAAS_PLANS.pro_10000.maxRevisionsPerPost, 3);
+  assert.equal(SAAS_PLANS.enterprise_20000.maxRevisionsPerPost, 5);
+  assert.equal(SAAS_PLANS.sovereign_50000.maxRevisionsPerPost, 10);
   assert.ok(typeof registerClientPortalRoutes === "function" && typeof signClientPortalToken("demo-brand") === "string");
 
   const pricingSrc = fs.readFileSync(path.join(process.cwd(), "components", "Pricing.tsx"), "utf8");

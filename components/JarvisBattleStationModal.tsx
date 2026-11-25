@@ -278,7 +278,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isClickingCursor, setIsClickingCursor] = useState(false);
 
   // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'
-  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(initialPersona === 'client' ? 'brand_hub' : 'obsidian_graph');
+  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(initialPersona === 'client' || !isMasterAdmin ? 'brand_hub' : 'obsidian_graph');
   const [jarvisWorkspaceMode, setJarvisWorkspaceMode] = useState<'command' | 'ops'>('ops');
   const [isExecutingAutonomousAgency, setIsExecutingAutonomousAgency] = useState<boolean>(false);
   const [autonomousAgencyData, setAutonomousAgencyData] = useState<any>(null);

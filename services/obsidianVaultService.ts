@@ -1576,6 +1576,33 @@ export async function executeRealJarvisEcosystemAction(input: {
             const ssoSep = flagshipUrl.includes('?') ? '&' : '?';
             const ssoStoreAdminUrl = `${flagshipUrl}${ssoSep}ssoToken=${encodeURIComponent(ownerSsoToken)}#dashboard`;
 
+            // Non-blocking WhatsApp welcome + Magic Link so visitor never loses access across devices
+            const cleanWaPhone = String(phone || '').replace(/\D/g, '');
+            if (cleanWaPhone.length >= 10 && process.env.NODE_ENV !== 'test') {
+                const agentBase = (process.env.T2_AGENT_API_URL || 'https://agent.t2os.app').replace(/\/+$/, '');
+                const agentKey = process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || '';
+                const magicMsg = [
+                    `أهلاً بك في منظومة T2OS! 🚀`,
+                    `تم تجهيز تطبيق براند "${cloned.name}" وتفعيل أسبوع التجربة المجانية.`,
+                    `🌐 تطبيقك الحي: ${flagshipUrl}`,
+                    `🎯 بوابة العميل والمحتوى (احفظ هذا الرابط للدخول من أي جهاز): ${clientPortalUrl}`,
+                    `🔐 بيانات لوحة متجرك: ${adminEmail} / ${adminPassword}`,
+                ].join('\n');
+                fetch(`${agentBase}/api/whatsapp/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(agentKey ? { 'x-admin-key': agentKey } : {}),
+                    },
+                    body: JSON.stringify({
+                        brandId: storeSlug,
+                        to: cleanWaPhone,
+                        message: magicMsg,
+                    }),
+                    signal: AbortSignal.timeout(4000),
+                }).catch(() => {});
+            }
+
             return {
                 success: true,
                 brand: {

@@ -86,6 +86,7 @@ import { registerMetaAndAgencyRoutes } from "./routes/metaAndAgencyRoutes";
 import { registerProxyAndSystemRoutes } from "./routes/proxyAndSystemRoutes";
 import { ACTIVE_GEMINI_TEXT_MODELS, sanitizeGeminiTextModel, loadGeminiKeysFromEnv, getNextHealthyGeminiKey, createRotatingServerAI, getGeminiKeyPoolStatus } from "./services/geminiKeyPool";
 import { isMasterAdminEmail } from "./services/adminIdentity";
+import { getCachedJson, setCachedJson, invalidateCacheKeys } from "./services/redisCacheService";
 import {
     verifyAdminRequest,
     requireAdminMiddleware,
@@ -672,22 +673,38 @@ async function startServer() {
   app.get("/api/cloner/brands", async (req, res) => {
       try {
           const requestedBrandId = String(req.query.brandId || "").trim();
+          const wantFull = req.query.full === "1";
+          const forceRefresh = req.query.refresh === "1";
           const auth = await verifyAdminRequest(req);
           if (!auth.ok) {
               if (!requestedBrandId) {
                   return res.status(401).json({ success: false, error: "Admin authorization required" });
+              }
+              const cacheKey = `t2os:brand:${requestedBrandId.toLowerCase()}:${wantFull ? "full" : "slim"}`;
+              if (!forceRefresh) {
+                  const cached = await getCachedJson<any>(cacheKey);
+                  if (cached) return res.json(cached);
               }
               const single = getClonedBrandByIdOrSlug(requestedBrandId);
               if (!single) {
                   return res.status(404).json({ success: false, error: "Brand not found" });
               }
               const singleArr = [single];
-              const payload = req.query.full === "1" ? singleArr : stripLargeInlineStrings(singleArr);
-              return res.json({ success: true, count: singleArr.length, brands: payload });
+              const payload = wantFull ? singleArr : stripLargeInlineStrings(singleArr);
+              const body = { success: true, count: singleArr.length, brands: payload };
+              await setCachedJson(cacheKey, body, 20);
+              return res.json(body);
+          }
+          const adminCacheKey = `t2os:brands:all:${wantFull ? "full" : "slim"}`;
+          if (!forceRefresh) {
+              const cachedAll = await getCachedJson<any>(adminCacheKey);
+              if (cachedAll) return res.json(cachedAll);
           }
           const brands = getUnifiedGrowthBrands();
-          const payload = req.query.full === "1" ? brands : stripLargeInlineStrings(brands);
-          res.json({ success: true, count: brands.length, brands: payload });
+          const payload = wantFull ? brands : stripLargeInlineStrings(brands);
+          const body = { success: true, count: brands.length, brands: payload };
+          await setCachedJson(adminCacheKey, body, 15);
+          res.json(body);
       } catch (err: any) {
           res.status(500).json({ error: err?.message });
       }
@@ -1145,6 +1162,12 @@ async function startServer() {
                             signal: AbortSignal.timeout(6000),
                         })
                       : Promise.resolve(null),
+              ]);
+              await invalidateCacheKeys([
+                  `t2os:brand:${normSlug.toLowerCase()}:slim`,
+                  `t2os:brand:${normSlug.toLowerCase()}:full`,
+                  `t2os:brands:all:slim`,
+                  `t2os:brands:all:full`,
               ]);
           } catch {}
 

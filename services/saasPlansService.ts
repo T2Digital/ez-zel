@@ -16,6 +16,7 @@ export interface SaasPlanSpec {
   systemFeeEgp: number; // 50% system, AI agent & studio production
   monthlyDesignsQuota: number; // -1 = unlimited
   monthlyVideosQuota: number;  // -1 = unlimited
+  maxRevisionsPerPost: number; // -1 = unlimited
   appAccessMode: 'full_app' | 'landing_page';
   featuresAr: string[];
 }
@@ -29,6 +30,7 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     systemFeeEgp: 0,
     monthlyDesignsQuota: 2,
     monthlyVideosQuota: 1,
+    maxRevisionsPerPost: 1,
     appAccessMode: 'full_app',
     featuresAr: [
       'تطبيق ويب كامل (PWA + متجر/حجوزات + فاتورة) مفتوح طوال فترة التجربة',
@@ -44,6 +46,7 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     systemFeeEgp: 1250,
     monthlyDesignsQuota: 8,
     monthlyVideosQuota: 2,
+    maxRevisionsPerPost: 2,
     appAccessMode: 'landing_page',
     featuresAr: [
       '50% ميزانية إعلانات ممولة مُدارة (1,250 ج.م) + 50% سيستم وأجنت (1,250 ج.م)',
@@ -61,6 +64,7 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     systemFeeEgp: 2500,
     monthlyDesignsQuota: 16,
     monthlyVideosQuota: 4,
+    maxRevisionsPerPost: 2,
     appAccessMode: 'full_app',
     featuresAr: [
       '50% ميزانية إعلانات ممولة مُدارة (2,500 ج.م) + 50% سيستم وأجنت (2,500 ج.م)',
@@ -78,6 +82,7 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     systemFeeEgp: 5000,
     monthlyDesignsQuota: 30,
     monthlyVideosQuota: 8,
+    maxRevisionsPerPost: 3,
     appAccessMode: 'full_app',
     featuresAr: [
       '50% ميزانية إعلانات ممولة مُدارة (5,000 ج.م) + 50% سيستم وأجنت (5,000 ج.م)',
@@ -94,6 +99,7 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     systemFeeEgp: 12500,
     monthlyDesignsQuota: 45,
     monthlyVideosQuota: 16,
+    maxRevisionsPerPost: 5,
     appAccessMode: 'full_app',
     featuresAr: [
       '50% ميزانية إعلانات ممولة مُدارة (12,500 ج.م) + 50% سيستم وأجنت (12,500 ج.م)',
@@ -110,6 +116,7 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     systemFeeEgp: 25000,
     monthlyDesignsQuota: -1,
     monthlyVideosQuota: -1,
+    maxRevisionsPerPost: 10,
     appAccessMode: 'full_app',
     featuresAr: [
       '50% ميزانية إعلانات ممولة مُدارة (25,000 ج.م) + 50% سيستم وأجنت (25,000 ج.م)',

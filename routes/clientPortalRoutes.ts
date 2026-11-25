@@ -295,7 +295,7 @@ export function registerClientPortalRoutes(
       const isRevision = decision !== "approved";
       const planSpec = resolveBrandPlanSpec(brand);
       const isTrial = subWindow.subscriptionStatus === "trial" || planSpec.id === "trial_7d";
-      const maxRevisions = isTrial ? 1 : 2;
+      const maxRevisions = isTrial ? 1 : Math.max(1, Number(planSpec.maxRevisionsPerPost || 2));
       const currentRevisions = Number(plan[idx]?.revisionCount || 0);
 
       if (isRevision && access.actor !== "admin" && currentRevisions >= maxRevisions) {
@@ -303,9 +303,10 @@ export function registerClientPortalRoutes(
           ok: false,
           limitReached: true,
           maxRevisions,
+          upgradeUrl: `${publicBase}/pricing?brandId=${encodeURIComponent(brand.slug || brand.id)}`,
           error: isTrial
-            ? "مسموح بطلب تعديل واحد (1) فقط لكل منشور خلال أسبوع التجربة المجانية لضمان استقرار الإنتاج."
-            : "تم استنفاد الحد الأقصى للتعديلات (تعديلان) لهذا المنشور.",
+            ? "مسموح بطلب تعديل واحد (1) فقط لكل منشور خلال أسبوع التجربة المجانية لضمان استقرار الإنتاج. يمكنك الترقية لباقة النمو للحصول على تعديلات إضافية."
+            : `تم استنفاد الحد الأقصى للتعديلات (${maxRevisions} تعديلات) لهذا المنشور في باقتك الحالية.`,
         });
       }
 
@@ -320,7 +321,38 @@ export function registerClientPortalRoutes(
       const updatedBrand =
         persistBrandUpdateAcrossEcosystem(brand.id || brand.slug, { weekContentPlan: plan }) ||
         { ...brand, weekContentPlan: plan };
-      res.json({ ok: true, post: plan[idx], brand: updatedBrand });
+
+      // Trigger non-blocking Studio regeneration when client requests a revision
+      if (isRevision && feedback) {
+        const studioBase = (process.env.TITO_STUDIO_URL || "https://studio.t2os.app").replace(/\/+$/, "");
+        const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || "").trim();
+        if (studioKey) {
+          const item = plan[idx];
+          fetch(`${studioBase}/api/execution/enqueue`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-api-key": studioKey },
+            body: JSON.stringify({
+              clinicId: String((brand as any).titoStudioClinicId || brand.id || brand.slug),
+              brandName: brand.name || brand.slug,
+              triggerSource: "client_portal_revision",
+              items: [
+                {
+                  id: String(item?.firestoreDocId || `jarvis_${brand.id || brand.slug}_day_${idx + 1}`),
+                  title: String(item?.hook || item?.title || `تعديل منشور ${idx + 1}`),
+                  type: item?.mediaFormat === "video" ? "video" : "image",
+                  caption: String(item?.caption || ""),
+                  visualPrompt: `${String(item?.omniPrompt || item?.visualPrompt || item?.hook || "")}\n\n[تعديل العميل المطلوب]: ${feedback}`,
+                  pillarLabel: String(item?.pillarLabel || "تعديل عميل"),
+                  scheduledPlatforms: ["facebook", "instagram"],
+                },
+              ],
+            }),
+            signal: AbortSignal.timeout(6000),
+          }).catch(() => {});
+        }
+      }
+
+      res.json({ ok: true, post: plan[idx], brand: updatedBrand, maxRevisions });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || "Approval failed" });
     }

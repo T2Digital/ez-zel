@@ -585,6 +585,76 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
           </div>
         )}
 
+        {/* GUIDED 4-STEP CLIENT LIFECYCLE COCKPIT */}
+        {(() => {
+          const isTrialUser = brandData?.isTrial || brandData?.subscriptionStatus === 'trial' || brandData?.planId === 'trial_7d';
+          const hasAppReady = Boolean(effectiveAppUrl);
+          const hasChannelsLinked = Boolean(
+            brandData?.whatsappConnected ||
+            brandData?.metaConnected ||
+            healthData?.checks?.whatsappAgent?.ok ||
+            Object.values(healthData?.checks?.social || {}).some((s: any) => s?.ok)
+          );
+          const weekPlanArr = Array.isArray(brandData?.weekContentPlan) ? brandData.weekContentPlan : [];
+          const hasShowroomApproved = weekPlanArr.some((p: any) => p?.clientApproval === 'approved' || p?.status === 'scheduled' || p?.status === 'published');
+          const brandSlug = brandData?.slug || brandData?.id || activeBrandId;
+
+          return (
+            <div className="p-2.5 rounded-2xl bg-gradient-to-r from-[#061229]/95 via-[#07182f]/95 to-[#0d102b]/95 border border-cyan-500/25 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-[11px] font-black text-cyan-200 flex items-center gap-1.5">
+                  <Rocket className="w-3.5 h-3.5 text-emerald-400" />
+                  خريطة تشغيل براندك في 4 خطوات
+                </span>
+                {isTrialUser && (
+                  <a
+                    href={`/pricing?brandId=${encodeURIComponent(String(brandSlug || ''))}&upgrade=1`}
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-emerald-500 text-black text-[10px] font-black hover:opacity-95 transition"
+                  >
+                    ⚡ ترقية لباقة النمو (5,000 ج.م + 2,500 إعلانات)
+                  </a>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setSection('app')}
+                  className={`p-2 rounded-xl border text-right transition cursor-pointer ${hasAppReady ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200' : 'bg-white/5 border-white/10 text-white/70'}`}
+                >
+                  <div className="font-black">1. الهوية والتطبيق {hasAppReady ? '✅' : '⏳'}</div>
+                  <div className="opacity-75 truncate">الكتالوج والبيانات</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSection('agent')}
+                  className={`p-2 rounded-xl border text-right transition cursor-pointer ${hasChannelsLinked ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200' : 'bg-cyan-500/10 border-cyan-400/35 text-cyan-100'}`}
+                >
+                  <div className="font-black">2. الأجنت والقنوات {hasChannelsLinked ? '✅' : '👈'}</div>
+                  <div className="opacity-75 truncate">ربط واتساب وميتا</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenStudioCalendar) onOpenStudioCalendar();
+                    else setSection('social');
+                  }}
+                  className={`p-2 rounded-xl border text-right transition cursor-pointer ${hasShowroomApproved ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200' : 'bg-purple-500/10 border-purple-400/35 text-purple-100'}`}
+                >
+                  <div className="font-black">3. الشو روم والنشر {hasShowroomApproved ? '✅' : '🎨'}</div>
+                  <div className="opacity-75 truncate">مراجعة واعتماد المحتوى</div>
+                </button>
+                <a
+                  href={`/pricing?brandId=${encodeURIComponent(String(brandSlug || ''))}&upgrade=1`}
+                  className="p-2 rounded-xl border bg-amber-500/10 border-amber-400/35 text-amber-200 hover:bg-amber-500/20 text-right transition block"
+                >
+                  <div className="font-black">4. الانطلاق والإعلانات 🚀</div>
+                  <div className="opacity-75 truncate">{isTrialUser ? 'فعّل باقة النمو' : 'إدارة الحملة'}</div>
+                </a>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* 4 PILLARS NAVIGATION TABS */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
           {[
