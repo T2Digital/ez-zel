@@ -175,9 +175,33 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const streamTimerRef = useRef<any>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const speechSeqRef = useRef<number>(0);
+  const silenceTimerRef = useRef<any>(null);
+  const speechTimeoutRef = useRef<any>(null);
+  const accumulatedFinalRef = useRef<string>('');
+
+  const stopListeningForSpeech = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.abort();
+      } catch {}
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  }, []);
 
   const stopAllJarvisAudio = useCallback(() => {
     speechSeqRef.current += 1;
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
     try { stopVoice(); } catch {}
     if (activeAudioRef.current) {
       try {
@@ -279,7 +303,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'
   const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(initialPersona === 'client' || !isMasterAdmin ? 'brand_hub' : 'obsidian_graph');
-  const [jarvisWorkspaceMode, setJarvisWorkspaceMode] = useState<'command' | 'ops'>('ops');
   const [isExecutingAutonomousAgency, setIsExecutingAutonomousAgency] = useState<boolean>(false);
   const [autonomousAgencyData, setAutonomousAgencyData] = useState<any>(null);
   const [activeDynamicWidget, setActiveDynamicWidget] = useState<{ widgetType: string; data: any } | null>(null);
@@ -1104,11 +1127,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const isThinkingRef = useRef<boolean>(false);
 
   const startListeningLoop = () => {
-    // Unconditionally force-unlock any voice/thinking states so user speech is NEVER blocked
-    isPlayingVoiceRef.current = false;
-    isThinkingRef.current = false;
-    setIsPlayingVoice(false);
-    setIsThinking(false);
+    if (isPlayingVoiceRef.current || isThinkingRef.current) {
+      return;
+    }
 
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRec) {
@@ -1117,44 +1138,91 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
 
     try {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch {}
-        recognitionRef.current = null;
-      }
+      stopListeningForSpeech();
+      accumulatedFinalRef.current = '';
+      transcriptRef.current = '';
 
       const recognition = new SpeechRec();
       recognition.lang = 'ar-EG';
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
+
+      const commitSpokenCommand = () => {
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+        const finalRecorded = (accumulatedFinalRef.current || transcriptRef.current || '').trim();
+        accumulatedFinalRef.current = '';
+        transcriptRef.current = '';
+        try {
+          recognition.onresult = null;
+          recognition.onerror = null;
+          recognition.onend = null;
+          recognition.stop();
+        } catch {}
+        if (recognitionRef.current === recognition) {
+          recognitionRef.current = null;
+        }
+        setIsListening(false);
+        if (finalRecorded && !finalRecorded.includes('اتفضل اتكلم') && finalRecorded.length > 1) {
+          handleSendLiveCommand(finalRecorded);
+        } else if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+          setTimeout(() => startListeningLoop(), 400);
+        }
+      };
 
       recognition.onstart = () => {
         setIsListening(true);
         setHasMicPermission(true);
-        transcriptRef.current = '';
         setTranscript(isMasterAdmin ? 'أنا سامعك يا ماستر.. اتفضل اتكلم' : 'أهلاً بيك في منظومة الظل — أنا سامعك، اتفضل اتكلم');
       };
 
       recognition.onresult = (event: any) => {
-        const text = Array.from(event.results)
-          .map((r: any) => r[0].transcript)
-          .join('');
-        transcriptRef.current = text;
-        setTranscript(text);
-    streamTranscriptWords(text);
-    setConversationHistory(prev => (prev.length === 0 ? [{ role: 'model', text }] : prev));
+        let finals = '';
+        let interim = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const r = event.results[i];
+          const chunk = String(r?.[0]?.transcript || '');
+          if (r.isFinal) finals += (finals ? ' ' : '') + chunk;
+          else interim += (interim ? ' ' : '') + chunk;
+        }
+        if (finals.trim()) accumulatedFinalRef.current = finals.trim();
+        const combined = [accumulatedFinalRef.current, interim.trim()].filter(Boolean).join(' ').trim();
+        transcriptRef.current = combined;
+        if (combined) {
+          setTranscript(combined);
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = setTimeout(commitSpokenCommand, 1600);
+        }
       };
 
       recognition.onerror = (err: any) => {
-        console.warn('[Speech Recognition Error]:', err?.error || err);
+        const code = String(err?.error || '');
+        console.warn('[Speech Recognition Error]:', code || err);
         setIsListening(false);
+        if (code === 'not-allowed' || code === 'service-not-allowed') {
+          autoLoopEnabledRef.current = false;
+          setHasMicPermission(false);
+          toast.error('يرجى السماح بالوصول للميكروفون من إعدادات المتصفح');
+        }
       };
 
       recognition.onend = () => {
         setIsListening(false);
-        const finalRecorded = transcriptRef.current;
-        if (finalRecorded && !finalRecorded.includes('اتفضل اتكلم') && finalRecorded.trim().length > 0) {
-          handleSendLiveCommand(finalRecorded);
+        if (recognitionRef.current === recognition) {
+          recognitionRef.current = null;
+        }
+        const pending = (accumulatedFinalRef.current || transcriptRef.current || '').trim();
+        if (pending && !pending.includes('اتفضل اتكلم') && pending.length > 1) {
+          commitSpokenCommand();
+        } else if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+          setTimeout(() => {
+            if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+              startListeningLoop();
+            }
+          }, 400);
         }
       };
 
@@ -1166,6 +1234,57 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setIsListening(false);
     }
   };
+
+  const speakJarvisReply = useCallback((replyText: string, audioBase64?: string) => {
+    stopListeningForSpeech();
+    stopAllJarvisAudio();
+    const activeSeq = speechSeqRef.current;
+    setIsPlayingVoice(true);
+    isPlayingVoiceRef.current = true;
+
+    let finished = false;
+    const onSpeechEnd = () => {
+      if (finished) return;
+      finished = true;
+      if (speechTimeoutRef.current) {
+        clearTimeout(speechTimeoutRef.current);
+        speechTimeoutRef.current = null;
+      }
+      if (speechSeqRef.current !== activeSeq) return;
+      setIsPlayingVoice(false);
+      isPlayingVoiceRef.current = false;
+      if (isOpenRef.current && autoLoopEnabledRef.current) {
+        setTimeout(() => {
+          if (isOpenRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current && autoLoopEnabledRef.current) {
+            startListeningLoop();
+          }
+        }, 350);
+      }
+    };
+
+    // Safety guard: guarantee speaking state unlocks even if browser/audio hangs
+    speechTimeoutRef.current = setTimeout(onSpeechEnd, Math.max(8000, Math.min(25000, String(replyText || '').length * 100)));
+
+    if (audioBase64) {
+      const mime = audioBase64.startsWith('UklGR') ? 'audio/wav' : 'audio/mp3';
+      const audio = new Audio(`data:${mime};base64,${audioBase64}`);
+      activeAudioRef.current = audio;
+      audio.onended = () => {
+        if (activeAudioRef.current === audio) activeAudioRef.current = null;
+        onSpeechEnd();
+      };
+      audio.onerror = () => {
+        if (activeAudioRef.current === audio) activeAudioRef.current = null;
+        if (speechSeqRef.current === activeSeq) playShadowVoice(replyText, 'male', undefined, onSpeechEnd);
+      };
+      audio.play().catch(() => {
+        if (activeAudioRef.current === audio) activeAudioRef.current = null;
+        if (speechSeqRef.current === activeSeq) playShadowVoice(replyText, 'male', undefined, onSpeechEnd);
+      });
+    } else {
+      playShadowVoice(replyText, 'male', undefined, onSpeechEnd);
+    }
+  }, [stopListeningForSpeech, stopAllJarvisAudio]);
 
   const handlePlayPersonaGreeting = async (targetPersona?: 'visitor' | 'trial' | 'client' | 'tito') => {
     const activeP = targetPersona || persona;
@@ -1214,18 +1333,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     setTranscript(text);
     streamTranscriptWords(text);
     setConversationHistory(prev => (prev.length === 0 ? [{ role: 'model', text }] : prev));
-    // Play ONLY 100% Gemini Human TTS voice (Puck 24kHz)
-    playShadowVoice(text, 'male', undefined, () => {
-      setIsPlayingVoice(false);
-      isPlayingVoiceRef.current = false;
-      if (isOpenRef.current && autoLoopEnabledRef.current) {
-        setTimeout(() => {
-          if (isOpenRef.current && !isPlayingVoiceRef.current && autoLoopEnabledRef.current) {
-            startListeningLoop();
-          }
-        }, 250);
-      }
-    });
+    speakJarvisReply(text);
   };
 
   // Two-Way Sovereign Voice Controller (Direct Native Speech Recognition + Human 24kHz Gemini Voice)
@@ -1241,22 +1349,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
     if (isListening) {
       autoLoopEnabledRef.current = false;
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch {}
-        recognitionRef.current = null;
-      }
-      setIsListening(false);
-      stopVoice();
-      setIsPlayingVoice(false);
-      isPlayingVoiceRef.current = false;
+      stopListeningForSpeech();
+      stopAllJarvisAudio();
       setTranscript('');
       return;
     }
 
     autoLoopEnabledRef.current = true;
-    stopVoice();
-    setIsPlayingVoice(false);
-    isPlayingVoiceRef.current = false;
+    stopAllJarvisAudio();
     startListeningLoop();
   };
 
@@ -1300,7 +1400,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         if (isVoiceTriggered) {
           const voiceMsg = `يا ماستر تيتو، حللت هوية براند ${targetBrand.name}، وعملت خطة شهر كامل من 12 منشور على 4 محاور (أحد وثلاثاء وخميس). جدولنا 11 منشور في تيتو ستوديو فايربيس، والبوست الأول جاهز قدامك للمراجعة والاعتماد الفوري لميتا!`;
           setTranscript(voiceMsg);
-          playShadowVoice(voiceMsg, 'male');
+          speakJarvisReply(voiceMsg);
         }
       } else {
         toast.error(data.error || 'تعذر استكمال دورة الوكالة الآلية');
@@ -1317,6 +1417,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   // Process Live Voice Command through Jarvis Brain & Gemini Human TTS
   const handleSendLiveCommand = async (commandText: string) => {
+    stopListeningForSpeech();
     stopAllJarvisAudio();
     const mySpeechSeq = speechSeqRef.current;
     setIsThinking(true);
@@ -1343,7 +1444,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       await handleBuildStudioStrategy(matchedBrand.id);
       const voiceReply = `أمرك يا ماستر تيتو، جهزت الاستراتيجية التسويقية لبراند ${matchedBrand.name} وحفظتها في تيتو ستوديو وأوبسيديان!`;
       setTranscript(voiceReply);
-      playShadowVoice(voiceReply, 'male');
+      speakJarvisReply(voiceReply);
       return;
     }
     if (!isNegated && /ولد محتوى|محتوى اول اسبوع|محتوى أول أسبوع|خطة محتوى|خطه محتوى|محتوى الأسبوع|محتوى الاسبوع/i.test(commandText)) {
@@ -1352,7 +1453,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       await handleGenerateWeekPlan(matchedBrand.id);
       const voiceReply = `أمرك يا ماستر، تم توليد خطة محتوى أول أسبوع لـ ${matchedBrand.name} بنجاح!`;
       setTranscript(voiceReply);
-      playShadowVoice(voiceReply, 'male');
+      speakJarvisReply(voiceReply);
       return;
     }
     if (!isNegated && /اعتمد الجدول|اعتماد الجدول|جدول المحتوى|جدولة الخطة/i.test(commandText)) {
@@ -1361,7 +1462,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       await handleApproveSchedule(matchedBrand.id);
       const voiceReply = `تم اعتماد جدولة خطة المحتوى في تيتو ستوديو للنشر التلقائي يا ماستر!`;
       setTranscript(voiceReply);
-      playShadowVoice(voiceReply, 'male');
+      speakJarvisReply(voiceReply);
       return;
     }
     if (!isNegated && /اعرض منشور|اعرض بوست|افتح المنشور|اعرض الفيديو|اعرض التصميم|اعرض خطة المحتوى/i.test(commandText)) {
@@ -1376,7 +1477,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setActiveDeckTab('content_post_card');
       const voiceReply = `عرضت لك بطاقة المنشور والتصميم لبراند ${matchedBrand.name} قدامك يا ماستر. قولي انشره لو تحب أنشره فوراً!`;
       setTranscript(voiceReply);
-      playShadowVoice(voiceReply, 'male');
+      speakJarvisReply(voiceReply);
       return;
     }
     if (!isNegated && /^انشره|انشر المنشور|انشر البوست|انشر دلوقتي/i.test(commandText.trim())) {
@@ -1385,7 +1486,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       await handlePublishPost(matchedBrand.id, 0);
       const voiceReply = `تم اعتماد ونشر البوست فوراً لصفحات ميتا وتيتو ستوديو يا ماستر!`;
       setTranscript(voiceReply);
-      playShadowVoice(voiceReply, 'male');
+      speakJarvisReply(voiceReply);
       return;
     }
 
@@ -1418,6 +1519,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       });
       const data = await res.json();
       setIsThinking(false);
+      isThinkingRef.current = false;
       if (data.detectedVisitorName) {
         setVisitorName(data.detectedVisitorName);
         try { localStorage.setItem('ezzel_visitor_name_v1', data.detectedVisitorName); } catch {}
@@ -1460,44 +1562,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         } catch {}
         appendLiveLog(`[JARVIS_REPLY]: ${data.replyText.slice(0, 95)}...`);
 
-        const onSpeechEnd = () => {
-          setIsPlayingVoice(false);
-          isPlayingVoiceRef.current = false;
-          if (isOpenRef.current && autoLoopEnabledRef.current) {
-            setTimeout(() => {
-              if (isOpenRef.current && !isPlayingVoiceRef.current && autoLoopEnabledRef.current) {
-                startListeningLoop();
-              }
-            }, 250);
-          }
-        };
-
-        // Play authentic Egyptian Gemini Human voice reply (strictly single active channel)
+        // Play authentic Egyptian Gemini Human voice reply with strict half-duplex echo guard
         if (speechSeqRef.current !== mySpeechSeq) return;
-        stopAllJarvisAudio();
-        const activeSeq = speechSeqRef.current;
-        setIsPlayingVoice(true);
-        isPlayingVoiceRef.current = true;
-
-        if (data.audioBase64) {
-          const mime = data.audioBase64.startsWith('UklGR') ? 'audio/wav' : 'audio/mp3';
-          const audio = new Audio(`data:${mime};base64,${data.audioBase64}`);
-          activeAudioRef.current = audio;
-          audio.onended = () => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            onSpeechEnd();
-          };
-          audio.onerror = () => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            if (speechSeqRef.current === activeSeq) playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
-          };
-          audio.play().catch(() => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            if (speechSeqRef.current === activeSeq) playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
-          });
-        } else {
-          playShadowVoice(data.replyText, 'male', undefined, onSpeechEnd);
-        }
+        speakJarvisReply(cleanReply || data.replyText, data.audioBase64);
 
         // LIVE VOICE-TO-ACTION EXECUTIVE CONTROLLER
         if (data.action) {
@@ -1925,15 +1992,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* THE GIANT HOLOGRAPHIC ARC REACTOR — RENDERED IN TOP BAR WHEN SUB-DECK OPEN, IN COMMAND MODE, OR FOR VISITOR; MERGED INTO CONSTELLATION CENTER IN OPS MODE */}
-            {(persona === 'visitor' || activeDeckTab !== 'obsidian_graph' || jarvisWorkspaceMode === 'command') && (
+            {/* STANDALONE ARC REACTOR CORE — RENDERED ONLY FOR VISITORS/TRIAL/CLIENTS (ADMIN USES SINGLE OBSIDIAN HERO CORE BELOW) */}
+            {(persona !== 'tito' || !isMasterAdmin || adminPreviewVisitor) && (
               <button
                 type="button"
                 onClick={() => {
                   if (isPlayingVoice) {
-                    stopVoice();
-                    setIsPlayingVoice(false);
-                    isPlayingVoiceRef.current = false;
+                    stopAllJarvisAudio();
                     startListeningLoop();
                   } else {
                     handleToggleListening();
@@ -1997,49 +2062,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             {/* Voice conversation is synced directly to main Shadow Chat */}
 
-            {/* DYNAMIC JARVIS STAGE: Clean Dual-Mode Toggle + Neural Constellation or Distraction-Free Command Card */}
-            {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && (
+            {/* SINGLE HERO OBSIDIAN CONSTELLATION CONTROLS */}
+            {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && activeDeckTab !== 'obsidian_graph' && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <div className="inline-flex items-center p-1 rounded-2xl bg-[#03091e]/90 border border-cyan-500/30 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setJarvisWorkspaceMode('command');
-                      setActiveDeckTab('obsidian_graph');
-                    }}
-                    className={`px-3 py-1 rounded-xl text-[11px] font-black transition cursor-pointer ${
-                      jarvisWorkspaceMode === 'command' && activeDeckTab === 'obsidian_graph'
-                        ? 'bg-cyan-400 text-slate-950'
-                        : 'text-white/75 hover:text-white'
-                    }`}
-                  >
-                    ⚡ وضع الأوامر والصوت
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setJarvisWorkspaceMode('ops');
-                      setActiveDeckTab('obsidian_graph');
-                    }}
-                    className={`px-3 py-1 rounded-xl text-[11px] font-black transition cursor-pointer ${
-                      jarvisWorkspaceMode === 'ops' && activeDeckTab === 'obsidian_graph'
-                        ? 'bg-cyan-500/25 border border-cyan-400/50 text-cyan-200'
-                        : 'text-white/75 hover:text-white'
-                    }`}
-                  >
-                    🛰️ غرفة العمليات والأوبسيديان
-                  </button>
-                </div>
-                {activeDeckTab !== 'obsidian_graph' && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveDeckTab('obsidian_graph')}
-                    className="py-1.5 px-3.5 rounded-full bg-cyan-950/50 hover:bg-cyan-500/20 border border-cyan-400/35 text-cyan-200 text-[11px] font-bold flex items-center gap-1.5 transition backdrop-blur-xl cursor-pointer font-['Cairo']"
-                  >
-                    <Layers className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>العودة للواجهة الرئيسية</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setActiveDeckTab('obsidian_graph')}
+                  className="py-1.5 px-3.5 rounded-full bg-cyan-950/60 hover:bg-cyan-500/25 border border-cyan-400/45 text-cyan-200 text-[11px] font-bold flex items-center gap-1.5 transition backdrop-blur-xl cursor-pointer font-['Cairo']"
+                >
+                  <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>تركيز كامل على النواة والأوبسيديان (إغلاق النافذة الفرعية)</span>
+                </button>
               </div>
             )}
             {persona === 'visitor' && (
@@ -2378,78 +2411,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               />
             )}
 
-            {/* TAB 0A: COMMAND FOCUS MODE OR 3D HOLOGRAPHIC NEURAL CONSTELLATION */}
-            {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && activeDeckTab === 'obsidian_graph' && jarvisWorkspaceMode === 'command' && (
-              <div className="w-full max-w-4xl mx-auto flex flex-col gap-3 p-4 rounded-3xl bg-[#040b1d]/90 border border-cyan-500/30 backdrop-blur-xl font-['Cairo'] text-right animate-in fade-in duration-300">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
-                  <div>
-                    <div className="text-xs font-black text-cyan-300">⚡ وضع القيادة التنفيذية المركز</div>
-                    <p className="text-[11px] text-white/60">شاشة هادئة للصوت والأوامر الفورية والتحكم السريع في أي براند</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={selectedBrandId || currentSelectedBrand?.id || ''}
-                      onChange={(e) => handleSelectBrand(e.target.value)}
-                      className="bg-black/70 border border-cyan-500/35 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400"
-                    >
-                      {allBrandsList.map((b) => (
-                        <option key={b.id} value={b.id} className="bg-slate-950 text-white">
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setActiveDeckTab('brand_hub')}
-                      className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/45 text-cyan-200 text-xs font-black cursor-pointer"
-                    >
-                      إدارة 4 أركان
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setJarvisWorkspaceMode('ops')}
-                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold cursor-pointer"
-                    >
-                      فتح الشبكة 3D
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-2xl bg-black/50 border border-white/10 flex flex-col gap-1.5">
-                    <div className="text-[11px] font-bold text-cyan-300">آخر استجابة من جارفيس</div>
-                    <div className="text-xs text-white/90 leading-relaxed min-h-[56px]">
-                      {transcript || 'جاهز لتنفيذ أمرك الصوتي أو النصي فوراً — جرب مثلاً: أنشئ براند جديد أو اعرض جاهزية المنظومة.'}
-                    </div>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-black/50 border border-white/10 flex flex-col gap-1.5">
-                    <div className="text-[11px] font-bold text-emerald-300">
-                      حالة البراند المحدد: {currentSelectedBrand?.name || 'غير محدد'}
-                    </div>
-                    <div className="text-xs text-white/80">
-                      واتساب: {(currentSelectedBrand as any)?.whatsappConnected ? `متصل (${(currentSelectedBrand as any)?.liveWhatsappMessagesCount ?? 0} رسالة)` : 'غير مربوط'} • منشورات الاستوديو:{' '}
-                      {Number((currentSelectedBrand as any)?.studioPostsCount ?? (Array.isArray(currentSelectedBrand?.weekContentPlan) ? currentSelectedBrand.weekContentPlan.length : 0))}
-                    </div>
-                    {currentSelectedBrand && (
-                      <a
-                        href={resolveBrandWebUrl(currentSelectedBrand)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex items-center gap-1.5 text-xs font-black text-cyan-300 hover:underline w-fit"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>فتح المتجر / التطبيق المباشر</span>
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && activeDeckTab === 'obsidian_graph' && jarvisWorkspaceMode === 'ops' && (
-              <div className="w-full flex-1 min-h-0 flex flex-col gap-1.5 animate-in fade-in duration-300 font-['Cairo'] text-right">
-                {/* OPEN 3D HOLOGRAPHIC SPACE — FITS 100% IN VIEWPORT WITHOUT SCROLL */}
-                <div className="w-full flex-1 min-h-[260px] relative">
+            {/* SINGLE OBSIDIAN HERO CORE (ALWAYS ON TOP FOR ADMIN; SUB-WINDOWS RENDER DIRECTLY UNDERNEATH) */}
+            {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && (
+              <div className={`w-full flex flex-col gap-1.5 animate-in fade-in duration-300 font-['Cairo'] text-right ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-0' : 'shrink-0'}`}>
+                <div className={`w-full relative ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-[300px]' : 'h-[245px] md:h-[280px]'}`}>
                   <ObsidianHolographicConstellation
                     brands={allBrandsList.map((b) => ({
                       id: b.id,
@@ -2478,9 +2443,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         type="button"
                         onClick={() => {
                           if (isPlayingVoice) {
-                            stopVoice();
-                            setIsPlayingVoice(false);
-                            isPlayingVoiceRef.current = false;
+                            stopAllJarvisAudio();
                             startListeningLoop();
                           } else {
                             handleToggleListening();

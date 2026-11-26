@@ -826,6 +826,20 @@ export function persistBrandUpdateAcrossEcosystem(brandId: string, updates: Reco
     // 3. Push live update to Tito Studio Firebase Firestore (`t2-content-studio` -> /clinics) asynchronously
     upsertBrandToTitoStudioFirestore(mergedBrand).catch(() => {});
 
+    // 4. Invalidate read-through Redis / memory cache for unified brand consistency
+    void import('./redisCacheService')
+        .then(({ invalidateCacheKeys }) =>
+            invalidateCacheKeys([
+                `t2os:brand:${canonicalKey.toLowerCase()}:slim`,
+                `t2os:brand:${canonicalKey.toLowerCase()}:full`,
+                `t2os:brand:${String(mergedBrand.slug || canonicalKey).toLowerCase()}:slim`,
+                `t2os:brand:${String(mergedBrand.slug || canonicalKey).toLowerCase()}:full`,
+                't2os:brands:all:slim',
+                't2os:brands:all:full',
+            ])
+        )
+        .catch(() => {});
+
     return mergedBrand;
 }
 
@@ -1437,6 +1451,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                     agentBrandId: storeSlug,
                     appUrl: generatedFlagshipUrl,
                     lifecycleStage: 'trial',
+                    accountOrigin: 'public_signup',
                     subscriptionStatus: 'trial',
                 });
             } catch {}
@@ -1923,6 +1938,132 @@ export async function executeRealJarvisEcosystemAction(input: {
                 success: true,
                 booking: saved,
                 message: `تم تسجيل وتأكيد الحجز في CRM وإرسال تنبيه فوري لجارفيس وواتساب!`
+            };
+        }
+
+        case 'TOGGLE_AGENT_BOT': {
+            const targetId = String(data.agentBrandId || brandId || '').trim();
+            if (!targetId) return { success: false, error: 'brandId is required' };
+            const { t2AgentApi } = await import('./t2AgentApiClient');
+            const agentRes = await t2AgentApi.togglePauseBot(targetId).catch((e: any) => ({ ok: false, error: e?.message }));
+            const nextPaused = typeof data.paused === 'boolean' ? data.paused : Boolean((agentRes as any)?.paused ?? (agentRes as any)?.botPaused);
+            const updatedBrand = persistBrandUpdateAcrossEcosystem(brandId || targetId, { botPaused: nextPaused });
+            syncAndBuildObsidianVault();
+            return {
+                success: true,
+                botPaused: nextPaused,
+                agentRes,
+                brand: updatedBrand,
+                message: nextPaused
+                    ? `تم إيقاف وكيل الواتساب مؤقتاً لبراند (${updatedBrand?.name || targetId})`
+                    : `تم تشغيل وكيل الواتساب لبراند (${updatedBrand?.name || targetId})`
+            };
+        }
+
+        case 'SEND_AGENT_WHATSAPP_MESSAGE': {
+            const targetId = String(data.agentBrandId || brandId || '').trim();
+            const phone = String(data.phone || data.to || '').replace(/[^\d+]/g, '');
+            const msgText = String(data.message || '').trim();
+            if (!phone || !msgText) return { success: false, error: 'phone and message are required' };
+            const agentBase = (process.env.T2_AGENT_API_URL || 'https://agent.t2os.app').replace(/\/+$/, '');
+            const agentKey = process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || '';
+            const resp = await fetch(`${agentBase}/api/whatsapp/send`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(agentKey ? { 'x-admin-key': agentKey } : {}),
+                },
+                body: JSON.stringify({ brandId: targetId, to: phone, message: msgText }),
+                signal: AbortSignal.timeout(8000),
+            }).then((r) => r.json().catch(() => ({ ok: r.ok }))).catch((e: any) => ({ ok: false, error: e?.message }));
+            return {
+                success: Boolean((resp as any)?.ok ?? (resp as any)?.success ?? true),
+                result: resp,
+                message: `تم إرسال رسالة الواتساب عبر T2 Agent إلى ${phone}`
+            };
+        }
+
+        case 'TRIGGER_STUDIO_GENERATION': {
+            const brands = getUnifiedGrowthBrands();
+            const targetBrand = brands.find((b) => b.id === brandId || b.slug === brandId) || brands[0];
+            if (!targetBrand) return { success: false, error: 'Brand not found' };
+            const studioBase = (process.env.TITO_STUDIO_URL || 'https://studio.t2os.app').replace(/\/+$/, '');
+            const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || '').trim();
+            if (!studioKey) return { success: false, error: 'Studio API key not configured' };
+            const batchItems = Array.isArray(data.items) && data.items.length > 0
+                ? data.items
+                : [{
+                    id: `jarvis_${targetBrand.id}_${Date.now()}`,
+                    title: String(data.topic || data.title || `محتوى إبداعي لـ ${targetBrand.name}`),
+                    type: data.mediaFormat === 'video' ? 'video' : 'image',
+                    caption: String(data.caption || data.topic || `عرض خاص من ${targetBrand.name}`),
+                    visualPrompt: String(data.prompt || data.visualPrompt || data.topic || `Professional commercial ad for ${targetBrand.name}`),
+                    pillarLabel: String(data.pillarLabel || 'أمر مباشر من جارفس'),
+                    scheduledPlatforms: Array.isArray(data.platforms) ? data.platforms : ['facebook', 'instagram'],
+                }];
+            const studioRes = await fetch(`${studioBase}/api/execution/enqueue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': studioKey },
+                body: JSON.stringify({
+                    clinicId: String((targetBrand as any).titoStudioClinicId || targetBrand.id),
+                    brandName: targetBrand.name,
+                    triggerSource: 'jarvis_command_direct',
+                    items: batchItems,
+                }),
+                signal: AbortSignal.timeout(10000),
+            }).then((r) => r.json().catch(() => ({ ok: r.ok }))).catch((e: any) => ({ ok: false, error: e?.message }));
+            return {
+                success: Boolean((studioRes as any)?.ok ?? (studioRes as any)?.success ?? true),
+                studioRes,
+                message: `تم إرسال مهمة الإنتاج (${batchItems.length}) إلى محرك تيتو ستوديو لبراند (${targetBrand.name})`
+            };
+        }
+
+        case 'UPDATE_BRAND_LIFECYCLE_AND_PLAN': {
+            const { upsertBrandRegistryEntry } = await import('./brandRegistryService');
+            const targetKey = String(data.canonicalId || brandId || '').trim();
+            if (!targetKey) return { success: false, error: 'brandId is required' };
+            const entry = upsertBrandRegistryEntry(targetKey, {
+                ...(data.slug ? { slug: String(data.slug) } : {}),
+                ...(data.name ? { name: String(data.name) } : {}),
+                ...(data.lifecycleStage ? { lifecycleStage: data.lifecycleStage } : {}),
+                ...(data.accountOrigin ? { accountOrigin: data.accountOrigin } : {}),
+                ...(data.planId ? { planId: String(data.planId) } : {}),
+                ...(data.planAmount !== undefined ? { planAmount: Number(data.planAmount) } : {}),
+                ...(data.titoStudioClinicId ? { titoStudioClinicId: String(data.titoStudioClinicId) } : {}),
+                ...(data.agentBrandId ? { agentBrandId: String(data.agentBrandId) } : {}),
+                ...(data.appUrl ? { appUrl: String(data.appUrl) } : {}),
+            });
+            const updatedBrand = persistBrandUpdateAcrossEcosystem(entry.canonicalId, {
+                slug: entry.slug,
+                name: entry.name || entry.canonicalId,
+                lifecycleStage: entry.lifecycleStage,
+                accountOrigin: entry.accountOrigin,
+                planId: entry.planId,
+                planAmount: entry.planAmount,
+                titoStudioClinicId: entry.titoStudioClinicId,
+                agentBrandId: entry.agentBrandId,
+                appUrl: entry.appUrl,
+                botPaused: entry.lifecycleStage === 'paused_archive',
+            });
+            syncAndBuildObsidianVault();
+            return {
+                success: true,
+                entry,
+                brand: updatedBrand,
+                message: `تم تحديث وإعداد ربط وخطة براند (${entry.name || entry.canonicalId}) عبر المنظومة بنجاح!`
+            };
+        }
+
+        case 'CHECK_ECOSYSTEM_HEALTH': {
+            const { runLiveEcosystemHealthProbe } = await import('./ecosystemConfigService');
+            const { getTitoStudioBaseUrl } = await import('./titoStudioApiClient');
+            const { getT2AgentBaseUrl } = await import('./t2AgentApiClient');
+            const report = await runLiveEcosystemHealthProbe(getTitoStudioBaseUrl(), getT2AgentBaseUrl());
+            return {
+                success: true,
+                report,
+                message: `تم فحص الاتصال الحي بجميع منصات المنظومة (Ez-Zel + Tito Studio + T2 Agent)`
             };
         }
 

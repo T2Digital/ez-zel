@@ -333,6 +333,47 @@ const playHtml5Audio = (base64Audio: string, onAudioEnd?: () => void, onFallback
     }
 };
 
+function speakWithBrowserFallback(text: string, onEnded?: () => void): void {
+    let completed = false;
+    const finish = () => {
+        if (completed) return;
+        completed = true;
+        window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
+        window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
+        onEnded?.();
+    };
+    const cleanText = String(text || '')
+        .replace(/[*_#\-`~>]/g, ' ')
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!cleanText || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        finish();
+        return;
+    }
+    try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(cleanText.slice(0, 800));
+        utter.lang = 'ar-EG';
+        const voices = window.speechSynthesis.getVoices();
+        const arVoice = voices.find((v) => /ar[-_]?EG/i.test(v.lang)) || voices.find((v) => /^ar/i.test(v.lang));
+        if (arVoice) utter.voice = arVoice;
+        utter.rate = 1.02;
+        const safetyTimer = setTimeout(finish, Math.max(4000, Math.min(18000, cleanText.length * 85)));
+        utter.onend = () => {
+            clearTimeout(safetyTimer);
+            finish();
+        };
+        utter.onerror = () => {
+            clearTimeout(safetyTimer);
+            finish();
+        };
+        window.speechSynthesis.speak(utter);
+    } catch {
+        finish();
+    }
+}
+
 export const playShadowVoice = async (
     text: string, 
     voice: string, 
@@ -361,8 +402,8 @@ export const playShadowVoice = async (
         }
 
         if (!base64) { 
-            console.warn("[TTS] Neural Human audio unavailable from endpoint.");
-            onEnded?.();
+            console.warn("[TTS] Neural Human audio unavailable from endpoint, falling back to browser Arabic TTS.");
+            speakWithBrowserFallback(text, onEnded);
             return; 
         }
 

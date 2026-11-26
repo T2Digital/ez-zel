@@ -917,7 +917,7 @@ test("25) Ecosystem watchdog handles Agent disconnect webhooks & Daily Brief; Fa
   const jarvisSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
   assert.equal(jarvisSrc.includes("358 real chats"), false, "Jarvis must not show hardcoded 358 real chats");
   assert.equal(jarvisSrc.includes("25 Unified Brands"), false, "Jarvis must not show hardcoded 25 Unified Brands");
-  assert.ok(jarvisSrc.includes("jarvisWorkspaceMode"), "Jarvis must expose clean Command/Ops workspace switcher");
+  assert.ok(jarvisSrc.includes("ObsidianHolographicConstellation") && jarvisSrc.includes("centerCore="), "Jarvis must render Single Obsidian Hero Core with centerCore");
 });
 
 test("26) Multi-user tenant sync hashes staff/secondary owner passwords, strips them on GET, and allows login", async () => {
@@ -1241,4 +1241,27 @@ test("33) Trial approve-post persists revisionCount across getUnifiedGrowthBrand
     if (prevTenantSecret === undefined) delete process.env.TENANT_AUTH_SECRET;
     else process.env.TENANT_AUTH_SECRET = prevTenantSecret;
   }
+});
+
+test("34) Legacy admin_managed brands are tagged separately from public_signup & new Jarvis cross-app actions are admin-gated", async () => {
+  const { getUnifiedGrowthBrands } = await importTs(path.join("services", "obsidianVaultService.ts"));
+  const { CORE_ADMIN_MANAGED_IDS } = await importTs(path.join("services", "brandRegistryService.ts"));
+  const unified = getUnifiedGrowthBrands();
+  const legacyBrands = unified.filter((b) => CORE_ADMIN_MANAGED_IDS.has(String(b.canonicalId || b.id)));
+  assert.ok(legacyBrands.length > 0, "Expected seeded legacy brands to be present in unified brands");
+  for (const lb of legacyBrands) {
+    assert.equal(lb.accountOrigin, "admin_managed", `Expected legacy brand ${lb.id} to have accountOrigin=admin_managed`);
+  }
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  for (const requiredAction of [
+    "TOGGLE_AGENT_BOT",
+    "SEND_AGENT_WHATSAPP_MESSAGE",
+    "UPDATE_BRAND_LIFECYCLE_AND_PLAN",
+  ]) {
+    assert.ok(serverSrc.includes(`'${requiredAction}'`), `Expected ${requiredAction} in ADMIN_ONLY_JARVIS_ACTIONS`);
+  }
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(!modalSrc.includes("jarvisWorkspaceMode"), "Dual Jarvis core mode toggle should be removed in favor of single Obsidian Hero Core");
 });

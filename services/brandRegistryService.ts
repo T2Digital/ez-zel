@@ -4,6 +4,7 @@ import { areBrandIdsEquivalent, toAlnumLookupKey, toCanonicalAgentId, toCanonica
 import { isPostgresConfigured, pgDeleteTenant, pgUpsertTenant } from './postgresService';
 
 export type BrandLifecycleStage = 'active_client' | 'trial' | 'paused_archive' | 'self_growth';
+export type BrandAccountOrigin = 'admin_managed' | 'public_signup';
 
 export interface CanonicalBrandEntry {
   canonicalId: string;
@@ -15,6 +16,7 @@ export interface CanonicalBrandEntry {
   dedicatedRepoUrl?: string;
   appUrl?: string;
   lifecycleStage: BrandLifecycleStage;
+  accountOrigin?: BrandAccountOrigin;
   appTemplate?: TenantAppTemplate;
   titoStudioClinicId?: string;
   agentBrandId?: string;
@@ -45,6 +47,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'al_shomoukh_dentistry',
     name: 'الشموخ لطب الأسنان',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
     titoStudioClinicId: 'brand_1786261318926',
     agentBrandId: 'al_shomoukh_dentistry',
@@ -57,6 +60,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'crystal_teeth',
     name: 'عيادة كريستال لطب الأسنان',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
     titoStudioClinicId: '2',
     agentBrandId: 'crystal_teeth',
@@ -69,6 +73,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'alkhalig_dental',
     name: 'عيادة الخليج لطب الأسنان',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
     titoStudioClinicId: '4',
     agentBrandId: 'alkhalig_dental',
@@ -81,6 +86,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'socotra_dental',
     name: 'عيادة سقطرى لطب الأسنان',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
     titoStudioClinicId: '3',
     agentBrandId: 'socotra_dental',
@@ -93,6 +99,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'dental_district',
     name: 'عيادة حي الأسنان',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
     titoStudioClinicId: '5',
     agentBrandId: 'dental_district',
@@ -105,6 +112,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'mecca_dental',
     name: 'عيادة مكة لطب الأسنان',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
     titoStudioClinicId: '6',
     agentBrandId: 'mecca_dental',
@@ -117,6 +125,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'clean_master',
     name: 'كلين ماستر',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
     titoStudioClinicId: 'brand_1788540631941',
     agentBrandId: 'clean_master',
@@ -129,6 +138,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'tito_media',
     name: 'تيتو ميديا',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
     titoStudioClinicId: 'brand_1779847291377',
     agentBrandId: 'tito_media',
@@ -141,6 +151,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     slug: 'al_genedy',
     name: 'الجنيدي للإعلان',
     lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
     appTemplate: 'products_erp',
     titoStudioClinicId: 'al_genedy',
     agentBrandId: 'al_genedy',
@@ -149,6 +160,8 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     planAmount: 5000,
   },
 ];
+
+export const CORE_ADMIN_MANAGED_IDS = new Set(CORE_ACTIVE_BRANDS_SEED.map((s) => s.canonicalId));
 
 function normalizeKey(id: string): string {
   return String(id || '').trim().toLowerCase();
@@ -173,6 +186,14 @@ export function getBrandRegistryState(): BrandRegistryState {
       };
     }
     changed = true;
+  }
+
+  // Ensure legacy/admin-managed brands stay tagged even on persisted state
+  for (const seedId of CORE_ADMIN_MANAGED_IDS) {
+    if (brands[seedId] && !brands[seedId].accountOrigin) {
+      brands[seedId] = { ...brands[seedId], accountOrigin: 'admin_managed' };
+      changed = true;
+    }
   }
 
   const state: BrandRegistryState = {
@@ -238,6 +259,18 @@ export function upsertBrandRegistryEntry(
 
   state.brands[merged.canonicalId] = merged;
   saveBrandRegistryState(state);
+  void import('./redisCacheService')
+    .then(({ invalidateCacheKeys }) =>
+      invalidateCacheKeys([
+        `t2os:brand:${merged.canonicalId.toLowerCase()}:slim`,
+        `t2os:brand:${merged.canonicalId.toLowerCase()}:full`,
+        `t2os:brand:${merged.slug.toLowerCase()}:slim`,
+        `t2os:brand:${merged.slug.toLowerCase()}:full`,
+        't2os:brands:all:slim',
+        't2os:brands:all:full',
+      ])
+    )
+    .catch(() => {});
 
   if (isPostgresConfigured()) {
     void pgUpsertTenant({
@@ -283,6 +316,16 @@ export async function deleteBrandRegistryEntry(slugOrId: string): Promise<boolea
   }
   if (removed) {
     saveBrandRegistryState(state);
+    void import('./redisCacheService')
+      .then(({ invalidateCacheKeys }) =>
+        invalidateCacheKeys([
+          `t2os:brand:${key.toLowerCase()}:slim`,
+          `t2os:brand:${key.toLowerCase()}:full`,
+          't2os:brands:all:slim',
+          't2os:brands:all:full',
+        ])
+      )
+      .catch(() => {});
   }
   if (isPostgresConfigured()) {
     await pgDeleteTenant(toCanonicalSlug(key, key)).catch(() => {});
@@ -373,6 +416,12 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
       dedicatedRepoUrl: entry?.dedicatedRepoUrl || b.dedicatedRepoUrl,
       appUrl: resolvedAppUrl,
       lifecycleStage,
+      accountOrigin:
+        entry?.accountOrigin ||
+        b.accountOrigin ||
+        (CORE_ADMIN_MANAGED_IDS.has(String(entry?.canonicalId || b.id || '').toLowerCase())
+          ? 'admin_managed'
+          : 'public_signup'),
       appTemplate: resolvedTemplate,
       titoStudioClinicId: entry?.titoStudioClinicId || b.titoStudioClinicId || b.id,
       agentBrandId: entry?.agentBrandId || b.agentBrandId || b.id,
@@ -416,6 +465,7 @@ export function applyRegistryToBrands(rawBrands: any[]): any[] {
       whatsapp: '',
       conversationsCount: 0,
       lifecycleStage,
+      accountOrigin: entry.accountOrigin || (CORE_ADMIN_MANAGED_IDS.has(normCid) ? 'admin_managed' : 'public_signup'),
       appTemplate: entry.appTemplate || 'products_erp',
       titoStudioClinicId: entry.titoStudioClinicId || entry.canonicalId,
       agentBrandId: entry.agentBrandId || entry.canonicalId,

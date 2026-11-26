@@ -71,8 +71,9 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       totalAccounts: number;
       activePaidAccounts: number;
       confirmedRevenueEgp: number;
+      adminManagedBrandsCount: number;
       clientJoinDates: string[];
-  }>({ totalAccounts: 0, activePaidAccounts: 0, confirmedRevenueEgp: 0, clientJoinDates: [] });
+  }>({ totalAccounts: 0, activePaidAccounts: 0, confirmedRevenueEgp: 0, adminManagedBrandsCount: 0, clientJoinDates: [] });
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [globalRules, setGlobalRules] = useState('');
@@ -185,33 +186,28 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
               const finJson = finResp ? await finResp.json().catch(() => null) : null;
               const regJson = regResp ? await regResp.json().catch(() => null) : null;
               const regBrands = Array.isArray(regJson?.brands) ? regJson.brands : [];
-              const regActive = regBrands.filter((b: any) => b.lifecycleStage === 'active_client');
-              const regTrial = regBrands.filter((b: any) => b.lifecycleStage === 'trial');
-              const regRevenue = regActive.reduce((acc: number, b: any) => acc + Number(b.planAmount || 5000), 0);
+              const publicRegBrands = regBrands.filter((b: any) => b?.accountOrigin !== 'admin_managed');
+              const regPublicActive = publicRegBrands.filter((b: any) => b.lifecycleStage === 'active_client');
+              const regPublicTrial = publicRegBrands.filter((b: any) => b.lifecycleStage === 'trial');
+              const adminManagedCount = Number(
+                  finJson?.adminManagedBrandsCount ??
+                  regBrands.filter((b: any) => b?.accountOrigin === 'admin_managed').length
+              );
 
-              if (finJson?.success || regBrands.length > 0) {
-                  const clientsArr = Array.isArray(finJson?.ezzelClients) ? finJson.ezzelClients : [];
-                  const activeClients = clientsArr.filter((c: any) => String(c.status || '').toLowerCase() === 'active');
-                  const clientsRevenueEgp = activeClients.reduce(
-                      (acc: number, c: any) => acc + Number(c.monthlySubscriptionEgp || 0),
-                      0
-                  );
+              // Exclude legacy/admin-managed clients from Shadow's public SaaS accounting:
+              // revenue & active paid counts reflect ONLY real public signups & verified Paymob payments.
+              if (finJson?.success || regBrands.length > 0 || revJson?.ok) {
+                  const clientsArr = (Array.isArray(finJson?.ezzelClients) ? finJson.ezzelClients : [])
+                      .filter((c: any) => c?.accountOrigin !== 'admin_managed');
+                  const publicPaidCount = Number(finJson?.publicPaidSubscribersCount ?? revJson?.paidCount ?? 0);
+                  const publicPaidRevenue = Number(finJson?.publicConfirmedRevenueEgp ?? revJson?.totalPaymobRevenueEgp ?? 0);
+                  const publicTrials = Number(finJson?.publicTrialAccountsCount ?? regPublicTrial.length);
+
                   setBackendAnalytics({
-                      totalAccounts: Math.max(
-                          clientsArr.length,
-                          regActive.length + regTrial.length,
-                          Number(finJson?.totalVaultBrandsCount || 0)
-                      ),
-                      activePaidAccounts: Math.max(
-                          activeClients.length,
-                          regActive.length,
-                          Number(finJson?.paidSubscribersCount || 0)
-                      ),
-                      confirmedRevenueEgp: Math.max(
-                          Number(finJson?.realConfirmedRevenueEgp || 0),
-                          clientsRevenueEgp,
-                          regRevenue
-                      ),
+                      totalAccounts: Math.max(clientsArr.length, regPublicActive.length + publicTrials),
+                      activePaidAccounts: Math.max(publicPaidCount, regPublicActive.length),
+                      confirmedRevenueEgp: publicPaidRevenue,
+                      adminManagedBrandsCount: adminManagedCount,
                       clientJoinDates: clientsArr.map((c: any) => String(c.joinedAt || '')).filter(Boolean),
                   });
               }
@@ -896,7 +892,7 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
                             {totalVerifiedActiveCount} <CheckCircle className="w-4 h-4 text-emerald-500/30" />
                         </div>
                         <div className="text-[10px] text-white/40 mt-1">
-                            يدوي/نشط: {Math.max(manualOrExtraSubscribers.length, Math.max(0, totalVerifiedActiveCount - Number(paymobRevenueSummary.paidCount || 0)))} | Paymob: {paymobRevenueSummary.paidCount}
+                            Paymob: {paymobRevenueSummary.paidCount} | خارج الحسابات (إدارة الأدمن): {backendAnalytics.adminManagedBrandsCount}
                         </div>
                     </div>
                     <div className="p-5 bg-[#0a0a0a]/80 backdrop-blur-md rounded-[24px] border border-white/5 relative overflow-hidden group">

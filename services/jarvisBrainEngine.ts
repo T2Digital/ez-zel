@@ -774,6 +774,33 @@ const jarvisBrainTools: FunctionDeclaration[] = [
       required: ["action", "repoName"],
     },
   },
+  {
+    name: "update_brand_lifecycle_and_plan",
+    description:
+      "أداة الماستر تيتو لإعداد وربط أي براند (العملاء الحاليين أو الجدد) وتحديث خطته وحالته ومعرفاته في تيتو ستوديو وتيتو أجنت وتطبيقه في خطوة واحدة.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        brandNameOrId: { type: Type.STRING, description: "معرف البراند أو اسمه." },
+        lifecycleStage: {
+          type: Type.STRING,
+          enum: ["active_client", "trial", "paused_archive", "self_growth"],
+          description: "مرحلة دورة حياة البراند.",
+        },
+        accountOrigin: {
+          type: Type.STRING,
+          enum: ["admin_managed", "public_signup"],
+          description: "مصدر الحساب: admin_managed للعملاء الحاليين خارج حسابات الظل، أو public_signup للاشتراكات العامة.",
+        },
+        planId: { type: Type.STRING, description: "معرف الباقة مثل growth_5000 أو pro_10000 أو sovereign_50000." },
+        planAmount: { type: Type.NUMBER, description: "قيمة الباقة بالجنيه." },
+        titoStudioClinicId: { type: Type.STRING, description: "معرف العيادة/البراند في تيتو ستوديو." },
+        agentBrandId: { type: Type.STRING, description: "معرف البراند في تيتو أجنت." },
+        appUrl: { type: Type.STRING, description: "رابط التطبيق أو الموقع المباشر." },
+      },
+      required: ["brandNameOrId"],
+    },
+  },
 ];
 
 function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, any[]>): string {
@@ -2062,6 +2089,33 @@ ${conversationMemoryDirective}`;
             error: err?.message || "Failed to deploy brand web app to Vercel",
           };
         }
+        break;
+      }
+
+      case "update_brand_lifecycle_and_plan": {
+        if (persona !== "tito") {
+          backendExecutionResult = { success: false, error: "Forbidden: Admin privileges required" };
+          break;
+        }
+        backendExecutionResult = await executeRealJarvisEcosystemAction({
+          actionType: "UPDATE_BRAND_LIFECYCLE_AND_PLAN",
+          brandId: String(args.brandNameOrId || brandId),
+          data: {
+            canonicalId: args.brandNameOrId || brandId,
+            lifecycleStage: args.lifecycleStage,
+            accountOrigin: args.accountOrigin,
+            planId: args.planId,
+            planAmount: args.planAmount,
+            titoStudioClinicId: args.titoStudioClinicId,
+            agentBrandId: args.agentBrandId,
+            appUrl: args.appUrl,
+          },
+        });
+        executedAction = {
+          type: "OPEN_BRAND_HUB",
+          brandId: String(args.brandNameOrId || brandId),
+          result: backendExecutionResult,
+        };
         break;
       }
 

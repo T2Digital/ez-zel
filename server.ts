@@ -802,6 +802,9 @@ async function startServer() {
       'RECONCILE_ALL',
       'SYNC_OBSIDIAN',
       'UPDATE_BRAND_PLAN',
+      'UPDATE_BRAND_LIFECYCLE_AND_PLAN',
+      'TOGGLE_AGENT_BOT',
+      'SEND_AGENT_WHATSAPP_MESSAGE',
       'CONFIGURE_ECOSYSTEM',
       'ADMIN_OVERRIDE',
       'BULK_DELETE_BRANDS'
@@ -1807,6 +1810,7 @@ async function startServer() {
                   upsertBrandRegistryEntry(brandId, {
                       slug: brandId,
                       lifecycleStage: 'active_client',
+                      accountOrigin: 'public_signup',
                       subscriptionStatus: 'active',
                       paidExpiresAt: expiresAt,
                   });
@@ -4371,15 +4375,31 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
               });
           }
           const allClients = getEzZelPersonalClients();
-          const paidSubsCount = readPaymobSubscriptions().filter(
+          const paidSubs = readPaymobSubscriptions().filter(
               (s: any) => String(s?.status || "").toLowerCase() === "paid"
+          );
+          const paidSubsCount = paidSubs.length;
+          const publicConfirmedRevenueEgp = paidSubs.reduce(
+              (sum: number, s: any) => sum + (Number(s?.amountEgp) || 0),
+              0
+          );
+          const unifiedBrands = getUnifiedGrowthBrands();
+          const adminManagedBrandsCount = unifiedBrands.filter(
+              (b: any) => b?.accountOrigin === "admin_managed"
+          ).length;
+          const publicTrialAccountsCount = unifiedBrands.filter(
+              (b: any) => b?.accountOrigin !== "admin_managed" && b?.lifecycleStage === "trial"
           ).length;
           res.json({
               success: true,
               ...stats,
               ezzelClients: allClients,
-              unifiedBrandsCount: getUnifiedGrowthBrands().length,
+              unifiedBrandsCount: unifiedBrands.length,
               paidSubscribersCount: paidSubsCount,
+              publicPaidSubscribersCount: paidSubsCount,
+              publicConfirmedRevenueEgp,
+              publicTrialAccountsCount,
+              adminManagedBrandsCount,
           });
       } catch (e: any) {
           res.status(500).json({ error: e.message });
