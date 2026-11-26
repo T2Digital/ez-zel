@@ -333,47 +333,6 @@ const playHtml5Audio = (base64Audio: string, onAudioEnd?: () => void, onFallback
     }
 };
 
-function speakWithBrowserFallback(text: string, onEnded?: () => void): void {
-    let completed = false;
-    const finish = () => {
-        if (completed) return;
-        completed = true;
-        window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
-        window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
-        onEnded?.();
-    };
-    const cleanText = String(text || '')
-        .replace(/[*_#\-`~>]/g, ' ')
-        .replace(/https?:\/\/\S+/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    if (!cleanText || typeof window === 'undefined' || !('speechSynthesis' in window)) {
-        finish();
-        return;
-    }
-    try {
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(cleanText.slice(0, 800));
-        utter.lang = 'ar-EG';
-        const voices = window.speechSynthesis.getVoices();
-        const arVoice = voices.find((v) => /ar[-_]?EG/i.test(v.lang)) || voices.find((v) => /^ar/i.test(v.lang));
-        if (arVoice) utter.voice = arVoice;
-        utter.rate = 1.02;
-        const safetyTimer = setTimeout(finish, Math.max(4000, Math.min(18000, cleanText.length * 85)));
-        utter.onend = () => {
-            clearTimeout(safetyTimer);
-            finish();
-        };
-        utter.onerror = () => {
-            clearTimeout(safetyTimer);
-            finish();
-        };
-        window.speechSynthesis.speak(utter);
-    } catch {
-        finish();
-    }
-}
-
 export const playShadowVoice = async (
     text: string, 
     voice: string, 
@@ -381,6 +340,13 @@ export const playShadowVoice = async (
     onEnded?: () => void,
     onVoiceLoaded?: (base64: string) => void
 ) => {
+    // Route long spoken responses through sentence-by-sentence streaming Gemini Human TTS
+    // so playback begins within ~2s and never drops to robotic browser voices.
+    if (!existing && String(text || '').trim().length > 220) {
+        await playShadowVoiceStreaming(text, voice, undefined, onEnded);
+        return;
+    }
+
     stopVoice();
 
     try {
@@ -392,6 +358,9 @@ export const playShadowVoice = async (
         }
         if (!base64) {
             base64 = await getShadowVoice(text, voice);
+            if (!base64) {
+                base64 = await getShadowVoice(text, voice);
+            }
             if (base64) {
                 shadowDB.saveAudioSegment(cacheKey, base64).catch(() => {});
             }
@@ -402,8 +371,10 @@ export const playShadowVoice = async (
         }
 
         if (!base64) { 
-            console.warn("[TTS] Neural Human audio unavailable from endpoint, falling back to browser Arabic TTS.");
-            speakWithBrowserFallback(text, onEnded);
+            console.warn("[TTS] Neural Gemini Human audio unavailable after retry; robotic browser speech remains disabled.");
+            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
+            window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
+            onEnded?.();
             return; 
         }
 
@@ -494,7 +465,7 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
     // 1. PRIMARY & SOVEREIGN: Latest Gemini Human TTS Models (Puck / Kore 24kHz)
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 9500);
+        const timeoutId = setTimeout(() => controller.abort(), 22000);
 
         const resp = await fetch('/api/tts/gemini', {
             method: 'POST',

@@ -920,27 +920,32 @@ ${dynamicPlansBlock}
 
 ركز بالكامل على برانده فقط وممنوع ذكر أي براند آخر.`;
   } else {
-    const trialList = trialClients.slice(0, 8).map((c: any) => `${c.name} (ينتهي ${c.trialEndsAt || "-"})`).join("، ") || "لا يوجد";
-    const paidList = paidClients.slice(0, 8).map((c: any) => `${c.name} (${c.monthlySubscriptionEgp || 2500} ج.م)`).join("، ") || "لا يوجد";
-    const mrrEgp = paidClients.reduce((s: number, c: any) => s + (Number(c.monthlySubscriptionEgp) || 0), 0);
     const allUnifiedNow = getUnifiedGrowthBrands();
+    const publicBrandsNow = allUnifiedNow.filter((b: any) => b?.accountOrigin !== "admin_managed");
+    const adminManagedCount = allUnifiedNow.filter((b: any) => b?.accountOrigin === "admin_managed").length;
+    const paidPaymobSubs = paymobSubs.filter((s: any) => String(s?.status || "").toLowerCase() === "paid");
+    const publicPaidMrrEgp = paidPaymobSubs.reduce((s: number, p: any) => s + (Number(p?.amountEgp) || 0), 0);
+    const publicTrialsNow = publicBrandsNow.filter((b: any) => b?.lifecycleStage === "trial");
     const regCounts = {
-      active: allUnifiedNow.filter((b: any) => b.lifecycleStage === "active_client").length,
-      trial: allUnifiedNow.filter((b: any) => b.lifecycleStage === "trial").length,
-      self: allUnifiedNow.filter((b: any) => b.lifecycleStage === "self_growth").length,
+      activePublic: publicBrandsNow.filter((b: any) => b.lifecycleStage === "active_client").length,
+      trialPublic: publicTrialsNow.length,
+      adminManaged: adminManagedCount,
       paused: allUnifiedNow.filter((b: any) => b.lifecycleStage === "paused_archive").length,
     };
+    const publicTrialsSummary =
+      publicTrialsNow.slice(0, 6).map((b: any) => `${b.name} (${b.slug || b.id})`).join("، ") || "لا يوجد";
     personaRoleInstruction = `المتحدث معك الآن هو الماستر "تيتو" — المالك والمدير العام لمنظومة T2OS.
-دورك: أنت "جارفيس"، العقل التنفيذي الموحد المتصل لحظياً بقواعد البيانات (بدون أي أرقام محفوظة مسبقاً — كل بياناتك من الحقائق الحية أدناه فقط).
+دورك: أنت "جارفيس"، العقل التنفيذي الموحد المتصل لحظياً بقواعد البيانات (بدون أي أرقام قديمة محفوظة — كل بياناتك من الحقائق الحية أدناه فقط، مع استبعاد العملاء الحاليين للإدارة من حسابات الظل وإيراداتها).
 
-[الباقات الحية الآن من saasPlansService]:
+[الباقات الحية الآن من saasPlansService (تبدأ من 5,000 ج.م)]:
 ${dynamicPlansBlock}
 
 [البيانات الحية الآن من قواعد المنظومة]:
-1. المشتركون المسجلون (${ezzelClients.length}): مدفوعون (${paidClients.length} بقيمة ${mrrEgp} ج.م: ${paidList}) | تجارب (${trialClients.length}: ${trialList}) | Paymob: ${paymobSubs.length}.
-2. السجل الموحد للبراندات (توحيد البراندات): شغّال: ${regCounts.active} | تجربة: ${regCounts.trial} | تسويق للظل: ${regCounts.self} | متوقف/أرشيف: ${regCounts.paused}.
-3. البراندات النشطة على الشبكة (${unifiedBrands.length}): ${allBrandsBrief || "لا توجد براندات نشطة حالياً (كلها في الأرشيف حتى يتم تشغيلها)"}
-4. البراند المحدد حالياً: ${activeBrand ? activeBrandStats : "العرض العام للمنظومة"}.
+1. حسابات واشتراكات الظل للجمهور (Paymob): ${paidPaymobSubs.length} مشترك مدفوع بإيراد ${publicPaidMrrEgp} ج.م | تجارب الجمهور النشطة: ${regCounts.trialPublic} (${publicTrialsSummary}).
+2. العملاء الحاليون تحت إدارة الأدمن (خارج حسابات وإيرادات الظل): ${regCounts.adminManaged} براند، متاح إعدادهم وربط خططهم من لوحة الإدارة أو بأمرك هنا.
+3. ملخص السجل الموحد: مشترك عام نشط: ${regCounts.activePublic} | تجربة عامة: ${regCounts.trialPublic} | عملاء إدارة حاليون: ${regCounts.adminManaged} | أرشيف متوقف: ${regCounts.paused}.
+4. البراندات النشطة على الشبكة (${unifiedBrands.length}): ${allBrandsBrief || "لا توجد براندات نشطة حالياً (كلها في الأرشيف حتى يتم تشغيلها)"}
+5. البراند المحدد حالياً: ${activeBrand ? activeBrandStats : "العرض العام للمنظومة"}.
 ${dynamicBrainOverride ? `\n[توجيهات إضافية محدثة]: ${dynamicBrainOverride}` : ""}`;
   }
 
@@ -951,8 +956,8 @@ ${recentChatSummary ? `\n[سياق الذاكرة المشتركة مع شات �
 
 قواعد صارمة لشخصية جارفيس المتحدث (Executive Poise):
 - تحدث بالعامية المصرية المهذبة والرزينة (بدون مبالغة أو كلام إنشائي) لصوت طبيعي واضح.
-- أجب بأرقام وحقائق حقيقية من الذاكرة الحية أو من نتائج الأدوات فقط — ممنوع تأليف أي رقم أو سعر أو حالة غير موجودة.
-- عند أي أمر ببناء متجر إلكتروني كامل أو تطبيق ويب لبراند: استخدم فوراً أداة \`deploy_brand_web_app\` (أو \`onboard_new_client_brand\` مع \`provisionWebApp: true\`) لإنشاء ريبو GitHub ونشره فعلياً على Vercel (\`https://t2-tenant-<slug>.vercel.app\`) — وممنوع الزعم أن مسار \`t2os.app/store/...\` أو \`t2os.app/app/...\` هو المتجر المستقل على Vercel. ولا تُنشئ صفحة هبوط فقط إلا إذا طلب المستخدم صفحة هبوط صراحةً أو كان على باقة \`starter_2500\`.
+- أجب بأرقام وحقائق حقيقية من الذاكرة الحية أو من نتائج الأدوات فقط — ممنوع ذكر أي أرقام قديمة لعملاء الإدارة الحاليين كأنهم إيرادات اشتراكات الظل.
+- عند أي أمر ببناء متجر إلكتروني كامل أو تطبيق ويب لبراند: استخدم فوراً أداة \`deploy_brand_web_app\` (أو \`onboard_new_client_brand\` مع \`provisionWebApp: true\`) لإنشاء ريبو GitHub ونشره فعلياً على Vercel (\`https://t2-tenant-<slug>.vercel.app\`) — والحد الأدنى للباقات المدفوعة هو \`5,000 ج.م\` (growth_5000).
 - عند أي أمر تنفيذي (نشر، تعديل سعر، إضافة منتج، مصروف، موظف، مورد، خزينة، ربط واتساب): نفّذ الأداة أولاً ثم قدّم تقريراً تنفيذياً دقيقاً في جملة أو جملتين.
 - عند أي سؤال عن المنتجات أو الأسعار أو المخزون أو المبيعات أو المصاريف أو تأكيد وجود/إضافة منتج في المتجر: استخدم 'manage_store_erp' ('get_summary' أو 'add_product' أو 'update_price') فوراً — وممنوع خلط طلبات المتجر بأدوات النشر على السوشيال ميديا ('create_and_publish_post').
 - لا تكرر تقارير قديمة إلا إذا سألك المستخدم عنها مباشرة.`;

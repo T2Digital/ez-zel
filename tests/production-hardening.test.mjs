@@ -1286,3 +1286,20 @@ test("35) Deprecated 2500 EGP tier removed, minimum 5000 EGP enforced, Keep-Aliv
   assert.ok(modalSrc.includes("studioEmbed.open ? 'flex' : 'hidden'"), "Studio embed iframe must stay Keep-Alive");
   assert.ok(modalSrc.includes("agentEmbed.open ? 'flex' : 'hidden'"), "Agent embed iframe must stay Keep-Alive");
 });
+
+test("36) Factory modal has unified 5000+ pricing, Ribbon excludes admin_managed MRR, and speechService streams long replies cleanly", () => {
+  const onboardingSrc = fs.readFileSync(path.join(process.cwd(), "components", "chat", "ClientOnboardingModal.tsx"), "utf8");
+  assert.equal(onboardingSrc.includes("18,000"), false, "Factory modal must not display legacy 18,000 price");
+  assert.equal(onboardingSrc.includes("28,000"), false, "Factory modal must not display legacy 28,000 price");
+  assert.equal(/\bamount:\s*2500\b/.test(onboardingSrc), false, "Factory modal must not include deprecated 2500 plan");
+  assert.equal(onboardingSrc.includes("باقة الانطلاق (2,500"), false, "Factory modal must not display deprecated 2,500 tier");
+  assert.ok(onboardingSrc.includes("5,000 ج"), "Factory modal must use unified 5,000+ pricing");
+
+  const ribbonSrc = fs.readFileSync(path.join(process.cwd(), "components", "AdminGovernanceRibbon.tsx"), "utf8");
+  assert.ok(ribbonSrc.includes("admin_managed"), "AdminGovernanceRibbon must separate admin_managed from public MRR");
+  assert.ok(ribbonSrc.includes("/api/system/real-financials"), "AdminGovernanceRibbon must read /api/system/real-financials");
+
+  const speechSrc = fs.readFileSync(path.join(process.cwd(), "services", "speechService.ts"), "utf8");
+  assert.ok(speechSrc.includes("playShadowVoiceStreaming"), "speechService must stream long replies with Gemini Human TTS");
+  assert.equal(speechSrc.includes("SpeechSynthesisUtterance"), false, "speechService must NOT fall back to robotic browser SpeechSynthesisUtterance");
+});

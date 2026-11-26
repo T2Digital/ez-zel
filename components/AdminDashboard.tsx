@@ -135,11 +135,12 @@ const AdminDashboard: React.FC<Props> = ({ onLogout, onSwitchToUserMode, onNavig
       return total;
   };
 
-  const displayedTotalMembers = Math.max(realProfiles.length, backendAnalytics.totalAccounts);
-  const totalVerifiedActiveCount = Math.max(
-      manualOrExtraSubscribers.length + Number(paymobRevenueSummary.paidCount || 0),
-      backendAnalytics.activePaidAccounts
-  );
+  const displayedTotalMembers = backendAnalytics.totalAccounts > 0
+      ? backendAnalytics.totalAccounts
+      : realProfiles.length;
+  const totalVerifiedActiveCount = backendAnalytics.activePaidAccounts > 0
+      ? backendAnalytics.activePaidAccounts
+      : Number(paymobRevenueSummary.paidCount || 0);
   const expectedProfit = calculateTotalExpectedProfit();
   const growthData = getGrowthData();
 

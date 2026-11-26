@@ -117,11 +117,25 @@ function ensureVaultDirectories() {
     }
 }
 
+const LEGACY_ADMIN_CLIENT_IDS = new Set([
+    'ezzel_usr_01',
+    'ezzel_usr_02',
+    'ezzel_usr_03',
+    'ezzel_usr_04',
+    'ezzel_usr_05',
+]);
+
 export function getEzZelPersonalClients(): any[] {
     if (fs.existsSync(EZZEL_CLIENTS_PATH)) {
         try {
             const parsed = JSON.parse(fs.readFileSync(EZZEL_CLIENTS_PATH, 'utf8'));
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed.map((c: any) =>
+                    LEGACY_ADMIN_CLIENT_IDS.has(String(c?.id || ''))
+                        ? { ...c, accountOrigin: 'admin_managed', monthlySubscriptionEgp: 0 }
+                        : c
+                );
+            }
         } catch {}
     }
 
@@ -133,65 +147,70 @@ export function getEzZelPersonalClients(): any[] {
             plan: 'Sovereign Master Unlimited',
             voicePersona: 'Gemini Puck 24kHz (البشري الأصيل)',
             status: 'active',
+            accountOrigin: 'admin_managed',
             activeTasksCount: 14,
             memoryNodesCount: 128,
             monthlySubscriptionEgp: 0,
-            affiliateEarningsEgp: 18500,
+            affiliateEarningsEgp: 0,
             joinedAt: '2026-01-01',
             devices: ['Windows Workstation (D:\\ez-zel-)', 'Android Sovereign Phone']
         },
         {
             id: 'ezzel_usr_02',
             name: 'د. نور الدين (عيادة كريستال)',
-            role: 'مشترك باقة المدير التنفيذي (Brand CEO)',
-            plan: 'VIP Executive Assistant + Growth OS',
+            role: 'عميل إدارة حالي (خارج حسابات الظل)',
+            plan: 'Admin Managed',
             voicePersona: 'Gemini Puck 24kHz',
             status: 'active',
+            accountOrigin: 'admin_managed',
             activeTasksCount: 8,
             memoryNodesCount: 42,
-            monthlySubscriptionEgp: 5000,
-            affiliateEarningsEgp: 1000,
+            monthlySubscriptionEgp: 0,
+            affiliateEarningsEgp: 0,
             joinedAt: '2026-10-15',
             linkedBrandId: 'crystal_teeth'
         },
         {
             id: 'ezzel_usr_03',
             name: 'م. محمود خضر (شركة الخضر للسيارات)',
-            role: 'مشترك باقة المدير التنفيذي (Brand CEO)',
-            plan: 'Enterprise VIP',
+            role: 'عميل إدارة حالي (خارج حسابات الظل)',
+            plan: 'Admin Managed',
             voicePersona: 'Gemini Puck 24kHz',
             status: 'active',
+            accountOrigin: 'admin_managed',
             activeTasksCount: 11,
             memoryNodesCount: 64,
-            monthlySubscriptionEgp: 4900,
-            affiliateEarningsEgp: 2450,
+            monthlySubscriptionEgp: 0,
+            affiliateEarningsEgp: 0,
             joinedAt: '2026-10-20',
             linkedBrandId: 'alkhedr_car_rental'
         },
         {
             id: 'ezzel_usr_04',
             name: 'أ. بيشوي (Sale Gates Egypt)',
-            role: 'مشترك باقة العقارات الذكية',
-            plan: 'Business Pro',
+            role: 'عميل إدارة حالي (خارج حسابات الظل)',
+            plan: 'Admin Managed',
             voicePersona: 'Gemini Puck 24kHz',
             status: 'active',
+            accountOrigin: 'admin_managed',
             activeTasksCount: 9,
             memoryNodesCount: 53,
-            monthlySubscriptionEgp: 3500,
-            affiliateEarningsEgp: 700,
+            monthlySubscriptionEgp: 0,
+            affiliateEarningsEgp: 0,
             joinedAt: '2026-10-25',
             linkedBrandId: 'besho'
         },
         {
             id: 'ezzel_usr_05',
             name: 'أ. محمد بطاح (بطاح لقطع الغيار)',
-            role: 'فترة تجربة مجانية 7 أيام',
-            plan: '7-Day Free Trial (Growth OS)',
+            role: 'عميل إدارة حالي (خارج حسابات الظل)',
+            plan: 'Admin Managed',
             voicePersona: 'Gemini Kore 24kHz',
             status: 'trial',
+            accountOrigin: 'admin_managed',
             activeTasksCount: 4,
             memoryNodesCount: 19,
-            monthlySubscriptionEgp: 2190,
+            monthlySubscriptionEgp: 0,
             affiliateEarningsEgp: 0,
             joinedAt: '2026-11-08',
             linkedBrandId: 'battah_system'
@@ -502,7 +521,13 @@ export function getUnifiedGrowthBrands(): any[] {
         };
     });
 
-    return applyRegistryToBrands(finalBrands);
+    const sanitizedBrands = finalBrands.filter((b: any) => {
+        const nm = String(b?.name || '').trim();
+        if (!nm || /^\?+(?:\s+\?+)*$/.test(nm) || nm.includes('????')) return false;
+        return true;
+    });
+
+    return applyRegistryToBrands(sanitizedBrands);
 }
 
 /**

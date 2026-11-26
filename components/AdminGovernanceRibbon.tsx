@@ -36,28 +36,43 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
   const [agentLiveOk, setAgentLiveOk] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
 
+  const [adminManagedCount, setAdminManagedCount] = useState<number>(0);
+  const [publicPaidCount, setPublicPaidCount] = useState<number>(0);
+  const [publicPaidRevenue, setPublicPaidRevenue] = useState<number>(0);
+  const [publicTrialCount, setPublicTrialCount] = useState<number>(0);
+
   const fetchGovernanceTelemetry = useCallback(async () => {
     setChecking(true);
     try {
       const headers = await getAdminAuthHeaders();
-      const [fleetRes, regRes] = await Promise.all([
+      const [fleetRes, regRes, finRes, revRes] = await Promise.all([
         fetch('/api/brand-hub/agent/fleet', { credentials: 'include', headers }).then(r => r.json()).catch(() => null),
         fetch('/api/admin/brands/registry', { credentials: 'include', headers }).then(r => r.json()).catch(() => null),
+        fetch('/api/system/real-financials', { credentials: 'include', headers }).then(r => r.json()).catch(() => null),
+        fetch('/api/admin/revenue/summary', { credentials: 'include', headers }).then(r => r.json()).catch(() => null),
       ]);
       if (fleetRes?.ok) {
         setAgentLiveOk(String(fleetRes.source || '').startsWith('t2_ai_agent_live'));
       }
       if (regRes?.ok && Array.isArray(regRes.brands)) {
         const regList = regRes.brands;
-        const activeList = regList.filter((b: any) => b.lifecycleStage === 'active_client');
-        const trialList = regList.filter((b: any) => b.lifecycleStage === 'trial');
+        const publicList = regList.filter((b: any) => b?.accountOrigin !== 'admin_managed');
+        const legacyManaged = regList.filter((b: any) => b?.accountOrigin === 'admin_managed');
+        const publicActiveList = publicList.filter((b: any) => b.lifecycleStage === 'active_client');
+        const publicTrialList = publicList.filter((b: any) => b.lifecycleStage === 'trial');
         setTotalRegistryCount(regList.length);
-        setActiveRegistryBrands(activeList);
-        setTrialRegistryCount(trialList.length);
-        setLiveBrandsCount(activeList.length > 0 ? activeList.length : regList.length);
+        setActiveRegistryBrands(publicActiveList);
+        setTrialRegistryCount(publicTrialList.length);
+        setAdminManagedCount(Number(finRes?.adminManagedBrandsCount ?? legacyManaged.length));
+        setPublicTrialCount(Number(finRes?.publicTrialAccountsCount ?? publicTrialList.length));
+        setLiveBrandsCount(regList.filter((b: any) => b.lifecycleStage === 'active_client').length || regList.length);
       } else if (fleetRes?.ok) {
         setLiveBrandsCount(typeof fleetRes.brandsCount === 'number' ? fleetRes.brandsCount : Array.isArray(fleetRes.brands) ? fleetRes.brands.length : 0);
       }
+      const paidCnt = Number(revRes?.paidCount ?? finRes?.publicPaidSubscribersCount ?? 0);
+      const paidRev = Number(revRes?.totalPaymobRevenueEgp ?? finRes?.publicConfirmedRevenueEgp ?? 0);
+      setPublicPaidCount(paidCnt);
+      setPublicPaidRevenue(paidRev);
     } catch {
       setAgentLiveOk(false);
     } finally {
@@ -69,26 +84,13 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
     fetchGovernanceTelemetry();
   }, [fetchGovernanceTelemetry]);
 
-  const profileTrialCount = realProfiles.filter(
-    (p) => p.status !== 'active' && p.status !== 'pending'
-  ).length;
-
-  const effectiveActiveClientsCount = Math.max(activeMembersCount, activeRegistryBrands.length);
-  const effectiveTrialCount = Math.max(profileTrialCount, trialRegistryCount);
+  const effectiveActiveClientsCount = Math.max(publicPaidCount, activeRegistryBrands.length);
+  const effectiveTrialCount = Math.max(publicTrialCount, trialRegistryCount);
   const effectiveTotalSubscribers = effectiveActiveClientsCount + effectiveTrialCount + pendingRequestsCount;
 
-  const profileMrr = realProfiles
-    .filter((p) => p.status === 'active')
-    .reduce((sum, u) => {
-      if (u.subscriptionCycle === 'yearly') return sum + Math.round(10000 / 12);
-      return sum + Number((u as any).monthlySubscriptionEgp || 2500);
-    }, 0);
-
-  const registryMrr = activeRegistryBrands.reduce((sum, b) => {
-    return sum + (Number(b.planAmount || 5000) || 5000);
-  }, 0);
-
-  const estimatedMrr = Math.max(profileMrr, registryMrr);
+  const estimatedMrr = publicPaidRevenue > 0
+    ? publicPaidRevenue
+    : activeRegistryBrands.reduce((sum, b) => sum + (Number(b.planAmount || 5000) || 5000), 0);
 
   const estimatedAdsPool = Math.round(estimatedMrr * 0.5);
   const estimatedNetSystem = estimatedMrr - estimatedAdsPool;
@@ -128,9 +130,15 @@ export const AdminGovernanceRibbon: React.FC<AdminGovernanceRibbonProps> = ({
           </div>
           <div className="text-3xl font-black text-white tracking-tight">{effectiveTotalSubscribers}</div>
           <div className="text-[11px] text-white/70 mt-1.5 flex items-center gap-2 flex-wrap">
-            <span className="text-emerald-300 font-bold">{effectiveActiveClientsCount} عميل مدفوع نشط</span>
+            <span className="text-emerald-300 font-bold">{effectiveActiveClientsCount} مشترك عام مدفوع</span>
             <span className="text-white/30">•</span>
-            <span className="text-amber-300 font-bold">{effectiveTrialCount} تجربة/مستخدم</span>
+            <span className="text-amber-300 font-bold">{effectiveTrialCount} تجربة جمهور</span>
+            {adminManagedCount > 0 && (
+              <>
+                <span className="text-white/30">•</span>
+                <span className="text-cyan-300/80">{adminManagedCount} إدارة حاليين</span>
+              </>
+            )}
           </div>
         </button>
 

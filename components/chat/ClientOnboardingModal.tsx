@@ -16,12 +16,12 @@ interface ClientOnboardingModalProps {
 }
 
 const CATEGORIES = [
-  { id: 'ecommerce_store', name: 'متجر تجارة إلكترونية ذكي', icon: ShoppingBag, color: 'from-amber-500 to-orange-600', mrr: '18,000 ج.م/شهر' },
-  { id: 'car_rental', name: 'تأجير سيارات فارهة ونقل VIP', icon: Car, color: 'from-blue-500 to-cyan-600', mrr: '28,000 ج.م/شهر' },
-  { id: 'real_estate', name: 'عقارات ومستشارك الذكي', icon: Building2, color: 'from-emerald-500 to-teal-600', mrr: '35,000 ج.م/شهر' },
-  { id: 'medical_clinic', name: 'عيادات ومراكز طبية متخصصة', icon: HeartPulse, color: 'from-rose-500 to-pink-600', mrr: '20,000 ج.م/شهر' },
-  { id: 'shipping_logistics', name: 'شحن وتوصيل ولوجستيات', icon: Truck, color: 'from-purple-500 to-indigo-600', mrr: '12,650 ج.م/شهر' },
-  { id: 'clean_master', name: 'خدمات صيانة ونظافة وحجوزات', icon: Sparkles, color: 'from-cyan-500 to-blue-600', mrr: '14,850 ج.م/شهر' },
+  { id: 'ecommerce_store', name: 'متجر تجارة إلكترونية ذكي', icon: ShoppingBag, color: 'from-amber-500 to-orange-600', mrr: 'تبدأ من 5,000 ج.م/شهر' },
+  { id: 'car_rental', name: 'تأجير سيارات فارهة ونقل VIP', icon: Car, color: 'from-blue-500 to-cyan-600', mrr: 'تبدأ من 5,000 ج.م/شهر' },
+  { id: 'real_estate', name: 'عقارات ومستشارك الذكي', icon: Building2, color: 'from-emerald-500 to-teal-600', mrr: 'تبدأ من 5,000 ج.م/شهر' },
+  { id: 'medical_clinic', name: 'عيادات ومراكز طبية متخصصة', icon: HeartPulse, color: 'from-rose-500 to-pink-600', mrr: 'تبدأ من 5,000 ج.م/شهر' },
+  { id: 'shipping_logistics', name: 'شحن وتوصيل ولوجستيات', icon: Truck, color: 'from-purple-500 to-indigo-600', mrr: 'تبدأ من 5,000 ج.م/شهر' },
+  { id: 'clean_master', name: 'خدمات وصيانة وحجوزات ذكية', icon: Sparkles, color: 'from-cyan-500 to-blue-600', mrr: 'تبدأ من 5,000 ج.م/شهر' },
 ];
 
 export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
@@ -63,10 +63,9 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
   const [selectedPlanAmount, setSelectedPlanAmount] = useState<number>(5000);
 
   const BUNDLED_PLANS = [
-    { amount: 2500, label: 'باقة الانطلاق (2,500 ج)', ads: '1,250 ج إعلانات', tech: '1,250 ج سيستم', popular: false },
-    { amount: 5000, label: 'باقة النمو (5,000 ج)', ads: '2,500 ج إعلانات', tech: '2,500 ج سيستم', popular: true },
+    { amount: 5000, label: 'باقة النمو الذهبي (5,000 ج)', ads: '2,500 ج إعلانات', tech: '2,500 ج سيستم', popular: true },
     { amount: 10000, label: 'باقة البرو (10,000 ج)', ads: '5,000 ج إعلانات', tech: '5,000 ج سيستم', popular: false },
-    { amount: 20000, label: 'باقة المؤسسات (20,000 ج)', ads: '10,000 ج إعلانات', tech: '10,000 ج سيستم', popular: false },
+    { amount: 25000, label: 'باقة المؤسسات VIP (25,000 ج)', ads: '12,500 ج إعلانات', tech: '12,500 ج سيستم', popular: false },
     { amount: 50000, label: 'الباقة السيادية (50,000 ج)', ads: '25,000 ج إعلانات', tech: '25,000 ج سيستم', popular: false },
   ];
 
