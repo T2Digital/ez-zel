@@ -1076,8 +1076,8 @@ test("29) Multi-Tenant URL builder, ClientPortal SSO, 1-revision trial limit & 5
 
   const pricingSrc = fs.readFileSync(path.join(process.cwd(), "components", "Pricing.tsx"), "utf8");
   assert.equal(pricingSrc.includes("'tier_2500'"), false, "Pricing.tsx must set 5,000 EGP (tier_5000) as minimum tier");
-  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
-  assert.ok(serverSrc.includes("minUpgradeEgp: 5000"), "server.ts Paymob checkout must enforce 5,000 EGP minimum upgrade");
+  const paymobSrc = fs.readFileSync(path.join(process.cwd(), "routes", "paymobRoutes.ts"), "utf8");
+  assert.ok(paymobSrc.includes("minUpgradeEgp: 5000"), "Paymob checkout route must enforce 5,000 EGP minimum upgrade");
 });
 
 test("30) Status report exposes ecosystem components, Redis/Postgres checks, disk stats & backup cadence", async () => {
@@ -1276,8 +1276,8 @@ test("35) Deprecated 2500 EGP tier removed, minimum 5000 EGP enforced, Keep-Aliv
   const portalSrc = fs.readFileSync(path.join(process.cwd(), "routes", "clientPortalRoutes.ts"), "utf8");
   assert.ok(portalSrc.includes("/api/webhooks/studio-revision-complete"), "Studio revision completion callback must exist");
 
-  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
-  assert.ok(serverSrc.includes("t2_affiliate_commissions.json"), "Paymob webhook must credit affiliate commissions");
+  const paymobRoutesSrc = fs.readFileSync(path.join(process.cwd(), "routes", "paymobRoutes.ts"), "utf8");
+  assert.ok(paymobRoutesSrc.includes("t2_affiliate_commissions.json"), "Paymob webhook must credit affiliate commissions");
 
   const vaultSrc = fs.readFileSync(path.join(process.cwd(), "services", "obsidianVaultService.ts"), "utf8");
   assert.ok(vaultSrc.includes("consumeBrandMonthlyQuota"), "TRIGGER_STUDIO_GENERATION must enforce monthly quota");
@@ -1302,4 +1302,42 @@ test("36) Factory modal has unified 5000+ pricing, Ribbon excludes admin_managed
   const speechSrc = fs.readFileSync(path.join(process.cwd(), "services", "speechService.ts"), "utf8");
   assert.ok(speechSrc.includes("playShadowVoiceStreaming"), "speechService must stream long replies with Gemini Human TTS");
   assert.equal(speechSrc.includes("SpeechSynthesisUtterance"), false, "speechService must NOT fall back to robotic browser SpeechSynthesisUtterance");
+});
+
+test("37) Modularized Paymob/Registry architecture, 8 canonical dogfooding brands, and Khedr dashboard split", () => {
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(serverSrc.includes("registerPaymobRoutes"), "server.ts must delegate Paymob endpoints to modular paymobRoutes");
+  assert.ok(serverSrc.includes("accountOrigin: b.accountOrigin"), "registry API must expose accountOrigin so Top Ribbon excludes admin_managed MRR");
+
+  const paymobRoutesSrc = fs.readFileSync(path.join(process.cwd(), "routes", "paymobRoutes.ts"), "utf8");
+  assert.ok(paymobRoutesSrc.includes("/api/payments/paymob/webhook"), "modular paymobRoutes must handle Paymob webhook");
+
+  const registrySrc = fs.readFileSync(path.join(process.cwd(), "services", "brandRegistryService.ts"), "utf8");
+  const requiredBrands = [
+    "al_shomoukh_dentistry",
+    "crystal_teeth",
+    "alkhalig_dental",
+    "socotra_dental",
+    "dental_district",
+    "mecca_dental",
+    "auto_house",
+    "al_genedy",
+  ];
+  for (const id of requiredBrands) {
+    assert.ok(registrySrc.includes(`canonicalId: '${id}'`), `CORE_ACTIVE_BRANDS_SEED must contain dogfooding brand ${id}`);
+  }
+  assert.ok(registrySrc.includes("https://book.t2os.app/b/"), "Clinic brands must use canonical https://book.t2os.app/b/ URLs");
+  assert.ok(registrySrc.includes("https://t2-tenant-auto-house.vercel.app"), "auto_house must use canonical tenant URL");
+  assert.ok(registrySrc.includes("https://elgenedy.com"), "al_genedy must use canonical https://elgenedy.com URL");
+
+  const geminiSrc = fs.readFileSync(path.join(process.cwd(), "services", "geminiService.ts"), "utf8");
+  assert.equal(geminiSrc.includes("باقة الانطلاق الفضي (2,500"), false, "geminiService prompt must not advertise removed 2,500 EGP tier");
+
+  const khedrHtmlPath = path.join("D:\\khedr-bot", "public", "dashboard.html");
+  if (fs.existsSync(khedrHtmlPath)) {
+    const htmlLines = fs.readFileSync(khedrHtmlPath, "utf8").split(/\r?\n/).length;
+    assert.ok(htmlLines < 5000, `khedr dashboard.html should stay modular under 5000 lines (got ${htmlLines})`);
+    assert.ok(fs.existsSync(path.join("D:\\khedr-bot", "public", "js", "dashboard.js")), "khedr dashboard.js must exist");
+    assert.ok(fs.existsSync(path.join("D:\\khedr-bot", "public", "css", "dashboard.css")), "khedr dashboard.css must exist");
+  }
 });

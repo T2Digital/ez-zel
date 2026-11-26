@@ -49,6 +49,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     lifecycleStage: 'active_client',
     accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
+    appUrl: 'https://book.t2os.app/b/al-shomoukh-dentistry',
     titoStudioClinicId: 'brand_1786261318926',
     agentBrandId: 'al_shomoukh_dentistry',
     planId: 'growth_5000',
@@ -62,6 +63,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     lifecycleStage: 'active_client',
     accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
+    appUrl: 'https://book.t2os.app/b/crystal-teeth',
     titoStudioClinicId: '2',
     agentBrandId: 'crystal_teeth',
     planId: 'growth_5000',
@@ -75,6 +77,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     lifecycleStage: 'active_client',
     accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
+    appUrl: 'https://book.t2os.app/b/alkhalig-dental',
     titoStudioClinicId: '4',
     agentBrandId: 'alkhalig_dental',
     planId: 'growth_5000',
@@ -88,6 +91,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     lifecycleStage: 'active_client',
     accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
+    appUrl: 'https://book.t2os.app/b/socotra-dental',
     titoStudioClinicId: '3',
     agentBrandId: 'socotra_dental',
     planId: 'growth_5000',
@@ -101,6 +105,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     lifecycleStage: 'active_client',
     accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
+    appUrl: 'https://book.t2os.app/b/dental-district',
     titoStudioClinicId: '5',
     agentBrandId: 'dental_district',
     planId: 'growth_5000',
@@ -114,6 +119,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     lifecycleStage: 'active_client',
     accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
+    appUrl: 'https://book.t2os.app/b/mecca-dental',
     titoStudioClinicId: '6',
     agentBrandId: 'mecca_dental',
     planId: 'growth_5000',
@@ -127,6 +133,7 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     lifecycleStage: 'active_client',
     accountOrigin: 'admin_managed',
     appTemplate: 'services_booking',
+    appUrl: 'https://book.t2os.app/b/clean-master',
     titoStudioClinicId: 'brand_1788540631941',
     agentBrandId: 'clean_master',
     planId: 'growth_5000',
@@ -155,9 +162,23 @@ const CORE_ACTIVE_BRANDS_SEED: Array<Omit<CanonicalBrandEntry, 'updatedAt'>> = [
     appTemplate: 'products_erp',
     titoStudioClinicId: 'al_genedy',
     agentBrandId: 'al_genedy',
-    appUrl: process.env.AL_GENEDY_STANDALONE_URL || 'https://al-genedy.vercel.app',
+    appUrl: process.env.AL_GENEDY_STANDALONE_URL || 'https://elgenedy.com',
     planId: 'growth_5000',
     planAmount: 5000,
+  },
+  {
+    canonicalId: 'auto_house',
+    slug: 'auto-house',
+    name: 'أوتو هاوس لقطع غيار السيارات',
+    lifecycleStage: 'active_client',
+    accountOrigin: 'admin_managed',
+    appTemplate: 'products_erp',
+    titoStudioClinicId: 'auto-house',
+    agentBrandId: 'auto_house',
+    appUrl: 'https://t2-tenant-auto-house.vercel.app',
+    planId: 'growth_5000',
+    planAmount: 5000,
+    mergedFromIds: ['auto-house', 'أوتو_هاوس_لقطع_غيار_السيارات_auto_house'],
   },
 ];
 
@@ -188,11 +209,35 @@ export function getBrandRegistryState(): BrandRegistryState {
     changed = true;
   }
 
-  // Ensure legacy/admin-managed brands stay tagged even on persisted state
-  for (const seedId of CORE_ADMIN_MANAGED_IDS) {
-    if (brands[seedId] && !brands[seedId].accountOrigin) {
-      brands[seedId] = { ...brands[seedId], accountOrigin: 'admin_managed' };
+  // Ensure legacy/admin-managed brands stay tagged & seeded with canonical live URLs even on persisted state
+  for (const seed of CORE_ACTIVE_BRANDS_SEED) {
+    const cur = brands[seed.canonicalId];
+    if (!cur) {
+      brands[seed.canonicalId] = {
+        ...seed,
+        updatedAt: new Date().toISOString(),
+      };
+      if (Array.isArray(seed.mergedFromIds)) {
+        for (const alias of seed.mergedFromIds) {
+          if (alias !== seed.canonicalId && brands[alias]) {
+            delete brands[alias];
+          }
+        }
+      }
       changed = true;
+    } else {
+      const needsOrigin = cur.accountOrigin !== 'admin_managed';
+      const needsUrl =
+        seed.appUrl &&
+        (!cur.appUrl || cur.appUrl.startsWith('/store/') || cur.appUrl.includes('al-genedy.vercel.app'));
+      if (needsOrigin || needsUrl) {
+        brands[seed.canonicalId] = {
+          ...cur,
+          accountOrigin: 'admin_managed',
+          ...(needsUrl ? { appUrl: seed.appUrl } : {}),
+        };
+        changed = true;
+      }
     }
   }
 

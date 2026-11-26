@@ -659,10 +659,23 @@ const Dashboard: React.FC<Props> = ({ user, initialAction, onClearAction, onOpen
                         </button>
                     </div>
                     <React.Suspense fallback={<div className="p-8 text-center text-cyan-300 text-xs">جاري تحميل غرفة قيادة البراند...</div>}>
-                        <JarvisBrandCommandHub
-                            brandId={(user as any).brandSlug || (user as any).brandId || 'auto-house'}
-                            isMasterAdmin={isAdmin}
-                        />
+                        {(() => {
+                            const resolvedBrandId = (user as any).brandSlug || (user as any).brandId || (typeof window !== 'undefined' ? localStorage.getItem('t2_active_brand_slug') : '') || (isAdmin ? 'auto-house' : '');
+                            if (!resolvedBrandId) {
+                                return (
+                                    <div className="p-8 text-center space-y-3 text-slate-300 text-xs">
+                                        <div className="text-sm font-black text-cyan-300">لم يتم ربط براند نشط بحسابك بعد</div>
+                                        <p>ابدأ محادثة مع جارفيس أو افتح مصنع التطبيقات لبناء براندك خلال دقيقتين.</p>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <JarvisBrandCommandHub
+                                    brandId={resolvedBrandId}
+                                    isMasterAdmin={isAdmin}
+                                />
+                            );
+                        })()}
                     </React.Suspense>
                 </div>
             </div>

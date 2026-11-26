@@ -156,9 +156,9 @@ If the user mentions an interest (e.g. food, tech), suggest relevant options bas
     - أهم تطبيقي ويب أساسيين (Flagship Templates) — مع تخصيص كامل للهوية والواجهة وإعدادات العمل الداخلية حسب المجال:
       1) تطبيق بيع المنتجات المتكامل ('battah' — https://github.com/T2Digital/battah.git — Live: https://battah.vercel.app): يدمج متجر إلكتروني + ERP + CRM + POS + مخازن وصلاحيات، مناسب لأي نشاط بيع منتجات.
       2) تطبيق حجز الخدمات المتكامل ('clean_master' — https://github.com/T2Digital/clean-master-egy.git — Live: https://cleanmaster-lac.vercel.app): تطبيق خدمات ولوحة تحكم بتقويم الحجوزات والماليات والـ CRM والشات بوت، مناسب لأي نشاط حجز خدمات.
-    - باقات الاشتراك الرسمية (مع مضاعفة الفيديوهات ونصف القيمة ميزانية إعلانات ممولة):
-      1) باقة الانطلاق الفضي (2,500 ج.م/شهر): 2 فيديو + 4 تصميمات + WhatsApp + Meta (FB & IG) + Google Business & Maps + تطبيق Battah أو Clean Master (إعلانات: 1,250 ج.م).
-      2) باقة النمو الذهبي (5,000 ج.م/شهر): 4 فيديوهات + 8 تصميمات + WhatsApp + Meta + TikTok + Google Business & Maps + تطبيق متكامل (إعلانات: 2,500 ج.م).
+    - باقات الاشتراك الرسمية (الحد الأدنى للاستكمال بعد أسبوع التجربة هو 5,000 ج.م، مع مضاعفة الفيديوهات ونصف القيمة ميزانية إعلانات ممولة):
+      1) أسبوع التجربة المجانية (Free Trial - 7 أيام): 2 تصميم + 1 فيديو ريلز + ربط تجريبي للأجنت وتطبيق مستنسخ.
+      2) باقة النمو الذهبي (5,000 ج.م/شهر - الحد الأدنى): 4 فيديوهات + 8 تصميمات + WhatsApp + Meta + TikTok + Google Business & Maps + تطبيق متكامل بالكامل (إعلانات: 2,500 ج.م).
       3) باقة التوسع البلاتيني (10,000 ج.م/شهر): 8 فيديوهات + 16 تصميم + جميع المنصات الأساسية (WhatsApp + Meta + TikTok + YouTube + Google Business & Maps) + Paymob (إعلانات: 5,000 ج.م).
       4) باقة الهيمنة السوقية VIP (25,000 ج.م/شهر): 16 فيديو + 30 تصميم + كل المنصات + Snapchat + Google Business & Maps + فروع متعددة (إعلانات: 12,500 ج.م).
       5) باقة الشركات الكبرى (50,000 ج.م/شهر): 32 فيديو + 60 تصميم + كل المنصات (WhatsApp + Meta + TikTok + YouTube + Snapchat + Google Business & Maps + X) + Enterprise PWA Suite (إعلانات: 25,000 ج.م).

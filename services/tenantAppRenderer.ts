@@ -217,7 +217,7 @@ export function renderTenantAppHtml(brand: any): string {
 <body>
   <div class="container">
     <div class="header">
-      <div class="badge">صفحة هبوط تحويلية • Landing Page (باقة الانطلاق 2,500 ج.م)</div>
+      <div class="badge">معاينة أسبوع التجربة المجانية • الباقات تبدأ من 5,000 ج.م</div>
       ${logoHtml}
       <h1 style="margin:6px 0 4px;font-size:24px;font-weight:900;color:#fff;">${escapeHtml(brand.name)}</h1>
       <p style="margin:0;color:#cbd5e1;font-size:13.5px;line-height:1.7;">${escapeHtml(seoDesc)}</p>
