@@ -1805,6 +1805,37 @@ async function startServer() {
                   expiresAt,
               });
 
+              // Idempotent 10% Affiliate Commission Auto-Credit on verified Paymob payment
+              try {
+                  const matchedBrandForAff = getUnifiedGrowthBrands().find((b: any) => b.id === brandId || b.slug === brandId);
+                  const matchedClientForAff = getEzZelPersonalClients().find((c: any) => c.linkedBrandId === brandId || c.id === brandId);
+                  const referredBy = String(
+                      obj.extras?.referredBy ||
+                      obj.payment_key_claims?.extra?.referredBy ||
+                      req.body?.referredBy ||
+                      (matchedBrandForAff as any)?.referredBy ||
+                      (matchedClientForAff as any)?.referredBy ||
+                      ''
+                  ).trim();
+                  if (referredBy) {
+                      const { readPersistentJson, savePersistentJson } = await import("./services/persistentStorage");
+                      const commissions = readPersistentJson<any[]>("t2_affiliate_commissions.json", []);
+                      if (!commissions.some((c: any) => String(c?.orderId) === String(orderId))) {
+                          const commissionEgp = Math.round(amountEgp * 0.10);
+                          commissions.push({
+                              orderId,
+                              brandId,
+                              referredBy,
+                              amountEgp,
+                              commissionEgp,
+                              status: "earned",
+                              createdAt: nowIso,
+                          });
+                          savePersistentJson("t2_affiliate_commissions", "t2_affiliate_commissions.json", commissions);
+                      }
+                  }
+              } catch {}
+
               try {
                   const { upsertBrandRegistryEntry } = await import("./services/brandRegistryService");
                   upsertBrandRegistryEntry(brandId, {

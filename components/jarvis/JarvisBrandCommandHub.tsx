@@ -606,14 +606,40 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                   <Rocket className="w-3.5 h-3.5 text-emerald-400" />
                   خريطة تشغيل براندك في 4 خطوات
                 </span>
-                {isTrialUser && (
-                  <a
-                    href={`/pricing?brandId=${encodeURIComponent(String(brandSlug || ''))}&upgrade=1`}
-                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-emerald-500 text-black text-[10px] font-black hover:opacity-95 transition"
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const headers = await getAuthHeaders();
+                        const res = await fetch('/api/jarvis/execute-action', {
+                          method: 'POST',
+                          headers,
+                          body: JSON.stringify({
+                            actionType: 'CREATE_LIVE_BOOKING',
+                            brandId: String(brandSlug || 'clean_master'),
+                            data: { customerName: 'عميل تجربة (Aha Test)', customerPhone: phone || '01099887766', service: 'طلب تجربة فوري', price: '750 ج.م' },
+                          }),
+                        });
+                        const d = await res.json();
+                        setSaveMessage(d?.success ? '✅ تم تسجيل طلب تجريبي حي وإطلاق إشعار التنبيه فوراً!' : (d?.error || 'تعذر تنفيذ الاختبار'));
+                      } catch {
+                        setSaveMessage('تعذر الاتصال بخدمة الاختبار التجريبي');
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/40 text-[10px] font-black cursor-pointer transition"
                   >
-                    ⚡ ترقية لباقة النمو (5,000 ج.م + 2,500 إعلانات)
-                  </a>
-                )}
+                    🧪 اختبر براندك الآن (حجز تجريبي)
+                  </button>
+                  {isTrialUser && (
+                    <a
+                      href={`/pricing?brandId=${encodeURIComponent(String(brandSlug || ''))}&upgrade=1`}
+                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-emerald-500 text-black text-[10px] font-black hover:opacity-95 transition"
+                    >
+                      ⚡ ترقية لباقة النمو (5,000 ج.م + 2,500 إعلانات)
+                    </a>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
                 <button

@@ -335,6 +335,7 @@ export function registerClientPortalRoutes(
               clinicId: String((brand as any).titoStudioClinicId || brand.id || brand.slug),
               brandName: brand.name || brand.slug,
               triggerSource: "client_portal_revision",
+              notifyEzZelUrl: `${publicBase}/api/webhooks/studio-revision-complete`,
               items: [
                 {
                   id: String(item?.firestoreDocId || `jarvis_${brand.id || brand.slug}_day_${idx + 1}`),
@@ -399,6 +400,80 @@ export function registerClientPortalRoutes(
       });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || "WhatsApp pairing failed" });
+    }
+  });
+
+  // Callback invoked by Tito Studio once a requested post revision finishes regenerating
+  app.post("/api/webhooks/studio-revision-complete", async (req: Request, res: Response) => {
+    try {
+      const providedKey = String(req.headers["x-api-key"] || req.headers["x-t2-api-key"] || "").trim();
+      const expectedKeys = [
+        process.env.T2_REMOTE_API_KEY,
+        process.env.TITO_STUDIO_API_KEY,
+        process.env.ADMIN_API_SECRET,
+        process.env.ADMIN_SECRET_KEY,
+      ]
+        .map((k) => String(k || "").trim())
+        .filter(Boolean);
+      const auth = await verifyAdminRequest(req);
+      if (!auth.ok && (!providedKey || !expectedKeys.includes(providedKey))) {
+        return res.status(401).json({ ok: false, error: "Unauthorized studio callback" });
+      }
+
+      const { clinicId, brandId, itemId, visualUrl, videoUrl, caption, hook } = req.body || {};
+      const lookupId = String(brandId || clinicId || "").trim();
+      if (!lookupId) return res.status(400).json({ ok: false, error: "brandId or clinicId is required" });
+
+      const brands = getUnifiedGrowthBrands();
+      const brand: any = findMatchingBrandRecord(brands, lookupId);
+      if (!brand) return res.status(404).json({ ok: false, error: "Brand not found" });
+
+      const plan = Array.isArray(brand.weekContentPlan) ? [...brand.weekContentPlan] : [];
+      const targetIdx = plan.findIndex(
+        (p: any) =>
+          (itemId && String(p?.firestoreDocId || p?.id || "") === String(itemId)) ||
+          p?.status === "revision_requested"
+      );
+      if (targetIdx >= 0) {
+        plan[targetIdx] = {
+          ...plan[targetIdx],
+          ...(visualUrl ? { visualUrl: String(visualUrl) } : {}),
+          ...(videoUrl ? { videoUrl: String(videoUrl) } : {}),
+          ...(caption ? { caption: String(caption) } : {}),
+          ...(hook ? { hook: String(hook) } : {}),
+          status: "draft",
+          clientApproval: "pending",
+          updatedAt: new Date().toISOString(),
+        };
+        persistBrandUpdateAcrossEcosystem(brand.id || brand.slug, { weekContentPlan: plan });
+      }
+
+      // Notify brand owner on WhatsApp that the revised asset is ready in Showroom
+      const waPhone = String(brand.whatsapp || brand.phone || "").replace(/\D/g, "");
+      if (waPhone.length >= 10 && process.env.NODE_ENV !== "test") {
+        const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
+        const slug = String(brand.slug || brand.id);
+        const portalLink = `${publicBase}/client/${encodeURIComponent(slug)}?token=${encodeURIComponent(signClientPortalToken(slug))}`;
+        const agentBase = (process.env.T2_AGENT_API_URL || "https://agent.t2os.app").replace(/\/+$/, "");
+        const agentKey = process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || "";
+        fetch(`${agentBase}/api/whatsapp/send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(agentKey ? { "x-admin-key": agentKey } : {}),
+          },
+          body: JSON.stringify({
+            brandId: slug,
+            to: waPhone,
+            message: `تم تحديث وتجهيز النسخة المعدلة من منشور "${brand.name || slug}" 🎨✅\nراجعها واعتمدها الآن من بوابة العميل:\n${portalLink}`,
+          }),
+          signal: AbortSignal.timeout(4000),
+        }).catch(() => {});
+      }
+
+      return res.json({ ok: true, updatedIndex: targetIdx });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || "Revision callback failed" });
     }
   });
 }

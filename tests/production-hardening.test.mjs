@@ -1265,3 +1265,24 @@ test("34) Legacy admin_managed brands are tagged separately from public_signup &
   const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
   assert.ok(!modalSrc.includes("jarvisWorkspaceMode"), "Dual Jarvis core mode toggle should be removed in favor of single Obsidian Hero Core");
 });
+
+test("35) Deprecated 2500 EGP tier removed, minimum 5000 EGP enforced, Keep-Alive embeds, Paymob affiliate auto-credit & Studio revision callback wired", async () => {
+  const { SAAS_PLANS } = await importTs(path.join("services", "saasPlansService.ts"));
+  const { PAYMOB_PLANS } = await importTs(path.join("services", "paymobService.ts"));
+  assert.equal((SAAS_PLANS).starter_2500, undefined, "starter_2500 must be removed from SAAS_PLANS");
+  assert.equal((PAYMOB_PLANS).tier_2500, undefined, "tier_2500 must be removed from PAYMOB_PLANS");
+  assert.equal(SAAS_PLANS.growth_5000.priceEgp, 5000, "Minimum paid SaaS plan must be 5,000 EGP");
+
+  const portalSrc = fs.readFileSync(path.join(process.cwd(), "routes", "clientPortalRoutes.ts"), "utf8");
+  assert.ok(portalSrc.includes("/api/webhooks/studio-revision-complete"), "Studio revision completion callback must exist");
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(serverSrc.includes("t2_affiliate_commissions.json"), "Paymob webhook must credit affiliate commissions");
+
+  const vaultSrc = fs.readFileSync(path.join(process.cwd(), "services", "obsidianVaultService.ts"), "utf8");
+  assert.ok(vaultSrc.includes("consumeBrandMonthlyQuota"), "TRIGGER_STUDIO_GENERATION must enforce monthly quota");
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(modalSrc.includes("studioEmbed.open ? 'flex' : 'hidden'"), "Studio embed iframe must stay Keep-Alive");
+  assert.ok(modalSrc.includes("agentEmbed.open ? 'flex' : 'hidden'"), "Agent embed iframe must stay Keep-Alive");
+});

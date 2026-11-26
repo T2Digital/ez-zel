@@ -2,7 +2,6 @@ import { readPersistentJson, savePersistentJson } from './persistentStorage';
 
 export type SaasPlanId =
   | 'trial_7d'
-  | 'starter_2500'
   | 'growth_5000'
   | 'pro_10000'
   | 'enterprise_20000'
@@ -33,27 +32,9 @@ export const SAAS_PLANS: Record<SaasPlanId, SaasPlanSpec> = {
     maxRevisionsPerPost: 1,
     appAccessMode: 'full_app',
     featuresAr: [
-      'تطبيق ويب كامل (PWA + متجر/حجوزات + فاتورة) مفتوح طوال فترة التجربة',
-      'خطة محتوى أسبوع التجربة (2 بوست + 1 فيديو — إجمالي 3 منشورات)',
+      'تطبيق ويب مستنسخ فوري على نفس الريبو ببيانات براندك طوال فترة التجربة — ويتحول لتطبيق كامل بنفس البيانات فور تفعيل باقة 5,000 ج.م',
+      'خطة محتوى أسبوع التجربة (2 تصميم + 1 فيديو ريلز — إجمالي 3 منشورات)',
       'تجربة وكيل المبيعات والواتساب 24/7',
-    ],
-  },
-  starter_2500: {
-    id: 'starter_2500',
-    nameAr: 'باقة الانطلاق (2,500 ج.م / شهر)',
-    priceEgp: 2500,
-    adsBudgetEgp: 1250,
-    systemFeeEgp: 1250,
-    monthlyDesignsQuota: 8,
-    monthlyVideosQuota: 2,
-    maxRevisionsPerPost: 2,
-    appAccessMode: 'landing_page',
-    featuresAr: [
-      '50% ميزانية إعلانات ممولة مُدارة (1,250 ج.م) + 50% سيستم وأجنت (1,250 ج.م)',
-      '8 تصميمات سوشيال احترافية شهرياً عبر تيتو ستوديو',
-      '2 فيديو ريلز ترويجي شهرياً (Omni Flash)',
-      'صفحة هبوط بيعية تحويلية (Landing Page) احترافية من تيتو ستوديو مربوطة بواتساب والبيكسل',
-      'وكيل مبيعات ذكي 24/7 (واتساب + سوشيال)',
     ],
   },
   growth_5000: {
@@ -169,11 +150,8 @@ export function resolveBrandPlanSpec(brand: any): SaasPlanSpec {
   if (rawPlan.includes('pro') || rawPlan.includes('10000') || (amount >= (plans.pro_10000?.priceEgp || 10000) && amount < (plans.enterprise_20000?.priceEgp || 25000))) {
     return plans.pro_10000 || SAAS_PLANS.pro_10000;
   }
-  if (rawPlan.includes('growth') || rawPlan.includes('5000') || (amount >= (plans.growth_5000?.priceEgp || 5000) && amount < (plans.pro_10000?.priceEgp || 10000))) {
+  if (rawPlan.includes('growth') || rawPlan.includes('5000') || rawPlan.includes('starter') || rawPlan.includes('2500') || amount > 0) {
     return plans.growth_5000 || SAAS_PLANS.growth_5000;
-  }
-  if (rawPlan.includes('starter') || rawPlan.includes('2500') || (amount > 0 && amount < (plans.growth_5000?.priceEgp || 5000))) {
-    return plans.starter_2500 || SAAS_PLANS.starter_2500;
   }
   return plans.trial_7d || SAAS_PLANS.trial_7d;
 }

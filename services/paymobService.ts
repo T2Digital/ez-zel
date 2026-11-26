@@ -41,26 +41,6 @@ export const PAYMOB_PLANS: Record<string, {
     platforms: string[];
     features: string[];
 }> = {
-    tier_2500: {
-        id: 'tier_2500',
-        name: 'باقة الانطلاق الفضي (2,500 ج.م / شهر)',
-        amountEgp: 2500,
-        originalAmountEgp: 5000,
-        discountPercentage: 50,
-        adBudgetEgp: 1250,
-        offerCondition: 'خصم 50% حصري لأول 100 براند (3 شهور بالدفع الشهري أو سنة كاملة بالدفع السنوي)',
-        yearlyDiscountedTotal: 30000,
-        videosPerMonth: 2,
-        designsPerMonth: 8,
-        platforms: ['whatsapp', 'facebook', 'instagram', 'google_business'],
-        features: [
-            '🎯 1,250 ج.م ميزانية إعلانات ممولة مباشرة لنشاطك (نصف قيمة الباقة إعلانات!)',
-            '🎬 2 فيديو ريلز ترويجي شهرياً (Omni Flash) + 8 تصميمات سوشيال احترافية عبر تيتو ستوديو',
-            '📲 المنصات المشمولة: WhatsApp + Meta (Facebook & Instagram) + Google Business & Maps',
-            '🌐 صفحة هبوط بيعية تحويلية (Landing Page) عالية التحويل مربوطة بواتساب والبيكسل',
-            '🤖 وكيل واتساب وميتا وخرائط جوجل الذكي للرد الفوري على الرسائل والتقييمات 24/7'
-        ]
-    },
     tier_5000: {
         id: 'tier_5000',
         name: 'باقة النمو الذهبي (5,000 ج.م / شهر)',
@@ -151,8 +131,8 @@ export const PAYMOB_TIERS = [
     PAYMOB_PLANS.tier_50000
 ];
 
-// Aliases for legacy plan ids
-(PAYMOB_PLANS as any).starter_monthly = PAYMOB_PLANS.tier_2500;
+// Aliases for legacy plan ids (all minimum plans start at 5,000 EGP)
+(PAYMOB_PLANS as any).starter_monthly = PAYMOB_PLANS.tier_5000;
 (PAYMOB_PLANS as any).growth_pro = PAYMOB_PLANS.tier_5000;
 (PAYMOB_PLANS as any).agency_unlimited = PAYMOB_PLANS.tier_10000;
 

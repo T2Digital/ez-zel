@@ -2001,6 +2001,20 @@ export async function executeRealJarvisEcosystemAction(input: {
                     pillarLabel: String(data.pillarLabel || 'أمر مباشر من جارفس'),
                     scheduledPlatforms: Array.isArray(data.platforms) ? data.platforms : ['facebook', 'instagram'],
                 }];
+            const { consumeBrandMonthlyQuota, refundBrandMonthlyQuota } = await import('./saasPlansService');
+            const videoCount = batchItems.filter((it: any) => it?.type === 'video' || it?.mediaFormat === 'video').length;
+            const designCount = batchItems.length - videoCount;
+            if (videoCount > 0) {
+                const qVid = consumeBrandMonthlyQuota(targetBrand, 'video', videoCount);
+                if (!qVid.allowed) return { success: false, error: qVid.reason, quota: qVid.status };
+            }
+            if (designCount > 0) {
+                const qDes = consumeBrandMonthlyQuota(targetBrand, 'design', designCount);
+                if (!qDes.allowed) {
+                    if (videoCount > 0) refundBrandMonthlyQuota(targetBrand, 'video', videoCount);
+                    return { success: false, error: qDes.reason, quota: qDes.status };
+                }
+            }
             const studioRes = await fetch(`${studioBase}/api/execution/enqueue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-api-key': studioKey },
@@ -2012,10 +2026,17 @@ export async function executeRealJarvisEcosystemAction(input: {
                 }),
                 signal: AbortSignal.timeout(10000),
             }).then((r) => r.json().catch(() => ({ ok: r.ok }))).catch((e: any) => ({ ok: false, error: e?.message }));
+            const ok = Boolean((studioRes as any)?.ok ?? (studioRes as any)?.success ?? false);
+            if (!ok) {
+                if (videoCount > 0) refundBrandMonthlyQuota(targetBrand, 'video', videoCount);
+                if (designCount > 0) refundBrandMonthlyQuota(targetBrand, 'design', designCount);
+            }
             return {
-                success: Boolean((studioRes as any)?.ok ?? (studioRes as any)?.success ?? true),
+                success: ok,
                 studioRes,
-                message: `تم إرسال مهمة الإنتاج (${batchItems.length}) إلى محرك تيتو ستوديو لبراند (${targetBrand.name})`
+                message: ok
+                    ? `تم إرسال مهمة الإنتاج (${batchItems.length}) إلى محرك تيتو ستوديو لبراند (${targetBrand.name})`
+                    : `تعذر بدء الإنتاج في تيتو ستوديو: ${(studioRes as any)?.error || 'خطأ في الاتصال'}`
             };
         }
 

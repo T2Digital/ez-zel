@@ -330,8 +330,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         else if (isCrmModalOpen) setIsCrmModalOpen(false);
         else if (isMetaReadinessOpen) setIsMetaReadinessOpen(false);
         else if (isBrandSuperWindowOpen) setIsBrandSuperWindowOpen(false);
-        else if (studioEmbed?.open) setStudioEmbed(null);
-        else if (agentEmbed?.open) setAgentEmbed(null);
+        else if (studioEmbed?.open) setStudioEmbed(prev => prev ? { ...prev, open: false } : null);
+        else if (agentEmbed?.open) setAgentEmbed(prev => prev ? { ...prev, open: false } : null);
         else onClose();
       }
     };
@@ -2133,9 +2133,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               activeBrandId={currentSelectedBrand?.id !== 'clean_master' ? currentSelectedBrand?.id : undefined}
             />
 
-            {/* EMBEDDED TITO STUDIO LIVE PANEL (Full Viewport Overlay) */}
-            {studioEmbed?.open && persona !== 'visitor' && (
-              <div className="fixed inset-2 sm:inset-4 z-[120] flex flex-col rounded-2xl bg-[#040a1a] border-2 border-purple-500/55 shadow-[0_0_60px_rgba(168,85,247,0.35)] overflow-hidden font-['Cairo']" dir="rtl">
+            {/* EMBEDDED TITO STUDIO LIVE PANEL (Keep-Alive Overlay for instant reopen) */}
+            {studioEmbed && persona !== 'visitor' && (
+              <div className={`fixed inset-2 sm:inset-4 z-[120] flex-col rounded-2xl bg-[#040a1a] border-2 border-purple-500/55 shadow-[0_0_60px_rgba(168,85,247,0.35)] overflow-hidden font-['Cairo'] ${studioEmbed.open ? 'flex' : 'hidden'}`} dir="rtl">
                 <div className="px-3 py-2 bg-purple-950/50 border-b border-purple-500/30 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-black text-purple-200">🎬 استوديو المحتوى المدمج (تحكم حي):</span>
@@ -2173,7 +2173,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                   <button
                     type="button"
-                    onClick={() => setStudioEmbed(null)}
+                    onClick={() => setStudioEmbed(prev => prev ? { ...prev, open: false } : null)}
                     className="p-1 rounded-lg bg-white/10 hover:bg-rose-500/30 text-white"
                   >
                     <X className="w-4 h-4" />
@@ -2189,9 +2189,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* EMBEDDED T2 AGENT LIVE PANEL (Full Viewport Overlay) */}
-            {agentEmbed?.open && persona !== 'visitor' && (
-              <div className="fixed inset-2 sm:inset-4 z-[120] flex flex-col rounded-2xl bg-[#040a1a] border-2 border-emerald-500/55 shadow-[0_0_60px_rgba(16,185,129,0.35)] overflow-hidden font-['Cairo']" dir="rtl">
+            {/* EMBEDDED T2 AGENT LIVE PANEL (Keep-Alive Overlay for instant reopen) */}
+            {agentEmbed && persona !== 'visitor' && (
+              <div className={`fixed inset-2 sm:inset-4 z-[120] flex-col rounded-2xl bg-[#040a1a] border-2 border-emerald-500/55 shadow-[0_0_60px_rgba(16,185,129,0.35)] overflow-hidden font-['Cairo'] ${agentEmbed.open ? 'flex' : 'hidden'}`} dir="rtl">
                 <div className="px-3 py-2 bg-emerald-950/50 border-b border-emerald-500/30 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-black text-emerald-200">🤖 تيتو أجنت المدمج (تحكم حي):</span>
@@ -2229,7 +2229,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   </div>
                   <button
                     type="button"
-                    onClick={() => setAgentEmbed(null)}
+                    onClick={() => setAgentEmbed(prev => prev ? { ...prev, open: false } : null)}
                     className="p-1 rounded-lg bg-white/10 hover:bg-rose-500/30 text-white"
                   >
                     <X className="w-4 h-4" />
