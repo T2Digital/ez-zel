@@ -18,6 +18,10 @@ class AudioStreamQueue {
     private isStreamCompleted: boolean = false;
     private onQueueEnded?: () => void;
 
+    public get active(): boolean {
+        return this.isPlaying || (this.currentSessionId !== 0 && !this.isStreamCompleted);
+    }
+
     public startSession(onEnded?: () => void) {
         this.currentSessionId = Date.now();
         this.queue = [];
@@ -153,6 +157,11 @@ class AudioStreamQueue {
 let currentHtmlAudio: HTMLAudioElement | null = null;
 
 export const audioStreamQueue = new AudioStreamQueue();
+
+export const isShadowVoicePlaying = (): boolean => {
+    const htmlPlaying = Boolean(currentHtmlAudio && !currentHtmlAudio.paused && !currentHtmlAudio.ended);
+    return htmlPlaying || Boolean(currentSource) || audioStreamQueue.active;
+};
 
 export function resumeAudioContext() {
     try {
@@ -340,9 +349,8 @@ export const playShadowVoice = async (
     onEnded?: () => void,
     onVoiceLoaded?: (base64: string) => void
 ) => {
-    // Route long spoken responses through sentence-by-sentence streaming Gemini Human TTS
-    // so playback begins within ~2s and never drops to robotic browser voices.
-    if (!existing && String(text || '').trim().length > 220) {
+    // Keep normal and medium replies in one seamless Gemini Human TTS call (~950 chars) so prosody stays 100% consistent
+    if (!existing && String(text || '').trim().length > 950) {
         await playShadowVoiceStreaming(text, voice, undefined, onEnded);
         return;
     }
@@ -423,19 +431,13 @@ export const playShadowVoice = async (
         try {
             await audio.play();
         } catch (playErr: any) {
-            console.warn("[TTS] Autoplay blocked by browser policy until user interacts:", playErr);
-            onEnded?.(); // Unlock state so mic is never blocked!
-            const onUserInteract = () => {
-                if (currentHtmlAudio === audio) {
-                    audio.play().catch(() => {});
-                }
-                window.removeEventListener('click', onUserInteract);
-                window.removeEventListener('touchstart', onUserInteract);
-                window.removeEventListener('keydown', onUserInteract);
-            };
-            window.addEventListener('click', onUserInteract, { once: true });
-            window.addEventListener('touchstart', onUserInteract, { once: true });
-            window.addEventListener('keydown', onUserInteract, { once: true });
+            console.warn("[TTS] Autoplay blocked or interrupted:", playErr);
+            clearInterval(interval);
+            URL.revokeObjectURL(blobUrl);
+            if (currentHtmlAudio === audio) currentHtmlAudio = null;
+            window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
+            window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
+            onEnded?.();
         }
     } catch (e: any) { 
         console.error("[TTS] PlayShadowVoice Error:", e);
@@ -471,7 +473,7 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                text: cleanText.substring(0, 1000),
+                text: cleanText.substring(0, 1200),
                 voice: geminiVoiceName
             }),
             signal: controller.signal
@@ -521,9 +523,10 @@ export const playShadowVoiceStreaming = async (
 
     const sessionId = audioStreamQueue.startSession(onEnded);
 
-    // Natural sentence delimiter regex (periods, exclamation, question marks, Arabic commas, semicolons, linebreaks)
-    const rawSegments = text
-        .split(/([.!؟،؛\n]+)/)
+    // Split ONLY on full sentence endings (never Arabic commas/semicolons), then merge into 450-850 char paragraphs
+    // so long speeches preserve stable voice prosody and tone across chunks.
+    const sentences = text
+        .split(/([.!؟\n]+)/)
         .reduce((acc: string[], curr: string, idx: number) => {
             if (idx % 2 === 0) {
                 if (curr.trim()) acc.push(curr.trim());
@@ -534,6 +537,16 @@ export const playShadowVoiceStreaming = async (
         }, [])
         .map(s => s.trim())
         .filter(s => s.length > 0);
+
+    const rawSegments: string[] = [];
+    for (const sentence of sentences) {
+        const last = rawSegments[rawSegments.length - 1];
+        if (last && (last.length + 1 + sentence.length) <= 850) {
+            rawSegments[rawSegments.length - 1] = `${last} ${sentence}`;
+        } else {
+            rawSegments.push(sentence);
+        }
+    }
 
     if (rawSegments.length === 0) {
         audioStreamQueue.markCompleted(sessionId);

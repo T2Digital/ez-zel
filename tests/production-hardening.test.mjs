@@ -1341,3 +1341,23 @@ test("37) Modularized Paymob/Registry architecture, 8 canonical dogfooding brand
     assert.ok(fs.existsSync(path.join("D:\\khedr-bot", "public", "css", "dashboard.css")), "khedr dashboard.css must exist");
   }
 });
+
+test("38) Voice/Mic anti-echo & single-prosody TTS, restored QA/Catalog/Ads HUD, and full brand portfolio seeded", () => {
+  const speechSrc = fs.readFileSync(path.join(process.cwd(), "services", "speechService.ts"), "utf8");
+  assert.ok(speechSrc.includes("export const isShadowVoicePlaying"), "speechService must export isShadowVoicePlaying");
+  assert.ok(speechSrc.includes(".length > 950"), "speechService must keep normal replies under 950 chars in a single TTS call");
+  assert.equal(speechSrc.includes("[.!؟،؛\\n]"), false, "playShadowVoiceStreaming must NOT split on Arabic commas (causes choppy multi-voice audio)");
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(modalSrc.includes("dedupeAndroidSpeechResults"), "JarvisBattleStationModal must dedupe Android Chrome speech transcripts");
+  assert.ok(modalSrc.includes("isLikelySpeakerEcho"), "JarvisBattleStationModal must filter speaker echo");
+  assert.ok(modalSrc.includes("isShadowVoicePlaying()"), "JarvisBattleStationModal must poll real audio playback state before restarting mic");
+  assert.ok(modalSrc.includes("setIsCatalogModalOpen(true)"), "JarvisBattleStationModal must expose Unified Catalog trigger");
+  assert.ok(modalSrc.includes("content_qa_monitor"), "JarvisBattleStationModal must expose Content QA Monitor");
+  assert.ok(modalSrc.includes("/api/growth/optimize-loop"), "JarvisBattleStationModal must expose Ads ROAS optimization");
+
+  const registrySrc = fs.readFileSync(path.join(process.cwd(), "services", "brandRegistryService.ts"), "utf8");
+  for (const id of ["clean_master", "tito_media", "crypto_bel_arabi", "besho", "alkhedr_car_rental", "battah_system"]) {
+    assert.ok(registrySrc.includes(`canonicalId: '${id}'`), `CORE_ACTIVE_BRANDS_SEED must contain portfolio brand ${id}`);
+  }
+});

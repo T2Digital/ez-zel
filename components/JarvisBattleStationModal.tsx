@@ -10,7 +10,8 @@ import {
   Calendar, CalendarDays, Clock, Megaphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { playShadowVoice, stopVoice, speakBrowserNaturalVoice } from '../services/speechService';
+import { playShadowVoice, stopVoice, speakBrowserNaturalVoice, isShadowVoicePlaying } from '../services/speechService';
+import { JarvisAutonomousAgencyDeck } from './jarvis/JarvisAutonomousAgencyDeck';
 import { ClientOnboardingModal } from './chat/ClientOnboardingModal';
 import { VisitorIntelligenceOnboarding } from './chat/VisitorIntelligenceOnboarding';
 import { LiveTelemetryNotifier } from './LiveTelemetryNotifier';
@@ -164,16 +165,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     };
     syncSpeaking();
     const t = setInterval(() => {
-      if (typeof window !== 'undefined' && isPlayingVoiceRef.current && !window.speechSynthesis?.speaking && !activeAudioRef.current) {
-        setIsPlayingVoice(false);
-        isPlayingVoiceRef.current = false;
+      const directAudioPlaying = Boolean(activeAudioRef.current && !activeAudioRef.current.paused && !activeAudioRef.current.ended);
+      if (typeof window !== 'undefined' && isPlayingVoiceRef.current && !isShadowVoicePlaying() && !directAudioPlaying && !window.speechSynthesis?.speaking) {
+        if (Date.now() - speechStartedAtRef.current > 3500) {
+          setIsPlayingVoice(false);
+          isPlayingVoiceRef.current = false;
+        }
       }
-    }, 600);
+    }, 800);
     return () => clearInterval(t);
   }, [isOpen]);
   const transcriptRef = useRef<string>('');
   const streamTimerRef = useRef<any>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const speechStartedAtRef = useRef<number>(0);
+  const lastJarvisSpokenTextRef = useRef<string>('');
+  const lastSpeechEndedAtRef = useRef<number>(0);
   const speechSeqRef = useRef<number>(0);
   const silenceTimerRef = useRef<any>(null);
   const speechTimeoutRef = useRef<any>(null);
@@ -301,8 +308,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [cursorPos, setCursorPos] = useState({ x: 50, y: 50 });
   const [isClickingCursor, setIsClickingCursor] = useState(false);
 
-  // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'
-  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(initialPersona === 'client' || !isMasterAdmin ? 'brand_hub' : 'obsidian_graph');
+  // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'content_qa_monitor' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'
+  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'content_qa_monitor' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(initialPersona === 'client' || !isMasterAdmin ? 'brand_hub' : 'obsidian_graph');
+  const [qaMonitorData, setQaMonitorData] = useState<{ loading: boolean; items: any[]; avgScore: number; passCount: number; publishedCount: number; scheduledCount: number; draftCount: number }>({ loading: false, items: [], avgScore: 0, passCount: 0, publishedCount: 0, scheduledCount: 0, draftCount: 0 });
+  const [isRunningQaCycle, setIsRunningQaCycle] = useState<boolean>(false);
+  const [adPerfData, setAdPerfData] = useState<any>(null);
+  const [isOptimizingAds, setIsOptimizingAds] = useState<boolean>(false);
+  const [adOptimizeResult, setAdOptimizeResult] = useState<any>(null);
   const [isExecutingAutonomousAgency, setIsExecutingAutonomousAgency] = useState<boolean>(false);
   const [autonomousAgencyData, setAutonomousAgencyData] = useState<any>(null);
   const [activeDynamicWidget, setActiveDynamicWidget] = useState<{ widgetType: string; data: any } | null>(null);
@@ -665,6 +677,104 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       })
       .catch(() => {});
   };
+
+  const loadQaMonitor = useCallback(async (brandObj?: any) => {
+    const fallbackBrand = (selectedBrandId ? allBrandsList.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) : null) || allBrandsList[0];
+    const target = brandObj || fallbackBrand;
+    const studioId = target?.titoStudioClinicId || target?.studioId || target?.slug || target?.id || 'clean_master';
+    setQaMonitorData((prev) => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch(`https://studio.t2os.app/api/public/portal/${encodeURIComponent(studioId)}`);
+      const data = await res.json().catch(() => ({}));
+      const items = Array.isArray(data?.content) ? data.content : [];
+      const scored = items.filter((i: any) => typeof i?.qaScore === 'number');
+      const avgScore = scored.length > 0 ? Math.round(scored.reduce((s: number, i: any) => s + Number(i.qaScore || 0), 0) / scored.length) : 0;
+      const passCount = scored.filter((i: any) => Number(i.qaScore || 0) >= 75).length;
+      const publishedCount = items.filter((i: any) => i?.status === 'published' || Boolean(i?.publishedAt)).length;
+      const scheduledCount = items.filter((i: any) => i?.status === 'scheduled').length;
+      const draftCount = items.length - publishedCount - scheduledCount;
+      setQaMonitorData({ loading: false, items: items.slice(0, 12), avgScore, passCount, publishedCount, scheduledCount, draftCount });
+    } catch {
+      setQaMonitorData((prev) => ({ ...prev, loading: false }));
+    }
+  }, [selectedBrandId, allBrandsList]);
+
+  const handleRunVisionQaCycle = async () => {
+    const activeBrand = (selectedBrandId ? allBrandsList.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) : null) || allBrandsList[0];
+    const bId = activeBrand?.id || activeBrand?.slug;
+    if (!bId) return;
+    setIsRunningQaCycle(true);
+    try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
+      const res = await fetch('/api/growth/activate-brand-cycle', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ brandId: bId, mode: 'full_cycle' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok) {
+        toast.success(`تم تشغيل دورة المحتوى وفحص الجودة Vision QA لـ ${activeBrand?.name || bId}`);
+        await loadQaMonitor(activeBrand);
+      } else {
+        toast.error(data?.error || 'تعذر تشغيل دورة مراقب الجودة');
+      }
+    } catch {
+      toast.error('تعذر الاتصال بمحرك فحص الجودة');
+    } finally {
+      setIsRunningQaCycle(false);
+    }
+  };
+
+  const loadAdPerfData = useCallback(async (brandObj?: any) => {
+    const activeBrand = (selectedBrandId ? allBrandsList.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) : null) || allBrandsList[0];
+    const target = brandObj || activeBrand;
+    const bId = target?.id || target?.slug || 'clean_master';
+    try {
+      const [telRes, agencyRes] = await Promise.all([
+        fetch(`/api/telemetry/live?brandId=${encodeURIComponent(bId)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch('/api/growth/agency-status').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+      setAdPerfData({ telemetry: telRes, agencyStatus: agencyRes });
+    } catch {}
+  }, [selectedBrandId, allBrandsList]);
+
+  const handleOptimizeAdsLoop = async () => {
+    const activeBrand = (selectedBrandId ? allBrandsList.find(b => b.id === selectedBrandId || b.slug === selectedBrandId) : null) || allBrandsList[0];
+    const bId = activeBrand?.id || activeBrand?.slug;
+    if (!bId) return;
+    setIsOptimizingAds(true);
+    try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
+      const res = await fetch('/api/growth/optimize-loop', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ brandId: bId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      setAdOptimizeResult(d?.result || d);
+      if (d?.success || d?.ok) {
+        toast.success(`تم تحليل أداء الحملات وتحديث التوصيات لـ ${activeBrand?.name || bId}`);
+        loadAdPerfData(activeBrand);
+      } else {
+        toast.error(d?.error || 'تعذر تحليل أداء الإعلانات');
+      }
+    } catch {
+      toast.error('خطأ في الاتصال بمحرك تحليل الإعلانات');
+    } finally {
+      setIsOptimizingAds(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (activeDeckTab === 'content_qa_monitor') {
+      loadQaMonitor();
+    } else if (activeDeckTab === 'ad_launcher') {
+      loadAdPerfData();
+    }
+  }, [isOpen, activeDeckTab, selectedBrandId, loadQaMonitor, loadAdPerfData]);
 
   useEffect(() => {
     if ((!isMasterAdmin || adminPreviewVisitor || persona !== 'tito') && activeDeckTab === 'obsidian_graph') {
@@ -1126,8 +1236,45 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const isPlayingVoiceRef = useRef<boolean>(false);
   const isThinkingRef = useRef<boolean>(false);
 
+  const dedupeAndroidSpeechResults = (results: any): { finals: string; interim: string } => {
+    const finalSegments: string[] = [];
+    let latestInterim = '';
+    for (let i = 0; i < (results?.length || 0); i++) {
+      const r = results[i];
+      const chunk = String(r?.[0]?.transcript || '').trim();
+      if (!chunk) continue;
+      if (r.isFinal) {
+        const prev = finalSegments[finalSegments.length - 1];
+        if (prev && chunk.startsWith(prev)) {
+          finalSegments[finalSegments.length - 1] = chunk;
+        } else if (!prev || (!prev.endsWith(chunk) && prev !== chunk)) {
+          finalSegments.push(chunk);
+        }
+      } else {
+        latestInterim = chunk;
+      }
+    }
+    return { finals: finalSegments.join(' ').trim(), interim: latestInterim.trim() };
+  };
+
+  const isLikelySpeakerEcho = (spokenText: string): boolean => {
+    if (Date.now() - lastSpeechEndedAtRef.current > 4500) return false;
+    const reference = String(lastJarvisSpokenTextRef.current || '').trim();
+    if (!reference) return false;
+    const normWords = (s: string) =>
+      s.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).map((w) => w.trim()).filter((w) => w.length >= 2);
+    const spokenWords = normWords(spokenText);
+    const refSet = new Set(normWords(reference));
+    if (spokenWords.length === 0 || refSet.size === 0) return false;
+    let overlap = 0;
+    for (const w of spokenWords) {
+      if (refSet.has(w)) overlap++;
+    }
+    return overlap / spokenWords.length >= 0.55;
+  };
+
   const startListeningLoop = () => {
-    if (isPlayingVoiceRef.current || isThinkingRef.current) {
+    if (isPlayingVoiceRef.current || isThinkingRef.current || isShadowVoicePlaying()) {
       return;
     }
 
@@ -1144,7 +1291,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
       const recognition = new SpeechRec();
       recognition.lang = 'ar-EG';
-      recognition.continuous = true;
+      recognition.continuous = !isMobile;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
 
@@ -1167,9 +1314,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         }
         setIsListening(false);
         if (finalRecorded && !finalRecorded.includes('اتفضل اتكلم') && finalRecorded.length > 1) {
+          if (isLikelySpeakerEcho(finalRecorded)) {
+            if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+              setTimeout(() => startListeningLoop(), 600);
+            }
+            return;
+          }
           handleSendLiveCommand(finalRecorded);
         } else if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
-          setTimeout(() => startListeningLoop(), 400);
+          setTimeout(() => startListeningLoop(), 450);
         }
       };
 
@@ -1180,21 +1333,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       };
 
       recognition.onresult = (event: any) => {
-        let finals = '';
-        let interim = '';
-        for (let i = 0; i < event.results.length; i++) {
-          const r = event.results[i];
-          const chunk = String(r?.[0]?.transcript || '');
-          if (r.isFinal) finals += (finals ? ' ' : '') + chunk;
-          else interim += (interim ? ' ' : '') + chunk;
+        if (isPlayingVoiceRef.current || isShadowVoicePlaying()) {
+          return;
         }
-        if (finals.trim()) accumulatedFinalRef.current = finals.trim();
-        const combined = [accumulatedFinalRef.current, interim.trim()].filter(Boolean).join(' ').trim();
+        const { finals, interim } = dedupeAndroidSpeechResults(event.results);
+        if (finals) accumulatedFinalRef.current = finals;
+        const combined = interim && !finals.endsWith(interim)
+          ? [accumulatedFinalRef.current, interim].filter(Boolean).join(' ').trim()
+          : (accumulatedFinalRef.current || interim);
         transcriptRef.current = combined;
         if (combined) {
           setTranscript(combined);
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = setTimeout(commitSpokenCommand, 1600);
+          silenceTimerRef.current = setTimeout(commitSpokenCommand, isMobile ? 2700 : 2400);
         }
       };
 
@@ -1217,12 +1368,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         const pending = (accumulatedFinalRef.current || transcriptRef.current || '').trim();
         if (pending && !pending.includes('اتفضل اتكلم') && pending.length > 1) {
           commitSpokenCommand();
-        } else if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+        } else if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current && !isShadowVoicePlaying()) {
           setTimeout(() => {
-            if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+            if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current && !isShadowVoicePlaying()) {
               startListeningLoop();
             }
-          }, 400);
+          }, isMobile ? 650 : 450);
         }
       };
 
@@ -1239,6 +1390,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     stopListeningForSpeech();
     stopAllJarvisAudio();
     const activeSeq = speechSeqRef.current;
+    speechStartedAtRef.current = Date.now();
+    lastJarvisSpokenTextRef.current = String(replyText || '');
     setIsPlayingVoice(true);
     isPlayingVoiceRef.current = true;
 
@@ -1246,6 +1399,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     const onSpeechEnd = () => {
       if (finished) return;
       finished = true;
+      lastSpeechEndedAtRef.current = Date.now();
       if (speechTimeoutRef.current) {
         clearTimeout(speechTimeoutRef.current);
         speechTimeoutRef.current = null;
@@ -1255,15 +1409,26 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       isPlayingVoiceRef.current = false;
       if (isOpenRef.current && autoLoopEnabledRef.current) {
         setTimeout(() => {
-          if (isOpenRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current && autoLoopEnabledRef.current) {
+          if (isOpenRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current && !isShadowVoicePlaying() && autoLoopEnabledRef.current) {
             startListeningLoop();
           }
-        }, 350);
+        }, isMobile ? 900 : 550);
       }
     };
 
-    // Safety guard: guarantee speaking state unlocks even if browser/audio hangs
-    speechTimeoutRef.current = setTimeout(onSpeechEnd, Math.max(8000, Math.min(25000, String(replyText || '').length * 100)));
+    // Smart watchdog: waits while Gemini TTS is actively synthesizing/playing (up to 90s hard ceiling)
+    const scheduleWatchdog = () => {
+      speechTimeoutRef.current = setTimeout(() => {
+        if (finished || speechSeqRef.current !== activeSeq) return;
+        const directPlaying = Boolean(activeAudioRef.current && !activeAudioRef.current.paused && !activeAudioRef.current.ended);
+        if ((isShadowVoicePlaying() || directPlaying) && (Date.now() - speechStartedAtRef.current < 90000)) {
+          scheduleWatchdog();
+          return;
+        }
+        onSpeechEnd();
+      }, 4000);
+    };
+    scheduleWatchdog();
 
     if (audioBase64) {
       const mime = audioBase64.startsWith('UklGR') ? 'audio/wav' : 'audio/mp3';
@@ -1880,6 +2045,54 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 >
                   <Radio className="w-3.5 h-3.5 animate-pulse" />
                   <span>رادار الربط</span>
+                </button>
+
+                <button
+                  onClick={() => setIsCatalogModalOpen(true)}
+                  title="ربط وإدارة الكتالوج الموحد للمنتجات والخدمات"
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>الكتالوج الموحد</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('content_qa_monitor')}
+                  title="مراقب جودة المحتوى والفحص البصري Vision QA في تيتو ستوديو"
+                  className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl border font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer ${
+                    activeDeckTab === 'content_qa_monitor'
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-300'
+                      : 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-200 border-emerald-400/40'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>جودة المحتوى QA</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('ad_launcher')}
+                  title="تشغيل حملات الإعلانات وتحليل الأداء والعائد ROAS"
+                  className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl border font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer ${
+                    activeDeckTab === 'ad_launcher'
+                      ? 'bg-amber-400 text-slate-950 border-amber-200'
+                      : 'bg-amber-500/15 hover:bg-amber-500/30 text-amber-200 border-amber-400/40'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>الإعلانات والأداء</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveDeckTab('autonomous_agency')}
+                  title="مشغل الوكالة الآلي (4 أسابيع / 12 منشور)"
+                  className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl border font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer ${
+                    activeDeckTab === 'autonomous_agency'
+                      ? 'bg-orange-400 text-slate-950 border-orange-200'
+                      : 'bg-orange-500/15 hover:bg-orange-500/30 text-orange-200 border-orange-400/40'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>مشغل الوكالة</span>
                 </button>
 
                 <button
@@ -2500,6 +2713,27 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <span>إدارة البراند (4 أركان)</span>
                       </button>
                       <button
+                        onClick={() => setIsCatalogModalOpen(true)}
+                        className="px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/45 text-cyan-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>الكتالوج</span>
+                      </button>
+                      <button
+                        onClick={() => setActiveDeckTab('content_qa_monitor')}
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/45 text-emerald-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>مراقب QA</span>
+                      </button>
+                      <button
+                        onClick={() => setActiveDeckTab('ad_launcher')}
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/45 text-amber-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        <span>الإعلانات</span>
+                      </button>
+                      <button
                         onClick={() => window.open(resolveBrandWebUrl(selectedBrand), '_blank', 'noopener,noreferrer')}
                         className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/50 text-blue-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
                       >
@@ -2531,6 +2765,113 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 onOpenWhatsAppModal={(bId) => handleOpenWhatsAppConnectModal(bId)}
                 onOpenMetaModal={(bId) => handleOpenMetaConnectModal(bId)}
               />
+            )}
+
+            {/* TAB 0C: AUTONOMOUS AGENCY DECK (1-MONTH CONTENT + UNIFIED CATALOG) */}
+            {activeDeckTab === 'autonomous_agency' && (
+              <JarvisAutonomousAgencyDeck
+                currentSelectedBrand={currentSelectedBrand}
+                autonomousAgencyData={autonomousAgencyData}
+                isExecutingAutonomousAgency={isExecutingAutonomousAgency}
+                isPublishingPost={isPublishingPost}
+                onExecuteCycle={(bId) => handleExecuteAutonomousAgency(bId, false)}
+                onPublishPost={handlePublishPost}
+                onOpenCalendar={() => setActiveDeckTab('studio_calendar')}
+                onOpenGraph={() => setActiveDeckTab('obsidian_graph')}
+                onOpenCatalog={() => setIsCatalogModalOpen(true)}
+              />
+            )}
+
+            {/* TAB 0D: CONTENT QA & VISION MONITOR */}
+            {activeDeckTab === 'content_qa_monitor' && (
+              <div className="w-full max-w-2xl rounded-3xl bg-[#020617]/95 border-2 border-emerald-500/45 shadow-[0_0_40px_rgba(16,185,129,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-emerald-500/20">
+                  <div>
+                    <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>مراقب جودة المحتوى والفحص البصري Vision QA — {currentSelectedBrand.name}</span>
+                    </h4>
+                    <p className="text-[10px] text-white/55">متابعة درجات فحص الجودة في تيتو ستوديو، الجاهز للاعتماد، المجدول، والمنشور فعلياً</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => loadQaMonitor(currentSelectedBrand)}
+                      className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${qaMonitorData.loading ? 'animate-spin' : ''}`} />
+                      <span>تحديث</span>
+                    </button>
+                    <button
+                      onClick={handleRunVisionQaCycle}
+                      disabled={isRunningQaCycle}
+                      className="px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{isRunningQaCycle ? 'جاري الفحص...' : 'تشغيل دورة QA جديدة'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                    <div className="text-[10px] text-white/60">متوسط جودة QA</div>
+                    <div className="text-base font-black text-emerald-300">{qaMonitorData.avgScore}/100</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
+                    <div className="text-[10px] text-white/60">منشور فعلياً</div>
+                    <div className="text-base font-black text-cyan-300">{qaMonitorData.publishedCount}</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30">
+                    <div className="text-[10px] text-white/60">مجدول للنشر</div>
+                    <div className="text-base font-black text-purple-300">{qaMonitorData.scheduledCount}</div>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                    <div className="text-[10px] text-white/60">بانتظار الاعتماد</div>
+                    <div className="text-base font-black text-amber-300">{qaMonitorData.draftCount}</div>
+                  </div>
+                </div>
+
+                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                  {qaMonitorData.items.length === 0 ? (
+                    <div className="text-xs text-white/50 text-center py-4">
+                      {qaMonitorData.loading ? 'جاري جلب تقارير جودة المحتوى من تيتو ستوديو...' : 'لا توجد عناصر محتوى مسجلة لهذا البراند بعد — اضغط تشغيل دورة QA جديدة.'}
+                    </div>
+                  ) : (
+                    qaMonitorData.items.map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="p-2 rounded-xl bg-black/50 border border-white/10 flex items-center justify-between gap-2 text-[10px]">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-white truncate">{item.hook || item.title || item.caption?.slice(0, 60) || `منشور #${idx + 1}`}</div>
+                          <div className="text-white/50 truncate">الحالة: {item.status || 'draft'} • النوع: {item.type || 'image'}</div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full font-black shrink-0 ${
+                          Number(item.qaScore || 0) >= 75 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        }`}>
+                          {typeof item.qaScore === 'number' ? `QA ${item.qaScore}/100` : 'قيد الفحص'}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    onClick={() => handleApproveSchedule(currentSelectedBrand.id)}
+                    disabled={isApprovingSchedule}
+                    className="px-3 py-1.5 rounded-xl bg-purple-500/25 hover:bg-purple-500/40 border border-purple-400/45 text-purple-200 text-[10px] font-black cursor-pointer"
+                  >
+                    📅 اعتماد وجدولة المحتوى
+                  </button>
+                  <button
+                    onClick={() => {
+                      const cId = currentSelectedBrand?.titoStudioClinicId || currentSelectedBrand?.id || 'clean_master';
+                      setStudioEmbed({ open: true, view: 'showroom', clinicId: cId, embedUrl: `https://studio.t2os.app/?embed=1&view=showroom&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(cId)}` });
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/45 text-cyan-200 text-[10px] font-black cursor-pointer"
+                  >
+                    🎨 فتح صالة الاعتماد (Showroom)
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* TAB 1: TITO STUDIO 7-DAY CONTENT CALENDAR (Modular Component) */}
@@ -2788,15 +3129,49 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     </div>
                   </div>
 
-                  {/* Launch Campaign Button */}
-                  <button
-                    onClick={() => handleLaunchAdForPost(selectedPost)}
-                    disabled={isLaunchingCampaign}
-                    className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black rounded-xl text-xs shadow-lg shadow-amber-500/30 transition flex items-center justify-center gap-1.5 disabled:opacity-40"
-                  >
-                    <TrendingUp className="w-4 h-4" />
-                    <span>{isLaunchingCampaign ? 'جاري التوجيه والإطلاق عبر ميتا...' : 'إطلاق الحملة الآن وربطها بوكلاء الواتساب 🚀'}</span>
-                  </button>
+                  {/* Launch & Live ROAS Optimization Actions */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleLaunchAdForPost(selectedPost)}
+                      disabled={isLaunchingCampaign}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black rounded-xl text-xs shadow-lg shadow-amber-500/30 transition flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      <span>{isLaunchingCampaign ? 'جاري الإطلاق عبر ميتا...' : 'إطلاق الحملة وربطها بالواتساب 🚀'}</span>
+                    </button>
+                    <button
+                      onClick={handleOptimizeAdsLoop}
+                      disabled={isOptimizingAds}
+                      className="w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 border border-emerald-400/45 font-black rounded-xl text-xs transition flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                    >
+                      <Activity className={`w-4 h-4 ${isOptimizingAds ? 'animate-spin' : ''}`} />
+                      <span>{isOptimizingAds ? 'جاري تحليل الأداء...' : 'تحليل وتحسين أداء الحملة (ROAS/CPA)'}</span>
+                    </button>
+                  </div>
+
+                  {adPerfData?.telemetry && (
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 grid grid-cols-3 gap-2 text-center text-[10px]">
+                      <div>
+                        <span className="text-white/50 block">زيارات المتجر</span>
+                        <span className="text-cyan-300 font-black">{adPerfData.telemetry.visits ?? adPerfData.telemetry.storeVisits ?? 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-white/50 block">محادثات واتساب</span>
+                        <span className="text-emerald-300 font-black">{adPerfData.telemetry.whatsappMessages ?? 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-white/50 block">طلبات/حجوزات</span>
+                        <span className="text-amber-300 font-black">{(adPerfData.telemetry.orders ?? 0) + (adPerfData.telemetry.bookings ?? 0)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {adOptimizeResult && (
+                    <div className="p-2.5 rounded-xl bg-emerald-950/50 border border-emerald-500/35 text-[10.5px] text-emerald-200 leading-relaxed">
+                      <div className="font-black text-emerald-300 mb-1">📊 نتيجة تحليل وتحسين الأداء:</div>
+                      <div>{adOptimizeResult.summary || adOptimizeResult.recommendation || JSON.stringify(adOptimizeResult).slice(0, 220)}</div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

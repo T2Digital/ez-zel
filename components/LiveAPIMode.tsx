@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, X, Waves, Video, VideoOff, Monitor, StopCircle, RefreshCw, Eye, Camera, Upload, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import { useAppStore } from '../services/store';
 import { getShadowResponse } from '../services/geminiService';
-import { playShadowVoice, stopVoice, resumeAudioContext } from '../services/speechService';
+import { playShadowVoice, stopVoice, resumeAudioContext, isShadowVoicePlaying } from '../services/speechService';
 import { localBrain } from '../services/localBrainService';
 
 export const LiveAPIMode: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -114,30 +114,49 @@ export const LiveAPIMode: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
             const recognition = new SpeechRec();
-            recognition.continuous = true;
+            const isMobileUa = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+            recognition.continuous = !isMobileUa;
             recognition.interimResults = true;
             recognition.lang = 'ar-EG';
 
             recognition.onresult = (event: any) => {
-                // BARGE-IN INTERRUPTION: If user speaks while bot is speaking, abort playback immediately!
-                if (status === 'الظل يتحدث... 🎙️') {
-                    stopVoice();
-                    setStatus('المحادثة الحية نشطة ⚡ (جاهز للاستماع)');
+                // Prevent mobile speakerphone self-echo while TTS is playing
+                if (status === 'الظل يتحدث... 🎙️' || isShadowVoicePlaying()) {
+                    return;
                 }
 
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        handleFinalTranscript(event.results[i][0].transcript);
+                const dedupedFinals: string[] = [];
+                let latestInterim = '';
+                for (let i = 0; i < event.results.length; ++i) {
+                    const resItem = event.results[i];
+                    const txt = String(resItem?.[0]?.transcript || '').trim();
+                    if (!txt) continue;
+                    if (resItem.isFinal) {
+                        const prev = dedupedFinals[dedupedFinals.length - 1];
+                        if (prev && txt.startsWith(prev)) {
+                            dedupedFinals[dedupedFinals.length - 1] = txt;
+                        } else if (!prev || !prev.includes(txt)) {
+                            dedupedFinals.push(txt);
+                        }
                     } else {
-                        setTranscript(event.results[i][0].transcript);
+                        latestInterim = txt;
                     }
+                }
+                if (dedupedFinals.length > 0 && !latestInterim) {
+                    handleFinalTranscript(dedupedFinals.join(' '));
+                } else {
+                    setTranscript([dedupedFinals.join(' '), latestInterim].filter(Boolean).join(' '));
                 }
             };
             
             recognition.onerror = () => {};
             recognition.onend = () => {
-                if (recognitionRef.current && status !== "الظل يفكر... 🧠" && status !== "الظل يتحدث... 🎙️") {
-                    try { recognition.start(); } catch(e) {}
+                if (recognitionRef.current && status !== "الظل يفكر... 🧠" && status !== "الظل يتحدث... 🎙️" && !isShadowVoicePlaying()) {
+                    setTimeout(() => {
+                        if (recognitionRef.current && !isShadowVoicePlaying()) {
+                            try { recognition.start(); } catch(e) {}
+                        }
+                    }, isMobileUa ? 350 : 150);
                 }
             };
             
@@ -239,20 +258,25 @@ export const LiveAPIMode: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     // Play human neural Egyptian voice (using playShadowVoice from speechService)
     const speak = async (text: string) => {
         setStatus("الظل يتحدث... 🎙️");
+        if (recognitionRef.current) {
+            try { recognitionRef.current.abort(); } catch {}
+        }
         resumeAudioContext();
         
         try {
             const voicePref = user?.voicePreference === 'female' ? 'female' : 'male';
             await playShadowVoice(text, voicePref, undefined, () => {
-                 setStatus("المحادثة الحية نشطة ⚡ (جاهز للاستماع)");
-                 if (recognitionRef.current && isActive) {
-                     try { recognitionRef.current.start(); } catch(e) {}
-                 }
+                 setTimeout(() => {
+                     setStatus("المحادثة الحية نشطة ⚡ (جاهز للاستماع)");
+                     if (recognitionRef.current && isActive && !isShadowVoicePlaying()) {
+                         try { recognitionRef.current.start(); } catch(e) {}
+                     }
+                 }, 750);
             });
         } catch (e) {
             console.warn("Human voice playback error", e);
             setStatus("المحادثة الحية نشطة ⚡ (جاهز للاستماع)");
-            if (recognitionRef.current && isActive) {
+            if (recognitionRef.current && isActive && !isShadowVoicePlaying()) {
                 try { recognitionRef.current.start(); } catch(e) {}
             }
         }
