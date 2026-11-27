@@ -391,7 +391,7 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
                                 <Eye className="w-4 h-4 text-black" />
-                                <span>ابدأ الأسبوع المجاني مع جارفيس (دخول بجوجل)</span>
+                                <span>ابدأ الأسبوع المجاني مع جارفيس الآن (فوراً بدون بطاقة)</span>
                             </button>
 
                             <div className="flex gap-2">

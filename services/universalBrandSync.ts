@@ -53,6 +53,10 @@ export interface UniversalBrandPayload {
     websiteUrl?: string;
     appUrl?: string;
     appTemplate?: string;
+    enableDropshipping?: boolean;
+    storeType?: string;
+    heroImage?: string;
+    vercelUrl?: string;
     ownerEmail?: string;
     systemPrompt?: string;
     slogan?: string;
@@ -172,6 +176,10 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
             websiteUrl: payload.websiteUrl || `https://store.t2os.app/s/${encodeURIComponent(slug)}`,
             appUrl: payload.appUrl || ezBrands[brandId]?.appUrl || `/store/${brandId}`,
             ...(payload.appTemplate ? { appTemplate: payload.appTemplate } : {}),
+            ...(typeof payload.enableDropshipping === 'boolean' ? { enableDropshipping: payload.enableDropshipping } : {}),
+            ...(payload.storeType ? { storeType: payload.storeType } : {}),
+            ...(payload.heroImage ? { heroImage: payload.heroImage } : {}),
+            ...(payload.vercelUrl ? { vercelUrl: payload.vercelUrl } : {}),
             ownerEmail: payload.ownerEmail || 'admin@t2.com',
             slogan: payload.slogan || `أفضل خدمات ${businessType} بضمان كامل`,
             systemPrompt: defaultSystemPrompt,

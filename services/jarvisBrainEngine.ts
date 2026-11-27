@@ -124,6 +124,16 @@ export function resolveRealStudioClinicFromList(
   };
 }
 
+export function isRawPromptSentenceNotBrandName(raw: string | undefined): boolean {
+  const s = String(raw || "").trim();
+  if (!s) return true;
+  const words = s.split(/\s+/).filter(Boolean);
+  if (words.length >= 5) return true;
+  if (/^(عاوز|عايز|أريد|ابغى|محتاج|اعمل|ابني|أبني|صمم|انشئ|أنشئ|افتح|تأسيس)\b/i.test(s)) return true;
+  if (/^(متجر دروب شيبنج|دروب شيبنج|متجر الكتروني|متجر إلكتروني|فكرة مشروع|مشروع جديد)$/i.test(s)) return true;
+  return false;
+}
+
 /**
  * Dynamically resolves any brand across the entire unified ecosystem (Tito Studio, Tito Agent, PWA Cloner, Obsidian Vault)
  * by ID, slug, exact name, partial Arabic/English name, or businessType keywords.
@@ -971,9 +981,9 @@ ${recentChatSummary ? `\n[سياق الذاكرة المشتركة مع شات �
 قواعد صارمة لشخصية جارفيس المتحدث (Executive Poise):
 - تحدث بالعامية المصرية المهذبة والرزينة (بدون مبالغة أو كلام إنشائي) لصوت طبيعي واضح.
 - أجب بأرقام وحقائق حقيقية من الذاكرة الحية أو من نتائج الأدوات فقط — ممنوع ذكر أي أرقام قديمة لعملاء الإدارة الحاليين كأنهم إيرادات اشتراكات الظل.
-- عند أي أمر ببناء متجر إلكتروني كامل أو تطبيق ويب لبراند: استخدم فوراً أداة \`deploy_brand_web_app\` (أو \`onboard_new_client_brand\` مع \`provisionWebApp: true\`) لإنشاء ريبو GitHub ونشره فعلياً على Vercel (\`https://t2-tenant-<slug>.vercel.app\`) — والحد الأدنى للباقات المدفوعة هو \`5,000 ج.م\` (growth_5000).
-- عند أي أمر تنفيذي (نشر، تعديل سعر، إضافة منتج، مصروف، موظف، مورد، خزينة، ربط واتساب): نفّذ الأداة أولاً ثم قدّم تقريراً تنفيذياً دقيقاً في جملة أو جملتين.
-- عند أي سؤال عن المنتجات أو الأسعار أو المخزون أو المبيعات أو المصاريف أو تأكيد وجود/إضافة منتج في المتجر: استخدم 'manage_store_erp' ('get_summary' أو 'add_product' أو 'update_price') فوراً — وممنوع خلط طلبات المتجر بأدوات النشر على السوشيال ميديا ('create_and_publish_post').
+- عند أي أمر ببناء متجر إلكتروني كامل أو متجر دروب شيبنج لبراند: استخدم فوراً أداة \`deploy_brand_web_app\` (أو \`onboard_new_client_brand\`) ولا تستخدم أبداً جملة الطلب نفسها كاسم للبراند — اخترع اسماً تجارياً قصيراً وجذاباً مع 6 منتجات بالصور والأسعار، والحد الأدنى للباقات المدفوعة هو \`5,000 ج.م\` (growth_5000).
+- عند أي أمر تنفيذي (نشر، تعديل سعر، إضافة منتج، مصروف، موظف، مورد، خزينة، ربط واتساب): نفّذ الأداة أولاً ثم قدّم تقريراً تنفيذياً دقيقاً من نتيجتها الفعلية فقط — وممنوع منعاً باتاً قول "تم" إذا عادت الأداة بـ \`success: false\`، واذكر دائماً رابط المتجر الكامل (\`https://store.t2os.app/s/<slug>\`) وعدد المنتجات المؤكد في قاعدة البيانات.
+- عند أي سؤال عن المنتجات أو الأسعار أو المخزون أو المبيعات أو المصاريف أو إضافة منتج لمتجر موجود: استخدم 'manage_store_erp' ('get_summary' أو 'add_product' أو 'update_price') — وممنوع خلط طلبات المتجر بأدوات النشر على السوشيال ميديا ('create_and_publish_post').
 - لا تكرر تقارير قديمة إلا إذا سألك المستخدم عنها مباشرة.`;
 }
 
@@ -1290,23 +1300,62 @@ ${conversationMemoryDirective}`;
 
     switch (call.name) {
       case "update_store_catalog": {
-        const serviceName = String(args.serviceName || "خدمة VIP جديدة").trim();
-        const servicePrice = String(args.servicePrice || "650 ج.م").trim();
+        const serviceName = String(args.serviceName || "منتج جديد").trim();
+        const servicePrice = String(args.servicePrice || "500 ج.م").trim();
+        const numericPrice = Math.max(1, Number(String(servicePrice).replace(/[^\d.]/g, "")) || 500);
+        const requestedBrandQuery = String(args.brandNameOrId || "").trim();
+
+        // If user named a brand explicitly that does NOT exist yet, auto-create it cleanly first so we never write to the wrong brand!
+        let resolvedBrand = resolveBrandDynamically(requestedBrandQuery, message, unifiedBrands) || targetBrand;
+        const explicitBrandNotMatched =
+          requestedBrandQuery &&
+          !isRawPromptSentenceNotBrandName(requestedBrandQuery) &&
+          !String(resolvedBrand?.name || "").toLowerCase().includes(requestedBrandQuery.toLowerCase()) &&
+          !String(resolvedBrand?.slug || "").toLowerCase().includes(requestedBrandQuery.toLowerCase());
+
+        if (explicitBrandNotMatched) {
+          const { saveBrandedClientToVault, generateBrandingAndSocialKit } = await import("./brandingForgeService");
+          const { transliterateArabicToSlug } = await import("./brandIdentityNormalizer");
+          const cleanSlug = transliterateArabicToSlug(requestedBrandQuery) || `brand-${Date.now().toString(36)}`;
+          const newKit = await generateBrandingAndSocialKit({
+            brandName: requestedBrandQuery,
+            category: "متجر إلكتروني ومنتجات ذكية",
+            phone: "01013372674",
+            isNewBusiness: true,
+          });
+          newKit.brandId = cleanSlug;
+          newKit.brandName = requestedBrandQuery;
+          const created = saveBrandedClientToVault(newKit, { phone: "01013372674" });
+          created.slug = cleanSlug;
+          await syncBrandToAllEcosystems({
+            id: created.id,
+            slug: cleanSlug,
+            name: requestedBrandQuery,
+            businessType: "متجر إلكتروني ومنتجات ذكية",
+            appTemplate: "products_erp",
+            enableDropshipping: /دروب\s*شيب|dropship/i.test(message),
+            source: "Jarvis_AutoCreate_CatalogBrand",
+          });
+          resolvedBrand = created;
+        }
+
+        const effectiveBrandId = resolvedBrand?.id || brandId;
         backendExecutionResult = await executeRealJarvisEcosystemAction({
           actionType: "UPDATE_STORE_CATALOG",
-          brandId,
+          brandId: effectiveBrandId,
           data: {
             addService: {
               name: serviceName,
               price: servicePrice,
-              description: "تمت الإضافة والتسعير بأمر مباشر من عقل جارفيس",
+              numericPrice,
+              description: "تمت الإضافة والتسعير عبر جارفيس وحفظه في المتجر السحابي مباشرة",
             },
           },
         });
         executedAction = {
           type: "CATALOG_MUTATED",
           tab: "app_cloner",
-          brandId,
+          brandId: effectiveBrandId,
           result: backendExecutionResult,
         };
         break;
@@ -1923,43 +1972,107 @@ ${conversationMemoryDirective}`;
 
       case "onboard_new_client_brand": {
         try {
-          const category = String(args.category || "نشاط تجاري وخدمات").trim();
-          const initialName = String(args.businessIdeaOrName || "").trim() || category;
-          const phone = String(args.phone || "").trim();
+          const rawCategory = String(args.category || "متجر إلكتروني ودروب شيبنج").trim();
+          const rawIdeaOrName = String(args.businessIdeaOrName || "").trim();
+          const isDropshippingReq = /دروب\s*شيب|dropship/i.test(`${rawCategory} ${rawIdeaOrName} ${message}`);
+          const category = isDropshippingReq && !/عطر|ملابس|سيار/i.test(rawCategory)
+            ? "دروب شيبنج وإكسسوارات ذكية"
+            : rawCategory;
+          const isSentenceNotBrand = isRawPromptSentenceNotBrandName(rawIdeaOrName);
+          const phone = String(args.phone || "").trim() || "01013372674";
+
           const kit = await generateBrandingAndSocialKit({
-            brandName: initialName,
+            brandName: isSentenceNotBrand ? category : rawIdeaOrName,
             category,
-            phone: phone || "01013372674",
-            isNewBusiness: args.isNewBusiness !== false,
+            phone,
+            isNewBusiness: isSentenceNotBrand || args.isNewBusiness !== false,
           });
-          if (args.businessIdeaOrName && String(args.businessIdeaOrName).trim()) {
-            kit.brandName = String(args.businessIdeaOrName).trim();
+          if (!isSentenceNotBrand && rawIdeaOrName) {
+            kit.brandName = rawIdeaOrName;
+          } else if (isSentenceNotBrand && (!kit.brandName || isRawPromptSentenceNotBrandName(kit.brandName))) {
+            const firstSuggested = kit.suggestedNames?.[0]?.arabic;
+            kit.brandName =
+              firstSuggested && !isRawPromptSentenceNotBrandName(firstSuggested)
+                ? firstSuggested
+                : isDropshippingReq
+                  ? "نوفا ترند ستور"
+                  : "بيكسل مارت";
           }
-          const flagshipApp = resolveFlagshipTemplate(`${category} ${initialName}`);
+
+          const { transliterateArabicToSlug } = await import("./brandIdentityNormalizer");
+          const cleanSlug = transliterateArabicToSlug(kit.brandName) || `brand-${Date.now().toString(36)}`;
+          kit.brandId = cleanSlug;
+
+          const flagshipApp = resolveFlagshipTemplate(`${category} ${kit.brandName} ${isDropshippingReq ? "متجر منتجات" : ""}`);
+          const onboardAppTpl = flagshipApp.archetype === "products_erp_pos" || isDropshippingReq ? "products_erp" : "services_booking";
+
+          const { generateIndustryCatalogWithAI, mapCatalogItemsToErpProducts, getIndustryHeroImage } = await import("./industryHydrationService");
+          const hydratedCatalog = await generateIndustryCatalogWithAI({
+            ai,
+            brandName: kit.brandName,
+            industry: category,
+            appTemplate: onboardAppTpl,
+          });
+          const seededErpProducts = mapCatalogItemsToErpProducts(hydratedCatalog, category, kit.brandName);
+          const heroImg = getIndustryHeroImage(category, kit.brandName);
+
           const savedBrand = saveBrandedClientToVault(kit, { phone, whatsapp: phone });
+          savedBrand.slug = cleanSlug;
+          savedBrand.productsCatalog = hydratedCatalog;
+          savedBrand.heroImage = heroImg;
+          savedBrand.enableDropshipping = isDropshippingReq;
+          savedBrand.storeType = isDropshippingReq ? "dropshipping" : "standard_ecommerce";
+
+          const { buildFlagshipTenantUrl } = await import("./tenantAppRenderer");
+          const instantMultiTenantUrl = buildFlagshipTenantUrl(cleanSlug, onboardAppTpl);
+          savedBrand.vercelUrl = instantMultiTenantUrl;
+
           try {
             await syncBrandToAllEcosystems({
               id: savedBrand.id,
-              slug: savedBrand.slug,
+              slug: cleanSlug,
               name: savedBrand.name,
-              businessType: savedBrand.businessType,
+              businessType: category,
               phone: savedBrand.phone,
               whatsapp: savedBrand.whatsapp,
               slogan: savedBrand.slogan,
               primaryColor: savedBrand.primaryColor,
               accentColor: savedBrand.accentColor,
-              appTemplate: flagshipApp.archetype === "products_erp_pos" ? "products_erp" : "services_booking",
+              appTemplate: onboardAppTpl,
+              enableDropshipping: isDropshippingReq,
+              storeType: isDropshippingReq ? "dropshipping" : "standard_ecommerce",
+              productsCatalog: hydratedCatalog,
               weekContentPlan: savedBrand.weekContentPlan,
+              vercelUrl: instantMultiTenantUrl,
+              heroImage: heroImg,
             });
           } catch {}
 
-          const { buildFlagshipTenantUrl } = await import("./tenantAppRenderer");
-          const onboardAppTpl = flagshipApp.archetype === "products_erp_pos" ? "products_erp" : "services_booking";
-          const instantMultiTenantUrl = buildFlagshipTenantUrl(savedBrand.slug || savedBrand.id, onboardAppTpl);
+          // Seed & verify live Storefront ERP products
+          const { loadTenantErpState, saveTenantErpState, normalizeSlugKey } = await import("./tenantErpStoreService");
+          const slugKey = normalizeSlugKey(cleanSlug);
+          await saveTenantErpState(slugKey, {
+            products: seededErpProducts,
+            storefrontSettings: {
+              companyName: savedBrand.name,
+              slogan: savedBrand.slogan,
+              contactPhone: phone,
+              whatsappPhone: phone,
+              primaryColor: savedBrand.primaryColor,
+            },
+            appCustomization: {
+              brandName: savedBrand.name,
+              primaryColor: savedBrand.primaryColor,
+              enableDropshipping: isDropshippingReq,
+              heroImage: heroImg,
+            },
+          });
+          const verifiedErp = await loadTenantErpState(slugKey);
+          const verifiedProductsCount = Array.isArray(verifiedErp?.products) ? verifiedErp.products.length : 0;
+
           const wantsDedicatedDeploy = Boolean(
             args.dedicatedRepo === true || args.planId === "enterprise_20000" || args.planId === "sovereign_50000"
           );
-
           let dedicatedDeploy: any = null;
           if (args.provisionWebApp === true && wantsDedicatedDeploy && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
             try {
@@ -1979,27 +2092,31 @@ ${conversationMemoryDirective}`;
             } catch {}
           }
           const finalLiveUrl = dedicatedDeploy?.dedicatedLiveUrl || instantMultiTenantUrl;
-          savedBrand.vercelUrl = finalLiveUrl;
 
           try {
             const { triggerTrialOnboardingCycle } = await import("../routes/ecosystemOrchestrationRoutes");
             void triggerTrialOnboardingCycle({
               brandId: savedBrand.id,
               brandName: savedBrand.name,
-              industry: savedBrand.businessType || category,
+              industry: category,
               dialect: "اللهجة المصرية الاحترافية",
             }).catch(() => {});
           } catch {}
 
           backendExecutionResult = {
-            success: true,
+            success: verifiedProductsCount > 0,
             suggestedNames: kit.suggestedNames,
             suggestedSlogans: kit.suggestedSlogans,
-            selectedBrandName: kit.brandName,
+            selectedBrandName: savedBrand.name,
+            brandSlug: slugKey,
             slogan: kit.slogan,
             logoUrl: kit.logoUrl,
             logoPrompt: kit.logoPrompt,
             colors: kit.colors,
+            enableDropshipping: isDropshippingReq,
+            verifiedProductsCount,
+            seededProductsPreview: seededErpProducts.slice(0, 4).map((p: any) => ({ name: p.name, priceEgp: p.sellingPrice })),
+            liveStoreUrl: finalLiveUrl,
             dedicatedLiveUrl: finalLiveUrl,
             ...(dedicatedDeploy?.dedicatedRepoUrl ? { dedicatedRepoUrl: dedicatedDeploy.dedicatedRepoUrl } : {}),
             flagshipWebApp: {
@@ -2013,9 +2130,9 @@ ${conversationMemoryDirective}`;
             },
             socialKits: kit.socialKits,
             nextSteps: [
-              "اختيار الاسم والسلوجان المفضل من المقترحات الـ 3",
-              "اعتماد الشعار المصمم وتطبيق الويب (Battah للمنتجات أو Clean Master للخدمات)",
-              "ربط رقم الواتساب (QR / Pairing Code) وتوصيل صفحات Meta و TikTok و YouTube و Snapchat و Google Business & Maps",
+              `فتح المتجر الحي الآن: ${finalLiveUrl}`,
+              "إضافة أو تعديل أي منتج بأمر مباشر لجارفيس",
+              "ربط رقم الواتساب وصفحات Meta من لوحة البراند",
             ],
             brand: savedBrand,
           };
@@ -2033,61 +2150,125 @@ ${conversationMemoryDirective}`;
 
       case "deploy_brand_web_app": {
         try {
-          const brandInput = String(args.brandIdOrName || "").trim();
+          const rawBrandInput = String(args.brandIdOrName || "").trim();
           const englishSlugInput = String(args.englishSlug || "").trim();
-          const industry = String(args.industry || "متجر إلكتروني").trim();
-          const phone = String(args.phone || "").trim();
+          const rawIndustry = String(args.industry || "متجر إلكتروني").trim();
+          const isDropshippingReq = /دروب\s*شيب|dropship/i.test(`${rawIndustry} ${rawBrandInput} ${message}`);
+          const industry = isDropshippingReq && !/عطر|ملابس|سيار/i.test(rawIndustry)
+            ? "دروب شيبنج وإكسسوارات ذكية"
+            : rawIndustry;
+          const phone = String(args.phone || "").trim() || "01013372674";
           const currentBrands = getUnifiedGrowthBrands();
-          let target: any = currentBrands.find(
-            (b: any) =>
-              String(b.id || "").toLowerCase() === brandInput.toLowerCase() ||
-              String(b.slug || "").toLowerCase() === brandInput.toLowerCase() ||
-              String(b.name || "").trim().toLowerCase() === brandInput.toLowerCase()
-          );
+          const isRawSentence = isRawPromptSentenceNotBrandName(rawBrandInput);
+          let target: any = !isRawSentence && rawBrandInput
+            ? currentBrands.find(
+                (b: any) =>
+                  String(b.id || "").toLowerCase() === rawBrandInput.toLowerCase() ||
+                  String(b.slug || "").toLowerCase() === rawBrandInput.toLowerCase() ||
+                  String(b.name || "").trim().toLowerCase() === rawBrandInput.toLowerCase()
+              )
+            : null;
 
-          const flagship = resolveFlagshipTemplate(`${args.templateId || ""} ${industry} ${brandInput}`);
+          const flagship = resolveFlagshipTemplate(`${args.templateId || ""} ${industry} ${rawBrandInput} ${isDropshippingReq ? "متجر منتجات" : ""}`);
           const resolvedAppTpl =
             args.appTemplate ||
-            (flagship.archetype === "products_erp_pos" ? "products_erp" : "services_booking");
+            (flagship.archetype === "products_erp_pos" || isDropshippingReq ? "products_erp" : "services_booking");
+
+          const { transliterateArabicToSlug } = await import("./brandIdentityNormalizer");
+          const { loadTenantErpState, saveTenantErpState, normalizeSlugKey } = await import("./tenantErpStoreService");
 
           if (!target) {
-            const { cloneOrSynthesizeBrand } = await import("./appClonerCrawlerService");
+            const { generateBrandingAndSocialKit } = await import("./brandingForgeService");
+            const { generateIndustryCatalogWithAI, mapCatalogItemsToErpProducts, getIndustryHeroImage } = await import("./industryHydrationService");
+
+            let chosenName = rawBrandInput;
+            let chosenKit: any = null;
+            if (isRawSentence || !chosenName) {
+              chosenKit = await generateBrandingAndSocialKit({
+                brandName: industry,
+                category: industry,
+                phone,
+                isNewBusiness: true,
+              });
+              const cand = chosenKit?.brandName && !isRawPromptSentenceNotBrandName(chosenKit.brandName)
+                ? chosenKit.brandName
+                : chosenKit?.suggestedNames?.[0]?.arabic;
+              chosenName =
+                cand && !isRawPromptSentenceNotBrandName(cand)
+                  ? cand
+                  : isDropshippingReq
+                    ? "نوفا ترند ستور"
+                    : "بيكسل مارت";
+            }
+
             const cleanSlug =
-              (englishSlugInput || brandInput)
-                .toLowerCase()
-                .replace(/&/g, "-and-")
-                .replace(/[^a-z0-9-]+/g, "-")
-                .replace(/-+/g, "-")
-                .replace(/^-+|-+$/g, "") || `brand-${Date.now().toString(36)}`;
-            const synthesized = await cloneOrSynthesizeBrand({
-              name: brandInput || cleanSlug,
+              (englishSlugInput ? transliterateArabicToSlug(englishSlugInput) : transliterateArabicToSlug(chosenName)) ||
+              `brand-${Date.now().toString(36)}`;
+            const slugKey = normalizeSlugKey(cleanSlug);
+            const hydratedCatalog = await generateIndustryCatalogWithAI({
+              ai,
+              brandName: chosenName,
               industry,
-              phone: phone || undefined,
-            });
-            const persisted: any = await syncBrandToAllEcosystems({
-              id: cleanSlug.replace(/-/g, "_"),
-              slug: cleanSlug,
-              name: brandInput || synthesized.name,
-              englishName: englishSlugInput || cleanSlug,
-              businessType: industry,
-              phone: phone || synthesized.phone,
               appTemplate: resolvedAppTpl,
-              productsCatalog: synthesized.productsCatalog,
-              weekContentPlan: synthesized.weekContentPlan,
+            });
+            const erpProducts = mapCatalogItemsToErpProducts(hydratedCatalog, industry, chosenName);
+            const heroImg = getIndustryHeroImage(industry, chosenName);
+
+            const { buildFlagshipTenantUrl } = await import("./tenantAppRenderer");
+            const liveUrlNow = buildFlagshipTenantUrl(slugKey, resolvedAppTpl);
+
+            const persisted: any = await syncBrandToAllEcosystems({
+              id: slugKey.replace(/-/g, "_"),
+              slug: slugKey,
+              name: chosenName,
+              englishName: englishSlugInput || slugKey,
+              businessType: industry,
+              phone,
+              slogan: chosenKit?.slogan || `${chosenName} — الجودة والسرعة بأفضل سعر`,
+              primaryColor: chosenKit?.colors?.primary || "#06b6d4",
+              appTemplate: resolvedAppTpl,
+              enableDropshipping: isDropshippingReq,
+              storeType: isDropshippingReq ? "dropshipping" : "standard_ecommerce",
+              productsCatalog: hydratedCatalog,
+              heroImage: heroImg,
+              vercelUrl: liveUrlNow,
               source: "Jarvis_Deploy_Brand_Web_App",
             });
+
+            await saveTenantErpState(slugKey, {
+              products: erpProducts,
+              storefrontSettings: {
+                companyName: chosenName,
+                slogan: chosenKit?.slogan || `${chosenName} — الجودة والسرعة بأفضل سعر`,
+                contactPhone: phone,
+                whatsappPhone: phone,
+                primaryColor: chosenKit?.colors?.primary || "#06b6d4",
+              },
+              appCustomization: {
+                brandName: chosenName,
+                primaryColor: chosenKit?.colors?.primary || "#06b6d4",
+                enableDropshipping: isDropshippingReq,
+                heroImage: heroImg,
+              },
+            });
+
             target = persisted?.brand || {
-              id: cleanSlug.replace(/-/g, "_"),
-              slug: cleanSlug,
-              name: brandInput || synthesized.name,
-              englishName: englishSlugInput || cleanSlug,
+              id: slugKey.replace(/-/g, "_"),
+              slug: slugKey,
+              name: chosenName,
+              englishName: englishSlugInput || slugKey,
               businessType: industry,
               appTemplate: resolvedAppTpl,
+              enableDropshipping: isDropshippingReq,
             };
           }
 
           const { buildFlagshipTenantUrl } = await import("./tenantAppRenderer");
-          const multiTenantUrl = buildFlagshipTenantUrl(target.slug || target.id, resolvedAppTpl);
+          const slugKey = normalizeSlugKey(target.slug || target.id);
+          const multiTenantUrl = buildFlagshipTenantUrl(slugKey, resolvedAppTpl);
+          const verifiedErp = await loadTenantErpState(slugKey);
+          const verifiedProductsCount = Array.isArray(verifiedErp?.products) ? verifiedErp.products.length : 0;
+
           const wantsDedicated = Boolean(
             args.dedicatedRepo === true ||
             args.planId === "enterprise_20000" ||
@@ -2095,17 +2276,17 @@ ${conversationMemoryDirective}`;
           );
 
           let deployRes: any = {
-            ok: true,
+            ok: verifiedProductsCount > 0,
             dedicatedLiveUrl: multiTenantUrl,
             dedicatedRepoUrl: undefined,
             status: "live_multi_tenant",
-            message: `تم إطلاق التطبيق السريع لـ ${target.name} فوريًا على المحرك الموحد: ${multiTenantUrl}`,
+            message: `تم تأسيس وإطلاق متجر "${target.name}" (${isDropshippingReq ? "دروب شيبنج" : "متجر إلكتروني"}) مع ${verifiedProductsCount} منتج جاهز على: ${multiTenantUrl}`,
           };
           if (wantsDedicated && process.env.GITHUB_TOKEN && process.env.VERCEL_TOKEN) {
             const { provisionDedicatedRepoAndVercel } = await import("./dedicatedDeployService");
             deployRes = await provisionDedicatedRepoAndVercel({
               brandId: target.id,
-              englishSlug: englishSlugInput || target.englishName || target.slug,
+              englishSlug: englishSlugInput || target.englishName || slugKey,
               brandName: target.name,
               businessType: target.businessType || industry,
               phone: phone || target.phone,
@@ -2118,22 +2299,28 @@ ${conversationMemoryDirective}`;
               persistBrandUpdateAcrossEcosystem(target.id, {
                 vercelUrl: multiTenantUrl,
                 appTemplate: resolvedAppTpl,
+                enableDropshipping: isDropshippingReq,
               } as any);
             } catch {}
           }
 
           backendExecutionResult = {
-            success: deployRes.ok,
+            success: Boolean(deployRes.ok && verifiedProductsCount > 0),
+            brandId: target.id,
+            brandName: target.name,
+            brandSlug: slugKey,
+            enableDropshipping: isDropshippingReq,
+            verifiedProductsCount,
+            liveStoreUrl: multiTenantUrl,
             dedicatedLiveUrl: deployRes.dedicatedLiveUrl,
             dedicatedRepoUrl: deployRes.dedicatedRepoUrl,
-            brandId: target.id,
             status: deployRes.status,
             message: deployRes.message,
           };
           executedAction = {
             type: "OPEN_BRAND_HUB",
             brandId: target.id,
-            result: deployRes,
+            result: backendExecutionResult,
           };
         } catch (err: any) {
           backendExecutionResult = {
@@ -2548,35 +2735,56 @@ ${conversationMemoryDirective}`;
               totalOrdersEgp,
             };
           } else if (erpAction === "add_product") {
+            const { getIndustryHeroImage } = await import("./industryHydrationService");
+            const prodName = String(args.productName || "منتج جديد").trim();
             const newPrice = Number(args.price || 500) || 500;
             const newStock = Number(args.stock ?? 20);
+            const domainImg = getIndustryHeroImage(`${targetBrand?.businessType || ""} ${prodName}`, targetBrand?.name || "");
             const newProd = {
               id: Date.now(),
-              name: String(args.productName || "منتج جديد"),
+              name: prodName,
               sku: String(args.sku || `SKU-${Date.now().toString().slice(-5)}`),
-              category: String(args.category || "عام"),
-              mainCategory: String(args.category || "عام"),
-              description: String(args.description || ""),
-              purchasePrice: Math.round(newPrice * 0.7),
+              category: String(args.category || targetBrand?.businessType || "عام"),
+              mainCategory: String(args.category || targetBrand?.businessType || "عام"),
+              description: String(args.description || "متاح للطلب الفوري عبر المتجر الإلكتروني"),
+              purchasePrice: Math.round(newPrice * 0.65),
               sellingPrice: newPrice,
               stock: { main: newStock, branch1: 5, branch2: 5, branch3: 5 },
-              imageUrl: targetBrand?.logoUrl || "",
-              images: targetBrand?.logoUrl ? [targetBrand.logoUrl] : [],
+              imageUrl: domainImg,
+              images: domainImg ? [domainImg] : [],
             };
             products = [newProd, ...products];
             await saveTenantErpState(slugKey, { products });
-            if (targetBrand?.id) {
+            // Read-after-write verification: confirm product really exists in live store DB before confirming
+            const verifiedState = await loadTenantErpState(slugKey);
+            const verifiedProds = Array.isArray(verifiedState?.products) ? verifiedState.products : [];
+            const actuallySaved = verifiedProds.some(
+              (p: any) => String(p?.name || "").trim().toLowerCase() === prodName.toLowerCase() && Number(p?.sellingPrice) === newPrice
+            );
+            const liveStoreUrl = `https://store.t2os.app/s/${slugKey}`;
+
+            if (targetBrand?.id && actuallySaved) {
               const nextCatalog = [
-                { name: newProd.name, sku: newProd.sku, category: newProd.category, numericPrice: newPrice, description: newProd.description },
+                { name: newProd.name, sku: newProd.sku, category: newProd.category, price: `${newPrice} ج.م`, numericPrice: newPrice, description: newProd.description, image: domainImg, imageUrl: domainImg },
                 ...(Array.isArray(targetBrand.productsCatalog) ? targetBrand.productsCatalog : []),
               ];
               persistBrandUpdateAcrossEcosystem(targetBrand.id, { productsCatalog: nextCatalog });
             }
-            backendExecutionResult = {
-              success: true,
-              product: newProd,
-              message: `تمت إضافة "${newProd.name}" بسعر ${newPrice} ج.م (${newStock} قطعة) وحفظه في المتجر السحابي فوراً!`,
-            };
+            backendExecutionResult = actuallySaved
+              ? {
+                  success: true,
+                  product: newProd,
+                  brandSlug: slugKey,
+                  liveStoreUrl,
+                  verifiedProductsCount: verifiedProds.length,
+                  message: `تمت إضافة "${newProd.name}" بسعر ${newPrice} ج.م وتأكيد حفظه في المتجر الحي (${liveStoreUrl}) — إجمالي المنتجات الآن: ${verifiedProds.length}.`,
+                }
+              : {
+                  success: false,
+                  brandSlug: slugKey,
+                  liveStoreUrl,
+                  error: `فشل تأكيد حفظ "${newProd.name}" في قاعدة بيانات المتجر (${liveStoreUrl}).`,
+                };
           } else if (erpAction === "update_price") {
             const needle = String(args.productName || args.sku || "").trim().toLowerCase();
             const newPrice = Number(args.price || 0);

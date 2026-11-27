@@ -17,6 +17,19 @@ export interface ScrapedSiteMetadata {
 
 const DOMAIN_FALLBACK_CATALOGS: Array<{ match: RegExp; defaultImage: string; heroImage?: string; items: Array<{ name: string; price: number; category: string; description: string; image: string }> }> = [
   {
+    match: /دروب\s*شيب|dropship|ترند|gadgets|مغناطيس|إكسسوارات\s*موبايل|حامل\s*موبايل/i,
+    defaultImage: 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=1200&auto=format&fit=crop&q=80',
+    items: [
+      { name: 'حامل موبايل مغناطيسي MagSafe للسيارة والمكتب', price: 349, category: 'إكسسوارات الموبايل', description: 'تثبيت مغناطيسي فائق القوة مع دوران 360 درجة وتركيب سهل.', image: 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=600&auto=format&fit=crop&q=80' },
+      { name: 'شاحن لاسلكي سريع 3 في 1 للموبايل والساعة والسماعة', price: 1150, category: 'الشواحن الذكية', description: 'شحن متزامن سريع بقدرة 15 واط وتصميم مكتبي أنيق قابل للطي.', image: 'https://images.unsplash.com/photo-1615526675159-e248c3021d3f?w=600&auto=format&fit=crop&q=80' },
+      { name: 'مصباح الغروب LED الذكي للتصوير والديكور', price: 420, category: 'إضاءة وديكور', description: 'إضاءة درامية متدرجة 16 لوناً بالريموت ومناسبة لتصوير المحتوى.', image: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=600&auto=format&fit=crop&q=80' },
+      { name: 'سماعة أذن لاسلكية ANC بعزل ضوضاء', price: 890, category: 'الصوتيات', description: 'صوت نقي وعزل ضوضاء نشط مع علبة شحن سريعة USB-C.', image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=600&auto=format&fit=crop&q=80' },
+      { name: 'خلاط عصائر محمول USB للشحن السريع', price: 540, category: 'الأجهزة الذكية', description: '6 شفرات استانلس وقابل للشحن لتحضير العصائر الطازجة في أي مكان.', image: 'https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=600&auto=format&fit=crop&q=80' },
+      { name: 'زجاجة حرارية ذكية بشاشة حرارة LED', price: 310, category: 'اللايف ستايل', description: 'تحفظ الحرارة والبرودة 12 ساعة مع شاشة لمس لدرجة الحرارة.', image: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600&auto=format&fit=crop&q=80' }
+    ]
+  },
+  {
     match: /قطع غيار|سيار|عربي|أوتو|اوتو|ميكانيك|auto|car|parts/i,
     defaultImage: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=600&auto=format&fit=crop&q=80',
     items: [
@@ -148,6 +161,27 @@ export function getIndustryHeroImage(industry: string, brandName = ''): string {
   if (matched?.heroImage) return matched.heroImage;
   if (matched?.defaultImage) return matched.defaultImage.replace('w=600', 'w=1200');
   return 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1200&auto=format&fit=crop&q=80';
+}
+
+export function mapCatalogItemsToErpProducts(items: HydratedCatalogItem[], industry = '', brandName = ''): any[] {
+  const heroFallback = getIndustryHeroImage(industry, brandName);
+  return (items || []).map((p: any, idx: number) => {
+    const numPrice = Math.max(25, Number(p?.numericPrice || String(p?.price || '').replace(/[^\d.]/g, '')) || 350);
+    const img = p?.imageUrl || p?.image || heroFallback;
+    return {
+      id: Date.now() + idx + 1,
+      name: String(p?.name || `منتج ${idx + 1}`).trim(),
+      sku: String(p?.sku || `SKU-${Date.now().toString().slice(-4)}-${idx + 1}`),
+      category: String(p?.category || industry || 'عام').trim(),
+      mainCategory: String(p?.category || industry || 'عام').trim(),
+      description: String(p?.description || '').trim(),
+      purchasePrice: Math.round(numPrice * 0.65),
+      sellingPrice: numPrice,
+      stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+      imageUrl: img,
+      images: img ? [img] : [],
+    };
+  });
 }
 
 function buildFallbackCatalog(industry: string, brandName: string): HydratedCatalogItem[] {

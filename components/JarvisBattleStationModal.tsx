@@ -83,7 +83,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   );
 
   // Active Persona: Supports ?persona=visitor|trial|client QA preview override, Master Tito, Paid Client, Trial Brand Owner, or New Visitor
-  const urlPersonaOverride = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('persona') : null;
+  const urlParamsObj = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const urlPersonaOverride = urlParamsObj ? urlParamsObj.get('persona') : null;
+  const urlStartTrial = urlParamsObj ? urlParamsObj.get('startTrial') === '1' : false;
+  const visitorOnboardingRef = useRef<HTMLDivElement>(null);
   const hasUrlPreviewOverride = urlPersonaOverride === 'visitor' || urlPersonaOverride === 'trial' || urlPersonaOverride === 'client';
   const [adminPreviewVisitor, setAdminPreviewVisitor] = useState<boolean>(() => hasUrlPreviewOverride);
   const [persona, setPersona] = useState<'visitor' | 'trial' | 'client' | 'tito'>(() => {
@@ -1064,6 +1067,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     if (autoGreetedKeyRef.current !== greetKey && !isListening && !recognitionRef.current) {
       autoGreetedKeyRef.current = greetKey;
       handlePlayPersonaGreeting(activeInitial, { skipAutoListen: true, brandNameOverride: resolvedBrandLabel });
+    }
+    if (urlStartTrial && activeInitial === 'visitor') {
+      setTimeout(() => {
+        visitorOnboardingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 450);
     }
 
     // Live Server-Sent Events (SSE) Stream from Sovereign Microservices Gateway
@@ -2791,6 +2799,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             {/* VISITOR INTELLIGENCE ONBOARDING (When Persona === 'visitor') */}
             {persona === 'visitor' ? (
+              <div ref={visitorOnboardingRef} className="w-full flex justify-center">
               <VisitorIntelligenceOnboarding 
                 isMasterAdmin={isMasterAdmin && !adminPreviewVisitor}
                 initialBusinessName={detectedVisitorBrand.businessName}
@@ -2810,6 +2819,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   setActiveDeckTab('brand_hub');
                 }}
               />
+              </div>
             ) : (
               <>
                 {/* EXECUTIVE BRAND CEO COCKPIT BANNER (For Trial & Subscribed Clients) */}

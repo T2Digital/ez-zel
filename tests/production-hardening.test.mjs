@@ -1510,6 +1510,33 @@ test("43) 360° Fullscreen Obsidian, touch rotation, SpaceCanvas backdrop, wake-
   assert.ok(studioRemote.includes("gemini-2.5-flash-image"), "Studio content.generate_design must use valid Gemini image model with key rotation");
 });
 
+test("44) Frictionless 7-day trial (no Google gate), smart brand naming + dropshipping seeding, verified ERP catalog sync & rich store.t2os.app root showcase", () => {
+  const routesSrc = fs.readFileSync(path.join(process.cwd(), "components", "AppRoutes.tsx"), "utf8");
+  assert.equal(routesSrc.includes("shadowDB.loginWithGoogle()"), false, "Pricing onTrialStart must not force Google OAuth");
+  assert.ok(routesSrc.includes("/?persona=visitor&startTrial=1"), "onTrialStart must route straight to Jarvis trial");
+
+  const brainSrc = fs.readFileSync(path.join(process.cwd(), "services", "jarvisBrainEngine.ts"), "utf8");
+  assert.ok(
+    brainSrc.includes("isRawPromptSentenceNotBrandName") &&
+      brainSrc.includes("enableDropshipping: isDropshippingReq") &&
+      brainSrc.includes("verifiedProductsCount"),
+    "jarvisBrainEngine must prevent raw prompt sentence brand names, enable dropshipping, and verify saved ERP products"
+  );
+
+  const vaultSrc = fs.readFileSync(path.join(process.cwd(), "services", "obsidianVaultService.ts"), "utf8");
+  assert.ok(
+    vaultSrc.includes("verifiedInStore") && vaultSrc.includes("https://store.t2os.app/s/"),
+    "UPDATE_STORE_CATALOG must write and read-verify against live tenant ERP store DB"
+  );
+
+  const hydSrc = fs.readFileSync(path.join(process.cwd(), "services", "industryHydrationService.ts"), "utf8");
+  assert.ok(hydSrc.includes("حامل موبايل مغناطيسي MagSafe"), "industryHydrationService must provide smart gadgets/dropshipping catalog");
+
+  const battahApp = fs.readFileSync("C:\\Users\\ahmed\\.gemini\\antigravity\\brain\\036fb332-c89d-4066-97a1-2cb5a627f42b\\scratch\\battah-repo\\App.tsx", "utf8");
+  assert.ok(battahApp.includes("PlatformShowcaseDirectory"), "Root store.t2os.app/ must render PlatformShowcaseDirectory instead of empty storefront");
+});
+
+
 
 
 

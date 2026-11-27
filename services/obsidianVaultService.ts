@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { writeJsonAtomic, savePersistentJson, getPersistentFilePath } from './persistentStorage';
 import { BRAND_VAULT } from './brandVault';
-import { findMatchingBrandRecord } from './brandIdentityNormalizer';
+import { findMatchingBrandRecord, transliterateArabicToSlug } from './brandIdentityNormalizer';
 import { applyRegistryToBrands } from './brandRegistryService';
 import { readBookings, saveBooking, broadcastGatewayEvent } from './microservicesGateway';
 import { publishBrandPost, launchAdCampaign, getPublishedLogs } from './growthAgencyEngine';
@@ -1170,18 +1170,38 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'UPDATE_STORE_CATALOG': {
             const allBrands = getUnifiedGrowthBrands();
-            const targetBrand = allBrands.find(b => b.id === brandId || b.slug === brandId);
+            const qLower = String(brandId || '').trim().toLowerCase();
+            const targetBrand = allBrands.find(
+                (b) =>
+                    String(b.id || '').toLowerCase() === qLower ||
+                    String(b.slug || '').toLowerCase() === qLower ||
+                    String(b.name || '').trim().toLowerCase() === qLower ||
+                    String(b.name || '').toLowerCase().includes(qLower)
+            );
+            const resolvedBrandId = targetBrand?.id || brandId;
+            const slugKey = String(targetBrand?.slug || transliterateArabicToSlug(targetBrand?.name || brandId || 'store'))
+                .toLowerCase()
+                .replace(/[^a-z0-9-]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'store';
             const currentCatalog = Array.isArray(targetBrand?.productsCatalog) ? [...targetBrand.productsCatalog] : [];
 
+            let addedNumericPrice = 500;
             if (data.addService && data.addService.name) {
+                addedNumericPrice = Math.max(
+                    1,
+                    Number(data.addService.numericPrice || String(data.addService.price || '').replace(/[^\d.]/g, '')) || 500
+                );
                 const newSrv = {
                     id: `srv_${Date.now().toString().slice(-5)}`,
                     name: String(data.addService.name).trim(),
-                    price: String(data.addService.price || '500 ج.م').trim(),
-                    description: String(data.addService.description || 'خدمة معتمدة متاحة للحجز الفوري عبر التطبيق والواتساب').trim()
+                    price: String(data.addService.price || `${addedNumericPrice} ج.م`).trim(),
+                    numericPrice: addedNumericPrice,
+                    category: String(data.addService.category || targetBrand?.businessType || 'المنتجات المميزة').trim(),
+                    description: String(data.addService.description || 'متاح للطلب الفوري عبر المتجر والواتساب').trim(),
+                    imageUrl: data.addService.imageUrl || undefined,
                 };
                 const existingIdx = currentCatalog.findIndex(
-                    (item: any) => item.name.toLowerCase() === newSrv.name.toLowerCase()
+                    (item: any) => String(item.name || '').toLowerCase() === newSrv.name.toLowerCase()
                 );
                 if (existingIdx >= 0) {
                     currentCatalog[existingIdx] = { ...currentCatalog[existingIdx], ...newSrv };
@@ -1204,16 +1224,16 @@ export async function executeRealJarvisEcosystemAction(input: {
             if (data.addService && data.addService.name) {
                 const spotlightPost = {
                     day: 'الأحد',
-                    contentType: `تسليط ضوء على خدمة (${data.addService.name})`,
-                    hook: `جديدنا في ${targetBrand?.name || brandId}: تم إطلاق خدمة ${data.addService.name} بسعر ${data.addService.price || 'حصري'}!`,
-                    caption: `${data.addService.description || ''} احجز الآن وتواصل معنا مباشرة عبر الواتساب على ${targetBrand?.phone || ''}.`,
+                    contentType: `تسليط ضوء على منتج (${data.addService.name})`,
+                    hook: `جديدنا في ${targetBrand?.name || brandId}: ${data.addService.name} بسعر ${data.addService.price || `${addedNumericPrice} ج.م`}!`,
+                    caption: `${data.addService.description || ''} اطلب الآن وتواصل معنا عبر الواتساب على ${targetBrand?.phone || ''}.`,
                     bestTime: '10:00 صباحاً',
                     status: 'DRAFT_APPROVAL_REQUIRED'
                 };
                 existingPlan.unshift(spotlightPost);
             }
 
-            const updatedBrand = persistBrandUpdateAcrossEcosystem(brandId, {
+            const updatedBrand = persistBrandUpdateAcrossEcosystem(resolvedBrandId, {
                 productsCatalog: currentCatalog,
                 systemInstruction: botInstruction,
                 weekContentPlan: existingPlan
@@ -1221,18 +1241,90 @@ export async function executeRealJarvisEcosystemAction(input: {
             syncAndBuildObsidianVault();
             syncWeekPlanToTitoStudioFirestore(updatedBrand, existingPlan).catch(() => {});
 
+            // 3. CRITICAL: Persist directly to live Storefront Cloud ERP (Postgres + Firestore) & read-after-write verify
+            let verifiedErpProductsCount = currentCatalog.length;
+            let verifiedInStore = false;
+            try {
+                const { loadTenantErpState, saveTenantErpState } = await import('./tenantErpStoreService');
+                const { getIndustryHeroImage } = await import('./industryHydrationService');
+                const erpState = await loadTenantErpState(slugKey);
+                let erpProducts = Array.isArray(erpState?.products) ? [...erpState.products] : [];
+
+                if (data.addService && data.addService.name) {
+                    const cleanName = String(data.addService.name).trim();
+                    const img =
+                        data.addService.imageUrl ||
+                        getIndustryHeroImage(
+                            `${targetBrand?.businessType || ''} ${cleanName}`,
+                            targetBrand?.name || ''
+                        );
+                    const erpProd = {
+                        id: Date.now(),
+                        name: cleanName,
+                        sku: `SKU-${Date.now().toString().slice(-5)}`,
+                        category: String(data.addService.category || targetBrand?.businessType || 'المنتجات المميزة').trim(),
+                        mainCategory: String(data.addService.category || targetBrand?.businessType || 'المنتجات المميزة').trim(),
+                        description: String(data.addService.description || 'متاح للطلب الفوري عبر المتجر الإلكتروني').trim(),
+                        purchasePrice: Math.round(addedNumericPrice * 0.65),
+                        sellingPrice: addedNumericPrice,
+                        stock: { main: 25, branch1: 10, branch2: 10, branch3: 10 },
+                        imageUrl: img,
+                        images: img ? [img] : [],
+                    };
+                    const idx = erpProducts.findIndex((p: any) => String(p?.name || '').trim().toLowerCase() === cleanName.toLowerCase());
+                    if (idx >= 0) {
+                        erpProducts[idx] = { ...erpProducts[idx], ...erpProd };
+                    } else {
+                        erpProducts = [erpProd, ...erpProducts];
+                    }
+                    await saveTenantErpState(slugKey, { products: erpProducts });
+                    const readBack = await loadTenantErpState(slugKey);
+                    const backProducts = Array.isArray(readBack?.products) ? readBack.products : [];
+                    verifiedErpProductsCount = backProducts.length;
+                    verifiedInStore = backProducts.some(
+                        (p: any) =>
+                            String(p?.name || '').trim().toLowerCase() === cleanName.toLowerCase() &&
+                            Number(p?.sellingPrice) === addedNumericPrice
+                    );
+                } else if (Array.isArray(data.productsCatalog)) {
+                    const { mapCatalogItemsToErpProducts } = await import('./industryHydrationService');
+                    erpProducts = mapCatalogItemsToErpProducts(data.productsCatalog, targetBrand?.businessType || '', targetBrand?.name || '');
+                    await saveTenantErpState(slugKey, { products: erpProducts });
+                    const readBack = await loadTenantErpState(slugKey);
+                    verifiedErpProductsCount = Array.isArray(readBack?.products) ? readBack.products.length : 0;
+                    verifiedInStore = verifiedErpProductsCount > 0;
+                }
+            } catch (erpSyncErr: any) {
+                console.warn('[UPDATE_STORE_CATALOG ERP Sync Error]:', erpSyncErr?.message || erpSyncErr);
+            }
+
             broadcastGatewayEvent('STORE_CATALOG_UPDATED', {
-                brandId,
+                brandId: resolvedBrandId,
                 brandName: updatedBrand.name,
-                catalogCount: currentCatalog.length
+                catalogCount: verifiedErpProductsCount
             });
+
+            const liveStoreUrl = `https://store.t2os.app/s/${slugKey}`;
+            if (data.addService?.name && !verifiedInStore) {
+                return {
+                    success: false,
+                    brandId: resolvedBrandId,
+                    liveStoreUrl,
+                    verifiedErpProductsCount,
+                    error: `تعذر تأكيد حفظ "${data.addService.name}" في قاعدة بيانات المتجر الحي (${liveStoreUrl}).`
+                };
+            }
 
             return {
                 success: true,
-                brandId,
+                brandId: resolvedBrandId,
+                brandName: updatedBrand.name,
                 productsCatalog: currentCatalog,
-                storeUrl: `/store/${updatedBrand.slug || brandId}`,
-                message: `تم تحديث كتالوج متجر (${updatedBrand.name}) في (/store/${updatedBrand.slug || brandId}) وعقدة أوبسيديان وتيتو أجنت بنجاح! إجمالي الخدمات الآن: ${currentCatalog.length}.`
+                verifiedErpProductsCount,
+                verifiedInStore,
+                storeUrl: `/store/${slugKey}`,
+                liveStoreUrl,
+                message: `تمت إضافة وتحديث المنتج في الكتالوج والمتجر الحي (${liveStoreUrl}) وتأكيد وجود ${verifiedErpProductsCount} منتج في قاعدة البيانات.`
             };
         }
 

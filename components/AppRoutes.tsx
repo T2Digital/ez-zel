@@ -312,16 +312,8 @@ export const AppRoutes: React.FC = () => {
               setAuthDefaultTab("register");
               navigateToView("auth");
             }}
-            onTrialStart={async () => {
-              try {
-                const gUser = await shadowDB.loginWithGoogle();
-                if (gUser && gUser.status !== "blocked") {
-                  handleAuthSuccess(gUser);
-                  return;
-                }
-              } catch {}
-              setAuthDefaultTab("login");
-              navigateToView("auth");
+            onTrialStart={() => {
+              navigate("/?persona=visitor&startTrial=1");
             }}
             onAffiliateStart={() => {
               setIsAffiliateRegistration(true);
