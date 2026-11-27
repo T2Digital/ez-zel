@@ -1,15 +1,20 @@
-# T2OS — AI-Powered Business OS by T2 Digital
-> منصة بناء وتشغيل الأعمال بالذكاء الاصطناعي — تحت إدارة T2 Digital (T2 Digital Solutions for Business Development)
+# T2OS — من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال (Tito Digital)
+> منظومة تشغيل وتطوير الأعمال بالذكاء الاصطناعي في مصر والوطن العربي — تحت إدارة تيتو ديجيتال للحلول الرقمية وتطوير الأعمال (Tito Digital)
 
-Slogan (AR): منصة بناء وتشغيل الأعمال بالذكاء الاصطناعي — تحت إدارة T2 Digital
-Slogan (EN): AI-Powered Business OS by T2 Digital
+Slogan (AR): T2OS من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال — عقلك التنفيذي لإطلاق وتشغيل المتاجر، المحتوى، والمبيعات بالذكاء الاصطناعي
+Slogan (EN): T2OS by Tito Digital — AI-Powered Business Operating System for Stores, Content Automation & 24/7 WhatsApp Sales
 
-## Core Modules
-- T2OS Core (Jarvis / الظل): Voice & text AI executive orchestrator with 5 specialist swarm agents and cloud memory.
-- T2OS Apps: Instant multi-tenant PWA storefronts (e-commerce + ERP/POS) and service booking platforms with isolated Firestore databases.
-- T2OS Studio: AI content strategy, visual & video generation, and multi-platform scheduling across Facebook, Instagram, TikTok, YouTube, Telegram, X, LinkedIn, and Snapchat.
-- T2OS Agent: 24/7 WhatsApp & social sales/support agent connected directly to each brand's live catalog and bookings.
+## Core Ecosystem Modules
+- T2OS Executive Core (Jarvis / جارفيس): Voice & text AI executive advisor and orchestrator serving visitors, 7-day trial brands, paid partners, and enterprise operators.
+- T2OS Apps & ERP: Multi-tenant storefronts (`store.t2os.app`) and service booking platforms with live inventory, CRM, and isolated tenant databases.
+- T2OS Content Studio (`studio.t2os.app`): AI market research, branded creative design & video reels generation, automated Vision QA gating, and multi-platform scheduling.
+- T2OS Sales Agent (`agent.t2os.app`): 24/7 WhatsApp & social sales/support agent connected directly to each brand's live catalog, pricing, and bookings.
 
-## Entry Points
-- Platform Home: https://ez-zel.onrender.com/
-- Pricing & 7-Day Free Trial: https://ez-zel.onrender.com/pricing
+## Plans & Trial
+- 7-Day Free Trial: Instant brand onboarding with live storefront/booking app, content kit, and sales agent preview.
+- Paid Plans: Starting from 5,000 EGP/month (including 50% dedicated paid ad budget).
+
+## Canonical Entry Points
+- Jarvis Executive Home: https://t2os.app/
+- Pricing & 7-Day Free Trial: https://t2os.app/pricing
+- Sitemap: https://t2os.app/sitemap.xml

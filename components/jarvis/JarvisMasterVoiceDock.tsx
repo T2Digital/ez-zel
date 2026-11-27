@@ -7,6 +7,8 @@ export interface JarvisMasterVoiceDockProps {
   lastReplyText?: string;
   onClearLastReply?: () => void;
   onReplayFullReply?: () => void;
+  pendingGreetingPlay?: boolean;
+  onPlayPendingGreeting?: () => void;
   isThinking: boolean;
   isListening: boolean;
   isPlayingVoice: boolean;
@@ -22,6 +24,8 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
   lastReplyText,
   onClearLastReply,
   onReplayFullReply,
+  pendingGreetingPlay,
+  onPlayPendingGreeting,
   isThinking,
   isListening,
   isPlayingVoice,
@@ -30,6 +34,16 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
 }) => {
   return (
     <div className="w-full max-w-xl flex flex-col items-center gap-2 font-['Cairo'] select-none">
+      {pendingGreetingPlay && onPlayPendingGreeting && (
+        <button
+          type="button"
+          onClick={onPlayPendingGreeting}
+          className="px-4 py-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 hover:brightness-110 text-slate-950 text-xs font-black shadow-[0_0_24px_rgba(34,211,238,0.45)] flex items-center gap-1.5 cursor-pointer transition-all"
+        >
+          <Volume2 className="w-3.5 h-3.5" />
+          <span>اضغط لسماع ترحيب جارفيس الصوتي</span>
+        </button>
+      )}
       {/* Persistent Readable Jarvis Reply Card (never overwritten when mic reopens) */}
       <AnimatePresence>
         {lastReplyText && (

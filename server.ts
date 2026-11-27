@@ -2454,13 +2454,16 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
 
   // --- SEO & GEO ENDPOINTS (robots.txt, llms.txt, sitemap.xml) --- //
   app.get("/sitemap.xml", (_req, res) => {
-      const base = process.env.PUBLIC_BASE_URL || "https://t2os.app";
+      const base = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
       const today = new Date().toISOString().split("T")[0];
       res.setHeader("Content-Type", "application/xml; charset=utf-8");
       res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>${base}/</loc><lastmod>${today}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
   <url><loc>${base}/pricing</loc><lastmod>${today}</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>${base}/jarvis</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>${base}/privacy</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>${base}/terms</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
 </urlset>`);
   });
 

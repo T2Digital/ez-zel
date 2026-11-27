@@ -1448,4 +1448,40 @@ test("41) Studio strict QA media gate & zero Pollinations watermark, rotating Ge
   assert.ok(battahSidebar.includes("isDropshippingStore") && battahSidebar.includes("Section.Dropshipping"), "Standard e-commerce storefront sidebar must hide Dropshipping unless enabled");
 });
 
+test("42) Final touches: Jarvis Home route on /, 4-persona greetings, Tito Digital SEO/GEO (zero 2,500 & zero onrender), and Studio local MP4 + rotating Veo keys", () => {
+  const indexHtml = fs.readFileSync(path.join(process.cwd(), "index.html"), "utf8");
+  assert.ok(indexHtml.includes("تيتو ديجيتال للحلول الرقمية وتطوير الأعمال"), "index.html must highlight Tito Digital Arabic full brand identity");
+  assert.equal(indexHtml.includes("2,500 و5,000"), false, "index.html JSON-LD must not carry stale 2,500 pricing");
+  assert.equal(indexHtml.includes("ez-zel.onrender.com"), false, "index.html must not contain legacy onrender URLs");
+
+  const robotsTxt = fs.readFileSync(path.join(process.cwd(), "public", "robots.txt"), "utf8");
+  const llmsTxt = fs.readFileSync(path.join(process.cwd(), "public", "llms.txt"), "utf8");
+  assert.ok(robotsTxt.includes("https://t2os.app/sitemap.xml"), "robots.txt must point to t2os.app sitemap");
+  assert.equal(robotsTxt.includes("onrender.com"), false, "robots.txt must not carry legacy onrender URL");
+  assert.ok(llmsTxt.includes("https://t2os.app/") && !llmsTxt.includes("onrender.com"), "llms.txt must use canonical t2os.app URLs");
+
+  const routesSrc = fs.readFileSync(path.join(process.cwd(), "components", "AppRoutes.tsx"), "utf8");
+  assert.ok(routesSrc.includes("isHomePage={true}") && routesSrc.includes('path="/"'), "AppRoutes must mount JarvisBattleStationModal directly on /");
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(
+    modalSrc.includes("autoGreetedKeyRef") &&
+      modalSrc.includes("أهلاً بيك في منظومة T2OS من تيتو ديجيتال") &&
+      modalSrc.includes("أهلاً بيك من جديد في أسبوع التجربة المجانية") &&
+      modalSrc.includes("أهلاً بيك يا شريك النجاح") &&
+      modalSrc.includes("أهلاً يا ماستر تيتو!"),
+    "JarvisBattleStationModal must support auto-greeting across all 4 personas"
+  );
+
+  const brainSrc = fs.readFileSync(path.join(process.cwd(), "services", "jarvisBrainEngine.ts"), "utf8");
+  assert.ok(brainSrc.includes('else if (persona === "trial")') && brainSrc.includes('else if (persona === "client")'), "jarvisBrainEngine must split trial and client system prompts cleanly");
+
+  const studioSrv = fs.readFileSync(path.join("D:\\t2-studio", "server.ts"), "utf8");
+  assert.ok(studioSrv.includes("saveStudioMediaLocal") && studioSrv.includes("videoOperationKeyMap"), "t2-studio server must serve local MP4 reels cleanly and rotate Gemini keys for Veo endpoints");
+
+  const socialRenderer = fs.readFileSync(path.join("D:\\t2-studio", "src", "server", "socialDesignRenderer.ts"), "utf8");
+  assert.ok(socialRenderer.includes("إصدار 2026") && socialRenderer.includes("اطلب الآن"), "socialDesignRenderer must use domain-aware badges and CTAs");
+});
+
+
 

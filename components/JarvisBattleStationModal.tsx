@@ -62,13 +62,15 @@ interface JarvisBattleStationModalProps {
   onClose: () => void;
   initialPersona?: 'visitor' | 'trial' | 'client' | 'tito';
   onNavigateTo?: (section: string) => void;
+  isHomePage?: boolean;
 }
 
 export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> = ({
   isOpen,
   onClose,
   initialPersona,
-  onNavigateTo
+  onNavigateTo,
+  isHomePage = false
 }) => {
   // Master Admin verification (Strict Sovereignty Isolation)
   const storeUser = useAppStore((s) => s.user);
@@ -80,15 +82,33 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     (storeUser?.tier === 'sovereign' && Boolean(storeUser?.name?.includes('تيتو')))
   );
 
-  // Active Persona: Initialized to passed prop (with URL ?persona=visitor override for QA/preview), 'tito' for master admin, or 'visitor' for guests
+  // Active Persona: Supports ?persona=visitor|trial|client QA preview override, Master Tito, Paid Client, Trial Brand Owner, or New Visitor
   const urlPersonaOverride = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('persona') : null;
+  const hasUrlPreviewOverride = urlPersonaOverride === 'visitor' || urlPersonaOverride === 'trial' || urlPersonaOverride === 'client';
+  const [adminPreviewVisitor, setAdminPreviewVisitor] = useState<boolean>(() => hasUrlPreviewOverride);
   const [persona, setPersona] = useState<'visitor' | 'trial' | 'client' | 'tito'>(() => {
-    if (urlPersonaOverride === 'visitor' || urlPersonaOverride === 'trial') return urlPersonaOverride;
+    if (urlPersonaOverride === 'visitor' || urlPersonaOverride === 'trial' || urlPersonaOverride === 'client') {
+      return urlPersonaOverride;
+    }
     if (isMasterAdmin) return initialPersona === 'client' ? 'tito' : (initialPersona || 'tito');
     if (initialPersona) return initialPersona;
+    try {
+      const rawTrial = localStorage.getItem('t2_active_trial_brand');
+      if (rawTrial) {
+        const tb = JSON.parse(rawTrial);
+        if (tb?.subscriptionStatus === 'active' || tb?.lifecycleStage === 'active_client' || tb?.isPaid === true) {
+          return 'client';
+        }
+        if (tb?.id || tb?.name) return 'trial';
+      }
+      const rawJourney = localStorage.getItem('ezzel_visitor_journey_v1');
+      if (rawJourney) {
+        const vj = JSON.parse(rawJourney);
+        if (vj?.generatedBrand?.name) return 'trial';
+      }
+    } catch {}
     return 'visitor';
   });
-  const [adminPreviewVisitor, setAdminPreviewVisitor] = useState<boolean>(() => urlPersonaOverride === 'visitor');
   const [textCommandInput, setTextCommandInput] = useState('');
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -311,10 +331,24 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     } catch {}
     voiceChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [conversationHistory]);
+  const [pendingGreetingPlay, setPendingGreetingPlay] = useState(false);
+  const autoGreetedKeyRef = useRef<string>('');
   const recognitionRef = useRef<any>(null);
-  const autoLoopEnabledRef = useRef<boolean>(true);
+  const autoLoopEnabledRef = useRef<boolean>(false);
   const isOpenRef = useRef<boolean>(isOpen);
-  useEffect(() => { isOpenRef.current = isOpen; if (!isOpen) { autoLoopEnabledRef.current = false; try { recognitionRef.current?.abort(); } catch {} } else { autoLoopEnabledRef.current = true; } }, [isOpen]);
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+    if (!isOpen) {
+      autoLoopEnabledRef.current = false;
+      autoGreetedKeyRef.current = '';
+      try { recognitionRef.current?.abort(); } catch {}
+    }
+  }, [isOpen]);
+  useEffect(() => {
+    const onAutoplayBlocked = () => setPendingGreetingPlay(true);
+    window.addEventListener('shadow_autoplay_blocked', onAutoplayBlocked);
+    return () => window.removeEventListener('shadow_autoplay_blocked', onAutoplayBlocked);
+  }, []);
 
   // Autonomous Executive Browser Actuator State
   const [isExecutiveOpen, setIsExecutiveOpen] = useState(false);
@@ -872,29 +906,39 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         .catch(() => {});
     }
 
-    const activeInitial = canAccessFullFleet
+    const activeInitial: 'visitor' | 'trial' | 'client' | 'tito' = hasUrlPreviewOverride
+      ? (urlPersonaOverride as 'visitor' | 'trial' | 'client')
+      : canAccessFullFleet
       ? 'tito'
+      : savedTrialBrand && (savedTrialBrand.subscriptionStatus === 'active' || savedTrialBrand.lifecycleStage === 'active_client' || savedTrialBrand.isPaid === true)
+      ? 'client'
       : savedTrialBrand?.id && !adminPreviewVisitor
       ? 'trial'
       : adminPreviewVisitor
       ? 'visitor'
       : initialPersona || persona;
 
-    if (canAccessFullFleet) {
+    if (canAccessFullFleet && !hasUrlPreviewOverride) {
       if (persona !== 'tito') setPersona('tito');
-    } else if (savedTrialBrand?.id && !adminPreviewVisitor) {
+    } else if (!hasUrlPreviewOverride && savedTrialBrand?.id && !adminPreviewVisitor) {
       setAllBrandsList(prev => (prev.some(b => b.id === savedTrialBrand.id) ? prev : [savedTrialBrand, ...prev]));
       setSelectedBrandId(prev => prev || savedTrialBrand.id);
-      if (persona === 'visitor') setPersona('trial');
+      if (persona === 'visitor') setPersona(activeInitial);
     } else if (!adminPreviewVisitor && initialPersona && initialPersona !== persona) {
       setPersona(initialPersona);
     }
 
-    setTranscript(
-      activeInitial === 'tito'
-        ? 'أهلاً يا ماستر تيتو، جاهز — اكتب أمرك أو اضغط الكرة للتحدث.'
-        : 'جارفيس جاهز — اكتب طلبك أو اضغط الكرة للتحدث.'
-    );
+    let journeyBrandName = '';
+    try {
+      const rawJ = localStorage.getItem('ezzel_visitor_journey_v1');
+      if (rawJ) journeyBrandName = JSON.parse(rawJ)?.generatedBrand?.name || '';
+    } catch {}
+    const resolvedBrandLabel = savedTrialBrand?.name || journeyBrandName || allBrandsList[0]?.name || '';
+    const greetKey = `${activeInitial}:${resolvedBrandLabel}`;
+    if (autoGreetedKeyRef.current !== greetKey && !isListening && !recognitionRef.current) {
+      autoGreetedKeyRef.current = greetKey;
+      handlePlayPersonaGreeting(activeInitial, { skipAutoListen: true, brandNameOverride: resolvedBrandLabel });
+    }
 
     // Live Server-Sent Events (SSE) Stream from Sovereign Microservices Gateway
     let eventSource: EventSource | null = null;
@@ -1408,9 +1452,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const speakJarvisReply = useCallback((replyText: string, audioBase64?: string, forceFullSpeech: boolean = false) => {
+  const speakJarvisReply = useCallback((replyText: string, audioBase64?: string, forceFullSpeech: boolean = false, skipAutoListen: boolean = false) => {
     stopListeningForSpeech();
     stopAllJarvisAudio();
+    setPendingGreetingPlay(false);
     const activeSeq = speechSeqRef.current;
     speechStartedAtRef.current = Date.now();
     const spokenText = (!audioBase64 && !forceFullSpeech) ? buildConciseSpokenSummary(replyText) : String(replyText || '');
@@ -1430,7 +1475,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       if (speechSeqRef.current !== activeSeq) return;
       setIsPlayingVoice(false);
       isPlayingVoiceRef.current = false;
-      if (isOpenRef.current && autoLoopEnabledRef.current) {
+      if (!skipAutoListen && isOpenRef.current && autoLoopEnabledRef.current) {
         setTimeout(() => {
           if (isOpenRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current && !isShadowVoicePlaying() && autoLoopEnabledRef.current) {
             startListeningLoop();
@@ -1474,24 +1519,36 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   }, [stopListeningForSpeech, stopAllJarvisAudio, buildConciseSpokenSummary]);
 
-  const handlePlayPersonaGreeting = async (targetPersona?: 'visitor' | 'trial' | 'client' | 'tito') => {
+  const handlePlayPersonaGreeting = async (
+    targetPersona?: 'visitor' | 'trial' | 'client' | 'tito',
+    opts?: { skipAutoListen?: boolean; brandNameOverride?: string }
+  ) => {
     const activeP = targetPersona || persona;
     stopVoice();
+    setPendingGreetingPlay(false);
     setIsPlayingVoice(true);
     isPlayingVoiceRef.current = true;
 
-    const now = new Date();
-    const hours = now.getHours();
-    const timeGreeting = hours < 12 ? 'صباح الفل والنشاط' : 'مساء النور والهمة العالية';
+    let savedTrialName = '';
+    try {
+      const rawTrial = localStorage.getItem('t2_active_trial_brand');
+      if (rawTrial) savedTrialName = JSON.parse(rawTrial)?.name || '';
+    } catch {}
+    let savedJourney: any = null;
+    try {
+      const raw = localStorage.getItem('ezzel_visitor_journey_v1');
+      if (raw) savedJourney = JSON.parse(raw);
+    } catch {}
+    const activeBrandName =
+      opts?.brandNameOverride ||
+      savedTrialName ||
+      savedJourney?.generatedBrand?.name ||
+      allBrandsList.find((b) => b.id === selectedBrandId || b.slug === selectedBrandId)?.name ||
+      allBrandsList[0]?.name ||
+      'براندك';
 
     let text = '';
     if (activeP === 'visitor') {
-      let savedJourney: any = null;
-      try {
-        const raw = localStorage.getItem('ezzel_visitor_journey_v1');
-        if (raw) savedJourney = JSON.parse(raw);
-      } catch {}
-
       if (savedJourney?.generatedBrand?.name) {
         let liveOrders = 0;
         let liveWa = 0;
@@ -1503,26 +1560,25 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           }
         } catch {}
         const namePart = visitorName ? `يا ${visitorName}` : 'يا فندم';
-        text = `أهلاً بيك ${namePart} مرة تانية في T2OS! براند ${savedJourney.generatedBrand.name} شغال الآن — سجّلنا ${liveOrders} طلب وحجز و${liveWa} رسالة واتساب. تحب نراجع أو نطوّر إيه النهاردة؟`;
+        text = `أهلاً بيك ${namePart} مرة تانية في منظومة T2OS من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال! براند ${savedJourney.generatedBrand.name} شغال الآن — سجّلنا ${liveOrders} طلب وحجز و${liveWa} رسالة واتساب. تحب نراجع أو نطوّر إيه النهاردة؟`;
       } else if (visitorName) {
-        text = `أهلاً بيك يا ${visitorName} في منظومة T2OS من T2 Digital! قولي عشان نبدأ صح: عندك نشاط تجاري شغال حالياً في السوق، ولا دي فكرة جديدة بتنطلق فيها من الصفر؟`;
+        text = `أهلاً بيك يا ${visitorName} في منظومة T2OS من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال! أنا جارفيس، عقلك التنفيذي الذكي لتشغيل متجرك ومحتواك ومبيعاتك على واتساب 24 ساعة. قولي: عندك نشاط تجاري شغال حالياً ولا بنبدأ فكرة جديدة من الصفر؟`;
       } else {
-        text = `أهلاً بيك في منظومة T2OS من T2 Digital! أنا جارفيس المستشار التنفيذي لأعمالك.. نتشرف باسمك الأول يا فندم؟ وقولي هل عندك نشاط تجاري شغال حالياً ولا بتبدأ فكرة جديدة من الصفر؟`;
+        text = `أهلاً بيك في منظومة T2OS من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال! أنا جارفيس، العقل التنفيذي الذكي اللي بيبني ويشغّل مشروعك بالكامل — متجرك وتطبيقك، استوديو المحتوى والإعلانات، ووكيل المبيعات على واتساب 24 ساعة. قولي عشان نبدأ صح: عندك نشاط تجاري قائم ولا بنبدأ فكرة جديدة من الصفر؟`;
       }
     } else if (activeP === 'trial') {
-      text = `أهلاً بيك يا فندم في أسبوع التجربة المجانية لـ ${currentSelectedBrand.name}! خطتك من 3 منشورات حقيقية (يوم ويوم: الأحد، الثلاثاء، والخميس) جاهزة، والوكيل الذكي متصل بيرد 24 ساعة.. تحب نولد أول تصميم في تيتو ستوديو دلوقتي؟`;
+      text = `أهلاً بيك من جديد في أسبوع التجربة المجانية لـ ${activeBrandName} على منظومة T2OS من تيتو ديجيتال! متجرك وهويتك واستوديو المحتوى شغالين فعلياً معاك. تحب نراجع التصميمات الجديدة ولا نفعّل باقتك ونكمل الانطلاق؟`;
     } else if (activeP === 'client') {
-      text = `نورت كابينة قيادة براندك يا شريك النجاح! أنا معاك كمدير تنفيذي وسكرتير ذكي لمتابعة المحتوى والواتساب والحجوزات لحظة بلحظة.. تحب ننفذ إيه دلوقتي؟`;
+      text = `أهلاً بيك يا شريك النجاح في كابينة قيادة ${activeBrandName} على منظومة T2OS من تيتو ديجيتال! باقتك المفعّلة شغالة بكامل طاقتها — المتجر، استوديو المحتوى، ووكيل المبيعات على واتساب 24 ساعة. تحب نتابع أو ننفّذ إيه النهاردة؟`;
     } else {
-      // Tito Admin greeting strictly simplified per Master Tito's request
-      text = 'أهلاً يا تيتو، أؤمرني!';
+      text = 'أهلاً يا ماستر تيتو! منظومة T2OS تحت أمرك — الأسطول والاستوديو والأجنت متصلين وجاهزين لأوامرك.';
     }
 
     setTranscript(text);
     setLastJarvisReply(text);
     streamTranscriptWords(text);
     setConversationHistory(prev => (prev.length === 0 ? [{ role: 'model', text }] : prev));
-    speakJarvisReply(text);
+    speakJarvisReply(text, undefined, true, opts?.skipAutoListen ?? false);
   };
 
   // Two-Way Sovereign Voice Controller (Direct Native Speech Recognition + Human 24kHz Gemini Voice)
@@ -2011,6 +2067,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     {allBrandsList.length || realStats.totalVaultBrandsCount || 0} براند متصل
                   </button>
                 </>
+              ) : persona === 'client' ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-black whitespace-nowrap">
+                  💎 باقة مفعّلة • شريك نجاح
+                </span>
+              ) : persona === 'trial' ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-bold whitespace-nowrap">
+                  🚀 أسبوع التجربة المجانية
+                </span>
               ) : (
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 font-bold whitespace-nowrap">
                   تجربة مجانية 7 أيام
@@ -2151,13 +2215,42 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => setIsOnboardingOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-black text-xs transition-all cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>تجهيز براندك الآن</span>
-              </button>
+              <>
+                <button
+                  onClick={() => setIsOnboardingOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-black text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>تجهيز براندك الآن</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopAllJarvisAudio();
+                    if (onNavigateTo) onNavigateTo('/pricing?upgrade=1');
+                    else window.location.href = '/pricing';
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-purple-500/20 text-purple-200 border border-purple-400/35 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
+                >
+                  <span>الباقات والأسعار</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopAllJarvisAudio();
+                    if (storeUser) {
+                      if (onNavigateTo) onNavigateTo(isMasterAdmin ? '/admin' : '/command-center');
+                      else window.location.href = isMasterAdmin ? '/admin' : '/command-center';
+                    } else {
+                      if (onNavigateTo) onNavigateTo('/auth');
+                      else window.location.href = '/auth';
+                    }
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-cyan-500/20 text-cyan-200 border border-cyan-400/35 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
+                >
+                  <span>{storeUser ? 'لوحة التحكم' : 'دخول العملاء'}</span>
+                </button>
+              </>
             )}
             </div>
 
@@ -2216,12 +2309,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               onClick={() => {
                 stopAllJarvisAudio();
                 onClose();
-                if (typeof window !== 'undefined' && window.location.pathname === '/jarvis') {
+                if (!isHomePage && typeof window !== 'undefined' && window.location.pathname === '/jarvis') {
                   window.history.replaceState({}, '', '/pricing');
                 }
               }}
-              title="إغلاق المحطة"
-              aria-label="إغلاق المحطة"
+              title={isHomePage ? 'عرض الباقات والأسعار' : 'إغلاق المحطة'}
+              aria-label={isHomePage ? 'عرض الباقات والأسعار' : 'إغلاق المحطة'}
               className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 transition-all cursor-pointer shrink-0"
             >
               <X className="w-4 h-4" />
@@ -2278,7 +2371,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               transcript={transcript}
               lastReplyText={lastJarvisReply}
               onClearLastReply={() => setLastJarvisReply('')}
-              onReplayFullReply={() => speakJarvisReply(lastJarvisReply, undefined, true)}
+              onReplayFullReply={() => speakJarvisReply(lastJarvisReply, undefined, true, true)}
+              pendingGreetingPlay={pendingGreetingPlay}
+              onPlayPendingGreeting={() => handlePlayPersonaGreeting(persona, { skipAutoListen: true })}
               isThinking={isThinking}
               isListening={isListening}
               isPlayingVoice={isPlayingVoice}

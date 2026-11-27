@@ -17,6 +17,9 @@ const CommandCenter = lazy(() => import("./CommandCenter"));
 const WorkspaceExplorer = lazy(() => import("./WorkspaceExplorer"));
 const AssistantWidget = lazy(() => import("./AssistantWidget").then(m => ({ default: m.AssistantWidget })));
 const ClientPortalView = lazy(() => import("./ClientPortalView").then(m => ({ default: m.ClientPortalView })));
+const JarvisBattleStationModal = lazy(() =>
+  import("./JarvisBattleStationModal").then(m => ({ default: m.JarvisBattleStationModal }))
+);
 
 const ClientPortalRoute: React.FC = () => {
   const { slug = "" } = useParams();
@@ -147,6 +150,49 @@ export const AppRoutes: React.FC = () => {
     : false;
   const adminInUserMode = typeof window !== "undefined" && sessionStorage.getItem("t2_admin_user_mode") === "1";
 
+  const userTierLower = String(user?.tier || "").toLowerCase();
+  const isPaidClientUser = Boolean(
+    user &&
+      !isAdminUser &&
+      ((user as any).isPaid === true ||
+        (user as any).subscriptionStatus === "active" ||
+        (user.status === "active" &&
+          userTierLower !== "" &&
+          !["free", "trial", "guest", "pending"].includes(userTierLower)))
+  );
+  const resolvedHomePersona: "visitor" | "trial" | "client" | "tito" | undefined =
+    isAdminUser && !adminInUserMode
+      ? "tito"
+      : isPaidClientUser
+      ? "client"
+      : user
+      ? "trial"
+      : undefined;
+
+  const handleJarvisRouteNavigate = (section: string) => {
+    const s = String(section || "").trim();
+    if (!s) return;
+    if (s.startsWith("/")) {
+      navigate(s);
+      return;
+    }
+    if (s === "pricing") {
+      navigate(user ? "/pricing?upgrade=1" : "/pricing");
+    } else if (s === "auth") {
+      navigate("/auth");
+    } else if (s === "admin") {
+      navigate("/admin");
+    } else if (s === "command-center") {
+      navigate("/command-center");
+    } else if (s === "chat") {
+      navigate("/chat");
+    } else if (s === "dashboard") {
+      navigate(user ? "/command-center" : "/pricing");
+    } else {
+      handleChatNavigation(s);
+    }
+  };
+
   return (
     <Suspense fallback={
       <div className="fixed inset-0 bg-transparent flex flex-col items-center justify-center text-white font-['Cairo']">
@@ -180,30 +226,20 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/"
         element={
-          user ? (
-            isAppLocked ? (
-              <SecurityGate
-                user={user}
-                onUnlock={() => setIsAppLocked(false)}
-                onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
-              />
-            ) : isAdminUser && !adminInUserMode ? (
-              <Navigate to="/admin" replace />
-            ) : (
-              <Dashboard
-                user={user}
-                initialAction={dashboardAction}
-                onClearAction={() => setDashboardAction(null)}
-                onOpenChat={() => navigateToView("chat")}
-                onOpenAffiliate={() => navigateToView("affiliate")}
-                onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
-                onUpgrade={handleUpgradeRequest}
-                onStartAffiliate={handleStartAffiliate}
-                onOpenWorkspace={() => navigateToView("workspace")}
-              />
-            )
+          user && isAppLocked ? (
+            <SecurityGate
+              user={user}
+              onUnlock={() => setIsAppLocked(false)}
+              onLogout={isAdminUser ? () => navigateToView("admin") : handleLogout}
+            />
           ) : (
-            <Navigate to="/pricing" replace />
+            <JarvisBattleStationModal
+              isOpen={true}
+              isHomePage={true}
+              initialPersona={resolvedHomePersona}
+              onClose={() => navigate(isAdminUser && !adminInUserMode ? "/admin" : user ? "/pricing?upgrade=1" : "/pricing")}
+              onNavigateTo={handleJarvisRouteNavigate}
+            />
           )
         }
       />
@@ -305,29 +341,12 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/jarvis"
         element={
-          <Pricing
-            onSelectPlan={(plan, cycle) => {
-              setSelectedPlan(plan);
-              if (cycle) setBillingCycle(cycle);
-              setIsAffiliateRegistration(false);
-              setAuthDefaultTab("register");
-              navigateToView("auth");
-            }}
-            onTrialStart={() => {
-              setIsAffiliateRegistration(false);
-              setAuthDefaultTab("login");
-              navigateToView("auth");
-            }}
-            onAffiliateStart={() => {
-              setIsAffiliateRegistration(true);
-              setAuthDefaultTab("register");
-              navigateToView("auth");
-            }}
-            onLoginClick={() => {
-              setIsAffiliateRegistration(false);
-              setAuthDefaultTab("login");
-              navigateToView("auth");
-            }}
+          <JarvisBattleStationModal
+            isOpen={true}
+            isHomePage={false}
+            initialPersona={resolvedHomePersona}
+            onClose={() => navigate(user ? "/pricing?upgrade=1" : "/pricing")}
+            onNavigateTo={handleJarvisRouteNavigate}
           />
         }
       />
@@ -506,7 +525,7 @@ export const AppRoutes: React.FC = () => {
         }
       />
 
-      <Route path="*" element={<Navigate to={user ? "/" : "/pricing"} replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>
   );

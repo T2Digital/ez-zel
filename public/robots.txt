@@ -1,8 +1,12 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
 Allow: /
 
 User-agent: Google-Extended
@@ -14,4 +18,4 @@ Allow: /
 User-agent: ClaudeBot
 Allow: /
 
-Sitemap: https://ez-zel.onrender.com/sitemap.xml
+Sitemap: https://t2os.app/sitemap.xml

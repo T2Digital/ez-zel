@@ -435,6 +435,7 @@ export const playShadowVoice = async (
             clearInterval(interval);
             URL.revokeObjectURL(blobUrl);
             if (currentHtmlAudio === audio) currentHtmlAudio = null;
+            window.dispatchEvent(new CustomEvent('shadow_autoplay_blocked', { detail: { name: playErr?.name || 'AutoplayBlocked' } }));
             window.dispatchEvent(new CustomEvent('shadow_audio_level', { detail: { level: 0 } }));
             window.dispatchEvent(new CustomEvent('shadow_voice_ended'));
             onEnded?.();
