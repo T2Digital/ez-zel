@@ -1343,7 +1343,7 @@ export async function executeRealJarvisEcosystemAction(input: {
 
             const { resolveBrandTemplate } = await import('./tenantAppRenderer');
             const { transliterateArabicToSlug } = await import('./brandIdentityNormalizer');
-            const { generateIndustryCatalogWithAI, scrapeWebsiteMetadata } = await import('./industryHydrationService');
+            const { generateIndustryCatalogWithAI, getIndustryHeroImage, scrapeWebsiteMetadata } = await import('./industryHydrationService');
             const { createRotatingServerAI } = await import('./geminiKeyPool');
             let hydrationAi: any = null;
             try { hydrationAi = createRotatingServerAI(); } catch {}
@@ -1361,8 +1361,9 @@ export async function executeRealJarvisEcosystemAction(input: {
                     industry,
                     phone,
                     websiteUrl,
+                    appTemplate: preResolvedTemplate,
                     skipBlockingRemoteSync: true
-                }),
+                } as any),
                 generateIndustryCatalogWithAI({
                     ai: hydrationAi,
                     brandName: name,
@@ -1385,6 +1386,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 slug: cloned.slug,
                 name: cloned.name,
                 businessType: cloned.businessType,
+                appTemplate: resolvedTemplate,
                 phone,
                 existingPlan: cloned.weekContentPlan,
                 isTrial: true
@@ -1394,8 +1396,9 @@ export async function executeRealJarvisEcosystemAction(input: {
                 Array.isArray(hydratedCatalog) && hydratedCatalog.length > 0
                     ? hydratedCatalog
                     : cloned.productsCatalog;
-            const finalSlogan = slogan || (cloned as any).slogan || siteMeta?.description?.slice(0, 100) || '';
+            const finalSlogan = slogan || (cloned as any).slogan || siteMeta?.description?.slice(0, 100) || (resolvedTemplate === 'products_erp' ? `تشكيلة ${cloned.name} المختارة في ${industry}` : `خدمات ${cloned.name} المعتمدة في ${industry}`);
             const finalLogoUrl = logoUrl || (cloned as any).logoUrl || siteMeta?.ogImage || '';
+            const finalHeroImage = (cloned as any).heroImage || getIndustryHeroImage(industry, cloned.name);
 
             const adminPin = normalizedPhone.slice(-6) || String(Math.floor(100000 + Math.random() * 900000));
             const asciiSlug = transliterateArabicToSlug(cloned.slug || cloned.id || name, '') || `brand-${Date.now().toString().slice(-4)}`;
@@ -1438,6 +1441,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 whatsapp: normalizedPhone.startsWith('0') ? `2${normalizedPhone}` : normalizedPhone,
                 slogan: finalSlogan,
                 logoUrl: finalLogoUrl,
+                heroImage: finalHeroImage,
                 primaryColor: finalPrimaryColor,
                 accentColor: finalAccentColor,
                 productsCatalog: finalCatalog,
@@ -1485,7 +1489,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 const { loadTenantErpState, saveTenantErpState } = await import('./tenantErpStoreService');
                 const existingErp = await loadTenantErpState(storeSlug).catch(() => ({} as any));
                 const seededProducts = (Array.isArray(finalCatalog) ? finalCatalog : []).map((p: any, idx: number) => {
-                    const img = p?.image || p?.imageUrl || 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&auto=format&fit=crop&q=80';
+                    const img = p?.image || p?.imageUrl || finalHeroImage;
                     const num = Math.max(50, Number(p?.numericPrice ?? p?.unitPrice ?? parseInt(String(p?.price || '500').replace(/[^\d]/g, ''), 10)) || 500);
                     return {
                         id: idx + 1,
@@ -1502,12 +1506,39 @@ export async function executeRealJarvisEcosystemAction(input: {
                         images: [img],
                     };
                 });
+                const uniqueCats = Array.from(new Set(seededProducts.map((p: any) => p.mainCategory).filter(Boolean))).slice(0, 6);
                 await saveTenantErpState(storeSlug, {
                     ...existingErp,
                     products: Array.isArray(existingErp?.products) && existingErp.products.length > 0 ? existingErp.products : seededProducts,
+                    appCustomization: {
+                        ...(existingErp?.appCustomization || {}),
+                        companyName: cloned.name,
+                        ...(uniqueCats.length > 0 ? { mainCategories: uniqueCats.map((c, i) => ({ id: `cat_${i + 1}`, name: String(c) })) } : {}),
+                        heroSlides: [
+                            {
+                                id: 1,
+                                badge: uniqueCats[0] || industry || 'المتجر الإلكتروني المعتمد',
+                                title: cloned.name,
+                                subtitle: finalSlogan,
+                                description: `تصفح تشكيلة ${cloned.name} المتاحة للطلب الفوري مع شحن سريع لجميع المحافظات.`,
+                                image: finalHeroImage,
+                                category: uniqueCats[0] || 'all',
+                            },
+                            {
+                                id: 2,
+                                badge: 'طلب أونلاين وتوصيل سريع',
+                                title: uniqueCats[1] || uniqueCats[0] || 'عروض وتشكيلة الموسم',
+                                subtitle: 'اطلب أونلاين والدفع عند الاستلام أو إلكترونياً',
+                                description: 'منتجات أصلية مضمونة بتغليف فاخر وخدمة عملاء سريعة عبر واتساب.',
+                                image: seededProducts[1]?.images?.[0] || finalHeroImage,
+                                category: uniqueCats[1] || uniqueCats[0] || 'all',
+                            },
+                        ],
+                    },
                     storefrontSettings: {
                         ...(existingErp?.storefrontSettings || {}),
                         companyName: cloned.name,
+                        slogan: finalSlogan,
                         phone,
                         whatsappNumber: normalizedPhone.startsWith('0') ? `2${normalizedPhone}` : normalizedPhone,
                         address: 'القاهرة، مصر',

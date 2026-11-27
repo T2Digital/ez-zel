@@ -1383,3 +1383,35 @@ test("39) Live-QA UX fixes: single Obsidian selection dock, persistent Jarvis re
   const routesSrc = fs.readFileSync(path.join(process.cwd(), "components", "AppRoutes.tsx"), "utf8");
   assert.ok(routesSrc.includes("!isAuthReady"), "AppRoutes must wait for auth hydration before redirecting /chat");
 });
+
+test("40) New-client Mystery Shopper 6 fixes: domain image isolation, auto-fill wizard, e-commerce vs service separation & clean white-label Portal", () => {
+  const hydSrc = fs.readFileSync(path.join(process.cwd(), "services", "industryHydrationService.ts"), "utf8");
+  assert.ok(hydSrc.includes("export function getIndustryHeroImage"), "industryHydrationService must export getIndustryHeroImage");
+  assert.equal(/أزياء\|ملابس\|موض\|شوز\|أحذية\|fashion\|clothes\|store\|متجر/.test(hydSrc), false, "Clothing image regex must NOT match generic 'store' or 'متجر'");
+  assert.ok(hydSrc.includes("عطر العود الملكي"), "industryHydrationService must provide dedicated perfume catalog & images");
+
+  const clonerSrc = fs.readFileSync(path.join(process.cwd(), "services", "appClonerCrawlerService.ts"), "utf8");
+  const bridgeSrc = fs.readFileSync(path.join(process.cwd(), "services", "titoStudioFirestoreBridge.ts"), "utf8");
+  assert.equal(clonerSrc.includes("t2-client.vercel.app"), false, "appClonerCrawlerService must use canonical t2os.app URLs");
+  assert.equal(bridgeSrc.includes("t2-growth-os.vercel.app"), false, "titoStudioFirestoreBridge must use canonical t2os.app URLs");
+  assert.ok(clonerSrc.includes("isEcommerceProductDomain"), "appClonerCrawlerService must separate products_erp from services_booking copy");
+  assert.ok(bridgeSrc.includes("isProductsStore"), "titoStudioFirestoreBridge must separate products_erp captions from booking deposit copy");
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(modalSrc.includes("setDetectedVisitorBrand"), "VISITOR_DIAGNOSTIC_UPDATE must populate detectedVisitorBrand");
+  assert.ok(modalSrc.includes("isMasterAdmin && !adminPreviewVisitor ?"), "Admin action strip must stay hidden during adminPreviewVisitor mode");
+  assert.ok(modalSrc.includes("Pinned Header Controls"), "BattleStation close X control must stay pinned outside horizontal overflow strip");
+
+  const wizSrc = fs.readFileSync(path.join(process.cwd(), "components", "chat", "VisitorIntelligenceOnboarding.tsx"), "utf8");
+  assert.ok(wizSrc.includes("initialPhone = ''"), "VisitorIntelligenceOnboarding must accept & prefill initialPhone");
+  assert.equal(wizSrc.includes("وضع الماستر تيتو"), false, "VisitorIntelligenceOnboarding must not leak Master Tito button inside visitor wizard");
+
+  const brainSrc = fs.readFileSync(path.join(process.cwd(), "services", "jarvisBrainEngine.ts"), "utf8");
+  assert.ok(brainSrc.includes("الإجمالي ${p.priceEgp"), "Dynamic plans prompt must state exact total monthly EGP price");
+  assert.ok(brainSrc.includes("استوديو المحتوى") && brainSrc.includes("وكيل الواتساب الذكي"), "Non-admin output sanitizer must rewrite internal platform names");
+
+  const portalSrc = fs.readFileSync(path.join(process.cwd(), "components", "ClientPortalView.tsx"), "utf8");
+  assert.equal(/تيتو\s*(?:ا|إ)?ستوديو|تيتو\s*(?:أ|ا)?جنت/.test(portalSrc), false, "ClientPortalView must use clean white-label names");
+  assert.ok(portalSrc.includes("brand.metaConnected || brand.metaPageId") && portalSrc.includes("revExhausted"), "ClientPortalView must require metaPageId/metaConnected & guard exhausted revisions without prompt()");
+});
+

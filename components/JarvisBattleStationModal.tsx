@@ -250,6 +250,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [detectedVisitorBrand, setDetectedVisitorBrand] = useState<{
     businessName?: string;
     industry?: string;
+    phone?: string;
     hasExistingBusiness?: boolean | null;
   }>({});
   const [studioEmbed, setStudioEmbed] = useState<{
@@ -1346,7 +1347,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       recognition.onstart = () => {
         setIsListening(true);
         setHasMicPermission(true);
-        setTranscript(isMasterAdmin ? 'أنا سامعك يا ماستر.. اتفضل اتكلم' : 'أهلاً بيك في منظومة الظل — أنا سامعك، اتفضل اتكلم');
+        setTranscript(
+          isMasterAdmin && !adminPreviewVisitor && persona === 'tito'
+            ? 'أنا سامعك يا ماستر.. اتفضل اتكلم'
+            : 'أهلاً بيك في منظومة T2OS — أنا سامعك، اتفضل اتكلم'
+        );
       };
 
       recognition.onresult = (event: any) => {
@@ -1808,6 +1813,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               ...(upd.hasSocialPages !== undefined ? { hasSocialPages: upd.hasSocialPages } : {}),
               ...(upd.phone ? { phone: upd.phone } : {})
             }));
+            setDetectedVisitorBrand(prev => ({
+              ...prev,
+              ...(upd.hasExistingBusiness !== undefined ? { hasExistingBusiness: upd.hasExistingBusiness } : {}),
+              ...(upd.industry ? { industry: upd.industry } : {}),
+              ...(upd.businessName ? { businessName: upd.businessName } : {}),
+              ...(upd.phone ? { phone: upd.phone } : {}),
+            }));
           } else if ((data.action.type === 'SWITCH_BRAND' || data.action.type === 'OPEN_BRAND_HUB') && persona !== 'visitor') {
             if (data.action.brandId) {
               handleSelectBrand(data.action.brandId);
@@ -1985,7 +1997,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             </div>
 
             <div className="hidden sm:flex items-center gap-2 text-[11px] font-['Cairo'] border-r border-white/10 pr-2.5 shrink-0">
-              {isMasterAdmin && persona === 'tito' ? (
+              {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' ? (
                 <>
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 font-black whitespace-nowrap">
                     👑 الماستر تيتو
@@ -2011,13 +2023,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           <div className="flex items-center gap-2 min-w-0">
             <Cpu className="w-4 h-4 text-cyan-400 shrink-0" />
             <h1 className="text-xs md:text-sm font-black tracking-wider text-white/95 font-['Cairo'] whitespace-nowrap">
-              جارفس <span className="text-cyan-400">//</span> {isMasterAdmin ? 'العقل التنفيذي الموحد' : 'المستشار التنفيذي لأعمالك'}
+              جارفس <span className="text-cyan-400">//</span> {(isMasterAdmin && !adminPreviewVisitor) ? 'العقل التنفيذي الموحد' : 'المستشار التنفيذي لأعمالك'}
             </h1>
           </div>
 
-          {/* Right: Role-Separated Action Buttons (Single horizontal scroll row on mobile, wrapping on desktop) */}
-          <div className="flex items-center gap-1.5 flex-nowrap sm:flex-wrap shrink-0 max-w-full overflow-x-auto scrollbar-none pb-0.5">
-            {isMasterAdmin ? (
+          {/* Right: Role-Separated Action Buttons (Scrollable Strip + Pinned Close Controls) */}
+          <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+            <div className="flex items-center gap-1.5 flex-nowrap sm:flex-wrap min-w-0 overflow-x-auto scrollbar-none pb-0.5">
+              {isMasterAdmin && !adminPreviewVisitor ? (
               <>
                 <button
                   onClick={async () => {
@@ -2146,7 +2159,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 <span>تجهيز براندك الآن</span>
               </button>
             )}
+            </div>
 
+            {/* Pinned Header Controls (Never scrolled out on 390px mobile) */}
+            <div className="flex items-center gap-1.5 shrink-0">
             {isMasterAdmin && (
               <button
                 type="button"
@@ -2157,21 +2173,21 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     return next;
                   });
                 }}
-                className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-black transition-all ${
+                className={`px-2 sm:px-2.5 py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black whitespace-nowrap transition-all ${
                   adminPreviewVisitor
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50'
                     : 'bg-white/5 hover:bg-cyan-500/15 text-cyan-200 border-cyan-500/30'
                 }`}
                 title="معاينة رحلة الزائر والمجرب بدون صلاحيات الإدارة"
               >
-                {adminPreviewVisitor ? '🛡️ العودة لوضع الإدارة' : '👁️ معاينة كزائر'}
+                {adminPreviewVisitor ? '🛡️ وضع الإدارة' : '👁️ معاينة كزائر'}
               </button>
             )}
 
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               title={isFullscreen ? 'تصغير' : 'ملء الشاشة بالكامل'}
-              className="p-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all"
+              className="p-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all shrink-0"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -2186,7 +2202,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 }
               }}
               title="تشغيل / إيقاف الصوت"
-              className={`p-2 rounded-xl border transition-all ${
+              className={`p-2 rounded-xl border transition-all shrink-0 ${
                 isPlayingVoice 
                   ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.4)]'
                   : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20'
@@ -2206,10 +2222,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               }}
               title="إغلاق المحطة"
               aria-label="إغلاق المحطة"
-              className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 transition-all cursor-pointer"
+              className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 transition-all cursor-pointer shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
+            </div>
           </div>
         </div>
 
@@ -2489,9 +2506,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {/* VISITOR INTELLIGENCE ONBOARDING (When Persona === 'visitor') */}
             {persona === 'visitor' ? (
               <VisitorIntelligenceOnboarding 
-                isMasterAdmin={isMasterAdmin}
+                isMasterAdmin={isMasterAdmin && !adminPreviewVisitor}
                 initialBusinessName={detectedVisitorBrand.businessName}
                 initialIndustry={detectedVisitorBrand.industry}
+                initialPhone={detectedVisitorBrand.phone || brandingForm.phone || ''}
                 initialHasExistingBusiness={detectedVisitorBrand.hasExistingBusiness}
                 onSwitchToAdmin={isMasterAdmin ? () => { setAdminPreviewVisitor(false); setPersona('tito'); } : undefined}
                 onComplete={(createdBrand?: any) => {

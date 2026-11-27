@@ -15,7 +15,7 @@ export interface ScrapedSiteMetadata {
   ogImage?: string;
 }
 
-const DOMAIN_FALLBACK_CATALOGS: Array<{ match: RegExp; defaultImage: string; items: Array<{ name: string; price: number; category: string; description: string; image: string }> }> = [
+const DOMAIN_FALLBACK_CATALOGS: Array<{ match: RegExp; defaultImage: string; heroImage?: string; items: Array<{ name: string; price: number; category: string; description: string; image: string }> }> = [
   {
     match: /قطع غيار|سيار|عربي|أوتو|اوتو|ميكانيك|auto|car|parts/i,
     defaultImage: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=600&auto=format&fit=crop&q=80',
@@ -53,8 +53,81 @@ const DOMAIN_FALLBACK_CATALOGS: Array<{ match: RegExp; defaultImage: string; ite
     ]
   },
   {
-    match: /أزياء|ملابس|موض|شوز|أحذية|fashion|clothes|store|متجر/i,
+    match: /عطر|عطور|بيرفيوم|عود|مسك|بخور|perfume|fragrance|scent|oud|musk/i,
+    defaultImage: 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1615634260167-c8cdede054de?w=1200&auto=format&fit=crop&q=80',
+    items: [
+      { name: 'عطر العود الملكي أو دو بارفان 100 مل', price: 1450, category: 'عطور شرقية', description: 'ثبات يدوم حتى 24 ساعة بلمسة العود الكمبودي والعنبر الفاخر.', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=600&auto=format&fit=crop&q=80' },
+      { name: 'عطر مسك الطهارة الفاخر المركز', price: 680, category: 'مسك وعنبر', description: 'تركيبة نقية خالية من الكحول مناسبة للاستخدام اليومي والمناسبات.', image: 'https://images.unsplash.com/photo-1594035910387-fea47794261f?w=600&auto=format&fit=crop&q=80' },
+      { name: 'بارفان أمير الليل كلاسيك 100 مل', price: 1150, category: 'عطور رجالي', description: 'مزيج الأخشاب الدافئة مع البرغموت لإطلالة رسمية واثقة.', image: 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=600&auto=format&fit=crop&q=80' },
+      { name: 'عطر روز فانيليا النسائي الفاخر', price: 1290, category: 'عطور نسائي', description: 'نفحات الورد الدمشقي والفانيليا الفرنسية بثبات قوي وجذاب.', image: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=600&auto=format&fit=crop&q=80' },
+      { name: 'بخور ومعطر جو الفخامة الشرقية', price: 540, category: 'بخور ومعطرات', description: 'عطر فواح يملأ المكان بعبق البخور الشرقي الأصيل لساعات طويلة.', image: 'https://images.unsplash.com/photo-1588405748880-12d1d2a59f75?w=600&auto=format&fit=crop&q=80' },
+      { name: 'طقم هدايا العطور الملكية VIP', price: 2450, category: 'بوكسات الهدايا', description: 'مجموعة منتقاة من 3 زجاجات عطر مركزة في علبة هدايا فاخرة.', image: 'https://images.unsplash.com/photo-1615634260167-c8cdede054de?w=600&auto=format&fit=crop&q=80' }
+    ]
+  },
+  {
+    match: /تجميل|مكياج|بشرة|شعر|كريم|سيروم|cosmetic|skincare|makeup|beauty/i,
+    defaultImage: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=1200&auto=format&fit=crop&q=80',
+    items: [
+      { name: 'سيروم فيتامين سي المركز لنضارة البشرة', price: 590, category: 'العناية بالبشرة', description: 'ترطيب وإشراقة فورية بتركيز آمن ومناسب لجميع أنواع البشرة.', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=600&auto=format&fit=crop&q=80' },
+      { name: 'مجموعة العناية اليومية الكاملة', price: 1350, category: 'باقات التجميل', description: 'غسول + تونر + مرطب غني بالهيالورونيك أسيد.', image: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=600&auto=format&fit=crop&q=80' },
+      { name: 'باليت مكياج احترافية ثابتة', price: 880, category: 'المكياج', description: 'ألوان طبيعية وغنية بثبات طويل طوال اليوم.', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600&auto=format&fit=crop&q=80' },
+      { name: 'زيت الأرجان الطبيعي للشعر', price: 460, category: 'العناية بالشعر', description: 'تغذية مكثفة وتقليل الهيشان بدون سيليكون.', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=600&auto=format&fit=crop&q=80' }
+    ]
+  },
+  {
+    match: /مطعم|كافيه|قهوة|بن|أكل|مأكولات|حلويات|مخبز|food|restaurant|cafe|coffee|bakery/i,
+    defaultImage: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1200&auto=format&fit=crop&q=80',
+    items: [
+      { name: 'وجبة الشيف المميزة المتكاملة', price: 320, category: 'الأطباق الرئيسية', description: 'تحضير طازج يومياً بأجود المكونات وتغليف حراري يحفظ الطعم.', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop&q=80' },
+      { name: 'قهوة مختصة محمصة طازجة 500 جم', price: 490, category: 'القهوة والمشروبات', description: 'حبوب أرابيكا 100% بتحميص متوسط ومتوازن الرائحة.', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&auto=format&fit=crop&q=80' },
+      { name: 'بوكس المشاركة العائلي', price: 850, category: 'العروض العائلية', description: 'وجبة تكفي 4 أفراد مع المقبلات والصوصات الخاصة.', image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&auto=format&fit=crop&q=80' }
+    ]
+  },
+  {
+    match: /إلكترونيات|موبايل|هاتف|لابتوب|كمبيوتر|سماعات|أجهزة|electronics|mobile|phone|laptop|tech|gadget/i,
+    defaultImage: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&auto=format&fit=crop&q=80',
+    items: [
+      { name: 'سماعة بلوتوث بعزل ضوضاء احترافي', price: 2450, category: 'الصوتيات', description: 'بطارية تدوم 30 ساعة وجودة صوت عالية النقاء مع ضمان عام.', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80' },
+      { name: 'هاتف ذكي بشاشة AMOLED 256GB', price: 14500, category: 'الهواتف الذكية', description: 'أداء فائق وشحن سريع بضمان الوكيل المحلي.', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80' },
+      { name: 'لابتوب أعمال فائق السرعة', price: 29500, category: 'أجهزة اللابتوب', description: 'معالج سريع وبطارية طويلة العمر للشغل والدراسة.', image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80' }
+    ]
+  },
+  {
+    match: /ساعات|ساعة|مجوهرات|ذهب|فضة|إكسسوار|نظار|watches|jewelry|accessories/i,
+    defaultImage: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=1200&auto=format&fit=crop&q=80',
+    items: [
+      { name: 'ساعة يد كلاسيك ستانلس مقاومة للماء', price: 1950, category: 'ساعات فاخرة', description: 'ماكينة يابانية دقيقة وزجاج مقاوم للخدش مع علبة فاخرة.', image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80' },
+      { name: 'ساعة رياضية كرونوغراف جلد طبيعي', price: 2350, category: 'ساعات رجالي', description: 'تصميم أنيق يناسب الإطلالات الكاجوال والرسمية.', image: 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=600&auto=format&fit=crop&q=80' },
+      { name: 'طقم إكسسوارات وهدايا مطلي ذهب', price: 1450, category: 'مجوهرات وهدايا', description: 'تغليف فاخر جاهز للإهداء مع ضمان ثبات اللون.', image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=600&auto=format&fit=crop&q=80' }
+    ]
+  },
+  {
+    match: /أثاث|مفروشات|ديكور|موبيليا|صالون|انتريه|سجاد|furniture|decor|homeware/i,
+    defaultImage: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=1200&auto=format&fit=crop&q=80',
+    items: [
+      { name: 'أريكة مودرن 3 مقاعد قماش مستورد', price: 14500, category: 'غرف المعيشة', description: 'خشب زان طبيعي بالكامل وإسفنج عالي الكثافة بضمان 5 سنوات.', image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop&q=80' },
+      { name: 'كرسي استرخاء وتصميم عصري', price: 4800, category: 'ديكور المنزل', description: 'مريح وأنيق يضيف لمسة فخامة لأي غرفة.', image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&auto=format&fit=crop&q=80' }
+    ]
+  },
+  {
+    match: /عقار|عقارات|شقق|فيلا|تشطيب|مقاول|ديكور هندسي|real estate|property|realty/i,
+    defaultImage: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&auto=format&fit=crop&q=80',
+    items: [
+      { name: 'معاينة واستشارة عقارية أو تشطيب', price: 500, category: 'الاستشارات', description: 'تقييم هندسي وسوقي كامل لأفضل الفرص والأسعار المتاحة.', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&auto=format&fit=crop&q=80' },
+      { name: 'باقة التشطيب الهندسي الترا سوبر لوكس', price: 4500, category: 'باقات التشطيب', description: 'سعر المتر شامل التصميم ثلاثي الأبعاد والإشراف الهندسي الكامل.', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&auto=format&fit=crop&q=80' }
+    ]
+  },
+  {
+    match: /أزياء|ملابس|موض|شوز|أحذية|تيشيرت|بنطلون|فستان|fashion|clothes|apparel|sneakers/i,
     defaultImage: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&auto=format&fit=crop&q=80',
+    heroImage: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1200&auto=format&fit=crop&q=80',
     items: [
       { name: 'تيشيرت قطن مصري 100% أوفر سايز', price: 480, category: 'ملابس كاجوال', description: 'خامة قطن طبيعي ناعمة ومريحة للبس اليومي.', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&auto=format&fit=crop&q=80' },
       { name: 'هودي شتوي مبطن خامة ثقيلة', price: 890, category: 'ملابس شتوية', description: 'تدفئة مثالية وتصميم عصري بألوان متعددة.', image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&auto=format&fit=crop&q=80' },
@@ -68,6 +141,13 @@ const DOMAIN_FALLBACK_CATALOGS: Array<{ match: RegExp; defaultImage: string; ite
 
 function resolveDomainFallbackGroup(industry: string, brandName: string) {
   return DOMAIN_FALLBACK_CATALOGS.find((d) => d.match.test(`${industry} ${brandName}`));
+}
+
+export function getIndustryHeroImage(industry: string, brandName = ''): string {
+  const matched: any = resolveDomainFallbackGroup(industry, brandName);
+  if (matched?.heroImage) return matched.heroImage;
+  if (matched?.defaultImage) return matched.defaultImage.replace('w=600', 'w=1200');
+  return 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1200&auto=format&fit=crop&q=80';
 }
 
 function buildFallbackCatalog(industry: string, brandName: string): HydratedCatalogItem[] {
@@ -117,8 +197,9 @@ export async function generateIndustryCatalogWithAI(input: {
 
   const kindLabel = appTemplate === 'products_erp' ? 'منتجات فعلية للبيع' : 'خدمات وحجوزات';
   const prompt = `أنشئ 6 ${kindLabel} واقعية ومقنعة للسوق المصري لبراند اسمه "${brandName}" في مجال "${industry}".
+راجع الإملاء العربي بدقة 100% دون أي أخطاء إملائية (مثلاً: "مسك الطهارة" وليس "مسك الطارة"، "عطر" وليس "عتر").
 أرجع النتيجة كـ JSON Array فقط بدون أي نص إضافي، بحيث يحتوي كل عنصر على:
-{ "name": "اسم قصير وواضح بالعربية", "numericPrice": رقم_بالجنيه_المصري, "category": "تصنيف قصير", "description": "وصف بيعي من جملة واحدة" }`;
+{ "name": "اسم قصير وواضح بالعربية خالٍ من الأخطاء الإملائية", "numericPrice": رقم_بالجنيه_المصري, "category": "تصنيف قصير", "description": "وصف بيعي من جملة واحدة" }`;
 
   try {
     const resp = await Promise.race([
@@ -142,7 +223,7 @@ export async function generateIndustryCatalogWithAI(input: {
           const rawCat = typeof item.category === 'object' && item.category !== null
             ? (item.category.name || item.category.label || item.category.title)
             : item.category;
-          const img = fallbackList[idx % fallbackList.length]?.image || 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&auto=format&fit=crop&q=80';
+          const img = fallbackList[idx % fallbackList.length]?.image || getIndustryHeroImage(industry, brandName);
           return {
             id: `ai_item_${Date.now().toString().slice(-4)}_${idx + 1}`,
             name: String(item.name || `عنصر ${idx + 1}`).trim(),

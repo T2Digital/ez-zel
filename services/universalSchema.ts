@@ -150,7 +150,8 @@ export function createUniversalEntity(params: {
   const remainingAmount = discountedPrice - depositAmount;
 
   const entityId = `item_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const clientUrl = params.clientAppBaseUrl || `https://${params.brandId}.t2-client.vercel.app`;
+  const cleanSlug = encodeURIComponent(String(params.brandId || 'app').replace(/_/g, '-'));
+  const clientUrl = params.clientAppBaseUrl || `https://store.t2os.app/s/${cleanSlug}`;
 
   return {
     id: entityId,

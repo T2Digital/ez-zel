@@ -591,6 +591,7 @@ export function buildOmniChannelWeekPlan(brand: {
     slug?: string;
     name: string;
     businessType?: string;
+    appTemplate?: 'products_erp' | 'services_booking';
     phone?: string;
     primaryColor?: string;
     existingPlan?: any[];
@@ -598,11 +599,21 @@ export function buildOmniChannelWeekPlan(brand: {
     isTrial?: boolean;
 }): OmniWeekPostItem[] {
     const slug = brand.slug || brand.id;
+    const isProductsStore =
+        brand.appTemplate === 'products_erp' ||
+        (brand.appTemplate !== 'services_booking' &&
+            /عطر|عطور|بيرفيوم|عود|مسك|بخور|ملابس|أزياء|شوز|أحذية|متجر|موبايل|إلكترونيات|ساعات|مجوهرات|أثاث|تجميل|مكياج|مطعم|كافيه|قطع غيار|سوبرماركت|perfume|fashion|clothes|store|shop|ecommerce|retail/i.test(
+                `${brand.businessType || ''} ${brand.name || ''}`
+            ));
     const rawPhone = String(brand.phone || '01013373634').replace(/[^0-9]/g, '');
     const intlPhone = rawPhone.startsWith('0') ? `2${rawPhone}` : rawPhone;
-    const storePath = `/store/${slug}`;
-    const fullStoreUrl = `https://t2-growth-os.vercel.app/store/${slug}?utm_source=tito_studio`;
-    const waLink = `https://wa.me/${intlPhone}?text=${encodeURIComponent(`أهلاً ${brand.name}، شفت عرض السوشيال وعاوز أحجز وأستفيد بخصم 10% الفوري`)}`;
+    const storePath = isProductsStore
+        ? `https://store.t2os.app/s/${encodeURIComponent(slug)}`
+        : `https://book.t2os.app/b/${encodeURIComponent(slug)}`;
+    const fullStoreUrl = `${storePath}?utm_source=content_studio`;
+    const waLink = isProductsStore
+        ? `https://wa.me/${intlPhone}?text=${encodeURIComponent(`أهلاً ${brand.name}، شفت عرض السوشيال وعاوز أطلب من المتجر وأستفيد بالعرض الحصري`)}`
+        : `https://wa.me/${intlPhone}?text=${encodeURIComponent(`أهلاً ${brand.name}، شفت عرض السوشيال وعاوز أحجز وأستفيد بخصم 10% الفوري`)}`;
     const customHooks = brand.strategy?.keyHooks || [];
 
     const baseDays: Array<{
@@ -624,12 +635,14 @@ export function buildOmniChannelWeekPlan(brand: {
             day: 'السبت',
             mediaFormat: 'image',
             pillar: 'product_marketing',
-            pillarLabel: 'تسويق المنتجات والخدمات',
-            contentType: 'تصميم تيتو ستوديو (Feed 1:1)',
-            defaultHook: customHooks[0] || `احجز خدمتك الآن من تطبيق ${brand.name} الرسمي بخصم 10% فوري بدون انتظار!`,
+            pillarLabel: isProductsStore ? 'تسويق المنتجات والعروض' : 'تسويق الخدمات والباقات',
+            contentType: 'تصميم سوشيال احترافي (Feed 1:1)',
+            defaultHook: customHooks[0] || (isProductsStore
+                ? `اطلب الآن من متجر ${brand.name} الرسمي بخصم 10% فوري وتوصيل سريع لباب البيت!`
+                : `احجز خدمتك الآن من تطبيق ${brand.name} الرسمي بخصم 10% فوري بدون انتظار!`),
             ctaType: 'APP_CONVERSION',
-            ctaBadge: '🛒 احجز من التطبيق بخصم 10% فوري',
-            ctaActionText: `افتح المتجر واحجز في 30 ثانية: ${storePath}`,
+            ctaBadge: isProductsStore ? '🛒 اطلب من المتجر بخصم 10% فوري' : '🛒 احجز من التطبيق بخصم 10% فوري',
+            ctaActionText: isProductsStore ? `افتح المتجر وأضف للسلة في 30 ثانية: ${storePath}` : `افتح التطبيق واحجز في 30 ثانية: ${storePath}`,
             ctaTargetUrl: storePath,
             bestTime: '8:00 مساءً',
             omniPrompt: `Ultra-luxury commercial photography for ${brand.name} (${brand.businessType || 'premium brand'}), dramatic studio lighting, cyan and deep navy accents, 8k photorealistic.`
@@ -638,12 +651,14 @@ export function buildOmniChannelWeekPlan(brand: {
             day: 'الأحد',
             mediaFormat: 'image',
             pillar: 'product_marketing',
-            pillarLabel: 'تسويق المنتجات والخدمات (Feed 1:1)',
-            contentType: 'تصميم تيتو ستوديو (Feed 1:1)',
-            defaultHook: customHooks[0] || `احجز خدمتك الآن من تطبيق ${brand.name} الرسمي بخصم 10% فوري بدون انتظار!`,
+            pillarLabel: isProductsStore ? 'تسويق المنتجات والعروض (Feed 1:1)' : 'تسويق الخدمات والباقات (Feed 1:1)',
+            contentType: 'تصميم سوشيال احترافي (Feed 1:1)',
+            defaultHook: customHooks[0] || (isProductsStore
+                ? `تشكيلة ${brand.name} الأصلية متاحة الآن — اطلب أونلاين بخصم 10% وشحن سريع لجميع المحافظات!`
+                : `احجز خدمتك الآن من تطبيق ${brand.name} الرسمي بخصم 10% فوري بدون انتظار!`),
             ctaType: 'APP_CONVERSION',
-            ctaBadge: '🛒 احجز من التطبيق بخصم 10% فوري',
-            ctaActionText: `افتح المتجر واحجز في 30 ثانية: ${storePath}`,
+            ctaBadge: isProductsStore ? '🛒 اطلب من المتجر بخصم 10% فوري' : '🛒 احجز من التطبيق بخصم 10% فوري',
+            ctaActionText: isProductsStore ? `افتح المتجر واطلب في 30 ثانية: ${storePath}` : `افتح المتجر واحجز في 30 ثانية: ${storePath}`,
             ctaTargetUrl: storePath,
             bestTime: '8:00 مساءً',
             omniPrompt: `Ultra-luxury commercial photography for ${brand.name} (${brand.businessType || 'premium brand'}), dramatic studio lighting, cyan and deep navy accents, 8k photorealistic.`
@@ -653,7 +668,7 @@ export function buildOmniChannelWeekPlan(brand: {
             mediaFormat: 'image',
             pillar: 'educational_loyalty',
             pillarLabel: 'تفاعل وولاء (Auto-DM)',
-            contentType: 'تصميم تفاعلي تيتو ستوديو (Auto-DM)',
+            contentType: 'تصميم تفاعلي احترافي (Auto-DM)',
             defaultHook: customHooks[1] || `اكتب كلمة "عرض" في تعليق وهيوصلك كتالوج أسعار ${brand.name} وكود الخصم في رسالة فوراً!`,
             ctaType: 'COMMENT_TO_MESSENGER',
             ctaBadge: '🤖 اكتب "عرض" في تعليق لاستلام الكتالوج',
@@ -667,36 +682,40 @@ export function buildOmniChannelWeekPlan(brand: {
             day: 'الثلاثاء',
             mediaFormat: 'video',
             pillar: 'events_seasons',
-            pillarLabel: 'ريلز سينمائي (Turbo Flow / Google Flow)',
-            contentType: 'فيديو ريلز Google Flow (Reels 9:16)',
-            defaultHook: customHooks[2] || `عندك استفسار؟ وكيل ${brand.name} الذكي يرد عليك بصوت بشري في 3 ثوانٍ على واتساب!`,
+            pillarLabel: 'فيديو ريلز احترافي (Reels 9:16)',
+            contentType: 'فيديو ريلز احترافي (Reels 9:16)',
+            defaultHook: customHooks[2] || `عندك استفسار؟ مستشار ${brand.name} الذكي يرد عليك في 3 ثوانٍ على واتساب!`,
             ctaType: 'WHATSAPP_VOICE_AGENT',
-            ctaBadge: '💬 تواصل واتساب فوري (رد صوتي ذكي)',
+            ctaBadge: '💬 تواصل واتساب فوري (رد ذكي 24/7)',
             ctaActionText: `اضغط لمحادثة واتساب المباشرة: ${brand.phone || '01013373634'}`,
             ctaTargetUrl: waLink,
             bestTime: '9:00 مساءً',
-            omniPrompt: `Vertical 9:16 cinematic commercial reel for ${brand.name} (${brand.businessType || 'modern service business'}), smooth gimbal camera movement entering a high-end modern space, warm welcoming atmosphere with subtle cyan fiber-optic rim lighting, happy client experiencing top-tier service, photorealistic 4K Veo 3.1 commercial quality, no text overlay.`
+            omniPrompt: isProductsStore
+                ? `Vertical 9:16 luxury commercial unboxing & product showcase reel for ${brand.name} (${brand.businessType || 'ecommerce brand'}), sleek macro shots, warm editorial lighting, photorealistic 4K commercial quality, no text overlay.`
+                : `Vertical 9:16 cinematic commercial reel for ${brand.name} (${brand.businessType || 'modern service business'}), smooth gimbal camera movement entering a high-end modern space, warm welcoming atmosphere with subtle cyan fiber-optic rim lighting, happy client experiencing top-tier service, photorealistic 4K Veo 3.1 commercial quality, no text overlay.`
         },
         {
             day: 'الأربعاء',
             mediaFormat: 'image',
             pillar: 'educational_loyalty',
-            pillarLabel: 'محتوى تعليمي واستشارة صوتية',
-            contentType: 'تصميم كاروسيل تيتو ستوديو + استشارة واتساب',
-            defaultHook: customHooks[4] || `3 أسرار ذهبية من خبراء ${brand.name} توفر عليك نص التكلفة والوقت!`,
+            pillarLabel: 'محتوى تعريفي وميزة تنافسية',
+            contentType: 'تصميم كاروسيل احترافي + تواصل واتساب',
+            defaultHook: customHooks[4] || (isProductsStore
+                ? `3 أسرار تخليك تختار منتجات ${brand.name} الأصلية وتوفر فلوسك!`
+                : `3 أسرار ذهبية من خبراء ${brand.name} توفر عليك نص التكلفة والوقت!`),
             ctaType: 'WHATSAPP_VOICE_AGENT',
-            ctaBadge: '💬 اطلب استشارتك الصوتية عبر واتساب',
-            ctaActionText: `تحدث مع المستشار الذكي على واتساب: ${brand.phone || '01013373634'}`,
+            ctaBadge: '💬 تواصل معنا عبر واتساب',
+            ctaActionText: `تحدث مع مستشار المبيعات على واتساب: ${brand.phone || '01013373634'}`,
             ctaTargetUrl: waLink,
             bestTime: '9:00 مساءً',
-            omniPrompt: `Editorial portrait of expert team at ${brand.name}, modern studio backdrop, confident and trustworthy aura.`
+            omniPrompt: `Editorial showcase for ${brand.name}, modern studio backdrop, confident and trustworthy luxury aesthetic.`
         },
         {
             day: 'الخميس',
             mediaFormat: 'image',
             pillar: 'educational_loyalty',
             pillarLabel: 'مسابقة وعرض تفاعلي (Comment-to-DM)',
-            contentType: 'تصميم تيتو ستوديو التفاعلي (Comment-to-DM)',
+            contentType: 'تصميم تفاعلي مميز (Comment-to-DM)',
             defaultHook: customHooks[5] || `اكتب "تفاصيل" في الكومنتات وهنبعتلك هدية نهاية الأسبوع من ${brand.name} حالاً!`,
             ctaType: 'COMMENT_TO_MESSENGER',
             ctaBadge: '🤖 علق بكلمة "تفاصيل" لاستلام الهدية',
@@ -710,15 +729,19 @@ export function buildOmniChannelWeekPlan(brand: {
             day: 'الجمعة',
             mediaFormat: 'video',
             pillar: 'events_seasons',
-            pillarLabel: 'ريلز إغلاق مبيعات الجمعة (Turbo Flow)',
-            contentType: 'فيديو ريلز VIP عبر Google Flow (Reels 9:16)',
-            defaultHook: customHooks[6] || `عرض الجمعة الحصري من ${brand.name} — أول 10 حجوزات اليوم بخصم إضافي وأولوية تنفيذ!`,
+            pillarLabel: 'ريلز عرض الجمعة الحصري',
+            contentType: 'فيديو ريلز VIP (Reels 9:16)',
+            defaultHook: customHooks[6] || (isProductsStore
+                ? `عرض الجمعة الحصري من ${brand.name} — أول 10 طلبات اليوم بخصم إضافي وشحن سريع!`
+                : `عرض الجمعة الحصري من ${brand.name} — أول 10 حجوزات اليوم بخصم إضافي وأولوية تنفيذ!`),
             ctaType: 'WHATSAPP_VOICE_AGENT',
-            ctaBadge: '🔥 اقفل حجزك الآن عبر واتساب أو التطبيق',
-            ctaActionText: `حجز فوري عبر واتساب (${brand.phone || '01013373634'}) أو المتجر (${storePath})`,
+            ctaBadge: isProductsStore ? '🔥 اطلب الآن عبر واتساب أو المتجر' : '🔥 اقفل حجزك الآن عبر واتساب أو التطبيق',
+            ctaActionText: isProductsStore
+                ? `طلب فوري عبر واتساب (${brand.phone || '01013373634'}) أو المتجر (${storePath})`
+                : `حجز فوري عبر واتساب (${brand.phone || '01013373634'}) أو المتجر (${storePath})`,
             ctaTargetUrl: waLink,
             bestTime: '5:00 مساءً',
-            omniPrompt: `Vertical 9:16 high-energy weekend VIP commercial for ${brand.name} (${brand.businessType || 'flagship service'}), dramatic cinematic lighting, fast-paced luxury b-roll cuts, inviting VIP atmosphere, shot on Arri Alexa Mini LF, Veo 3.1 photorealistic quality, no text.`
+            omniPrompt: `Vertical 9:16 high-energy weekend VIP commercial for ${brand.name} (${brand.businessType || 'flagship brand'}), dramatic cinematic lighting, fast-paced luxury b-roll cuts, shot on Arri Alexa Mini LF, Veo 3.1 photorealistic quality, no text.`
         }
     ];
 
@@ -742,12 +765,18 @@ export function buildOmniChannelWeekPlan(brand: {
         let strategicCaption = existingItem?.caption || '';
         if (!strategicCaption || strategicCaption.length < 40) {
             if (ctaType === 'APP_CONVERSION') {
-                strategicCaption = `${hook}\n\n✅ تصفح الباقات والأسعار واحجز موعدك مباشرة من متجر وتطبيق البراند في 30 ثانية:\n${fullStoreUrl}\n🎁 خصم 10% فوري عند تأكيد الحجز بعربون 25% عبر إنستاباي أو فودافون كاش.\n📞 للتواصل السريع: ${brand.phone || '01013373634'}`;
+                strategicCaption = isProductsStore
+                    ? `${hook}\n\n✅ تصفح المنتجات والأسعار وأضف للسلة مباشرة من متجر البراند في 30 ثانية:\n${fullStoreUrl}\n🎁 خصم 10% فوري عند الطلب أونلاين مع شحن سريع وخيارات دفع متنوعة (كاش عند الاستلام / إنستاباي / فودافون كاش).\n📞 للتواصل السريع: ${brand.phone || '01013373634'}`
+                    : `${hook}\n\n✅ تصفح الباقات والأسعار واحجز موعدك مباشرة من متجر وتطبيق البراند في 30 ثانية:\n${fullStoreUrl}\n🎁 خصم 10% فوري عند تأكيد الحجز بعربون 25% عبر إنستاباي أو فودافون كاش.\n📞 للتواصل السريع: ${brand.phone || '01013373634'}`;
             } else if (ctaType === 'WHATSAPP_VOICE_AGENT') {
-                strategicCaption = `${hook}\n\n💬 اضغط على رابط واتساب للتحدث فوراً مع وكيلنا الذكي (رد صوتي بشري ونصي في 3 ثوانٍ على مدار الساعة):\n${waLink}\n🛒 أو احجز مباشرة من متجرنا الرسمي: ${fullStoreUrl}`;
+                strategicCaption = isProductsStore
+                    ? `${hook}\n\n💬 اضغط على رابط واتساب للتحدث فوراً مع مستشار المبيعات وطلب منتجك في ثوانٍ:\n${waLink}\n🛒 أو اطلب مباشرة من متجرنا الرسمي: ${fullStoreUrl}`
+                    : `${hook}\n\n💬 اضغط على رابط واتساب للتحدث فوراً مع وكيلنا الذكي (رد صوتي بشري ونصي في 3 ثوانٍ على مدار الساعة):\n${waLink}\n🛒 أو احجز مباشرة من متجرنا الرسمي: ${fullStoreUrl}`;
             } else {
                 const kw = slot.commentKeyword || 'عرض';
-                strategicCaption = `${hook}\n\n👇 اكتب كلمة (${kw}) في التعليقات الآن، وسيقوم نظام ${brand.name} الذكي بالرد عليك وإرسال تفاصيل الباقات ورابط الحجز المباشر في رسائل الصفحة فوراً!\n📞 واتساب مباشر: ${brand.phone || '01013373634'}`;
+                strategicCaption = isProductsStore
+                    ? `${hook}\n\n👇 اكتب كلمة (${kw}) في التعليقات الآن، وهنبعتلك قائمة المنتجات والأسعار ورابط الطلب المباشر في رسائل الصفحة فوراً!\n📞 واتساب مباشر: ${brand.phone || '01013373634'}`
+                    : `${hook}\n\n👇 اكتب كلمة (${kw}) في التعليقات الآن، وسيقوم نظام ${brand.name} الذكي بالرد عليك وإرسال تفاصيل الباقات ورابط الحجز المباشر في رسائل الصفحة فوراً!\n📞 واتساب مباشر: ${brand.phone || '01013373634'}`;
             }
         }
 

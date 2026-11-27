@@ -75,7 +75,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
         setChatHistory([
           {
             role: 'assistant',
-            text: `أهلاً بك في بوابة ${data.brand?.name || slug}! أنا مدير الحساب الذكي الخاص ببراندك. تقدر تطلب مني تجهيز بوستات، متابعة صالة العرض في تيتو استوديو، أو مراجعة حالة بوت الواتساب في تيتو أجنت.`,
+            text: `أهلاً بك في بوابة ${data.brand?.name || slug}! أنا مدير الحساب الذكي الخاص ببراندك. تقدر تطلب مني تجهيز بوستات، متابعة صالة العرض في استوديو المحتوى، أو مراجعة حالة بوت الواتساب في وكيل الواتساب الذكي.`,
           },
         ]);
       }
@@ -91,6 +91,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
   }, [slug]);
 
   const handleDecision = async (postIndex: number, decision: 'approved' | 'revision_requested') => {
+    const targetPost = Array.isArray(brand?.weekContentPlan) ? brand.weekContentPlan[postIndex] : null;
+    const maxAllowedRevisions = trialPolicy?.maxRevisionsPerPost ?? (subscriptionStatus === 'trial' ? 1 : 2);
+    const currentRevisions = Number(targetPost?.revisionCount || 0);
+    if (decision === 'revision_requested' && currentRevisions >= maxAllowedRevisions) {
+      setAuthBanner('تم استهلاك الحد المسموح للتعديلات على هذا المنشور في التجربة المجانية. يمكنك الترقية لباقة النمو لإضافة تعديلات ومحتوى أكثر.');
+      return;
+    }
     setBusyIdx(postIndex);
     setAuthBanner('');
     try {
@@ -290,7 +297,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                 className="px-3.5 py-2 rounded-xl bg-purple-600/25 border border-purple-400/40 text-purple-200 text-xs font-black flex items-center gap-1.5 hover:bg-purple-600/40"
               >
                 <Film className="w-3.5 h-3.5" />
-                <span>الشو روم (تيتو استوديو)</span>
+                <span>الشو روم (استوديو المحتوى)</span>
               </a>
             )}
             {(portals.agentFullDashboardUrl || portals.agentDashboardUrl) && (
@@ -301,7 +308,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                 className="px-3.5 py-2 rounded-xl bg-emerald-600/25 border border-emerald-400/40 text-emerald-200 text-xs font-black flex items-center gap-1.5 hover:bg-emerald-600/40"
               >
                 <Bot className="w-3.5 h-3.5" />
-                <span>داشبورد تيتو أجنت</span>
+                <span>داشبورد الواتساب الذكي</span>
               </a>
             )}
             <a
@@ -371,7 +378,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
               activeTab === 'agent' ? 'bg-emerald-600 text-white' : 'bg-[#071122] text-slate-300 border border-white/10 hover:border-emerald-400/40'
             }`}
           >
-            🤖 داشبورد تيتو أجنت والواتساب
+            🤖 داشبورد الواتساب الذكي والردود
           </button>
           <button
             onClick={() => setActiveTab('account_manager')}
@@ -426,7 +433,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
 
             <div className="rounded-3xl bg-[#071122]/85 border border-purple-500/30 p-5 flex flex-col justify-between gap-4">
               <div>
-                <div className="text-[11px] font-bold text-purple-300">2. تيتو استوديو (المحتوى)</div>
+                <div className="text-[11px] font-bold text-purple-300">2. استوديو المحتوى (الشو روم)</div>
                 <h3 className="text-base font-black mt-1">الرصيد: {quota?.designsRemaining ?? quota?.monthlyDesigns ?? 2} تصميم / {quota?.videosRemaining ?? quota?.monthlyVideos ?? 1} فيديو</h3>
                 <p className="text-xs text-slate-400 mt-1">مراجعة واعتماد التصميمات والريلز الجاهزة للنشر</p>
               </div>
@@ -441,16 +448,16 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
 
             <div className="rounded-3xl bg-[#071122]/85 border border-emerald-500/30 p-5 flex flex-col justify-between gap-4">
               <div>
-                <div className="text-[11px] font-bold text-emerald-300">3. تيتو أجنت (الواتساب)</div>
+                <div className="text-[11px] font-bold text-emerald-300">3. وكيل الواتساب الذكي</div>
                 <h3 className="text-base font-black mt-1">{brand.whatsappConnected ? 'واتساب متصل ويعمل 24/7' : 'جاهز لربط QR'}</h3>
-                <p className="text-xs text-slate-400 mt-1">الرد الآلي على العملاء وتحويل الحجوزات للوحة</p>
+                <p className="text-xs text-slate-400 mt-1">الرد الآلي على العملاء وتحويل الطلبات والحجوزات للوحة</p>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveTab('agent')}
                 className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer"
               >
-                فتح لوحة الأيجنت والـ QR
+                فتح لوحة الواتساب والـ QR
               </button>
             </div>
 
@@ -466,8 +473,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                   const txt = [
                     `باقة الترحيب لبراند: ${brand.name}`,
                     `المتجر: ${storefrontHref}`,
-                    portals.studioShowroomUrl ? `تيتو استوديو (الشو روم): ${portals.studioShowroomUrl}` : '',
-                    (portals.agentFullDashboardUrl || portals.agentDashboardUrl) ? `تيتو أجنت (واتساب QR): ${portals.agentFullDashboardUrl || portals.agentDashboardUrl}` : '',
+                    portals.studioShowroomUrl ? `استوديو المحتوى (الشو روم): ${portals.studioShowroomUrl}` : '',
+                    (portals.agentFullDashboardUrl || portals.agentDashboardUrl) ? `وكيل الواتساب الذكي (QR): ${portals.agentFullDashboardUrl || portals.agentDashboardUrl}` : '',
                     `بوابة العميل: ${typeof window !== 'undefined' ? window.location.href : ''}`,
                   ].filter(Boolean).join('\n');
                   navigator.clipboard?.writeText(txt).catch(() => {});
@@ -549,8 +556,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                 {waPairResult && (
                   <div className={`p-3 rounded-xl border text-xs space-y-2 ${waPairResult.ok ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' : 'bg-amber-950/30 border-amber-500/40 text-amber-200'}`}>
                     {waPairResult.pairingCode && (
-                      <div className="font-mono text-base font-black text-amber-300 tracking-widest">
-                        كود الربط: {waPairResult.pairingCode}
+                      <div className="space-y-1">
+                        <div className="font-mono text-base font-black text-amber-300 tracking-widest">
+                          كود الربط: {waPairResult.pairingCode}
+                        </div>
+                        <div className="text-[11px] text-emerald-200/90">
+                          الخطوات: افتح واتساب ← الأجهزة المرتبطة ← ربط جهاز ← الربط برقم الهاتف واكتب الكود أعلاه.
+                        </div>
                       </div>
                     )}
                     {waPairResult.qrDataUrl && (
@@ -558,6 +570,11 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                     )}
                     <div>{waPairResult.message}</div>
                   </div>
+                )}
+                {!waPairResult && (
+                  <p className="text-[11px] text-slate-400">
+                    طريقة الربط في 10 ثوانٍ: اضغط توليد الكود ← افتح واتساب ← الأجهزة المرتبطة ← الربط برقم الهاتف وأدخل الكود.
+                  </p>
                 )}
               </form>
 
@@ -570,7 +587,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                   </div>
                   <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                     <div className="text-[10px] text-slate-400">فيسبوك وماسنجر</div>
-                    <div className="font-black text-blue-300 mt-0.5">{brand.metaConnected || brand.socialLinks?.facebook ? 'مربوط 🟢' : 'غير مربوط'}</div>
+                    <div className={`font-black mt-0.5 ${(brand.metaConnected || brand.metaPageId) ? 'text-blue-300' : brand.socialLinks?.facebook ? 'text-amber-300' : 'text-slate-400'}`}>
+                      {(brand.metaConnected || brand.metaPageId)
+                        ? 'مربوط 🟢'
+                        : brand.socialLinks?.facebook
+                          ? 'رابط مسجل (غير مربوط)'
+                          : 'غير مربوط'}
+                    </div>
                   </div>
                   <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                     <div className="text-[10px] text-slate-400">TikTok</div>
@@ -635,7 +658,11 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
         {/* Tab 4: Quick Posts Approval */}
         {activeTab === 'posts' && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {posts.map((post, idx) => (
+            {posts.map((post, idx) => {
+              const maxAllowedRevisions = trialPolicy?.maxRevisionsPerPost ?? (subscriptionStatus === 'trial' ? 1 : 2);
+              const revCount = Number(post.revisionCount || 0);
+              const revExhausted = revCount >= maxAllowedRevisions;
+              return (
               <div
                 key={post.id || idx}
                 className="rounded-2xl bg-[#071122]/75 border border-white/10 p-4 flex flex-col gap-3"
@@ -670,6 +697,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                 <div className="text-sm font-black">{post.hook}</div>
                 <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{post.caption}</p>
 
+                {post.clientFeedback && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-200">
+                    📝 طلب التعديل المسجل: {post.clientFeedback}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     disabled={busyIdx === idx}
@@ -679,17 +712,29 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>اعتماد للنشر</span>
                   </button>
-                  <button
-                    disabled={busyIdx === idx}
-                    onClick={() => handleDecision(idx, 'revision_requested')}
-                    className="flex-1 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>طلب تعديل</span>
-                  </button>
+                  {revExhausted ? (
+                    <button
+                      type="button"
+                      disabled={upgradeBusy}
+                      onClick={handleTriggerUpgrade5000}
+                      className="flex-1 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-200 border border-cyan-400/35 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <span>تم استهلاك التعديل ({revCount}/{maxAllowedRevisions}) — ترقية</span>
+                    </button>
+                  ) : (
+                    <button
+                      disabled={busyIdx === idx}
+                      onClick={() => handleDecision(idx, 'revision_requested')}
+                      className="flex-1 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>طلب تعديل ({revCount}/{maxAllowedRevisions})</span>
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </section>
         )}
       </div>

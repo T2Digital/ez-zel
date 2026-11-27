@@ -12,7 +12,9 @@ export function resolveBrandTemplate(brand: any): TenantAppTemplate {
   const text = `${brand?.businessType || ''} ${brand?.industry || ''} ${brand?.name || ''}`.toLowerCase();
   const productKeywords = [
     'متجر', 'تجارة', 'أزياء', 'ملابس', 'منتج', 'مبيعات', 'بيع', 'إلكترونيات', 'قطع غيار',
-    'سوبرماركت', 'مطعم', 'كافيه', 'أثاث', 'مفروشات', 'إكسسوار', 'store', 'shop', 'ecommerce', 'pos', 'retail', 'parts'
+    'سوبرماركت', 'مطعم', 'كافيه', 'أثاث', 'مفروشات', 'إكسسوار', 'عطور', 'عطر', 'بخور', 'عود', 'مسك',
+    'تجميل', 'مستحضرات', 'مكياج', 'ساعات', 'مجوهرات', 'هدايا', 'موبايلات', 'أحذية', 'شنط',
+    'store', 'shop', 'ecommerce', 'pos', 'retail', 'parts', 'perfume', 'fragrance', 'cosmetics', 'watch', 'jewelry', 'gift'
   ];
   return productKeywords.some((kw) => text.includes(kw)) ? 'products_erp' : 'services_booking';
 }

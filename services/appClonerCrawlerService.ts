@@ -15,6 +15,7 @@ export interface CloneBrandInput {
     websiteUrl?: string;
     phone?: string;
     ownerEmail?: string;
+    appTemplate?: 'products_erp' | 'services_booking';
     skipBlockingRemoteSync?: boolean;
 }
 
@@ -103,7 +104,67 @@ function getGeminiClient(): GoogleGenAI {
     });
 }
 
-function generateSyntheticEgyptianBlueprint(name: string, industry: string, phone: string): any {
+function isEcommerceProductDomain(industry: string, name: string, appTemplate?: string): boolean {
+    if (appTemplate === 'products_erp') return true;
+    if (appTemplate === 'services_booking') return false;
+    return /عطر|عطور|بيرفيوم|عود|مسك|بخور|ملابس|أزياء|شوز|أحذية|متجر|موبايل|إلكترونيات|ساعات|مجوهرات|أثاث|تجميل|مكياج|مطعم|كافيه|قطع غيار|سوبرماركت|perfume|fashion|clothes|store|shop|ecommerce|retail/i.test(`${industry} ${name}`);
+}
+
+function generateSyntheticEgyptianBlueprint(name: string, industry: string, phone: string, appTemplate?: string): any {
+    const isProducts = isEcommerceProductDomain(industry, name, appTemplate);
+    if (isProducts) {
+        return {
+            summary: `${name} متجرك الإلكتروني المعتمد في مصر لتسوق منتجات ${industry} الأصلية بأعلى جودة وتوصيل سريع لجميع المحافظات.`,
+            knowledgeText: `مرحباً بك في متجر ${name}.\nنحن متخصصون في ${industry}.\nمواعيد خدمة العملاء والطلبات: يومياً من 10 صباحاً حتى 10 مساءً.\nطرق الدفع: الدفع عند الاستلام (COD)، إنستاباي، فودافون كاش، وفيزا.\nالشحن والتوصيل: خلال 24-48 ساعة مع تغليف آمن ومضمون.\nرقم التواصل والواتساب: ${phone}.`,
+            systemPrompt: `أنت وكيل المبيعات وخدمة العملاء الذكي لمتجر "${name}" المتخصص في "${industry}".\nتتحدث بالعامية المصرية الودودة، الذكية والمحترفة جداً.\nهدفك الأساسي هو مساعدة العميل في اختيار المنتج المناسب، توضيح الأسعار وتكلفة الشحن، وإتمام الطلب عبر سلة المتجر أونلاين أو عبر واتساب بالدفع عند الاستلام أو إنستاباي/فودافون كاش.`,
+            productsCatalog: [
+                {
+                    id: 'prod_1',
+                    name: `الإصدار الأكثر طلباً — ${name}`,
+                    price: '650 ج.م',
+                    unitPrice: 650,
+                    category: 'الأكثر مبيعاً',
+                    description: 'خامة وجودة أصلية 100% مع تغليف فاخر وشحن سريع لجميع المحافظات.',
+                    imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'
+                },
+                {
+                    id: 'prod_2',
+                    name: `باقة التوفير VIP من ${name}`,
+                    price: '1,400 ج.م',
+                    unitPrice: 1400,
+                    category: 'باقات VIP',
+                    description: 'مجموعة متكاملة بأفضل قيمة مقابل سعر مع ضمان استبدال مجاني خلال 14 يوماً.',
+                    imageUrl: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80'
+                },
+                {
+                    id: 'prod_3',
+                    name: `عرض نهاية الأسبوع الحصري`,
+                    price: '950 ج.م',
+                    unitPrice: 950,
+                    category: 'عروض حصرية',
+                    description: 'خصم مميز لفترة محدودة وتوصيل خلال 24-48 ساعة.',
+                    imageUrl: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=600&auto=format&fit=crop&q=80'
+                }
+            ],
+            marketAnalysis: {
+                competitorGaps: [
+                    'بطء الرد على استفسارات المنتجات والأسعار لدى المنافسين (نحن نرد في 3 ثوانٍ 24/7)',
+                    'عدم وضوح مصاريف الشحن وسياسة الاستبدال (نحن نوضح السعر والشحن بشفافية)',
+                    'تأخر الشحن وضعف التغليف (شحننا سريع خلال 24-48 ساعة بتغليف فاخر)'
+                ],
+                topObjections: [
+                    'هل المنتجات أصلية ومضمونة؟ -> نعم أصلية 100% مع ضمان استبدال واسترجاع واضح.',
+                    'ما هي طرق الدفع المتاحة؟ -> الدفع عند الاستلام، إنستاباي، فودافون كاش، وفيزا.',
+                    'متى يصل الطلب؟ -> خلال 24 إلى 48 ساعة للقاهرة والمحافظات مع متابعة مستمرة.'
+                ],
+                irresistibleHooks: [
+                    `عرض خاص من متجر ${name}: اطلب الآن واحصل على خصم 10% عند الطلب الإلكتروني!`,
+                    `اختيارك الأصلي في عالم ${industry} — أضف للسلة الآن واستلم في أسرع وقت!`
+                ]
+            },
+            weekContentPlan: []
+        };
+    }
     return {
         summary: `${name} هي العلامة الرائدة في مصر لتقديم خدمات ${industry} بأعلى مقاييس الجودة والسرعة والضمان المعتمد.`,
         knowledgeText: `مرحباً بك في ${name}.\nنحن متخصصون في ${industry}.\nمواعيد العمل: يومياً من 10 صباحاً حتى 10 مساءً.\nطرق الدفع: كاش، إنستاباي، فودافون كاش، وفيزا.\nالعربون لتأكيد الحجز: 25% مع خصم فوري 10% عند الحجز الإلكتروني.\nرقم التواصل والواتساب: ${phone}.`,
@@ -229,15 +290,17 @@ export async function cloneOrSynthesizeBrand(input: CloneBrandInput): Promise<Cl
 
     console.log(`🧠 [App Cloner] Synthesizing complete brand blueprint for: "${name}" (${industry})...`);
 
+    const isProductsBrand = isEcommerceProductDomain(industry, name, input.appTemplate);
     const prompt = `أنت خبير واستشاري بناء وكالات النمو الرقمي (Digital Business Growth Agency) في مصر.
 مهمتك: توليد حزمة بيزنس سيادية متكاملة لبراند عميل يحمل الاسم "${name}" في مجال "${industry}".
+نوع المنظومة: ${isProductsBrand ? 'متجر منتجات إلكتروني (شراء مباشر، إضافة للسلة، شحن وتوصيل، دفع عند الاستلام أو إلكتروني — ممنوع نهائياً ذكر حجز موعد أو عربون 25%)' : 'مركز خدمات وحجوزات (مواعيد، استشارات، حجز بعربون)'}.
 ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${crawledText}\n"""\nاستند عليه كأساس.` : `لا يوجد موقع مسحوب، قم بتوليد أفضل نموذج عمل مصري رائد في هذا المجال بأسعار السوق الواقعية بالجنيه المصري.`}
 
 المطلوب إخراج كائن JSON فقط باللغة العربية مطابق تماماً للهيكل التالي:
 {
   "summary": "نبذة تسويقية قوية عن البراند لزيادة الثقة",
-  "knowledgeText": "نص معرفي شامل ومفصل بجميع خدمات وسياسات الحجز والدفع والضمانات يستخدمه الأيجنت للرد على العملاء بدقة",
-  "systemPrompt": "تعليمات وتوجيهات وكيل الواتساب والسوشيال الذكي (System Prompt) بالعامية المصرية الراقية وسريعة الإقناع وحساب الخصم 10% عند دفع عربون 25% عبر إنستاباي أو فودافون كاش",
+  "knowledgeText": "${isProductsBrand ? 'نص معرفي شامل بالمنتجات وأسعارها وسياسات الشحن والتوصيل والاستبدال والدفع عند الاستلام أو إنستاباي/فودافون كاش' : 'نص معرفي شامل ومفصل بجميع خدمات وسياسات الحجز والدفع والضمانات يستخدمه الأيجنت للرد على العملاء بدقة'}",
+  "systemPrompt": "${isProductsBrand ? 'تعليمات وكيل المبيعات بالعامية المصرية الراقية لمساعدة العميل في اختيار المنتجات وتوضيح الشحن وإتمام الطلب أونلاين أو دفع عند الاستلام' : 'تعليمات وتوجيهات وكيل الواتساب والسوشيال الذكي بالعامية المصرية الراقية وسريعة الإقناع وحساب الخصم 10% عند دفع عربون 25% عبر إنستاباي أو فودافون كاش'}",
   "productsCatalog": [
     {
       "id": "service_1",
@@ -271,9 +334,9 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
     },
     {
       "day": "الخميس",
-      "contentType": "بوست عرض خاص وحجز فوري بنهاية الأسبوع",
+      "contentType": "${isProductsBrand ? 'بوست عرض خاص وطلب فوري بنهاية الأسبوع' : 'بوست عرض خاص وحجز فوري بنهاية الأسبوع'}",
       "hook": "عرض استثنائي ومحدود لعملاء الويك إند",
-      "caption": "احجز خدمتك الآن عبر واتساب بعربون 25% مع خصم فوري",
+      "caption": "${isProductsBrand ? 'اطلب منتجاتك الآن عبر المتجر أو واتساب مع توصيل سريع لجميع المحافظات' : 'احجز خدمتك الآن عبر واتساب بعربون 25% مع خصم فوري'}",
       "bestTime": "7:30 مساءً"
     }
   ]
@@ -282,7 +345,7 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
 
     let parsed: any = null;
     if (input.skipBlockingRemoteSync) {
-        parsed = generateSyntheticEgyptianBlueprint(name, industry, phone);
+        parsed = generateSyntheticEgyptianBlueprint(name, industry, phone, input.appTemplate);
     } else {
         try {
             const ai = getGeminiClient();
@@ -307,11 +370,13 @@ ${crawledText ? `المحتوى الذي تم سحبه من موقعه:\n"""\n${
             }
         } catch (aiErr: any) {
             console.warn(`[App Cloner] Gemini blueprint fallback activated (${aiErr?.message})`);
-            parsed = generateSyntheticEgyptianBlueprint(name, industry, phone);
+            parsed = generateSyntheticEgyptianBlueprint(name, industry, phone, input.appTemplate);
         }
     }
 
-    const appUrl = `https://${slug}.t2-client.vercel.app`;
+    const appUrl = isProductsBrand
+      ? `https://store.t2os.app/s/${encodeURIComponent(slug)}`
+      : `https://book.t2os.app/b/${encodeURIComponent(slug)}`;
     const flagshipTemplate = resolveFlagshipTemplate(`${industry} ${name}`);
 
     const clonedBrand: ClonedBrandOutput = {

@@ -11,6 +11,7 @@ interface VisitorIntelligenceOnboardingProps {
   isMasterAdmin?: boolean;
   initialBusinessName?: string;
   initialIndustry?: string;
+  initialPhone?: string;
   initialHasExistingBusiness?: boolean | null;
 }
 
@@ -20,14 +21,27 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
   isMasterAdmin = false,
   initialBusinessName = '',
   initialIndustry = '',
+  initialPhone = '',
   initialHasExistingBusiness = null
 }) => {
-  const [step, setStep] = useState<number>(() => (initialHasExistingBusiness === true ? 4 : initialHasExistingBusiness === false ? 2 : 1));
-  const [hasExistingBusiness, setHasExistingBusiness] = useState<boolean | null>(initialHasExistingBusiness);
+  const [step, setStep] = useState<number>(() => (
+    initialHasExistingBusiness === true || Boolean(initialBusinessName?.trim() && initialPhone?.trim())
+      ? 4
+      : initialHasExistingBusiness === false
+        ? 2
+        : 1
+  ));
+  const [hasExistingBusiness, setHasExistingBusiness] = useState<boolean | null>(() => (
+    initialHasExistingBusiness !== null
+      ? initialHasExistingBusiness
+      : (initialBusinessName?.trim() ? true : null)
+  ));
 
   // Form & AI Generation State
   const [industry, setIndustry] = useState(initialIndustry);
   const [brandName, setBrandName] = useState(initialBusinessName);
+  const [salesChannel, setSalesChannel] = useState('');
+  const [phone, setPhone] = useState(initialPhone);
 
   useEffect(() => {
     if (initialBusinessName && initialBusinessName.trim()) {
@@ -36,13 +50,21 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
     if (initialIndustry && initialIndustry.trim()) {
       setIndustry(initialIndustry.trim());
     }
+    if (initialPhone && initialPhone.trim()) {
+      setPhone(initialPhone.trim());
+      setPhoneError('');
+    }
     if (initialHasExistingBusiness === true) {
       setHasExistingBusiness(true);
-      setStep(4);
+      setStep(prev => (prev === 3 ? 3 : 4));
+    } else if (initialHasExistingBusiness === false) {
+      setHasExistingBusiness(false);
+      setStep(prev => (prev === 1 ? 2 : prev));
+    } else if (initialBusinessName?.trim() || initialPhone?.trim()) {
+      setHasExistingBusiness(prev => (prev === null ? true : prev));
+      setStep(prev => (prev === 1 ? 4 : prev));
     }
-  }, [initialBusinessName, initialIndustry, initialHasExistingBusiness]);
-  const [salesChannel, setSalesChannel] = useState('');
-  const [phone, setPhone] = useState('');
+  }, [initialBusinessName, initialIndustry, initialHasExistingBusiness, initialPhone]);
   const [phoneError, setPhoneError] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [suggestedNames, setSuggestedNames] = useState<string[]>([]);
@@ -375,7 +397,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
           pageId: d.pageId,
           connected: true
         });
-        playShadowVoice(`تم ربط صفحة فيسبوك وإنستجرام ${d.pageName} بمحركي تيتو ستوديو وتيتو أجنت بنجاح!`, 'male');
+        playShadowVoice(`تم ربط صفحة فيسبوك وإنستجرام ${d.pageName} باستوديو المحتوى ووكيل الواتساب الذكي بنجاح!`, 'male');
       }
     } catch {}
     setIsConnectingMeta(false);
@@ -418,28 +440,20 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
               + براند آخر
             </button>
           )}
-          {isMasterAdmin && onSwitchToAdmin && (
-            <button 
-              onClick={onSwitchToAdmin}
-              className="text-[10px] text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/30 transition"
-            >
-              👑 وضع الماستر تيتو
-            </button>
-          )}
         </div>
       </div>
 
       {/* 4-Stage Visual Journey Stepper */}
-      <div className="grid grid-cols-4 gap-1.5 text-[9px] font-bold">
+      <div className="grid grid-cols-4 gap-1 text-[8px] sm:text-[9px] font-bold">
         {[
-          { n: 1, label: '1. الوضع الحالي', active: step === 1, done: step > 1 },
-          { n: 2, label: '2. الهوية والكتالوج', active: step === 2 || step === 4, done: step === 3 },
-          { n: 3, label: '3. التطبيق والقنوات', active: step === 3, done: false },
-          { n: 4, label: '4. تفعيل 7 أيام', active: false, done: Boolean(generatedBrand) }
+          { n: 1, label: '1. البداية', active: step === 1, done: step > 1 },
+          { n: 2, label: '2. الهوية', active: step === 2 || step === 4, done: step === 3 },
+          { n: 3, label: '3. التطبيق', active: step === 3, done: false },
+          { n: 4, label: '4. التجربة', active: false, done: Boolean(generatedBrand) }
         ].map((st) => (
           <div
             key={st.n}
-            className={`px-2 py-1 rounded-lg text-center border transition ${
+            className={`px-1 sm:px-2 py-1 rounded-lg text-center border transition whitespace-nowrap truncate ${
               st.active
                 ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200'
                 : st.done
@@ -516,7 +530,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
               <RefreshCw className="w-5 h-5 mx-auto animate-spin" />
               <p>جاري بناء الهوية وبناء وتوليد التطبيق وتقويم المحتوى...</p>
             </div>
-          ) : suggestedNames.length > 0 && (
+          ) : (suggestedNames.length > 0 || Boolean(brandName.trim())) && (
             <div className="space-y-2.5 pt-1">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {suggestedNames.map(name => (
@@ -913,7 +927,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   className="px-2.5 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/45 text-emerald-200 border border-emerald-400/50 text-[10px] font-black transition shrink-0 flex items-center gap-1"
                 >
                   <ExternalLink className="w-3 h-3" />
-                  فتح تيتو أجنت
+                  فتح لوحة الواتساب
                 </a>
               </div>
             </div>
@@ -958,7 +972,7 @@ export const VisitorIntelligenceOnboarding: React.FC<VisitorIntelligenceOnboardi
                   }}
                   className="flex-1 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/45 text-blue-200 border border-blue-400/50 text-[10px] font-black transition"
                 >
-                  🔐 ربط رسمي (تيتو استوديو)
+                  🔐 ربط رسمي (استوديو المحتوى)
                 </button>
                 <button
                   onClick={handleConnectMetaLive}

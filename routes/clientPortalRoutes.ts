@@ -244,7 +244,13 @@ export function registerClientPortalRoutes(
           text: String(m?.text || m?.content || ""),
         }))
         .filter((m: any) => m.text);
-      const scopedPrompt = `[توجيه مدير الحساب المخصص للبراند "${brand.name}" (${brand.slug || brand.id}) فقط — ركز على هذا البراند بالكامل وممنوع ذكر أي براند آخر]:\nرسالة العميل: ${userMsg}`;
+      const planItems = Array.isArray(brand.weekContentPlan) ? brand.weekContentPlan : [];
+      const approvedCount = planItems.filter((p: any) => p?.clientApproval === "approved").length;
+      const revisionCount = planItems.filter((p: any) => p?.clientApproval === "revision_requested").length;
+      const quotaNow = getBrandMonthlyQuotaStatus(brand);
+      const maxRevPerPost = subWindow.subscriptionStatus === "trial" ? 1 : 2;
+      const liveAccountFacts = `[حقائق البراند الدقيقة الآن — التزم بها حرفياً ولا تذكر أي أرقام غيرها: المنشورات الجاهزة في صالة العرض (${planItems.length})، معتمد للنشر (${approvedCount})، مطلوب تعديل (${revisionCount})، الرصيد المتبقي (${quotaNow.designsRemaining} تصميم / ${quotaNow.videosRemaining} فيديو)، حد التعديل (${maxRevPerPost} لكل منشور)، حالة الواتساب (${brand.whatsappConnected ? "متصل" : "جاهز للربط بالكود"})، حالة فيسبوك (${brand.metaConnected || brand.metaPageId ? "مربوط" : "غير مربوط"})]. ممنوع ذكر أسماء داخلية مثل تيتو استوديو أو تيتو أجنت.`;
+      const scopedPrompt = `[توجيه مدير الحساب المخصص للبراند "${brand.name}" (${brand.slug || brand.id}) فقط — ركز على هذا البراند بالكامل وممنوع ذكر أي براند آخر]:\n${liveAccountFacts}\nرسالة العميل: ${userMsg}`;
       const result = await runJarvisBrainConversation({
         message: scopedPrompt,
         history: normalizedHistory,

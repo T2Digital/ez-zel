@@ -878,11 +878,12 @@ function buildPersonaSystemPrompt(
     .map((p) => {
       const designsLabel = p.monthlyDesignsQuota < 0 ? "غير محدود" : `${p.monthlyDesignsQuota} تصميم`;
       const videosLabel = p.monthlyVideosQuota < 0 ? "غير محدود" : `${p.monthlyVideosQuota} فيديو`;
-      const modeLabel = p.appAccessMode === "landing_page" ? "لاندنج بيدج من تيتو ستوديو" : "تطبيق ويب متكامل (PWA + ERP)";
+      const studioName = persona === "tito" ? "تيتو ستوديو" : "استوديو المحتوى";
+      const modeLabel = p.appAccessMode === "landing_page" ? `لاندنج بيدج من ${studioName}` : "تطبيق ويب متكامل (PWA + ERP)";
       if (p.priceEgp === 0) {
-        return `• ${p.nameAr}: ${modeLabel} + ${designsLabel} + ${videosLabel}`;
+        return `• ${p.nameAr}: مجاناً بالكامل ← ${modeLabel} + ${designsLabel} + ${videosLabel}`;
       }
-      return `• ${p.nameAr}: (${p.adsBudgetEgp} ج.م إعلانات + ${p.systemFeeEgp} ج.م سيستم) ← ${designsLabel} + ${videosLabel} + ${modeLabel}`;
+      return `• ${p.nameAr}: الإجمالي ${p.priceEgp.toLocaleString("en-US")} ج.م/شهر (${p.adsBudgetEgp.toLocaleString("en-US")} ج.م إعلانات + ${p.systemFeeEgp.toLocaleString("en-US")} ج.م سيستم) ← ${designsLabel} + ${videosLabel} + ${modeLabel}`;
     })
     .join("\n");
 
@@ -891,17 +892,17 @@ function buildPersonaSystemPrompt(
 
   if (persona === "visitor") {
     personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط تجاري" يستكشف منظومة T2OS.
-دورك معه: أنت "جارفيس"، مستشار الأعمال والنمو الرقمي بالمنظومة. تتحدث بالعامية المصرية الطبيعية الودودة.
+دورك معه: أنت "جارفيس"، مستشار الأعمال والنمو الرقمي بالمنظومة. تتحدث بالعامية المصرية الطبيعية الودودة والمهذبة (بدون كلمات عامية مبتذلة مثل "حبايبي" أو مبالغة).
 
-[الباقات والخطط الحية الآن من قاعدة النظام]:
+[الباقات والخطط الحية الآن من قاعدة النظام — التزم بنفس الأرقام بالضبط]:
 ${dynamicPlansBlock}
 
 قواعد صارمة:
 1. ممنوع استخدام كلمة "استنساخ" أو "مستنسخ"، واستبدلها بـ "تأسيس، إطلاق، بناء، تجهيز، تخصيص، تفعيل".
 2. ممنوع ذكر أي بيانات أو أرقام تخص براندات أخرى.
-3. ممنوع ذكر أسماء الدوال البرمجية أو أسماء القوالب الداخلية.
+3. ممنوع ذكر أسماء القوالب أو المنصات الداخلية (مثل بطاح، كلين ماستر، تيتو استوديو، تيتو أجنت، ماستر تيتو) — استخدم دائماً الأسماء الاحترافية: "منصة المتاجر والمخازن"، "منصة الخدمات والحجوزات"، "استوديو المحتوى"، و"وكيل الواتساب الذكي".
 4. إذا كان للزائر براند قائم، اعتمد اسمه فوراً ولا تقترح أسماء جديدة؛ وإذا كان يبدأ من الصفر اقترح 3 أسماء وسلوجانات.
-5. استدعِ الأدوات بصمت عند طلب التأسيس الفعلي.`;
+5. بمجرد ما يذكر الزائر اسم براند أو مجال أو رقم واتساب: استدعِ أداة record_visitor_diagnostic فوراً لتعبئة بياناته في معالج التأسيس أسفل الشاشة. وممنوع منعاً باتاً تقول "بدأت تجهيز متجرك" أو "هبعت لك تفاصيل الدخول حالاً" بدون تأسيس فعلي؛ بل وجهه مباشرة للضغط على زر التفعيل في المعالج أسفل الشاشة بعد تعبئة بياناته.`;
   } else if (persona === "trial" || persona === "client") {
     const clientSub = (ezzelClients || []).find((c: any) => c.linkedBrandId === activeBrand?.id);
     const subStatusNote = clientSub
@@ -2930,9 +2931,13 @@ ${conversationMemoryDirective}`;
 
   if (persona !== "tito") {
     replyText = replyText
-      .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر/gi, detectedVisitorName ? `يا ${detectedVisitorName}` : "يا فندم")
+      .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر|الماستر\s*تيتو/gi, detectedVisitorName ? `يا ${detectedVisitorName}` : "يا فندم")
+      .replace(/تيتو\s*(?:ا|إ)?ستوديو/gi, "استوديو المحتوى")
+      .replace(/تيتو\s*(?:أ|ا|إ)?جنت/gi, "وكيل الواتساب الذكي")
       .replace(/\bBattah\b|بطاح/gi, "منصة المتاجر والمخازن المتكاملة")
-      .replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, "منصة الخدمات والحجوزات الذكية");
+      .replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, "منصة الخدمات والحجوزات الذكية")
+      .replace(/أنا\s*تاليت/gi, "أنا")
+      .replace(/\bحبايبي\b|يا\s*حبايبي|حبيبي/gi, "يا فندم");
 
     if (hasPriorTurns) {
       replyText = replyText
