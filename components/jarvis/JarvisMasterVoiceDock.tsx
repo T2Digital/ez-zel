@@ -39,12 +39,12 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
   handleToggleListening,
 }) => {
   return (
-    <div className="w-full max-w-xl flex flex-col items-center gap-2 font-['Cairo'] select-none">
+    <div className="w-full max-w-xl shrink-0 relative z-20 flex flex-col items-center gap-2 font-['Cairo'] select-none">
       {pendingGreetingPlay && onPlayPendingGreeting && (
         <button
           type="button"
           onClick={onPlayPendingGreeting}
-          className="px-4 py-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 hover:brightness-110 text-slate-950 text-xs font-black shadow-[0_0_24px_rgba(34,211,238,0.45)] flex items-center gap-1.5 cursor-pointer transition-all"
+          className="shrink-0 px-4 py-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 hover:brightness-110 text-slate-950 text-xs font-black shadow-[0_0_24px_rgba(34,211,238,0.45)] flex items-center gap-1.5 cursor-pointer transition-all"
         >
           <Volume2 className="w-3.5 h-3.5" />
           <span>اضغط لسماع ترحيب جارفيس الصوتي</span>
@@ -58,7 +58,7 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ type: "spring", damping: 22, stiffness: 300 }}
-            className="w-full rounded-2xl bg-[#040c22]/95 border border-cyan-400/45 shadow-[0_0_30px_rgba(0,240,255,0.2)] backdrop-blur-2xl overflow-hidden text-right"
+            className="w-full shrink-0 rounded-2xl bg-[#040c22]/98 border border-cyan-400/45 shadow-[0_0_30px_rgba(0,240,255,0.2)] backdrop-blur-2xl overflow-hidden text-right"
             dir="rtl"
           >
             <div className="px-3.5 py-1.5 bg-cyan-500/10 border-b border-cyan-500/20 flex items-center justify-between gap-2 text-[10.5px]">
@@ -89,7 +89,7 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
                 )}
               </div>
             </div>
-            <div className="max-h-40 overflow-y-auto px-4 py-2.5 text-xs text-white/95 leading-relaxed whitespace-pre-line select-text">
+            <div className="max-h-36 overflow-y-auto px-4 py-2 text-xs text-white/95 leading-relaxed whitespace-pre-line select-text">
               {lastReplyText.replace(/\*\*/g, '')}
             </div>
           </motion.div>
@@ -97,7 +97,7 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
       </AnimatePresence>
 
       {/* Compact Live Mic / Transcript Strip + Always-Reachable Glowing Orb Button */}
-      <div className="w-full flex items-center justify-center gap-2 px-2">
+      <div className="w-full shrink-0 flex items-center justify-center gap-2 px-1">
         <button
           type="button"
           onClick={handleToggleListening}
@@ -115,7 +115,7 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
           {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
         </button>
 
-        <div className="flex-1 min-w-0 px-3.5 py-2 rounded-2xl bg-[#030718]/90 border border-cyan-400/35 text-xs text-cyan-200 font-bold backdrop-blur-xl flex items-center justify-between gap-2">
+        <div className="flex-1 min-w-0 px-3.5 py-2 rounded-2xl bg-[#030718]/95 border border-cyan-400/35 text-xs text-cyan-200 font-bold backdrop-blur-xl flex items-center justify-between gap-2">
           <span className="truncate">
             {isThinking
               ? '🧠 جاري التحليل وتنفيذ الأمر...'
@@ -123,7 +123,7 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
               ? '🔊 جارفس يتحدث الآن...'
               : transcript
               ? `🗣️ "${transcript.replace(/\*\*/g, '')}"`
-              : 'اضغط دائرة المايك للتحدث مع جارفس'}
+              : 'اضغط دائرة المايك للتحدث مع جارفس مباشرة'}
           </span>
 
           {/* Compact 12-Bar Audio Spectrum Visualizer */}
@@ -152,26 +152,26 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
 
       {/* Wake-Word Guard Toggle + Active Standby Indicator */}
       {onToggleWakeWord && (
-        <div className="flex items-center justify-center gap-2 flex-wrap px-2">
+        <div className="shrink-0 flex items-center justify-center gap-2 flex-wrap px-2">
           <button
             type="button"
             onClick={onToggleWakeWord}
-            className={`px-3 py-1 rounded-full border text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-1 rounded-full border text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               wakeWordEnabled
                 ? wakeArmed
                   ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200 shadow-[0_0_16px_rgba(16,185,129,0.45)]'
                   : 'bg-cyan-500/15 hover:bg-cyan-500/25 border-cyan-400/40 text-cyan-200'
                 : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-400/40 text-amber-200'
             }`}
-            title="منع التداخل الصوتي: لا ينفذ المايك أي أمر إلا بعد قول كلمة جارفيس"
+            title="منع التداخل الصوتي: في الوضع التلقائي ابدأ كلامك بكلمة جارفيس، والضغط اليدوي على المايك يستمع لأمرك فوراً"
           >
             <span className={`w-2 h-2 rounded-full ${wakeWordEnabled ? (wakeArmed ? 'bg-emerald-400 animate-ping' : 'bg-cyan-400') : 'bg-amber-400'}`} />
             <span>
               {wakeWordEnabled
                 ? wakeArmed
                   ? '🟢 وضع النداء: سامعك الآن — قل طلبك'
-                  : '🎙️ النداء بكلمة «جارفيس»: مفعّل'
-                : '🎙️ استماع مباشر (بدون كلمة «جارفيس»)'}
+                  : '🎙️ النداء التلقائي بـ «جارفيس»: مفعّل (الضغط على المايك يستمع فوراً)'
+                : '🎙️ استماع مباشر مستمر (بدون كلمة «جارفيس»)'}
             </span>
           </button>
         </div>

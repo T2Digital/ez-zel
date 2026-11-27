@@ -13,7 +13,11 @@ const constellations = [
     { name: 'رجل الجبار (Rigel)', fact: 'عملاق أزرق هائل اللمعان، يرى بوضوح في فصل الشتاء.' }
 ];
 
-const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({ interactive = true, showEarth = true }) => {
+const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean; cleanAmbient?: boolean }> = ({
+    interactive = true,
+    showEarth = true,
+    cleanAmbient = false,
+}) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const issDataRef = useRef({ lat: 0, lon: 0, alt: 420, vel: 27500 });
 
@@ -85,34 +89,36 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
             });
         }
 
-        // Names of Allah (أسماء الله الحسنى)
-        namesOfAllah.forEach((name) => {
-            entities.push({
-                x: (Math.random() - 0.5) * width * 4,
-                y: (Math.random() - 0.5) * height * 4,
-                z: Math.random() * width,
-                o: 0.8,
-                size: 32,
-                color: '#2dd4bf',
-                text: name,
-                type: 'allah'
+        if (!cleanAmbient) {
+            // Names of Allah (أسماء الله الحسنى)
+            namesOfAllah.forEach((name) => {
+                entities.push({
+                    x: (Math.random() - 0.5) * width * 4,
+                    y: (Math.random() - 0.5) * height * 4,
+                    z: Math.random() * width,
+                    o: 0.8,
+                    size: 32,
+                    color: '#2dd4bf',
+                    text: name,
+                    type: 'allah'
+                });
             });
-        } );
 
-        // Constellations
-        constellations.forEach(c => {
-            entities.push({
-                x: (Math.random() - 0.5) * width * 4,
-                y: (Math.random() - 0.5) * height * 4,
-                z: Math.random() * (width / 2),
-                o: 1,
-                size: 3,
-                color: '#fbbf24',
-                text: c.name,
-                fact: c.fact,
-                type: 'constellation'
+            // Constellations
+            constellations.forEach(c => {
+                entities.push({
+                    x: (Math.random() - 0.5) * width * 4,
+                    y: (Math.random() - 0.5) * height * 4,
+                    z: Math.random() * (width / 2),
+                    o: 1,
+                    size: 3,
+                    color: '#fbbf24',
+                    text: c.name,
+                    fact: c.fact,
+                    type: 'constellation'
+                });
             });
-        });
+        }
 
         // Load Earth & Moon Images safely
         const earthImg = new Image();
@@ -377,7 +383,19 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
 
             ctx.globalAlpha = 1.0;
 
-            if (showEarth) {
+            if (!showEarth && cleanAmbient) {
+                const neb1 = ctx.createRadialGradient(width * 0.25, height * 0.3, 10, width * 0.25, height * 0.3, Math.max(width, height) * 0.45);
+                neb1.addColorStop(0, 'rgba(0, 240, 255, 0.06)');
+                neb1.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = neb1;
+                ctx.fillRect(0, 0, width, height);
+
+                const neb2 = ctx.createRadialGradient(width * 0.78, height * 0.72, 10, width * 0.78, height * 0.72, Math.max(width, height) * 0.42);
+                neb2.addColorStop(0, 'rgba(168, 85, 247, 0.06)');
+                neb2.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = neb2;
+                ctx.fillRect(0, 0, width, height);
+            } else if (showEarth) {
                 const earthSize = 220;
                 const earthX = cx - earthSize / 2;
                 const earthY = cy - earthSize / 2;
@@ -585,7 +603,7 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean }> = ({
             window.removeEventListener('wheel', handleWheel);
             cancelAnimationFrame(animationFrameId);
         };
-    }, [interactive, showEarth]);
+    }, [interactive, showEarth, cleanAmbient]);
 
     return (
         <canvas

@@ -56,10 +56,10 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     screenY: number;
   } | null>(null);
 
-  const [activeFilter, setActiveFilter] = useState<'all' | 'studio' | 'agent' | 'medical' | 'automotive' | 'services'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'studio' | 'agent' | 'factory' | 'medical' | 'automotive' | 'services'>('all');
   const [autoRotate, setAutoRotate] = useState(true);
   const [pulseMode, setPulseMode] = useState<'ALL' | 'TX' | 'RX' | 'SYNC'>('ALL');
-  const [liveTelemetrySummary, setLiveTelemetrySummary] = useState<string>('نبض الألياف الضوئية متصل 100% بين الكواكب الأربعة والبراندات النشطة');
+  const [liveTelemetrySummary, setLiveTelemetrySummary] = useState<string>('النبض الحي متصل بين النواة والركائز الثلاث (الاستوديو • الأجنت • المصنع) والبراندات النشطة');
   const burstMultiplierRef = useRef<number>(1);
   const realPulseMapRef = useRef<Record<string, { hasRx: boolean; hasSync: boolean; hasTx: boolean; lastEventAt: number }>>({});
 
@@ -141,8 +141,9 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   const filteredBrands = useMemo(() => {
     return brands.filter(b => {
       const bType = (b.businessType || '').toLowerCase();
-      if (activeFilter === 'studio') return String(b.sourceApp || '').includes('Tito Studio') || b.id.startsWith('clinic_') || b.id.startsWith('studio_');
-      if (activeFilter === 'agent') return !b.id.startsWith('clinic_') && !b.id.startsWith('studio_');
+      if (activeFilter === 'studio') return String(b.sourceApp || '').includes('Tito Studio') || b.id.startsWith('clinic_') || b.id.startsWith('studio_') || Boolean(b.hasMeta || (b.postsCount || 0) > 0);
+      if (activeFilter === 'agent') return Boolean(b.hasWhatsApp || (b.conversationsCount || 0) > 0 || (!b.id.startsWith('clinic_') && !b.id.startsWith('studio_')));
+      if (activeFilter === 'factory') return Boolean(b.slug || (!b.id.startsWith('clinic_') && !b.id.startsWith('studio_')));
       if (activeFilter === 'medical') return bType.includes('أسنان') || bType.includes('طب') || bType.includes('عياد');
       if (activeFilter === 'automotive') return bType.includes('سيار') || bType.includes('إيجار') || bType.includes('قطع');
       if (activeFilter === 'services') return bType.includes('نظاف') || bType.includes('شحن') || bType.includes('عقار');
@@ -348,22 +349,46 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     let animId: number;
     let t = 0;
 
-    // Core Ecosystem Planets in Inner Sovereign Ring
+    // Core Sovereign Architecture Pillars in Inner Ring around JARVIS CORE
     const coreSystemPlanets = [
-      { id: 'planet_studio', label: 'كوكب تيتو ستوديو', sub: 'Tito Studio AI', angleOffset: 0, r: 138, color: '#a855f7', glow: 'rgba(168,85,247,0.55)', signalType: 'SYNC' as const },
-      { id: 'planet_agent', label: 'كوكب تيتو أجنت', sub: 'WhatsApp & CRM', angleOffset: (Math.PI * 2) / 3, r: 138, color: '#10b981', glow: 'rgba(16,185,129,0.55)', signalType: 'RX' as const },
-      { id: 'planet_factory', label: 'كوكب مصنع التطبيقات', sub: 'Web Apps & ERP', angleOffset: (Math.PI * 4) / 3, r: 138, color: '#00f0ff', glow: 'rgba(0,240,255,0.55)', signalType: 'TX' as const },
+      { id: 'pillar_studio', label: 'الاستوديو', sub: 'المحتوى والإعلانات', angleOffset: 0, r: 146, color: '#a855f7', glow: 'rgba(168,85,247,0.6)', signalType: 'SYNC' as const },
+      { id: 'pillar_agent', label: 'الأجنت', sub: 'الواتساب والمبيعات', angleOffset: (Math.PI * 2) / 3, r: 146, color: '#10b981', glow: 'rgba(16,185,129,0.6)', signalType: 'RX' as const },
+      { id: 'pillar_factory', label: 'المصنع', sub: 'المتاجر والـ ERP', angleOffset: (Math.PI * 4) / 3, r: 146, color: '#00f0ff', glow: 'rgba(0,240,255,0.6)', signalType: 'TX' as const },
     ];
 
-    // Energy packet photons traveling along optical fiber filaments (TX, RX, SYNC)
+    const getBrandPillarIndices = (
+      brand: ConstellationBrandNode,
+      livePulse?: { hasRx?: boolean; hasSync?: boolean; hasTx?: boolean }
+    ): number[] => {
+      const indices: number[] = [];
+      if (
+        (brand.postsCount || 0) > 0 ||
+        brand.hasMeta ||
+        String(brand.sourceApp || '').includes('Studio') ||
+        brand.id.startsWith('clinic_') ||
+        brand.id.startsWith('studio_') ||
+        livePulse?.hasSync
+      ) {
+        indices.push(0); // الاستوديو
+      }
+      if (brand.hasWhatsApp || (brand.conversationsCount || 0) > 0 || livePulse?.hasRx) {
+        indices.push(1); // الأجنت
+      }
+      if (brand.slug || (!brand.id.startsWith('clinic_') && !brand.id.startsWith('studio_')) || livePulse?.hasTx) {
+        indices.push(2); // المصنع
+      }
+      return indices.length > 0 ? indices : [2];
+    };
+
+    // Energy packet photons traveling along optical fiber conduits (TX -> المصنع, RX -> الأجنت, SYNC -> الاستوديو)
     const photons = Array.from({ length: 66 }, (_, i) => {
       const kind: 'TX' | 'RX' | 'SYNC' = i % 3 === 0 ? 'TX' : i % 3 === 1 ? 'RX' : 'SYNC';
       const color = kind === 'TX' ? '#00f0ff' : kind === 'RX' ? '#10b981' : '#a855f7';
       return {
         nodeIdx: i % Math.max(node3DPositions.length, 1),
-        planetIdx: i % 3,
+        planetIdx: kind === 'SYNC' ? 0 : kind === 'RX' ? 1 : 2,
         kind,
-        direction: kind === 'RX' ? -1 : 1, // RX travels from brand/planet INTO central core; TX travels OUTWARD
+        direction: kind === 'RX' ? -1 : 1, // RX travels from brand/agent INTO core; TX & SYNC propagate outward
         progress: Math.random(),
         speed: 0.007 + Math.random() * 0.012,
         size: 2.1 + Math.random() * 1.6,
@@ -432,16 +457,17 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         return { px, py, scale, z: z2 };
       };
 
-      // 1. Draw Central Sovereign Core Rings (The Stark Second Brain Reactor)
+      // 1. Draw Central Sovereign Core Rings + Inner Architecture Orbit Ring (r = 146)
       ctx.save();
       const coreRings = [
-        { r: 42, color: 'rgba(0, 240, 255, 0.45)', dash: [6, 8], speed: 1.2 },
-        { r: 75, color: 'rgba(168, 85, 247, 0.35)', dash: [12, 10], speed: -0.8 },
-        { r: 110, color: 'rgba(56, 189, 248, 0.25)', dash: [4, 6], speed: 0.5 }
+        { r: 44, color: 'rgba(0, 240, 255, 0.45)', dash: [6, 8], speed: 1.2 },
+        { r: 78, color: 'rgba(168, 85, 247, 0.35)', dash: [12, 10], speed: -0.8 },
+        { r: 112, color: 'rgba(56, 189, 248, 0.25)', dash: [4, 6], speed: 0.5 },
+        { r: 146, color: 'rgba(34, 211, 238, 0.26)', dash: [], speed: 0.2 }
       ];
 
       coreRings.forEach(ring => {
-        const ringStep = 32;
+        const ringStep = 40;
         ctx.beginPath();
         for (let i = 0; i <= ringStep; i++) {
           const angle = (i / ringStep) * Math.PI * 2 + t * ring.speed * 0.2;
@@ -452,7 +478,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           else ctx.lineTo(p.px, p.py);
         }
         ctx.strokeStyle = ring.color;
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = ring.dash.length === 0 ? 1.5 : 1.2;
         ctx.setLineDash(ring.dash);
         ctx.stroke();
       });
@@ -473,58 +499,94 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         ctx.font = 'bold 9px monospace';
         ctx.fillStyle = '#00f0ff';
         ctx.textAlign = 'center';
-        ctx.fillText('SOVEREIGN SECOND BRAIN', centerProj.px, centerProj.py + 4);
+        ctx.fillText('JARVIS CORE', centerProj.px, centerProj.py + 4);
       }
       ctx.restore();
 
-      // 1B. Project & Draw Inner Sovereign Ecosystem Planets (Studio, Agent, App Factory)
+      // 1B. Project & Draw Inner Sovereign Ecosystem Pillars (الاستوديو • الأجنت • المصنع)
       const projectedCorePlanets = coreSystemPlanets.map((pl) => {
-        const angle = pl.angleOffset + t * 0.18;
+        const angle = pl.angleOffset + t * 0.16;
         const px3d = Math.cos(angle) * pl.r;
         const pz3d = Math.sin(angle) * pl.r;
-        const py3d = Math.sin(angle * 2) * 18;
+        const py3d = Math.sin(angle * 2) * 16;
         const p = project3D(px3d, py3d, pz3d);
         return { ...pl, px: p.px, py: p.py, scale: p.scale, z: p.z, x3d: px3d, y3d: py3d, z3d: pz3d };
       });
 
       const centerOrigin = project3D(0, 0, 0);
-      projectedCorePlanets.forEach((pl) => {
+      projectedCorePlanets.forEach((pl, pIdx) => {
         ctx.save();
-        // Fiber bridge from Central Core (Ez-Zel/Jarvis) to Ecosystem Planet
+        // Dual-layer glowing energy conduit from JARVIS CORE to each sovereign pillar
+        const conduitMidX = (centerOrigin.px + pl.px) / 2;
+        const conduitMidY = (centerOrigin.py + pl.py) / 2 - 14 * pl.scale;
+        ctx.setLineDash([]);
+
+        // Soft outer energy sheath
         ctx.beginPath();
         ctx.moveTo(centerOrigin.px, centerOrigin.py);
-        ctx.lineTo(pl.px, pl.py);
+        ctx.quadraticCurveTo(conduitMidX, conduitMidY, pl.px, pl.py);
         ctx.strokeStyle = pl.color;
-        ctx.lineWidth = 2.0 * pl.scale;
-        ctx.setLineDash([5, 4]);
+        ctx.globalAlpha = 0.22;
+        ctx.lineWidth = Math.max(4, 6.5 * pl.scale);
         ctx.stroke();
 
-        // Planet Sphere
-        const pr = 14 * pl.scale;
-        const pGrad = ctx.createRadialGradient(pl.px - pr * 0.3, pl.py - pr * 0.3, pr * 0.1, pl.px, pl.py, pr * 1.8);
+        // Sharp inner core beam
+        ctx.beginPath();
+        ctx.moveTo(centerOrigin.px, centerOrigin.py);
+        ctx.quadraticCurveTo(conduitMidX, conduitMidY, pl.px, pl.py);
+        ctx.strokeStyle = pl.color;
+        ctx.globalAlpha = 0.85;
+        ctx.lineWidth = Math.max(1.4, 2.2 * pl.scale);
+        ctx.stroke();
+
+        // Two bidirectional energy pulses flowing between Core & Pillar
+        [0, 1].forEach((dirIdx) => {
+          const rawProg = (t * (0.42 + dirIdx * 0.12) + pIdx * 0.33 + dirIdx * 0.5) % 1;
+          const pt = dirIdx === 0 ? rawProg : 1 - rawProg;
+          const inv = 1 - pt;
+          const bx = inv * inv * centerOrigin.px + 2 * inv * pt * conduitMidX + pt * pt * pl.px;
+          const by = inv * inv * centerOrigin.py + 2 * inv * pt * conduitMidY + pt * pt * pl.py;
+          ctx.beginPath();
+          ctx.arc(bx, by, 2.8 * pl.scale, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = 0.95;
+          ctx.shadowColor = pl.color;
+          ctx.shadowBlur = 10;
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+
+        // Pillar Sphere
+        const pr = 14.5 * pl.scale;
+        const pGrad = ctx.createRadialGradient(pl.px - pr * 0.3, pl.py - pr * 0.3, pr * 0.1, pl.px, pl.py, pr * 1.9);
         pGrad.addColorStop(0, '#ffffff');
         pGrad.addColorStop(0.35, pl.color);
-        pGrad.addColorStop(1, 'rgba(2,6,23,0.15)');
+        pGrad.addColorStop(1, 'rgba(2,6,23,0.12)');
         ctx.fillStyle = pGrad;
         ctx.beginPath();
         ctx.arc(pl.px, pl.py, pr, 0, Math.PI * 2);
         ctx.fill();
 
-        // Orbital ring around planet
+        // Orbital ring around pillar
         ctx.beginPath();
         ctx.ellipse(pl.px, pl.py, pr * 1.65, pr * 0.65, 0.35, 0, Math.PI * 2);
         ctx.strokeStyle = pl.color;
-        ctx.lineWidth = 1.1;
-        ctx.setLineDash([]);
+        ctx.lineWidth = 1.25;
         ctx.stroke();
 
-        // Planet Label
-        ctx.font = 'bold 10px Cairo, sans-serif';
+        // Clean Pillar Label + Role Subtitle
+        ctx.font = 'bold 11px Cairo, sans-serif';
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.shadowColor = '#000000';
         ctx.shadowBlur = 6;
-        ctx.fillText(pl.label, pl.px, pl.py - pr - 6);
+        ctx.fillText(pl.label, pl.px, pl.py - pr - 7);
+        if (pl.scale > 0.45) {
+          ctx.font = 'bold 8.5px Cairo, sans-serif';
+          ctx.fillStyle = pl.color;
+          ctx.fillText(pl.sub, pl.px, pl.py + pr + 12);
+        }
         ctx.restore();
       });
 
@@ -546,38 +608,56 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       // Sort back-to-front for proper depth occlusion
       projectedNodes.sort((a, b) => b.z - a.z);
 
-      // 3. Draw Curved Fiber-Optic Energy Filaments from Core & Ecosystem Planets to Brand Planets
+      // 3. Draw Realistic Architectural Curved Energy Conduits (Pillar ⇄ Brand Active Channels + Direct Core Beam for Selected Brand)
       ctx.save();
-      projectedNodes.forEach((node, nIdx) => {
-        const center = project3D(0, 0, 0);
-        const hubPlanet = projectedCorePlanets[nIdx % projectedCorePlanets.length] || center;
-        const midX = (hubPlanet.px + node.px) / 2;
-        const midY = (hubPlanet.py + node.py) / 2 - 22 * node.scale;
+      projectedNodes.forEach((node) => {
+        const livePulse = realPulseMapRef.current[node.brand.id] || realPulseMapRef.current[node.brand.slug || ''];
+        const activePillarIndices = getBrandPillarIndices(node.brand, livePulse);
+        const drawTargetIndices = node.isSelected ? activePillarIndices : activePillarIndices.slice(0, 2);
+        const depthAlpha = Math.max(0.12, Math.min(0.42, (node.scale - 0.35) * 0.55));
 
-        ctx.beginPath();
-        ctx.moveTo(hubPlanet.px, hubPlanet.py);
-        ctx.quadraticCurveTo(midX, midY, node.px, node.py);
-
-        const filamentGrad = ctx.createLinearGradient(hubPlanet.px, hubPlanet.py, node.px, node.py);
         if (node.isSelected) {
-          filamentGrad.addColorStop(0, 'rgba(0, 240, 255, 0.95)');
-          filamentGrad.addColorStop(0.5, '#10b981');
-          filamentGrad.addColorStop(1, '#00f0ff');
+          // Direct Luminous Executive Command Beam from JARVIS CORE straight to selected brand
+          const coreMidX = (centerOrigin.px + node.px) / 2;
+          const coreMidY = (centerOrigin.py + node.py) / 2 - 28 * node.scale;
+          ctx.beginPath();
+          ctx.moveTo(centerOrigin.px, centerOrigin.py);
+          ctx.quadraticCurveTo(coreMidX, coreMidY, node.px, node.py);
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.9)';
           ctx.lineWidth = 2.6;
+          ctx.globalAlpha = 0.92;
+          ctx.shadowColor = '#00f0ff';
+          ctx.shadowBlur = 12;
           ctx.setLineDash([]);
-        } else {
-          filamentGrad.addColorStop(0, 'rgba(0, 240, 255, 0.28)');
-          filamentGrad.addColorStop(0.5, 'rgba(16, 185, 129, 0.25)');
-          filamentGrad.addColorStop(1, 'rgba(168, 85, 247, 0.35)');
-          ctx.lineWidth = Math.max(0.8, 1.35 * node.scale);
-          ctx.setLineDash([4, 6]);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
         }
-        ctx.strokeStyle = filamentGrad;
-        ctx.stroke();
+
+        drawTargetIndices.forEach((pillarIdx, arcOffset) => {
+          const hubPlanet = projectedCorePlanets[pillarIdx] || centerOrigin;
+          const curveLift = (22 + arcOffset * 10) * node.scale;
+          const midX = (hubPlanet.px + node.px) / 2;
+          const midY = (hubPlanet.py + node.py) / 2 - curveLift;
+
+          ctx.beginPath();
+          ctx.moveTo(hubPlanet.px, hubPlanet.py);
+          ctx.quadraticCurveTo(midX, midY, node.px, node.py);
+
+          const hubColor: string = typeof (hubPlanet as any).color === 'string' ? (hubPlanet as any).color : '#00f0ff';
+          const filamentGrad = ctx.createLinearGradient(hubPlanet.px, hubPlanet.py, node.px, node.py);
+          filamentGrad.addColorStop(0, hubColor);
+          filamentGrad.addColorStop(1, node.isSelected ? '#ffffff' : node.color);
+
+          ctx.strokeStyle = filamentGrad;
+          ctx.setLineDash([]);
+          ctx.globalAlpha = node.isSelected ? 0.85 : depthAlpha;
+          ctx.lineWidth = node.isSelected ? 2.1 : Math.max(0.75, 1.25 * node.scale);
+          ctx.stroke();
+        });
       });
       ctx.restore();
 
-      // 4. Draw Color-Coded Optical Fiber Photons ONLY for brands with REAL live connections/telemetry (plus diagnostic burst)
+      // 4. Draw Color-Coded Optical Fiber Photons ONLY along active brand channels (SYNC->الاستوديو, RX->الأجنت, TX->المصنع)
       ctx.save();
       photons.forEach(pt => {
         if (pulseMode !== 'ALL' && pt.kind !== pulseMode) return;
@@ -595,7 +675,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
 
         pt.progress = (pt.progress + pt.speed * burstMultiplierRef.current) % 1;
 
-        const hubPlanet = projectedCorePlanets[pt.nodeIdx % projectedCorePlanets.length] || project3D(0, 0, 0);
+        const hubPlanet = projectedCorePlanets[pt.planetIdx] || centerOrigin;
         const effectiveT = pt.direction === -1 ? 1 - pt.progress : pt.progress;
         const midX = (hubPlanet.px + target.px) / 2;
         const midY = (hubPlanet.py + target.py) / 2 - 22 * target.scale;
@@ -729,8 +809,8 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       ref={containerRef}
       className={`${
         isFullscreen
-          ? 'fixed inset-0 z-[140] w-screen h-[100dvh] rounded-none border-0 bg-[#010410]/45 backdrop-blur-[2px]'
-          : `relative w-full h-full ${compact ? 'min-h-0' : 'min-h-[380px] sm:min-h-[460px]'} rounded-3xl bg-[#01030d]/15 backdrop-blur-[1.5px] border border-cyan-500/20`
+          ? 'fixed inset-0 z-[140] w-screen h-[100dvh] rounded-none border-0 bg-[#020614]/96 backdrop-blur-md'
+          : `relative w-full h-full ${compact ? 'min-h-0' : 'min-h-[380px] sm:min-h-[460px]'} rounded-3xl bg-[#020614]/88 backdrop-blur-md border border-cyan-500/25`
       } overflow-hidden shadow-[0_0_60px_rgba(0,240,255,0.08)] flex flex-col ${className}`}
     >
       {/* Futuristic Spatial Corner Reticles */}
@@ -740,7 +820,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       <span className="pointer-events-none absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-cyan-400/50 rounded-br-lg z-10" />
 
       {/* Top Filter and Controls Bar */}
-      <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-cyan-500/15 bg-black/20 backdrop-blur-md">
+      <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-cyan-500/15 bg-black/25 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
           <span className="text-xs font-black text-cyan-300 flex items-center gap-1 font-['Cairo']">
@@ -764,13 +844,19 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
             onClick={() => setActiveFilter('studio')}
             className={`px-2 py-0.5 rounded-lg transition ${activeFilter === 'studio' ? 'bg-fuchsia-500 text-white font-black' : 'text-white/60 hover:text-white'}`}
           >
-            تيتو ستوديو
+            الاستوديو
           </button>
           <button
             onClick={() => setActiveFilter('agent')}
             className={`px-2 py-0.5 rounded-lg transition ${activeFilter === 'agent' ? 'bg-emerald-500 text-black font-black' : 'text-white/60 hover:text-white'}`}
           >
-            تيتو أجنت
+            الأجنت
+          </button>
+          <button
+            onClick={() => setActiveFilter('factory')}
+            className={`px-2 py-0.5 rounded-lg transition ${activeFilter === 'factory' ? 'bg-cyan-400 text-black font-black' : 'text-white/60 hover:text-white'}`}
+          >
+            المصنع
           </button>
           <button
             onClick={() => setActiveFilter('medical')}

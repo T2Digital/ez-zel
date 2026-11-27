@@ -1495,7 +1495,14 @@ test("43) 360° Fullscreen Obsidian, touch rotation, SpaceCanvas backdrop, wake-
   assert.ok(modalSrc.includes("extractWakeWordCommand") && modalSrc.includes("wakeWordEnabled"), "JarvisBattleStationModal must support wake-word gating");
   assert.ok(modalSrc.includes("t2_jarvis_ui_state_v1") && modalSrc.includes("t2JarvisGuard"), "JarvisBattleStationModal must persist PWA UI state and guard back-button navigation");
   assert.ok(modalSrc.includes("trimmedCmd.length <= 28"), "Bare publish shortcut must not intercept creative topic post requests");
-  assert.ok(modalSrc.includes("bg-[#01030b]/42"), "JarvisBattleStationModal must let SpaceCanvas cosmic stars/planets shine through");
+  assert.ok(
+    modalSrc.includes("cleanAmbient={true}") && modalSrc.includes("bg-[#020614]/95") && modalSrc.includes("manualDirectListenRef"),
+    "JarvisBattleStationModal must render opaque cleanAmbient SpaceCanvas backdrop and separate manual mic tap from wake-word standby"
+  );
+  assert.ok(
+    obsidianSrc.includes("الاستوديو") && obsidianSrc.includes("الأجنت") && obsidianSrc.includes("المصنع") && !obsidianSrc.includes("كوكب تيتو"),
+    "ObsidianHolographicConstellation must use clean 3 sovereign pillars (الاستوديو, الأجنت, المصنع) without كوكب تيتو"
+  );
 
   const postCardSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisContentPostCard.tsx"), "utf8");
   assert.ok(postCardSrc.includes("activePost?.brandName || currentSelectedBrand?.name") && postCardSrc.includes("إغلاق بطاقة المنشور"), "JarvisContentPostCard must bind to post brandName and include close button");
