@@ -1409,7 +1409,30 @@ ${conversationMemoryDirective}`;
             console.warn("[Jarvis Brain -> Tito Studio content.generate_design] warning:", studioDesignWarning);
           }
 
-          // 2. Mirror into local T2OS brand state for unified dashboard sync (without overwriting Studio design with raw brand logo)
+          // Guaranteed tailored Arabic copywriter fallback (if Studio AI failed or echoed generic raw topic)
+          if (!customCaption || customCaption === dynamicTopic || customCaption.length < 35) {
+            try {
+              const generated = await withModelTimeout(
+                ai.models.generateContent({
+                  model: modelCascade[0] || "gemini-2.5-flash",
+                  contents: `اكتب JSON فقط (بدون Markdown) لمنشور سوشيال احترافي باللهجة المصرية لبراند "${targetBrand.name}" (${targetBrand.businessType || "حلول رقمية وتسويق"}) عن الموضوع التالي: "${dynamicTopic}" (الطلب الأصلي: "${message}").
+المفاتيح المطلوبة: {"hook": "عنوان جذاب قصير من 5-8 كلمات", "caption": "نص منشور تسويقي مقنع من 2-3 سطور بدون أي ذكر لـ 25% عربون، مع دعوة للتواصل على ${targetBrand.phone || "01013372674"}"}.`,
+                  config: { responseMimeType: "application/json" },
+                }),
+                8000
+              );
+              if (generated?.text) {
+                const parsed = JSON.parse(String(generated.text).replace(/```json|```/gi, "").trim());
+                if (parsed?.hook) customHook = String(parsed.hook).trim();
+                if (parsed?.caption) customCaption = String(parsed.caption).trim();
+              }
+            } catch {
+              customHook = `${targetBrand.name} — ${dynamicTopic}`.slice(0, 72);
+              customCaption = `${dynamicTopic}\n\nمع ${targetBrand.name} ومنظومة T2OS من تيتو ديجيتال: تشغيل متكامل بالذكاء الاصطناعي لمتجرك، محتواك، ومبيعاتك على واتساب 24/7.\n💬 تواصل معنا الآن: ${targetBrand.phone || "01013372674"}`;
+            }
+          }
+
+          // 2. Mirror into local T2OS brand state for unified dashboard sync (with explicit brandName + visualUrl)
           backendExecutionResult = await executeRealJarvisEcosystemAction({
             actionType: "CREATE_CUSTOM_STUDIO_POST",
             brandId,
@@ -1423,29 +1446,40 @@ ${conversationMemoryDirective}`;
           });
           backendExecutionResult = {
             ...backendExecutionResult,
+            brandId: targetBrand.id,
+            brandName: targetBrand.name,
             studioClinicId,
             studioSavedId,
             visualUrl: publicMediaUrl,
             studioDesignWarning,
+            post: {
+              ...(backendExecutionResult?.post || {}),
+              brandId: targetBrand.id,
+              brandName: targetBrand.name,
+              brandPhone: targetBrand.phone || "01013372674",
+              hook: customHook,
+              caption: customCaption,
+              visualUrl: publicMediaUrl || backendExecutionResult?.post?.visualUrl || undefined,
+            },
           };
 
           // 3. If immediate social publish was requested, dispatch via Tito Studio's multi-platform publisher
           let studioDispatchRes: any = null;
           if (publishNow) {
             if (targetPlatforms.length === 0) {
-              // Poka-Yoke Guard: Never dispatch to unlinked channels; route to Showroom + Settings cleanly
+              // Poka-Yoke Guard: Never dispatch to unlinked channels; show preview card clearly in Jarvis
               backendExecutionResult = {
                 ...backendExecutionResult,
                 pokaYokeBlocked: true,
                 studioClinicId,
-                message: `تم تصميم المنشور في تيتو ستوديو وحفظه في صالة العرض لبراند (${targetBrand?.name || studioClinicId})، ولكن لا توجد صفحات سوشيال مربوطة بعد. اربط صفحة فيسبوك/إنستجرام من الإعدادات ثم اعتمد النشر بضغطة واحدة.`,
+                message: `تم تجهيز التصميم والنص لبراند (${targetBrand?.name || studioClinicId}) وعرضه أمامك للمراجعة، ولكن لا توجد صفحات فيسبوك/إنستجرام مربوطة لهذا البراند بعد — اربط الصفحة من الإعدادات ثم اضغط انشره الآن.`,
               };
             } else if (!publicMediaUrl) {
               backendExecutionResult = {
                 ...backendExecutionResult,
                 pokaYokeBlocked: true,
                 studioClinicId,
-                message: `تم حفظ نص المنشور في تيتو ستوديو لبراند (${targetBrand?.name || studioClinicId})، وتم إيقاف النشر المباشر مؤقتاً لحين اعتماد التصميم المرئي في الاستوديو بدلاً من نشر اللوجو.`,
+                message: `تم حفظ نص المنشور لبراند (${targetBrand?.name || studioClinicId})، وتم إيقاف النشر المباشر مؤقتاً لحين اعتماد التصميم المرئي في الاستوديو.`,
               };
             } else {
               try {
@@ -1474,14 +1508,13 @@ ${conversationMemoryDirective}`;
             }
           }
 
-          const embedUrl = titoStudioApi.buildStudioEmbedUrl(publishNow ? "showroom" : "calendar", studioClinicId);
           executedAction = {
-            type: "STUDIO_EMBED_VIEW",
-            view: publishNow ? "showroom" : "calendar",
+            type: "SWITCH_TAB",
+            tab: "content_post_card",
+            brandId: targetBrand.id,
+            brandName: targetBrand.name,
             clinicId: studioClinicId,
-            embedUrl,
             actionExecuted: publishNow ? "publish.multi_platform" : "content.generate_design",
-            brandId: studioClinicId,
             result: backendExecutionResult,
           };
         }

@@ -9,6 +9,9 @@ export interface JarvisMasterVoiceDockProps {
   onReplayFullReply?: () => void;
   pendingGreetingPlay?: boolean;
   onPlayPendingGreeting?: () => void;
+  wakeWordEnabled?: boolean;
+  onToggleWakeWord?: () => void;
+  wakeArmed?: boolean;
   isThinking: boolean;
   isListening: boolean;
   isPlayingVoice: boolean;
@@ -26,6 +29,9 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
   onReplayFullReply,
   pendingGreetingPlay,
   onPlayPendingGreeting,
+  wakeWordEnabled = true,
+  onToggleWakeWord,
+  wakeArmed = false,
   isThinking,
   isListening,
   isPlayingVoice,
@@ -143,6 +149,33 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Wake-Word Guard Toggle + Active Standby Indicator */}
+      {onToggleWakeWord && (
+        <div className="flex items-center justify-center gap-2 flex-wrap px-2">
+          <button
+            type="button"
+            onClick={onToggleWakeWord}
+            className={`px-3 py-1 rounded-full border text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              wakeWordEnabled
+                ? wakeArmed
+                  ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200 shadow-[0_0_16px_rgba(16,185,129,0.45)]'
+                  : 'bg-cyan-500/15 hover:bg-cyan-500/25 border-cyan-400/40 text-cyan-200'
+                : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-400/40 text-amber-200'
+            }`}
+            title="منع التداخل الصوتي: لا ينفذ المايك أي أمر إلا بعد قول كلمة جارفيس"
+          >
+            <span className={`w-2 h-2 rounded-full ${wakeWordEnabled ? (wakeArmed ? 'bg-emerald-400 animate-ping' : 'bg-cyan-400') : 'bg-amber-400'}`} />
+            <span>
+              {wakeWordEnabled
+                ? wakeArmed
+                  ? '🟢 وضع النداء: سامعك الآن — قل طلبك'
+                  : '🎙️ النداء بكلمة «جارفيس»: مفعّل'
+                : '🎙️ استماع مباشر (بدون كلمة «جارفيس»)'}
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

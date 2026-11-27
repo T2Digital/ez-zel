@@ -1835,12 +1835,15 @@ export async function executeRealJarvisEcosystemAction(input: {
             const publishNow = !!data.publishNow;
 
             const isVideo = mediaFormat === 'video';
-            const hook = data.customHook || `🔥 جديد وحصري من ${targetBrand.name}: ${topic}!`;
-            const caption = data.customCaption || `${hook}\n\nاحجز الآن مباشرة واستفد من الخصم الاستثنائي للحجز المسبق وعربون 25% مع إمكانية الدفع عبر إنستاباي وفودافون كاش.\nتواصل واتساب فوراً: ${targetBrand.phone || '01013373634'}\nأو احجز من التطبيق: /store/${targetBrand.slug || targetBrand.id}`;
+            const hook = data.customHook || `🔥 جديد وحصري من ${targetBrand.name}: ${topic}`;
+            const caption = data.customCaption || `${hook}\n\nاكتشف التفاصيل والباقات المخصصة لك مع ${targetBrand.name}. تواصل واتساب مباشرة: ${targetBrand.phone || '01013372674'}`;
 
             const docId = `custom_post_${Date.now()}`;
             const postItem: any = {
                 id: docId,
+                brandId: targetBrand.id,
+                brandName: targetBrand.name,
+                brandPhone: targetBrand.phone || '01013372674',
                 day: 'مخصص',
                 mediaFormat,
                 contentType: isVideo ? 'فيديو ريلز وتيك توك (9:16)' : 'تصميم Feed (1:1)',
@@ -1851,7 +1854,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 status: publishNow ? 'published' : 'scheduled',
                 ctaType: 'WHATSAPP_VOICE_AGENT',
                 ctaBadge: '💬 تواصل واتساب فوري (رد صوتي ذكي)',
-                ctaTargetUrl: `https://wa.me/2${(targetBrand.phone || '01013373634').replace(/^0/, '')}`
+                ctaTargetUrl: `https://wa.me/2${(targetBrand.phone || '01013372674').replace(/^0/, '')}`
             };
 
             if (!Array.isArray(targetBrand.weekContentPlan)) {

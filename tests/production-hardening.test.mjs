@@ -1483,5 +1483,33 @@ test("42) Final touches: Jarvis Home route on /, 4-persona greetings, Tito Digit
   assert.ok(socialRenderer.includes("إصدار 2026") && socialRenderer.includes("اطلب الآن"), "socialDesignRenderer must use domain-aware badges and CTAs");
 });
 
+test("43) 360° Fullscreen Obsidian, touch rotation, SpaceCanvas backdrop, wake-word Jarvis, PWA persistence & post-generation brand/visual fixes", () => {
+  const obsidianSrc = fs.readFileSync(path.join(process.cwd(), "components", "ObsidianHolographicConstellation.tsx"), "utf8");
+  assert.ok(
+    obsidianSrc.includes("touchstart") && obsidianSrc.includes("touchmove") && obsidianSrc.includes("touchAction: 'none'"),
+    "ObsidianHolographicConstellation must support full mobile touch 360 rotation & pinch zoom"
+  );
+  assert.ok(obsidianSrc.includes("toggleFullscreen") && obsidianSrc.includes("compact ? 'min-h-0'"), "ObsidianHolographicConstellation must support fullscreen & compact zero-overlap mode");
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(modalSrc.includes("extractWakeWordCommand") && modalSrc.includes("wakeWordEnabled"), "JarvisBattleStationModal must support wake-word gating");
+  assert.ok(modalSrc.includes("t2_jarvis_ui_state_v1") && modalSrc.includes("t2JarvisGuard"), "JarvisBattleStationModal must persist PWA UI state and guard back-button navigation");
+  assert.ok(modalSrc.includes("trimmedCmd.length <= 28"), "Bare publish shortcut must not intercept creative topic post requests");
+  assert.ok(modalSrc.includes("bg-[#01030b]/42"), "JarvisBattleStationModal must let SpaceCanvas cosmic stars/planets shine through");
+
+  const postCardSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisContentPostCard.tsx"), "utf8");
+  assert.ok(postCardSrc.includes("activePost?.brandName || currentSelectedBrand?.name") && postCardSrc.includes("إغلاق بطاقة المنشور"), "JarvisContentPostCard must bind to post brandName and include close button");
+
+  const growthSrc = fs.readFileSync(path.join(process.cwd(), "services", "growthAgencyEngine.ts"), "utf8");
+  assert.equal(growthSrc.includes("25% عربون جدية"), false, "growthAgencyEngine must not inject hardcoded 25% عربون boilerplate");
+  assert.equal(growthSrc.includes("01030956097"), false, "growthAgencyEngine must not use hardcoded wrong phone");
+
+  const studioRemote = fs.readFileSync(path.join("D:\\t2-studio", "src", "server", "remoteControlApi.ts"), "utf8");
+  assert.equal(studioRemote.includes("gemini-3.5-flash-lite"), false, "Studio content.generate_design must not use invalid gemini-3.5-flash-lite");
+  assert.equal(studioRemote.includes("gemini-3.1-flash-lite-image"), false, "Studio content.generate_design must not use invalid gemini-3.1-flash-lite-image");
+  assert.ok(studioRemote.includes("gemini-2.5-flash-image"), "Studio content.generate_design must use valid Gemini image model with key rotation");
+});
+
+
 
 

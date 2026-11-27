@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Sparkles, ExternalLink, Calendar, MessageSquare, ShieldCheck, Zap, Orbit, RefreshCw } from 'lucide-react';
+import { Sparkles, ExternalLink, Calendar, MessageSquare, ShieldCheck, Zap, Orbit, RefreshCw, Maximize2, Minimize2, X } from 'lucide-react';
 
 export interface ConstellationBrandNode {
   id: string;
@@ -26,6 +26,9 @@ interface ObsidianHolographicConstellationProps {
   onOpenChat?: (brandId: string) => void;
   centerCore?: React.ReactNode;
   className?: string;
+  compact?: boolean;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConstellationProps> = ({
@@ -36,10 +39,16 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   onOpenStore,
   onOpenChat,
   centerCore,
-  className = ''
+  className = '',
+  compact = false,
+  isFullscreen: controlledFullscreen,
+  onToggleFullscreen
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [internalFullscreen, setInternalFullscreen] = useState(false);
+  const isFullscreen = controlledFullscreen !== undefined ? controlledFullscreen : internalFullscreen;
+  const toggleFullscreen = onToggleFullscreen || (() => setInternalFullscreen((prev) => !prev));
 
   const [hoveredNode, setHoveredNode] = useState<{
     brand: ConstellationBrandNode;
@@ -52,8 +61,9 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   const [pulseMode, setPulseMode] = useState<'ALL' | 'TX' | 'RX' | 'SYNC'>('ALL');
   const [liveTelemetrySummary, setLiveTelemetrySummary] = useState<string>('نبض الألياف الضوئية متصل 100% بين الكواكب الأربعة والبراندات النشطة');
   const burstMultiplierRef = useRef<number>(1);
+  const realPulseMapRef = useRef<Record<string, { hasRx: boolean; hasSync: boolean; hasTx: boolean; lastEventAt: number }>>({});
 
-  // Poll /api/telemetry/live every 10s for real live pulse status (scoped to selectedBrandId when active)
+  // Poll /api/telemetry/live every 12s for real live pulse status (scoped to selectedBrandId when active)
   useEffect(() => {
     let mounted = true;
     const poll = async () => {
@@ -70,6 +80,22 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           : Array.isArray(data?.recentEvents)
             ? data.recentEvents
             : [];
+        const nextMap: Record<string, { hasRx: boolean; hasSync: boolean; hasTx: boolean; lastEventAt: number }> = {
+          ...realPulseMapRef.current,
+        };
+        for (const ev of events) {
+          const bId = String(ev?.brandId || '').trim();
+          if (!bId) continue;
+          const prev = nextMap[bId] || { hasRx: false, hasSync: false, hasTx: false, lastEventAt: 0 };
+          const evType = String(ev?.eventType || ev?.source || '').toUpperCase();
+          nextMap[bId] = {
+            hasRx: prev.hasRx || /WHATSAPP|MESSAGE|BOOKING|ORDER|RX/.test(evType),
+            hasSync: prev.hasSync || /STUDIO|META|SYNC|POST|CONTENT/.test(evType),
+            hasTx: prev.hasTx || /TX|COMMAND|PUSH|STORE/.test(evType),
+            lastEventAt: Math.max(prev.lastEventAt, ev?.timestamp ? new Date(ev.timestamp).getTime() : Date.now()),
+          };
+        }
+        realPulseMapRef.current = nextMap;
         if (events.length > 0) {
           const latest = events[0];
           setLiveTelemetrySummary(
@@ -85,7 +111,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       } catch {}
     };
     poll();
-    const timer = setInterval(poll, 10000);
+    const timer = setInterval(poll, 12000);
     return () => {
       mounted = false;
       clearInterval(timer);
@@ -94,17 +120,21 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
 
   const triggerOpticalBurst = () => {
     burstMultiplierRef.current = 3.2;
-    setLiveTelemetrySummary('⚡ تم إطلاق موجة نبض ضوئي فوري (TX + RX + SYNC) عبر جميع كواكب المنظومة والبراندات النشطة');
+    setLiveTelemetrySummary('⚡ تم إطلاق موجة فحص وتشخيص ضوئي (TX + RX + SYNC) عبر البراندات المتصلة');
     setTimeout(() => {
       burstMultiplierRef.current = 1;
     }, 3500);
   };
 
-  // 3D Camera / Orbit State
+  // 3D Camera / Orbit State (360° multi-axis + momentum + pinch zoom)
   const rotationRef = useRef({ x: 0.28, y: 0.45 });
   const targetRotationRef = useRef({ x: 0.28, y: 0.45 });
+  const velocityRef = useRef({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
+  const didDragRef = useRef(false);
+  const dragStartPosRef = useRef({ x: 0, y: 0 });
   const lastMousePosRef = useRef({ x: 0, y: 0 });
+  const pinchDistRef = useRef<number | null>(null);
   const zoomRef = useRef(1.0);
 
   // Filtered nodes
@@ -151,23 +181,73 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     });
   }, [filteredBrands]);
 
-  // Interactive Drag & Mouse Controls
+  // Helper for 3D hit-testing both desktop click & mobile tap
+  const pickBrandAtClientPoint = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+
+    const cosX = Math.cos(rotationRef.current.x);
+    const sinX = Math.sin(rotationRef.current.x);
+    const cosY = Math.cos(rotationRef.current.y);
+    const sinY = Math.sin(rotationRef.current.y);
+    const responsiveFovBase = canvas.width < 520
+      ? Math.min(340, Math.max(250, canvas.width * 0.72))
+      : Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
+    const fov = responsiveFovBase * zoomRef.current;
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+
+    let closestId = '';
+    let closestDist = Infinity;
+    for (const item of node3DPositions) {
+      const x1 = item.x * cosY - item.z * sinY;
+      const z1 = item.z * cosY + item.x * sinY;
+      const y2 = item.y * cosX - z1 * sinX;
+      const z2 = z1 * cosX + item.y * sinX;
+      const scale = fov / (520 + z2);
+      const px = cx + x1 * scale;
+      const py = cy + y2 * scale;
+      const r = Math.max(26, 28 * scale);
+      const dist = Math.hypot(mx - px, my - py);
+      if (dist <= r && dist < closestDist) {
+        closestDist = dist;
+        closestId = item.brand.id || item.brand.slug || '';
+      }
+    }
+    if (closestId) {
+      onSelectBrand(closestId);
+    }
+  };
+
+  // Interactive Mouse, Wheel & Full Mobile 360° Touch Rotation + Pinch Zoom
   useEffect(() => {
+    const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!container) return;
+    if (!canvas || !container) return;
 
     const handleMouseDown = (e: MouseEvent) => {
       isDraggingRef.current = true;
+      didDragRef.current = false;
+      dragStartPosRef.current = { x: e.clientX, y: e.clientY };
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      velocityRef.current = { x: 0, y: 0 };
       setAutoRotate(false);
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingRef.current) return;
+      const totalMoved = Math.hypot(e.clientX - dragStartPosRef.current.x, e.clientY - dragStartPosRef.current.y);
+      if (totalMoved > 6) didDragRef.current = true;
       const dx = e.clientX - lastMousePosRef.current.x;
       const dy = e.clientY - lastMousePosRef.current.y;
-      targetRotationRef.current.y += dx * 0.007;
-      targetRotationRef.current.x += dy * 0.007;
+      const vy = dx * 0.008;
+      const vx = dy * 0.008;
+      targetRotationRef.current.y += vy;
+      targetRotationRef.current.x += vx;
+      velocityRef.current = { x: vx, y: vy };
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
     };
 
@@ -177,21 +257,86 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      zoomRef.current = Math.max(0.65, Math.min(1.65, zoomRef.current - e.deltaY * 0.001));
+      zoomRef.current = Math.max(0.6, Math.min(1.85, zoomRef.current - e.deltaY * 0.001));
     };
 
-    container.addEventListener('mousedown', handleMouseDown);
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        isDraggingRef.current = true;
+        didDragRef.current = false;
+        pinchDistRef.current = null;
+        dragStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+        lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
+        velocityRef.current = { x: 0, y: 0 };
+        setAutoRotate(false);
+      } else if (e.touches.length === 2) {
+        isDraggingRef.current = false;
+        didDragRef.current = true;
+        const d = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        pinchDistRef.current = d;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1 && isDraggingRef.current) {
+        const touch = e.touches[0];
+        const totalMoved = Math.hypot(touch.clientX - dragStartPosRef.current.x, touch.clientY - dragStartPosRef.current.y);
+        if (totalMoved > 7) didDragRef.current = true;
+        const dx = touch.clientX - lastMousePosRef.current.x;
+        const dy = touch.clientY - lastMousePosRef.current.y;
+        const vy = dx * 0.009;
+        const vx = dy * 0.009;
+        targetRotationRef.current.y += vy;
+        targetRotationRef.current.x += vx;
+        velocityRef.current = { x: vx, y: vy };
+        lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
+        e.preventDefault();
+      } else if (e.touches.length === 2 && pinchDistRef.current !== null) {
+        const d = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        if (pinchDistRef.current > 0) {
+          zoomRef.current = Math.max(0.6, Math.min(1.85, zoomRef.current * (d / pinchDistRef.current)));
+        }
+        pinchDistRef.current = d;
+        e.preventDefault();
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        const wasTap = !didDragRef.current;
+        isDraggingRef.current = false;
+        pinchDistRef.current = null;
+        if (wasTap && e.changedTouches[0]) {
+          pickBrandAtClientPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        }
+      }
+    };
+
+    canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     container.addEventListener('wheel', handleWheel, { passive: false });
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
-      container.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('wheel', handleWheel);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
     };
-  }, []);
+  }, [node3DPositions, onSelectBrand]);
 
   // 3D Holographic Rendering Engine
   useEffect(() => {
@@ -244,9 +389,15 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
 
       ctx.clearRect(0, 0, w, h);
 
-      // Smooth inertia rotation
+      // Smooth dynamic 360° multi-axis orbit + momentum decay
       if (autoRotate && !isDraggingRef.current) {
-        targetRotationRef.current.y += 0.0025;
+        targetRotationRef.current.y += 0.0032;
+        targetRotationRef.current.x = 0.22 + Math.sin(t * 0.24) * 0.28;
+      } else if (!isDraggingRef.current) {
+        targetRotationRef.current.y += velocityRef.current.y;
+        targetRotationRef.current.x += velocityRef.current.x;
+        velocityRef.current.x *= 0.93;
+        velocityRef.current.y *= 0.93;
       }
       rotationRef.current.x += (targetRotationRef.current.x - rotationRef.current.x) * 0.1;
       rotationRef.current.y += (targetRotationRef.current.y - rotationRef.current.y) * 0.1;
@@ -426,13 +577,23 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       });
       ctx.restore();
 
-      // 4. Draw Color-Coded Optical Fiber Photons (TX Blue, RX Emerald, SYNC Purple) along Curved Filaments
+      // 4. Draw Color-Coded Optical Fiber Photons ONLY for brands with REAL live connections/telemetry (plus diagnostic burst)
       ctx.save();
       photons.forEach(pt => {
         if (pulseMode !== 'ALL' && pt.kind !== pulseMode) return;
-        pt.progress = (pt.progress + pt.speed * burstMultiplierRef.current) % 1;
         const target = projectedNodes[pt.nodeIdx % Math.max(projectedNodes.length, 1)];
         if (!target) return;
+
+        const livePulse = realPulseMapRef.current[target.brand.id] || realPulseMapRef.current[target.brand.slug || ''];
+        const hasRealSignal =
+          burstMultiplierRef.current > 1.2 ||
+          target.isSelected ||
+          (pt.kind === 'RX' && Boolean(target.brand.hasWhatsApp || (target.brand.conversationsCount || 0) > 0 || livePulse?.hasRx)) ||
+          (pt.kind === 'SYNC' && Boolean((target.brand.postsCount || 0) > 0 || target.brand.hasMeta || livePulse?.hasSync)) ||
+          (pt.kind === 'TX' && Boolean(livePulse?.hasTx || target.brand.hasWhatsApp || (target.brand.postsCount || 0) > 0));
+        if (!hasRealSignal) return;
+
+        pt.progress = (pt.progress + pt.speed * burstMultiplierRef.current) % 1;
 
         const hubPlanet = projectedCorePlanets[pt.nodeIdx % projectedCorePlanets.length] || project3D(0, 0, 0);
         const effectiveT = pt.direction === -1 ? 1 - pt.progress : pt.progress;
@@ -546,39 +707,13 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
 
     animId = requestAnimationFrame(render);
 
-    // Mouse Move Hit-Testing for Floating HUD
+    // Mouse Click Hit-Testing (skips clicks immediately following a 3D drag)
     const handleCanvasClick = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-
-      const cosX = Math.cos(rotationRef.current.x);
-      const sinX = Math.sin(rotationRef.current.x);
-      const cosY = Math.cos(rotationRef.current.y);
-      const sinY = Math.sin(rotationRef.current.y);
-      const responsiveFovBase = canvas.width < 520
-        ? Math.min(340, Math.max(250, canvas.width * 0.72))
-        : Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
-      const fov = responsiveFovBase * zoomRef.current;
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
-
-      for (const item of node3DPositions) {
-        const x1 = item.x * cosY - item.z * sinY;
-        const z1 = item.z * cosY + item.x * sinY;
-        const y2 = item.y * cosX - z1 * sinX;
-        const z2 = z1 * cosX + item.y * sinX;
-        const scale = fov / (520 + z2);
-        const px = cx + x1 * scale;
-        const py = cy + y2 * scale;
-        const r = 24 * scale;
-
-        const dist = Math.hypot(mx - px, my - py);
-        if (dist <= r) {
-          onSelectBrand(item.brand.id || item.brand.slug || '');
-          return;
-        }
+      if (didDragRef.current) {
+        didDragRef.current = false;
+        return;
       }
+      pickBrandAtClientPoint(e.clientX, e.clientY);
     };
 
     canvas.addEventListener('click', handleCanvasClick);
@@ -590,7 +725,14 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   }, [node3DPositions, selectedBrandId, zoomRef, autoRotate, pulseMode, onSelectBrand]);
 
   return (
-    <div ref={containerRef} className={`relative w-full h-full min-h-[480px] rounded-3xl bg-[#01030d]/35 backdrop-blur-md border border-cyan-500/20 overflow-hidden shadow-[0_0_60px_rgba(0,240,255,0.08)] flex flex-col ${className}`}>
+    <div
+      ref={containerRef}
+      className={`${
+        isFullscreen
+          ? 'fixed inset-0 z-[140] w-screen h-[100dvh] rounded-none border-0 bg-[#010410]/45 backdrop-blur-[2px]'
+          : `relative w-full h-full ${compact ? 'min-h-0' : 'min-h-[380px] sm:min-h-[460px]'} rounded-3xl bg-[#01030d]/15 backdrop-blur-[1.5px] border border-cyan-500/20`
+      } overflow-hidden shadow-[0_0_60px_rgba(0,240,255,0.08)] flex flex-col ${className}`}
+    >
       {/* Futuristic Spatial Corner Reticles */}
       <span className="pointer-events-none absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-cyan-400/50 rounded-tl-lg z-10" />
       <span className="pointer-events-none absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-cyan-400/50 rounded-tr-lg z-10" />
@@ -650,19 +792,44 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           </button>
         </div>
 
-        {/* Auto-Rotation Toggle */}
-        <button
-          onClick={() => setAutoRotate(!autoRotate)}
-          className={`p-1.5 rounded-xl border text-[10px] font-bold transition flex items-center gap-1 ${
-            autoRotate
-              ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
-              : 'bg-white/5 border-white/10 text-white/50'
-          }`}
-          title={autoRotate ? 'إيقاف الدوران التلقائي' : 'تشغيل الدوران التلقائي'}
-        >
-          <RefreshCw className={`w-3 h-3 ${autoRotate ? 'animate-spin' : ''}`} style={{ animationDuration: '6s' }} />
-          <span className="hidden md:inline">{autoRotate ? 'دوران حي' : 'مثبت'}</span>
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Auto-Rotation Toggle */}
+          <button
+            type="button"
+            onClick={() => setAutoRotate(!autoRotate)}
+            className={`p-1.5 rounded-xl border text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+              autoRotate
+                ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
+                : 'bg-white/5 border-white/10 text-white/50'
+            }`}
+            title={autoRotate ? 'إيقاف الدوران التلقائي' : 'تشغيل الدوران التلقائي'}
+          >
+            <RefreshCw className={`w-3 h-3 ${autoRotate ? 'animate-spin' : ''}`} style={{ animationDuration: '6s' }} />
+            <span className="hidden md:inline">{autoRotate ? 'دوران 360°' : 'مثبت'}</span>
+          </button>
+
+          {/* Fullscreen 360° Toggle */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="p-1.5 px-2 rounded-xl border border-cyan-400/40 bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-200 text-[10px] font-black transition flex items-center gap-1 cursor-pointer"
+            title={isFullscreen ? 'تصغير الشبكة' : 'ملء الشاشة 360° للنواة والشبكة'}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isFullscreen ? 'تصغير' : 'ملء الشاشة'}</span>
+          </button>
+
+          {isFullscreen && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-label="إغلاق وضع ملء الشاشة"
+              className="p-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/40 text-rose-200 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Live Optical Fiber Pulse Legend & Interactive Trigger Bar */}
@@ -723,13 +890,16 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
         <canvas
           ref={canvasRef}
+          style={{ touchAction: 'none' }}
           className="w-full h-full block cursor-grab active:cursor-grabbing"
         />
 
         {/* Integrated Jarvis Luminescent Core inside Exact Canvas Center */}
         {centerCore && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-10">
-            <div className="pointer-events-auto scale-[0.65] sm:scale-[0.75] drop-shadow-[0_0_35px_rgba(0,240,255,0.45)]">
+            <div className={`pointer-events-auto drop-shadow-[0_0_35px_rgba(0,240,255,0.45)] transition-transform ${
+              isFullscreen ? 'scale-[0.85] sm:scale-100' : 'scale-[0.65] sm:scale-[0.75]'
+            }`}>
               {centerCore}
             </div>
           </div>
@@ -793,8 +963,8 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       )}
 
       {/* Bottom Hint */}
-      <div className="absolute bottom-2 left-4 pointer-events-none z-10 flex items-center gap-2 text-[9px] font-mono text-cyan-400/60 font-bold">
-        <span>🖱️ اسحب للتدوير ثلاثي الأبعاد • اضغط لاختيار وتفعيل البراند</span>
+      <div className="absolute bottom-2 left-4 pointer-events-none z-10 flex items-center gap-2 text-[9px] font-mono text-cyan-400/75 font-bold">
+        <span>🖱️/👆 اسحب 360° للتدوير • قرص للتكبير • اضغط لتحديد البراند</span>
       </div>
     </div>
   );

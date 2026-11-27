@@ -116,6 +116,21 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isAdkVentureOpen, setIsAdkVentureOpen] = useState(false);
   const [adkPresetName, setAdkPresetName] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(true);
+  const [isConstellationFullscreen, setIsConstellationFullscreen] = useState(false);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem('t2_jarvis_ui_state_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed?.wakeWordEnabled === 'boolean') return parsed.wakeWordEnabled;
+      }
+    } catch {}
+    return true;
+  });
+  const [wakeArmed, setWakeArmed] = useState(false);
+  const wakeWordEnabledRef = useRef(wakeWordEnabled);
+  const wakeArmedUntilRef = useRef<number>(0);
+  useEffect(() => { wakeWordEnabledRef.current = wakeWordEnabled; }, [wakeWordEnabled]);
   const [isBrandSuperWindowOpen, setIsBrandSuperWindowOpen] = useState(false);
   const [graphFilter, setGraphFilter] = useState<'all' | 'studio' | 'agent' | 'ezzel'>('all');
   const [graphZoom, setGraphZoom] = useState<number>(1);
@@ -361,7 +376,21 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isClickingCursor, setIsClickingCursor] = useState(false);
 
   // Active Command Deck Tab: 'studio_calendar' | 'content_post_card' | 'content_qa_monitor' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'
-  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'content_qa_monitor' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(initialPersona === 'client' || !isMasterAdmin ? 'brand_hub' : 'obsidian_graph');
+  const [activeDeckTab, setActiveDeckTab] = useState<'autonomous_agency' | 'studio_calendar' | 'content_post_card' | 'content_qa_monitor' | 'agent_fleet' | 'app_cloner' | 'ad_launcher' | 'vault_crm' | 'microservices_gateway' | 'obsidian_graph' | 'agency_overview' | 'brand_hub'>(() => {
+    try {
+      const raw = localStorage.getItem('t2_jarvis_ui_state_v1');
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.activeDeckTab && Date.now() - (p.updatedAt || 0) < 24 * 60 * 60 * 1000) {
+          if (initialPersona === 'client' || !isMasterAdmin) {
+            return p.activeDeckTab === 'obsidian_graph' ? 'brand_hub' : p.activeDeckTab;
+          }
+          return p.activeDeckTab;
+        }
+      }
+    } catch {}
+    return initialPersona === 'client' || !isMasterAdmin ? 'brand_hub' : 'obsidian_graph';
+  });
   const [qaMonitorData, setQaMonitorData] = useState<{ loading: boolean; items: any[]; avgScore: number; passCount: number; publishedCount: number; scheduledCount: number; draftCount: number }>({ loading: false, items: [], avgScore: 0, passCount: 0, publishedCount: 0, scheduledCount: 0, draftCount: 0 });
   const [isRunningQaCycle, setIsRunningQaCycle] = useState<boolean>(false);
   const [adPerfData, setAdPerfData] = useState<any>(null);
@@ -388,7 +417,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (isWaConnectModalOpen) setIsWaConnectModalOpen(false);
+        if (isConstellationFullscreen) setIsConstellationFullscreen(false);
+        else if (isWaConnectModalOpen) setIsWaConnectModalOpen(false);
         else if (isMetaConnectModalOpen) setIsMetaConnectModalOpen(false);
         else if (isBrandingModalOpen) setIsBrandingModalOpen(false);
         else if (isCrmModalOpen) setIsCrmModalOpen(false);
@@ -396,13 +426,112 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         else if (isBrandSuperWindowOpen) setIsBrandSuperWindowOpen(false);
         else if (studioEmbed?.open) setStudioEmbed(prev => prev ? { ...prev, open: false } : null);
         else if (agentEmbed?.open) setAgentEmbed(prev => prev ? { ...prev, open: false } : null);
+        else if (activeDeckTab !== 'obsidian_graph' && isMasterAdmin && !adminPreviewVisitor) setActiveDeckTab('obsidian_graph');
         else onClose();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isWaConnectModalOpen, isMetaConnectModalOpen, isBrandingModalOpen, isCrmModalOpen, isMetaReadinessOpen, isBrandSuperWindowOpen, studioEmbed?.open, agentEmbed?.open, onClose]);
+  }, [isConstellationFullscreen, isWaConnectModalOpen, isMetaConnectModalOpen, isBrandingModalOpen, isCrmModalOpen, isMetaReadinessOpen, isBrandSuperWindowOpen, studioEmbed?.open, agentEmbed?.open, activeDeckTab, isMasterAdmin, adminPreviewVisitor, onClose]);
 
+  // Selected Brand for Active Deep Interaction across all 3 Apps
+  const [selectedBrandId, setSelectedBrandId] = useState<string>(() => {
+    try {
+      const raw = localStorage.getItem('t2_jarvis_ui_state_v1');
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.selectedBrandId && Date.now() - (p.updatedAt || 0) < 24 * 60 * 60 * 1000) {
+          return String(p.selectedBrandId);
+        }
+      }
+    } catch {}
+    return '';
+  });
+
+  // PWA State Snapshot Persistence (never lose active tab, brand, draft command, or last reply on reload/close)
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      localStorage.setItem(
+        't2_jarvis_ui_state_v1',
+        JSON.stringify({
+          activeDeckTab,
+          selectedBrandId,
+          wakeWordEnabled,
+          textCommandInput,
+          lastJarvisReply,
+          updatedAt: Date.now(),
+        })
+      );
+    } catch {}
+  }, [isOpen, activeDeckTab, selectedBrandId, wakeWordEnabled, textCommandInput, lastJarvisReply]);
+
+  // In-App Back-Button Guard (prevents accidental Android/browser Back from killing the web app)
+  const lastBackPressAtRef = useRef<number>(0);
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+    try {
+      if (!window.history.state?.t2JarvisGuard) {
+        window.history.pushState({ t2JarvisGuard: true }, '', window.location.href);
+      }
+    } catch {}
+
+    const onPopState = () => {
+      if (isConstellationFullscreen) {
+        setIsConstellationFullscreen(false);
+      } else if (studioEmbed?.open) {
+        setStudioEmbed((prev) => (prev ? { ...prev, open: false } : null));
+      } else if (agentEmbed?.open) {
+        setAgentEmbed((prev) => (prev ? { ...prev, open: false } : null));
+      } else if (isCatalogModalOpen) {
+        setIsCatalogModalOpen(false);
+      } else if (isOnboardingOpen) {
+        setIsOnboardingOpen(false);
+      } else if (isAdkVentureOpen) {
+        setIsAdkVentureOpen(false);
+      } else if (isBrandSuperWindowOpen) {
+        setIsBrandSuperWindowOpen(false);
+      } else if (isWaConnectModalOpen) {
+        setIsWaConnectModalOpen(false);
+      } else if (isMetaConnectModalOpen) {
+        setIsMetaConnectModalOpen(false);
+      } else if (isMasterAdmin && !adminPreviewVisitor && activeDeckTab !== 'obsidian_graph') {
+        setActiveDeckTab('obsidian_graph');
+      } else if (selectedBrandId) {
+        setSelectedBrandId('');
+      } else {
+        const now = Date.now();
+        if (now - lastBackPressAtRef.current < 2600) {
+          onClose();
+          return;
+        }
+        lastBackPressAtRef.current = now;
+        toast.info('اضغط زر الرجوع مرة أخرى للخروج من التطبيق');
+      }
+      try {
+        window.history.pushState({ t2JarvisGuard: true }, '', window.location.href);
+      } catch {}
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [
+    isOpen,
+    isConstellationFullscreen,
+    studioEmbed?.open,
+    agentEmbed?.open,
+    isCatalogModalOpen,
+    isOnboardingOpen,
+    isAdkVentureOpen,
+    isBrandSuperWindowOpen,
+    isWaConnectModalOpen,
+    isMetaConnectModalOpen,
+    activeDeckTab,
+    isMasterAdmin,
+    adminPreviewVisitor,
+    selectedBrandId,
+    onClose,
+  ]);
   // Two-Way Obsidian Markdown Editor & Live Catalog Editor State
   const [isEditingObsidianMd, setIsEditingObsidianMd] = useState<boolean>(false);
   const [isSavingObsidianMd, setIsSavingObsidianMd] = useState<boolean>(false);
@@ -410,9 +539,6 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [newServicePrice, setNewServicePrice] = useState<string>('');
   const [botPromptInput, setBotPromptInput] = useState<string>('');
   const [isSavingCatalog, setIsSavingCatalog] = useState<boolean>(false);
-  
-  // Selected Brand for Active Deep Interaction across all 3 Apps
-  const [selectedBrandId, setSelectedBrandId] = useState<string>('');
   const [allBrandsList, setAllBrandsList] = useState<any[]>([]);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [isPublishingPost, setIsPublishingPost] = useState<boolean>(false);
@@ -1319,6 +1445,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     return { finals: finalSegments.join(' ').trim(), interim: latestInterim.trim() };
   };
 
+  const extractWakeWordCommand = (rawText: string): { matched: boolean; command: string } => {
+    const txt = String(rawText || '').trim();
+    const wakeRegex = /(?:^|[\s،,.!؟])(?:يا\s*)?(?:جارفيس|جارفز|جارفس|جرفس|جرفز|جارڤيس|جارڤس|جرڤس|قارفس|كارفس|jarvis)(?:[\s،,:!؟]+|$)/i;
+    const m = txt.match(wakeRegex);
+    if (!m || m.index === undefined) return { matched: false, command: txt };
+    const afterWake = txt.slice(m.index + m[0].length).replace(/^[،,:!؟\s]+/, '').trim();
+    return { matched: true, command: afterWake };
+  };
+
   const isLikelySpeakerEcho = (spokenText: string): boolean => {
     if (Date.now() - lastSpeechEndedAtRef.current > 4500) return false;
     const reference = String(lastJarvisSpokenTextRef.current || '').trim();
@@ -1375,13 +1510,40 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           recognitionRef.current = null;
         }
         setIsListening(false);
-        if (finalRecorded && !finalRecorded.includes('اتفضل اتكلم') && finalRecorded.length > 1) {
+        if (finalRecorded && !finalRecorded.includes('اتفضل اتكلم') && !finalRecorded.includes('ابدأ كلامك بكلمة') && finalRecorded.length > 1) {
           if (isLikelySpeakerEcho(finalRecorded)) {
             if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
-              setTimeout(() => startListeningLoop(), 600);
+              setTimeout(() => startListeningLoop(), 650);
             }
             return;
           }
+
+          if (wakeWordEnabledRef.current) {
+            const { matched, command } = extractWakeWordCommand(finalRecorded);
+            const isWindowArmed = Date.now() < wakeArmedUntilRef.current;
+            if (!matched && !isWindowArmed) {
+              setTranscript('👂 في انتظار النداء: ابدأ كلامك بكلمة «جارفيس»...');
+              if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+                setTimeout(() => startListeningLoop(), 350);
+              }
+              return;
+            }
+            if (matched && !command) {
+              wakeArmedUntilRef.current = Date.now() + 12000;
+              setWakeArmed(true);
+              setTranscript('🟢 نعم، سامعك الآن — قل طلبك...');
+              if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
+                setTimeout(() => startListeningLoop(), 250);
+              }
+              return;
+            }
+            wakeArmedUntilRef.current = 0;
+            setWakeArmed(false);
+            const cleanCmd = matched ? command : finalRecorded;
+            handleSendLiveCommand(cleanCmd);
+            return;
+          }
+
           handleSendLiveCommand(finalRecorded);
         } else if (isOpenRef.current && autoLoopEnabledRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current) {
           setTimeout(() => startListeningLoop(), 450);
@@ -1391,15 +1553,25 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       recognition.onstart = () => {
         setIsListening(true);
         setHasMicPermission(true);
+        const isArmedNow = wakeWordEnabledRef.current && Date.now() < wakeArmedUntilRef.current;
+        setWakeArmed(isArmedNow);
         setTranscript(
-          isMasterAdmin && !adminPreviewVisitor && persona === 'tito'
+          wakeWordEnabledRef.current
+            ? isArmedNow
+              ? '🟢 نعم، سامعك الآن — قل طلبك...'
+              : '👂 المايك جاهز — ابدأ كلامك بكلمة «جارفيس»...'
+            : isMasterAdmin && !adminPreviewVisitor && persona === 'tito'
             ? 'أنا سامعك يا ماستر.. اتفضل اتكلم'
             : 'أهلاً بيك في منظومة T2OS — أنا سامعك، اتفضل اتكلم'
         );
       };
 
       recognition.onresult = (event: any) => {
-        if (isPlayingVoiceRef.current || isShadowVoicePlaying()) {
+        if (
+          isPlayingVoiceRef.current ||
+          isShadowVoicePlaying() ||
+          Date.now() - lastSpeechEndedAtRef.current < (isMobile ? 1300 : 1000)
+        ) {
           return;
         }
         const { finals, interim } = dedupeAndroidSpeechResults(event.results);
@@ -1408,10 +1580,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           ? [accumulatedFinalRef.current, interim].filter(Boolean).join(' ').trim()
           : (accumulatedFinalRef.current || interim);
         transcriptRef.current = combined;
-        if (combined) {
+        if (combined && combined.length >= 2) {
           setTranscript(combined);
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = setTimeout(commitSpokenCommand, isMobile ? 2700 : 2400);
+          silenceTimerRef.current = setTimeout(commitSpokenCommand, isMobile ? 2800 : 2500);
         }
       };
 
@@ -1452,13 +1624,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const speakJarvisReply = useCallback((replyText: string, audioBase64?: string, forceFullSpeech: boolean = false, skipAutoListen: boolean = false) => {
+  const speakJarvisReply = useCallback((replyText: string, audioBase64?: string, forceFullSpeech: boolean = true, skipAutoListen: boolean = false) => {
     stopListeningForSpeech();
     stopAllJarvisAudio();
     setPendingGreetingPlay(false);
     const activeSeq = speechSeqRef.current;
     speechStartedAtRef.current = Date.now();
-    const spokenText = (!audioBase64 && !forceFullSpeech) ? buildConciseSpokenSummary(replyText) : String(replyText || '');
+    const spokenText = (!audioBase64 && !forceFullSpeech) ? buildConciseSpokenSummary(replyText) : String(replyText || '').slice(0, 950);
     lastJarvisSpokenTextRef.current = spokenText;
     setIsPlayingVoice(true);
     isPlayingVoiceRef.current = true;
@@ -1480,7 +1652,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           if (isOpenRef.current && !isPlayingVoiceRef.current && !isThinkingRef.current && !isShadowVoicePlaying() && autoLoopEnabledRef.current) {
             startListeningLoop();
           }
-        }, isMobile ? 900 : 550);
+        }, isMobile ? 1300 : 1000);
       }
     };
 
@@ -1729,11 +1901,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       speakJarvisReply(voiceReply);
       return;
     }
-    if (!isNegated && /^انشره|انشر المنشور|انشر البوست|انشر دلوقتي/i.test(commandText.trim())) {
+    const trimmedCmd = commandText.trim();
+    if (!isNegated && trimmedCmd.length <= 28 && /^(انشره|انشر المنشور|انشر البوست|انشر دلوقتي)(\s+فوراً|\s+الآن)?$/i.test(trimmedCmd)) {
       setIsThinking(false);
       isThinkingRef.current = false;
       await handlePublishPost(matchedBrand.id, 0);
       const voiceReply = `تم اعتماد ونشر البوست فوراً لصفحات ميتا وتيتو ستوديو يا ماستر!`;
+      setLastJarvisReply(voiceReply);
       setTranscript(voiceReply);
       speakJarvisReply(voiceReply);
       return;
@@ -1850,14 +2024,21 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           if (data.action.type === 'SWITCH_TAB' && data.action.tab) {
             // STRICT SHIELD: Never hijack view away from visitor onboarding
             if (persona !== 'visitor') {
-              setActiveDeckTab(data.action.tab);
-              if (data.action.brandId) {
-                handleSelectBrand(data.action.brandId);
-                handleInspectObsidianNode(data.action.brandId);
+              const targetId = data.action.brandId || data.action.result?.brandId || data.action.result?.brand?.id;
+              const targetBrandName = data.action.brandName || data.action.result?.brandName || data.action.result?.brand?.name;
+              if (targetId) {
+                handleSelectBrand(targetId);
+                handleInspectObsidianNode(targetId);
               }
               if (data.action.result?.post) {
-                setSelectedPost(data.action.result.post);
+                setSelectedPost({
+                  ...data.action.result.post,
+                  brandId: targetId || data.action.result.post.brandId,
+                  brandName: targetBrandName || data.action.result.post.brandName,
+                  visualUrl: data.action.result.post.visualUrl || data.action.result?.visualUrl,
+                });
               }
+              setActiveDeckTab(data.action.tab);
             }
           } else if (data.action.type === 'VISITOR_DIAGNOSTIC_UPDATE' && data.action.visitorUpdate) {
             const upd = data.action.visitorUpdate;
@@ -2026,16 +2207,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   return (
     <div className={`fixed inset-0 z-[9995] flex items-center justify-center font-['Cairo'] transition-all duration-300 ${
-      isFullscreen ? 'p-0 bg-[#01030a]' : 'p-3 sm:p-6 bg-black/80'
+      isFullscreen ? 'p-0 bg-transparent' : 'p-3 sm:p-6 bg-black/55'
     }`} dir="rtl">
       
-      {/* Deep Blue-Black Fiber-Optic Second Brain OS Container */}
-      <div className={`relative mx-auto w-full bg-[#01030b]/90 border border-cyan-500/40 shadow-[0_0_60px_rgba(0,240,255,0.2)] flex flex-col overflow-hidden transition-all duration-300 ${
+      {/* Translucent Cosmic Second Brain OS Container (Lets live SpaceCanvas Earth & Planets shine through) */}
+      <div className={`relative mx-auto w-full bg-[#01030b]/42 border border-cyan-500/40 shadow-[0_0_60px_rgba(0,240,255,0.2)] flex flex-col overflow-hidden transition-all duration-300 ${
         isFullscreen ? 'h-[100dvh] rounded-none border-0' : 'max-w-6xl h-[92dvh] rounded-[28px]'
       }`}>
 
-        {/* Fiber-Optic Bioluminescent Grid & Deep Space Vignette (Zero duplicate SpaceCanvas) */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,240,255,0.04)_0%,_rgba(1,3,11,0.92)_65%,_#01030a_100%)] pointer-events-none z-0" />
+        {/* Subtle Bioluminescent HUD Vignette (Preserves SpaceCanvas Stars & Planets) */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,240,255,0.03)_0%,_rgba(1,3,11,0.28)_55%,_rgba(1,3,11,0.68)_100%)] pointer-events-none z-0" />
         <div 
           className="absolute inset-0 opacity-[0.04] pointer-events-none bg-[linear-gradient(to_right,#00f0ff_1px,transparent_1px),linear-gradient(to_bottom,#00f0ff_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] z-0" 
         />
@@ -2374,6 +2555,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               onReplayFullReply={() => speakJarvisReply(lastJarvisReply, undefined, true, true)}
               pendingGreetingPlay={pendingGreetingPlay}
               onPlayPendingGreeting={() => handlePlayPersonaGreeting(persona, { skipAutoListen: true })}
+              wakeWordEnabled={wakeWordEnabled}
+              onToggleWakeWord={() => {
+                setWakeWordEnabled((prev) => {
+                  const next = !prev;
+                  wakeArmedUntilRef.current = 0;
+                  setWakeArmed(false);
+                  return next;
+                });
+              }}
+              wakeArmed={wakeArmed}
               isThinking={isThinking}
               isListening={isListening}
               isPlayingVoice={isPlayingVoice}
@@ -2765,11 +2956,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               />
             )}
 
-            {/* SINGLE OBSIDIAN HERO CORE (ALWAYS ON TOP FOR ADMIN; SUB-WINDOWS RENDER DIRECTLY UNDERNEATH) */}
+            {/* SINGLE OBSIDIAN HERO CORE (ALWAYS ON TOP FOR ADMIN; SUB-WINDOWS RENDER CLEANLY UNDERNEATH WITH ZERO OVERLAP) */}
             {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && (
-              <div className={`w-full flex flex-col gap-1.5 animate-in fade-in duration-300 font-['Cairo'] text-right ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-0' : 'shrink-0'}`}>
-                <div className={`w-full relative ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-[300px]' : 'h-[245px] md:h-[280px]'}`}>
+              <div className={`w-full flex flex-col gap-2 animate-in fade-in duration-300 font-['Cairo'] text-right ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-0' : 'shrink-0'}`}>
+                <div className={`w-full relative overflow-hidden rounded-3xl ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-[340px]' : 'h-[230px] sm:h-[260px] shrink-0'}`}>
                   <ObsidianHolographicConstellation
+                    compact={activeDeckTab !== 'obsidian_graph'}
+                    isFullscreen={isConstellationFullscreen}
+                    onToggleFullscreen={() => setIsConstellationFullscreen((v) => !v)}
                     brands={allBrandsList.map((b) => ({
                       id: b.id,
                       slug: b.slug,
@@ -2780,6 +2974,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       postsCount: Number((b as any).studioPostsCount ?? (Array.isArray(b.weekContentPlan) ? b.weekContentPlan.length : 0)),
                       conversationsCount: Number((b as any).liveWhatsappMessagesCount ?? 0),
                       hasWhatsApp: Boolean((b as any).whatsappConnected),
+                      hasMeta: Boolean((b as any).metaConnected || (b as any).metaPageId),
                     }))}
                     selectedBrandId={selectedBrandId}
                     onSelectBrand={(id) => {
@@ -2895,17 +3090,19 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* TAB 0B: UNIFIED 4-PILLAR BRAND COMMAND HUB (IN-PLACE OVER CONSTELLATION) */}
+            {/* TAB 0B: UNIFIED 4-PILLAR BRAND COMMAND HUB (CLEANLY UNDERNEATH CONSTELLATION — ZERO OVERLAP) */}
             {activeDeckTab === 'brand_hub' && (
-              <JarvisBrandCommandHub
-                brandId={selectedBrandId || currentSelectedBrand?.slug || currentSelectedBrand?.id || 'auto-house'}
-                initialBrand={currentSelectedBrand}
-                isMasterAdmin={isMasterAdmin}
-                onBackToGrid={() => setActiveDeckTab('obsidian_graph')}
-                onOpenStudioCalendar={() => setActiveDeckTab('studio_calendar')}
-                onOpenWhatsAppModal={(bId) => handleOpenWhatsAppConnectModal(bId)}
-                onOpenMetaModal={(bId) => handleOpenMetaConnectModal(bId)}
-              />
+              <div className="relative z-20 w-full mt-1">
+                <JarvisBrandCommandHub
+                  brandId={selectedBrandId || currentSelectedBrand?.slug || currentSelectedBrand?.id || 'auto-house'}
+                  initialBrand={currentSelectedBrand}
+                  isMasterAdmin={isMasterAdmin}
+                  onBackToGrid={() => setActiveDeckTab('obsidian_graph')}
+                  onOpenStudioCalendar={() => setActiveDeckTab('studio_calendar')}
+                  onOpenWhatsAppModal={(bId) => handleOpenWhatsAppConnectModal(bId)}
+                  onOpenMetaModal={(bId) => handleOpenMetaConnectModal(bId)}
+                />
+              </div>
             )}
 
             {/* TAB 0C: AUTONOMOUS AGENCY DECK (1-MONTH CONTENT + UNIFIED CATALOG) */}
@@ -2949,6 +3146,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     >
                       <Sparkles className="w-3 h-3" />
                       <span>{isRunningQaCycle ? 'جاري الفحص...' : 'تشغيل دورة QA جديدة'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveDeckTab('obsidian_graph')}
+                      aria-label="إغلاق مراقب الجودة"
+                      className="p-1.5 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/70 hover:text-rose-300 border border-white/10 transition cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -3039,19 +3244,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
             {/* TAB 2: PUBLISHED CONTENT SHOWCASE CARD (Modular Component) */}
             {activeDeckTab === 'content_post_card' && (
-              <JarvisContentPostCard
-                selectedPost={selectedPost}
-                currentSelectedBrand={currentSelectedBrand}
-                setSelectedPost={setSelectedPost}
-                handlePublishPost={handlePublishPost}
-                isPublishingPost={isPublishingPost}
-                handleApproveSchedule={handleApproveSchedule}
-                isApprovingSchedule={isApprovingSchedule}
-                handleLaunchAdForPost={handleLaunchAdForPost}
-                isLaunchingCampaign={isLaunchingCampaign}
-                onBackToCalendar={() => setActiveDeckTab('studio_calendar')}
-                onTransformResult={(widgetType, data) => setActiveDynamicWidget({ widgetType, data })}
-              />
+              <div className="relative z-20 w-full flex justify-center mt-2">
+                <JarvisContentPostCard
+                  selectedPost={selectedPost}
+                  currentSelectedBrand={currentSelectedBrand}
+                  setSelectedPost={setSelectedPost}
+                  handlePublishPost={handlePublishPost}
+                  isPublishingPost={isPublishingPost}
+                  handleApproveSchedule={handleApproveSchedule}
+                  isApprovingSchedule={isApprovingSchedule}
+                  handleLaunchAdForPost={handleLaunchAdForPost}
+                  isLaunchingCampaign={isLaunchingCampaign}
+                  onBackToCalendar={() => setActiveDeckTab('studio_calendar')}
+                  onClose={() => setActiveDeckTab(isMasterAdmin && !adminPreviewVisitor ? 'obsidian_graph' : 'brand_hub')}
+                  onTransformResult={(widgetType, data) => setActiveDynamicWidget({ widgetType, data })}
+                />
+              </div>
             )}
 
             {/* TAB 3: T2 AI AGENT FLEET (Modular Component) */}

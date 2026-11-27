@@ -82,11 +82,15 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
     }
 
     const plan = brand.weekContentPlan || [];
+    const safePhone = brand.phone || brand.whatsapp || '01013372674';
+    const isBookingDomain = /عياد|دكتور|سيار|ليموزين|صيان|تنظيف|نظاف|clinic|car|rental|repair/i.test(`${brand.businessType || ''} ${brand.name || ''}`);
     const targetPost = plan[postIndex] || plan[0] || {
         day: 'اليوم',
         contentType: 'بوست تفاعلي',
-        hook: `أفضل خدمات ${brand.name} في مصر بأعلى معايير الاحترافية!`,
-        caption: `خصم 10% فوري عند حجز موعدك اليوم وسداد 25% عربون جدية. تواصل معنا على ${brand.phone} فوراً!`,
+        hook: `${brand.name} — حلول احترافية ومتكاملة لتطوير أعمالك`,
+        caption: isBookingDomain
+            ? `استمتع بتجربة مميزة وخدمة فورية مع ${brand.name}. تواصل معنا عبر واتساب على ${safePhone} للتفاصيل والحجز السريع!`
+            : `اكتشف أقوى العروض والحلول الذكية مع ${brand.name}. تواصل معنا عبر واتساب على ${safePhone} أو ابدأ الآن!`,
         bestTime: '8:00 مساءً'
     };
 
@@ -101,7 +105,7 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
     if (metaToken && pageId) {
         try {
             const postImageUrl = targetPost.visualUrl || targetPost.imageUrl || targetPost.mediaUrl || brand.logoUrl;
-            const fullCaption = `${targetPost.hook}\n\n${targetPost.caption}\n\n🛒 للتواصل والحجز الفوري عبر واتساب:\nhttps://wa.me/2${(brand.phone || brand.whatsapp || '01030956097').replace(/^0/, '')}`;
+            const fullCaption = `${targetPost.hook}\n\n${targetPost.caption}\n\n🛒 للتواصل المباشر عبر واتساب:\nhttps://wa.me/2${safePhone.replace(/^0/, '')}`;
 
             let endpoint = `https://graph.facebook.com/v19.0/${pageId}/feed`;
             let reqBody: any = {
