@@ -207,13 +207,13 @@ const jarvisBrainTools: FunctionDeclaration[] = [
   {
     name: "update_store_catalog",
     description:
-      "إضافة أو تعديل خدمة أو منتج أو باقة داخل متجر PWA وكتالوج أي براند بناءً على طلب المستخدم الصوتي أو النصي.",
+      "إضافة أو تعديل منتج أو خدمة أو باقة وحفظها فوراً في كتالوج المتجر السحابي (Cloud ERP). إذا ذكر المستخدم اسم براند جديد غير مسجل بعد (مثل 'نوفا جير') تنشئه هذه الأداة تلقائياً وتضيف المنتج إليه فوراً — نفّذها مباشرة بدون أسئلة توضيحية.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         brandNameOrId: {
           type: Type.STRING,
-          description: "اسم البراند أو المعرف الخاص به كما ورد في حديث المستخدم أو البراند المحدد حالياً.",
+          description: "اسم البراند أو المتجر كما ذكره المستخدم (حتى لو كان براند جديد لم يُسجّل بعد) أو المعرف الحالي.",
         },
         serviceName: {
           type: Type.STRING,
@@ -221,7 +221,7 @@ const jarvisBrainTools: FunctionDeclaration[] = [
         },
         servicePrice: {
           type: Type.STRING,
-          description: "سعر الخدمة بالجنيه المصري (مثال: '650 ج.م').",
+          description: "سعر المنتج أو الخدمة بالجنيه المصري (مثال: '349 ج.م').",
         },
       },
       required: ["serviceName"],
@@ -483,12 +483,12 @@ const jarvisBrainTools: FunctionDeclaration[] = [
   {
     name: "deploy_brand_web_app",
     description:
-      "بناء ونشر متجر إلكتروني كامل أو تطبيق ويب مستقل للبراند على مستودع GitHub خاص ونشره فعلياً على Vercel (https://t2-tenant-<slug>.vercel.app) من أحد القوالب الستة المعتمدة (battah للمتاجر الإلكترونية والمنتجات والأحذية والملابس، clean_master للخدمات والعيادات، harb_restaurant للمطاعم، sehraya_cafe للكافيهات، master_key_car_rental لتأجير السيارات، nile_real_estate للعقارات). استخدم هذه الأداة دائماً عندما يطلب المستخدم بناء متجر أو تطبيق ويب كامل بدلاً من صفحات الهبوط المحلية.",
+      "بناء ونشر متجر إلكتروني كامل أو متجر دروب شيبنج أو تطبيق ويب مستقل للبراند (مع 6 منتجات بالصور والأسعار ومزامنة Cloud ERP). استخدم هذه الأداة فوراً عند طلب إنشاء متجر إلكتروني أو دروب شيبنج حتى لو لم يذكر المستخدم اسم البراند — سيبتكر النظام اسماً تجارياً قصيراً تلقائياً.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        brandIdOrName: { type: Type.STRING, description: "اسم البراند أو معرفه (مثال: M&M للأحذية)" },
-        englishSlug: { type: Type.STRING, description: "المعرف الإنجليزي المختصر للرابط والريبو بدون رموز خاصة (مثال: mm-shoes)" },
+        brandIdOrName: { type: Type.STRING, description: "اختياري: اسم البراند أو معرفه، أو اتركه فارغاً ليبتكر النظام اسماً تجارياً تلقائياً (لا ترسل جملة الطلب نفسها)" },
+        englishSlug: { type: Type.STRING, description: "المعرف الإنجليزي المختصر للرابط والريبو بدون رموز خاصة (مثال: nova-trend)" },
         templateId: {
           type: Type.STRING,
           enum: [
@@ -499,17 +499,17 @@ const jarvisBrainTools: FunctionDeclaration[] = [
             "master_key_car_rental",
             "nile_real_estate",
           ],
-          description: "القالب الرسمي الأنسب للنشاط (battah للمتاجر والمنتجات والأحذية)",
+          description: "القالب الرسمي الأنسب للنشاط (battah للمتاجر والمنتجات والدروب شيبنج)",
         },
         appTemplate: {
           type: Type.STRING,
           enum: ["products_erp", "services_booking"],
-          description: "products_erp للمتاجر والمخازن، أو services_booking للخدمات والحجوزات",
+          description: "products_erp للمتاجر والمخازن والدروب شيبنج، أو services_booking للخدمات والحجوزات",
         },
         phone: { type: Type.STRING, description: "رقم الهاتف أو الواتساب" },
-        industry: { type: Type.STRING, description: "النشاط التجاري أو مجال البراند" },
+        industry: { type: Type.STRING, description: "النشاط التجاري أو مجال البراند (مثال: دروب شيبنج وإكسسوارات ذكية)" },
       },
-      required: ["brandIdOrName"],
+      required: [],
     },
   },
   {
@@ -981,8 +981,8 @@ ${recentChatSummary ? `\n[سياق الذاكرة المشتركة مع شات �
 قواعد صارمة لشخصية جارفيس المتحدث (Executive Poise):
 - تحدث بالعامية المصرية المهذبة والرزينة (بدون مبالغة أو كلام إنشائي) لصوت طبيعي واضح.
 - أجب بأرقام وحقائق حقيقية من الذاكرة الحية أو من نتائج الأدوات فقط — ممنوع ذكر أي أرقام قديمة لعملاء الإدارة الحاليين كأنهم إيرادات اشتراكات الظل.
-- عند أي أمر ببناء متجر إلكتروني كامل أو متجر دروب شيبنج لبراند: استخدم فوراً أداة \`deploy_brand_web_app\` (أو \`onboard_new_client_brand\`) ولا تستخدم أبداً جملة الطلب نفسها كاسم للبراند — اخترع اسماً تجارياً قصيراً وجذاباً مع 6 منتجات بالصور والأسعار، والحد الأدنى للباقات المدفوعة هو \`5,000 ج.م\` (growth_5000).
-- عند أي أمر تنفيذي (نشر، تعديل سعر، إضافة منتج، مصروف، موظف، مورد، خزينة، ربط واتساب): نفّذ الأداة أولاً ثم قدّم تقريراً تنفيذياً دقيقاً من نتيجتها الفعلية فقط — وممنوع منعاً باتاً قول "تم" إذا عادت الأداة بـ \`success: false\`، واذكر دائماً رابط المتجر الكامل (\`https://store.t2os.app/s/<slug>\`) وعدد المنتجات المؤكد في قاعدة البيانات.
+- عند أي أمر ببناء متجر إلكتروني كامل أو متجر دروب شيبنج (حتى لو لم يذكر المستخدم اسماً مثل "عاوز أعمل متجر دروب شيبنج"): استدعِ فوراً أداة \`deploy_brand_web_app\` في نفس اللحظة بدون أن تسأل أسئلة أو تعد بالكلام فقط! اترك \`brandIdOrName\` فارغاً ليبتكر النظام اسماً تجارياً قصيراً وجذاباً مع 6 منتجات بالصور والأسعار تلقائياً، ولا تستخدم أبداً جملة الطلب نفسها كاسم للبراند.
+- عند أي أمر بإضافة منتج بسعر لبراند معين أو جديد (مثل "أضف لبراند نوفا جير منتج X بسعر Y"): استدعِ فوراً أداة \`update_store_catalog\` (أو \`manage_store_erp\`) في نفس اللحظة؛ فالنظام ينشئ البراند تلقائياً لو كان جديداً ويحفظ المنتج في Cloud ERP مباشرة. ممنوع الرد بأسئلة توضيحية أو قول "تم" قبل تنفيذ الأداة وتأكيد \`verifiedInStore: true\` ورابط المتجر الكامل (\`https://store.t2os.app/s/<slug>\`).
 - عند أي سؤال عن المنتجات أو الأسعار أو المخزون أو المبيعات أو المصاريف أو إضافة منتج لمتجر موجود: استخدم 'manage_store_erp' ('get_summary' أو 'add_product' أو 'update_price') — وممنوع خلط طلبات المتجر بأدوات النشر على السوشيال ميديا ('create_and_publish_post').
 - لا تكرر تقارير قديمة إلا إذا سألك المستخدم عنها مباشرة.`;
 }
@@ -1282,7 +1282,63 @@ ${conversationMemoryDirective}`;
   let backendExecutionResult: any = null;
   let targetBrand = mentionedOrSelectedBrand;
 
-  const functionCalls = chat?.functionCalls;
+  const rawFunctionCalls = Array.isArray(chat?.functionCalls) ? chat.functionCalls : [];
+  let synthesizedCalls: any[] = [];
+  let wasSynthesizedCall = false;
+
+  if (rawFunctionCalls.length === 0 && persona !== "visitor") {
+    const trimmedMsg = String(message || "").trim();
+    const priceMatch = trimmedMsg.match(/(\d+(?:\.\d+)?)\s*(?:جنيه|ج\.م|جم|EGP)/i);
+    const hasAddVerb = /(?:أضف|اضف|ضيف|زود|نزل|نزّل|أدخل|ادخل)\b/i.test(trimmedMsg);
+    const hasCatalogNoun = /(?:منتج|صنف|خدمة|سلعة)\b/i.test(trimmedMsg);
+    const wantsCreateStore =
+      /(?:عاوز|عايز|أريد|ابغى|اعمل|أعمل|انشئ|أنشئ|ابني|إبني|أسس|اسس|جهز|جهّز|سوي|نفذ|شغل)\s+(?:لي\s+)?(?:متجر|تطبيق|ستور|ويب\s*اب)/i.test(trimmedMsg) ||
+      /(?:أعمل|اعمل|انشئ|أنشئ|أسس|ابني|تجهيز)\s+متجر\s+دروب\s*شيب/i.test(trimmedMsg);
+
+    if (hasAddVerb && hasCatalogNoun && priceMatch) {
+      const brandMatch = trimmedMsg.match(
+        /(?:لـ\s*براند|لبراند|لمتجر|في\s+براند|في\s+متجر)\s+["«']?([^"»'\n]+?)["»']?(?=\s+(?:منتج|صنف|خدمة|سلعة|بسعر|سعره|بـ?\s*\d)|$)/i
+      );
+      const prodMatch = trimmedMsg.match(
+        /(?:منتج|صنف|خدمة|سلعة)\s+["«']?(.+?)["»']?(?=\s+(?:بسعر|سعره|بـ?\s*\d|\d+\s*(?:جنيه|ج\.م|جم|EGP))|$)/i
+      );
+      const extractedBrand = brandMatch?.[1]?.trim() || "";
+      const extractedProduct = (prodMatch?.[1] || "منتج جديد").replace(/^["«']|["»']$/g, "").trim();
+      synthesizedCalls = [
+        {
+          name: "update_store_catalog",
+          args: {
+            ...(extractedBrand ? { brandNameOrId: extractedBrand } : {}),
+            serviceName: extractedProduct,
+            servicePrice: `${priceMatch[1]} ج.م`,
+          },
+        },
+      ];
+      wasSynthesizedCall = true;
+    } else if (wantsCreateStore && !/^(?:كم|بكام|ما\s+هو|إيه|ايه|هل|لماذا|ليه)\b/i.test(trimmedMsg)) {
+      const explicitNameMatch = trimmedMsg.match(
+        /(?:باسم|اسمه|تحت\s+اسم|لبراند)\s+["«']?([^\n"»'،؟!]{2,40})["»']?/i
+      );
+      const explicitBrandName = explicitNameMatch?.[1]
+        ?.split(/\s+(?:ورقم|واتساب|بواتساب|على\s+رقم|بمجال|في\s+مجال)\b/i)[0]
+        ?.trim() || "";
+      const isDrop = /دروب\s*شيب|dropship/i.test(trimmedMsg);
+      synthesizedCalls = [
+        {
+          name: "deploy_brand_web_app",
+          args: {
+            brandIdOrName: explicitBrandName,
+            industry: isDrop ? "دروب شيبنج وإكسسوارات ذكية" : "متجر إلكتروني متكامل",
+            appTemplate: "products_erp",
+            templateId: "battah",
+          },
+        },
+      ];
+      wasSynthesizedCall = true;
+    }
+  }
+
+  const functionCalls = rawFunctionCalls.length > 0 ? rawFunctionCalls : synthesizedCalls;
   if (Array.isArray(functionCalls) && functionCalls.length > 0) {
     const call = functionCalls[0];
     const args: any = call.args || {};
@@ -1337,6 +1393,9 @@ ${conversationMemoryDirective}`;
             source: "Jarvis_AutoCreate_CatalogBrand",
           });
           resolvedBrand = created;
+          targetBrand = created;
+        } else if (resolvedBrand) {
+          targetBrand = resolvedBrand;
         }
 
         const effectiveBrandId = resolvedBrand?.id || brandId;
@@ -2304,6 +2363,7 @@ ${conversationMemoryDirective}`;
             } catch {}
           }
 
+          targetBrand = target;
           backendExecutionResult = {
             success: Boolean(deployRes.ok && verifiedProductsCount > 0),
             brandId: target.id,
@@ -3127,24 +3187,30 @@ ${conversationMemoryDirective}`;
     } catch {}
   }
 
-  // If Gemini executed a tool and didn't produce spoken text in the same turn, generate a natural Egyptian Arabic confirmation
-  let replyText = chat?.text?.trim() || "";
-  if (!replyText && (backendExecutionResult || executedAction)) {
-    for (const modelName of ACTIVE_GEMINI_TEXT_MODELS.slice(0, 3)) {
-      try {
-        const followUp = await ai.models.generateContent({
-          model: modelName,
-          contents: `${systemPrompt}
+  // If Gemini executed a tool and didn't produce spoken text in the same turn (or tool was synthesized after Gemini hesitated), return verified execution confirmation directly
+  let replyText = wasSynthesizedCall ? "" : (chat?.text?.trim() || "");
+  if (wasSynthesizedCall && backendExecutionResult?.message) {
+    replyText = backendExecutionResult.message;
+  } else if (!replyText && (backendExecutionResult || executedAction)) {
+    if (backendExecutionResult?.message) {
+      replyText = backendExecutionResult.message;
+    } else {
+      for (const modelName of ACTIVE_GEMINI_TEXT_MODELS.slice(0, 3)) {
+        try {
+          const followUp = await ai.models.generateContent({
+            model: modelName,
+            contents: `${systemPrompt}
 رسالة المتحدث: "${message}"
 النتيجة الفعلية التي تم تنفيذها الآن لبراند "${targetBrand.name}": ${
-            backendExecutionResult?.message ||
-            JSON.stringify(executedAction)
-          }
+              backendExecutionResult?.message ||
+              JSON.stringify(executedAction)
+            }
 اكتب رد جارفيس المختصر بالعامية المصرية الطبيعية (جملة أو جملتين فقط) يؤكد تنفيذ الأمر فوراً:`,
-        });
-        replyText = followUp?.text?.trim() || "";
-        if (replyText) break;
-      } catch {}
+          });
+          replyText = followUp?.text?.trim() || "";
+          if (replyText) break;
+        } catch {}
+      }
     }
   }
 
