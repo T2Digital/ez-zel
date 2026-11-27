@@ -479,7 +479,10 @@ export function getUnifiedGrowthBrands(): any[] {
             primaryColor: clinic.primaryColor || existing.primaryColor || '#06b6d4',
             logo: clinic.logo || existing.logo || '',
             status: existing.status || 'شغال',
-            metaConnected: !!(clinic.metaToken || clinic.selectedMetaPage || existing.metaConnected),
+            metaConnected: Boolean(
+                String(clinic.metaToken || existing.metaToken || '').trim() ||
+                String(clinic.selectedMetaPage?.id || existing.metaPageId || '').trim()
+            ),
             metaPageName: clinic.selectedMetaPage?.name || existing.metaPageName || clinic.name,
             metaPageId: clinic.selectedMetaPage?.id || existing.metaPageId || '',
             metaToken: clinic.metaToken || existing.metaToken || '',

@@ -1410,6 +1410,9 @@ test("40) New-client Mystery Shopper 6 fixes: domain image isolation, auto-fill 
   assert.ok(brainSrc.includes("الإجمالي ${p.priceEgp"), "Dynamic plans prompt must state exact total monthly EGP price");
   assert.ok(brainSrc.includes("استوديو المحتوى") && brainSrc.includes("وكيل الواتساب الذكي"), "Non-admin output sanitizer must rewrite internal platform names");
 
+  const vaultSvcSrc = fs.readFileSync(path.join(process.cwd(), "services", "obsidianVaultService.ts"), "utf8");
+  assert.equal(vaultSvcSrc.includes("clinic.selectedMetaPage || existing.metaConnected"), false, "obsidianVaultService must check selectedMetaPage?.id instead of empty object truthiness");
+
   const portalSrc = fs.readFileSync(path.join(process.cwd(), "components", "ClientPortalView.tsx"), "utf8");
   assert.equal(/تيتو\s*(?:ا|إ)?ستوديو|تيتو\s*(?:أ|ا)?جنت/.test(portalSrc), false, "ClientPortalView must use clean white-label names");
   assert.ok(portalSrc.includes("brand.metaConnected || brand.metaPageId") && portalSrc.includes("revExhausted"), "ClientPortalView must require metaPageId/metaConnected & guard exhausted revisions without prompt()");

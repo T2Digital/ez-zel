@@ -179,7 +179,10 @@ export function registerClientPortalRoutes(
 
       res.json({
         ok: true,
-        brand,
+        brand: {
+          ...brand,
+          metaConnected: Boolean(brand.metaPageId || brand.metaToken),
+        },
         planSpec,
         appAccessMode,
         quota,
