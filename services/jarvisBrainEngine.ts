@@ -1289,8 +1289,8 @@ ${conversationMemoryDirective}`;
   if (rawFunctionCalls.length === 0 && persona !== "visitor") {
     const trimmedMsg = String(message || "").trim();
     const priceMatch = trimmedMsg.match(/(\d+(?:\.\d+)?)\s*(?:جنيه|ج\.م|جم|EGP)/i);
-    const hasAddVerb = /(?:أضف|اضف|ضيف|زود|نزل|نزّل|أدخل|ادخل)\b/i.test(trimmedMsg);
-    const hasCatalogNoun = /(?:منتج|صنف|خدمة|سلعة)\b/i.test(trimmedMsg);
+    const hasAddVerb = /(?:^|\s)(?:أضف|اضف|ضيف|زود|نزل|نزّل|أدخل|ادخل)(?=$|\s|[،.!؟])/i.test(trimmedMsg);
+    const hasCatalogNoun = /(?:^|\s)(?:منتج|صنف|خدمة|سلعة)(?=$|\s|[،.!؟"«'»])/i.test(trimmedMsg);
     const wantsCreateStore =
       /(?:عاوز|عايز|أريد|ابغى|اعمل|أعمل|انشئ|أنشئ|ابني|إبني|أسس|اسس|جهز|جهّز|سوي|نفذ|شغل)\s+(?:لي\s+)?(?:متجر|تطبيق|ستور|ويب\s*اب)/i.test(trimmedMsg) ||
       /(?:أعمل|اعمل|انشئ|أنشئ|أسس|ابني|تجهيز)\s+متجر\s+دروب\s*شيب/i.test(trimmedMsg);
@@ -1315,12 +1315,12 @@ ${conversationMemoryDirective}`;
         },
       ];
       wasSynthesizedCall = true;
-    } else if (wantsCreateStore && !/^(?:كم|بكام|ما\s+هو|إيه|ايه|هل|لماذا|ليه)\b/i.test(trimmedMsg)) {
+    } else if (wantsCreateStore && !/^(?:كم|بكام|ما\s+هو|إيه|ايه|هل|لماذا|ليه)(?=$|\s|[،؟!])/i.test(trimmedMsg)) {
       const explicitNameMatch = trimmedMsg.match(
         /(?:باسم|اسمه|تحت\s+اسم|لبراند)\s+["«']?([^\n"»'،؟!]{2,40})["»']?/i
       );
       const explicitBrandName = explicitNameMatch?.[1]
-        ?.split(/\s+(?:ورقم|واتساب|بواتساب|على\s+رقم|بمجال|في\s+مجال)\b/i)[0]
+        ?.split(/\s+(?:ورقم|واتساب|بواتساب|على\s+رقم|بمجال|في\s+مجال)(?=$|\s)/i)[0]
         ?.trim() || "";
       const isDrop = /دروب\s*شيب|dropship/i.test(trimmedMsg);
       synthesizedCalls = [
@@ -2241,27 +2241,34 @@ ${conversationMemoryDirective}`;
             const { generateIndustryCatalogWithAI, mapCatalogItemsToErpProducts, getIndustryHeroImage } = await import("./industryHydrationService");
 
             let chosenName = rawBrandInput;
+            let chosenEnglishName = englishSlugInput;
             let chosenKit: any = null;
             if (isRawSentence || !chosenName) {
               chosenKit = await generateBrandingAndSocialKit({
-                brandName: industry,
+                brandName: isDropshippingReq ? "نوفا ترند ستور" : "متجر ذكي جديد",
                 category: industry,
                 phone,
                 isNewBusiness: true,
               });
-              const cand = chosenKit?.brandName && !isRawPromptSentenceNotBrandName(chosenKit.brandName)
-                ? chosenKit.brandName
-                : chosenKit?.suggestedNames?.[0]?.arabic;
-              chosenName =
-                cand && !isRawPromptSentenceNotBrandName(cand)
-                  ? cand
+              const suggestedAr = String(chosenKit?.suggestedNames?.[0]?.arabic || "").trim();
+              const suggestedEn = String(chosenKit?.suggestedNames?.[0]?.english || chosenKit?.englishName || "").trim();
+              const cand =
+                suggestedAr &&
+                suggestedAr !== industry &&
+                !isRawPromptSentenceNotBrandName(suggestedAr) &&
+                !/دروب\s*شيب|نشاط\s*تجاري/i.test(suggestedAr)
+                  ? suggestedAr
                   : isDropshippingReq
                     ? "نوفا ترند ستور"
                     : "بيكسل مارت";
+              chosenName = cand;
+              if (!chosenEnglishName && suggestedEn && /^[a-zA-Z0-9\s-]+$/.test(suggestedEn)) {
+                chosenEnglishName = suggestedEn;
+              }
             }
 
             const cleanSlug =
-              (englishSlugInput ? transliterateArabicToSlug(englishSlugInput) : transliterateArabicToSlug(chosenName)) ||
+              (chosenEnglishName ? transliterateArabicToSlug(chosenEnglishName) : transliterateArabicToSlug(chosenName)) ||
               `brand-${Date.now().toString(36)}`;
             const slugKey = normalizeSlugKey(cleanSlug);
             const hydratedCatalog = await generateIndustryCatalogWithAI({
