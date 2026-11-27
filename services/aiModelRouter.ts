@@ -97,66 +97,88 @@ function classifyError(err: any): { is404: boolean; isTransient: boolean; messag
  * Automatically fails over across healthy models and alerts ops on Telegram if a model returns 404.
  */
 export async function generateContentWithRouter(params: {
-  apiKey: string;
+  apiKey?: string;
+  apiKeys?: string[];
   role: "text" | "vision";
   contents: any;
   config?: Record<string, any>;
   serviceTag?: string;
   brandId?: string;
 }): Promise<{ text: string; modelUsed: string }> {
+  const keys = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(params.apiKeys) ? params.apiKeys : []),
+        ...(params.apiKey ? [params.apiKey] : []),
+      ]
+        .map((k) => String(k || "").trim())
+        .filter((k) => k.length > 20)
+    )
+  );
+  if (keys.length === 0) {
+    throw new Error(`No API key provided for generateContentWithRouter(role=${params.role})`);
+  }
   const models = getModelPool(params.role);
-  const ai = new GoogleGenAI({ apiKey: params.apiKey });
   let lastErr: any = null;
 
   for (let i = 0; i < models.length; i++) {
     const model = models[i];
-    try {
-      const res = await ai.models.generateContent({
-        model,
-        contents: params.contents,
-        config: params.config as any,
-      });
-      if (res?.text) {
-        const usageMeta: any = (res as any)?.usageMetadata || {};
-        void recordAiCostEvent({
-          brandId: params.brandId || "system",
-          service: "ez-zel",
-          operation: params.role === "vision" ? "vision" : "text",
-          model,
-          inputUnits: usageMeta.promptTokenCount || (typeof params.contents === "string" ? Math.ceil(params.contents.length / 4) : 900),
-          outputUnits: usageMeta.candidatesTokenCount || Math.ceil(res.text.length / 4),
-        }).catch(() => {});
-        return { text: res.text, modelUsed: model };
-      }
-    } catch (err: any) {
-      lastErr = err;
-      const { is404, isTransient, message } = classifyError(err);
-      if (is404) {
-        const prev = modelCircuitBreaker.get(model);
-        const alreadyAlerted = Boolean(prev?.alerted && prev.blockedUntil > Date.now());
-        modelCircuitBreaker.set(model, {
-          reason: "deprecated_404",
-          blockedUntil: Date.now() + CIRCUIT_BREAKER_TTL_MS,
-          lastError: message,
-          alerted: true,
-        });
-        if (!alreadyAlerted) {
-          const nextModel = models[i + 1] || "fallback";
-          sendTelegramOpsAlert(
-            `⚠️ *تنبيه توقف موديل AI (404)*\n` +
-              `• الخدمة: \`${params.serviceTag || "t2os-ez-zel"}\`\n` +
-              `• الموديل المتوقف: \`${model}\`\n` +
-              `• تم التحويل تلقائياً إلى: \`${nextModel}\`\n` +
-              `• تم عزله في Circuit Breaker لمدة 24 ساعة — حدّث \`${ENV_KEY_BY_ROLE[params.role]}\` في Coolify عند الحاجة.`
-          ).catch(() => {});
+    for (let k = 0; k < Math.min(keys.length, 4); k++) {
+      const apiKey = keys[k];
+      const ai = new GoogleGenAI({ apiKey });
+      try {
+        const res = await Promise.race([
+          ai.models.generateContent({
+            model,
+            contents: params.contents,
+            config: params.config as any,
+          }),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("AI_ROUTER_TIMEOUT_18S")), 18000)),
+        ]);
+        if (res?.text) {
+          const usageMeta: any = (res as any)?.usageMetadata || {};
+          void recordAiCostEvent({
+            brandId: params.brandId || "system",
+            service: "ez-zel",
+            operation: params.role === "vision" ? "vision" : "text",
+            model,
+            inputUnits: usageMeta.promptTokenCount || (typeof params.contents === "string" ? Math.ceil(params.contents.length / 4) : 900),
+            outputUnits: usageMeta.candidatesTokenCount || Math.ceil(res.text.length / 4),
+          }).catch(() => {});
+          return { text: res.text, modelUsed: model };
         }
-      } else if (isTransient) {
-        modelCircuitBreaker.set(model, {
-          reason: "transient_error",
-          blockedUntil: Date.now() + TRANSIENT_COOLDOWN_MS,
-          lastError: message,
-          alerted: false,
-        });
+      } catch (err: any) {
+        lastErr = err;
+        const { is404, isTransient, message } = classifyError(err);
+        if (is404) {
+          const prev = modelCircuitBreaker.get(model);
+          const alreadyAlerted = Boolean(prev?.alerted && prev.blockedUntil > Date.now());
+          modelCircuitBreaker.set(model, {
+            reason: "deprecated_404",
+            blockedUntil: Date.now() + CIRCUIT_BREAKER_TTL_MS,
+            lastError: message,
+            alerted: true,
+          });
+          if (!alreadyAlerted) {
+            const nextModel = models[i + 1] || "fallback";
+            sendTelegramOpsAlert(
+              `⚠️ *تنبيه توقف موديل AI (404)*\n` +
+                `• الخدمة: \`${params.serviceTag || "t2os-ez-zel"}\`\n` +
+                `• الموديل المتوقف: \`${model}\`\n` +
+                `• تم التحويل تلقائياً إلى: \`${nextModel}\`\n` +
+                `• تم عزله في Circuit Breaker لمدة 24 ساعة — حدّث \`${ENV_KEY_BY_ROLE[params.role]}\` في Coolify عند الحاجة.`
+            ).catch(() => {});
+          }
+          break; // model itself is 404 across all keys
+        } else if (isTransient) {
+          modelCircuitBreaker.set(model, {
+            reason: "transient_error",
+            blockedUntil: Date.now() + TRANSIENT_COOLDOWN_MS,
+            lastError: message,
+            alerted: false,
+          });
+          continue; // try next rotated key
+        }
       }
     }
   }

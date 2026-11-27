@@ -1447,6 +1447,8 @@ export async function executeRealJarvisEcosystemAction(input: {
                 heroImage: finalHeroImage,
                 primaryColor: finalPrimaryColor,
                 accentColor: finalAccentColor,
+                storeType: (data as any).storeType || ((data as any).enableDropshipping ? 'dropshipping' : 'standard_ecommerce'),
+                enableDropshipping: Boolean((data as any).enableDropshipping || (data as any).storeType === 'dropshipping'),
                 productsCatalog: finalCatalog,
                 appTemplate: resolvedTemplate,
                 appMode,
@@ -1510,20 +1512,25 @@ export async function executeRealJarvisEcosystemAction(input: {
                     };
                 });
                 const uniqueCats = Array.from(new Set(seededProducts.map((p: any) => p.mainCategory).filter(Boolean))).slice(0, 6);
+                const enableDropshipping = Boolean((data as any).enableDropshipping || (data as any).storeType === 'dropshipping');
+                const slide1Title = resolvedTemplate === 'products_erp'
+                    ? (uniqueCats[0] ? `تشكيلة ${uniqueCats[0]} الأصلية` : `عروض ${cloned.name} المختارة`)
+                    : `خدمات ${cloned.name} المعتمدة`;
                 await saveTenantErpState(storeSlug, {
                     ...existingErp,
-                    products: Array.isArray(existingErp?.products) && existingErp.products.length > 0 ? existingErp.products : seededProducts,
+                    products: seededProducts,
                     appCustomization: {
                         ...(existingErp?.appCustomization || {}),
                         companyName: cloned.name,
+                        enableDropshipping,
                         ...(uniqueCats.length > 0 ? { mainCategories: uniqueCats.map((c, i) => ({ id: `cat_${i + 1}`, name: String(c) })) } : {}),
                         heroSlides: [
                             {
                                 id: 1,
-                                badge: uniqueCats[0] || industry || 'المتجر الإلكتروني المعتمد',
-                                title: cloned.name,
+                                badge: industry || uniqueCats[0] || 'المتجر الإلكتروني المعتمد',
+                                title: slide1Title,
                                 subtitle: finalSlogan,
-                                description: `تصفح تشكيلة ${cloned.name} المتاحة للطلب الفوري مع شحن سريع لجميع المحافظات.`,
+                                description: `تصفح تشكيلة المنتجات المتاحة للطلب الفوري مع شحن سريع لجميع المحافظات.`,
                                 image: finalHeroImage,
                                 category: uniqueCats[0] || 'all',
                             },

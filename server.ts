@@ -1102,6 +1102,12 @@ async function startServer() {
 
               deleteBrandVaultState(normSlug);
               await pgDeleteBrandCostLedger(normSlug).catch(() => {});
+              const { deleteTenantErpState } = await import("./services/tenantErpStoreService");
+              const { pgDeleteTenant } = await import("./services/postgresService");
+              await Promise.allSettled([
+                  deleteTenantErpState(normSlug),
+                  pgDeleteTenant(normSlug),
+              ]);
 
               for (const fname of [
                   { key: "tenants_vault", file: "tenants.json" },

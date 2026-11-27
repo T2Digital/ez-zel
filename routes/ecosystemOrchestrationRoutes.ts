@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Express, Request, Response } from "express";
 import { generateContentWithRouter } from "../services/aiModelRouter";
+import { loadGeminiKeysFromEnv } from "../services/geminiKeyPool";
 import { verifyAdminRequest } from "../services/serverAdminAuth";
 import { getLiveTelemetrySummary, recordLiveEvent, type LiveEventType } from "../services/liveTelemetryService";
 import { getTitoStudioBaseUrl } from "../services/titoStudioApiClient";
@@ -119,9 +120,9 @@ export async function conductAIMarketResearchAndStrategy(params: {
     planMode = "paid_8",
   } = params;
   const isTrial3 = planMode === "trial_3";
-  const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
+  const apiKeys = loadGeminiKeysFromEnv();
 
-  if (apiKey && !apiKey.includes("MY_GEMINI")) {
+  if (apiKeys.length > 0) {
     try {
       const productsText = productsSample.length ? productsSample.slice(0, 8).join("، ") : "خدمات ومنتجات البراند الرئيسية";
       const planCountInstruction = isTrial3
@@ -164,11 +165,12 @@ ${planCountInstruction}
 ${planTailInstruction}`;
 
       const routed = await generateContentWithRouter({
-        apiKey,
+        apiKeys,
         role: "text",
         contents: prompt,
         config: { responseMimeType: "application/json" },
         serviceTag: "t2os-ez-zel:market-research",
+        brandId: brandName,
       });
       const parsed: any = routed.text ? JSON.parse(routed.text) : null;
       if (

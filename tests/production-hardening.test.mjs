@@ -1418,3 +1418,34 @@ test("40) New-client Mystery Shopper 6 fixes: domain image isolation, auto-fill 
   assert.ok(portalSrc.includes("brand.metaConnected || brand.metaPageId") && portalSrc.includes("revExhausted"), "ClientPortalView must require metaPageId/metaConnected & guard exhausted revisions without prompt()");
 });
 
+test("41) Studio strict QA media gate & zero Pollinations watermark, rotating Gemini research, ERP full teardown, SSO + ownerCredentials & Store vs Dropshipping separation", () => {
+  const studioWorker = fs.readFileSync(path.join("D:\\t2-studio", "src", "server", "contentExecutionWorker.ts"), "utf8");
+  assert.ok(studioWorker.includes("hardMediaBlocked") && studioWorker.includes("requiresVisualAsset"), "Studio QA Gate must reject non-text items with empty visualUrl");
+  assert.equal(studioWorker.includes("showroomSentAt: passed ? new Date().toISOString() : undefined"), false, "Studio saveContentItem must never write undefined showroomSentAt to Firestore");
+
+  const studioSrv = fs.readFileSync(path.join("D:\\t2-studio", "server.ts"), "utf8");
+  assert.equal(studioSrv.includes("image.pollinations.ai"), false, "generateStudioImageAsset must not fall back to watermarked pollinations.ai");
+  assert.ok(studioSrv.includes("renderBrandedSocialDesign") && studioSrv.includes("ffmpeg"), "Studio must render branded Sharp composites and FFmpeg MP4 reels as resilient Tier-2 fallback");
+
+  const studioShowroom = fs.readFileSync(path.join("D:\\t2-studio", "src", "components", "portal", "ClientPortalView.tsx"), "utf8");
+  assert.ok(studioShowroom.includes("<video") && studioShowroom.includes("qaScore"), "Studio Showroom must play .mp4 reels and show QA score badge");
+
+  const orchSrc = fs.readFileSync(path.join(process.cwd(), "routes", "ecosystemOrchestrationRoutes.ts"), "utf8");
+  assert.ok(orchSrc.includes("loadGeminiKeysFromEnv"), "conductAIMarketResearchAndStrategy must rotate all Gemini keys from geminiKeyPool");
+
+  const erpSvc = fs.readFileSync(path.join(process.cwd(), "services", "tenantErpStoreService.ts"), "utf8");
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(erpSvc.includes("export async function deleteTenantErpState"), "tenantErpStoreService must export deleteTenantErpState");
+  assert.ok(serverSrc.includes("deleteTenantErpState"), "DELETE /api/admin/brands/:slug must purge Postgres and Firestore ERP shards");
+
+  const vaultSrc = fs.readFileSync(path.join(process.cwd(), "services", "obsidianVaultService.ts"), "utf8");
+  assert.ok(vaultSrc.includes("enableDropshipping"), "PROVISION_VISITOR_TRIAL must explicitly set enableDropshipping flag");
+
+  const portalRoutes = fs.readFileSync(path.join(process.cwd(), "routes", "clientPortalRoutes.ts"), "utf8");
+  assert.ok(portalRoutes.includes("ownerCredentials") && portalRoutes.includes("if (accessCheck.ok)"), "Client portal must gate ownerCredentials behind accessCheck.ok");
+
+  const battahSidebar = fs.readFileSync("C:\\Users\\ahmed\\.gemini\\antigravity\\brain\\036fb332-c89d-4066-97a1-2cb5a627f42b\\scratch\\battah-repo\\components\\Sidebar.tsx", "utf8");
+  assert.ok(battahSidebar.includes("isDropshippingStore") && battahSidebar.includes("Section.Dropshipping"), "Standard e-commerce storefront sidebar must hide Dropshipping unless enabled");
+});
+
+

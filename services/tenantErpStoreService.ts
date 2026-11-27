@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getTitoStudioAuthToken } from './titoStudioFirestoreBridge';
-import { isPostgresConfigured, pgLoadTenantErp, pgSaveTenantErp } from './postgresService';
+import { isPostgresConfigured, pgDeleteTenantErp, pgLoadTenantErp, pgSaveTenantErp } from './postgresService';
 import { getPersistentDataDir } from './persistentStorage';
 
 const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || 't2-content-studio';
@@ -230,6 +230,37 @@ export async function saveTenantErpState(slug: string, partialState: Record<stri
   }
 
   return nextState;
+}
+
+export async function deleteTenantErpState(slug: string): Promise<void> {
+  const key = normalizeSlugKey(slug);
+  for (const fp of [
+    path.join(getLocalDir(), `${key}.json`),
+    path.join(LEGACY_LOCAL_DIR, `${key}.json`),
+  ]) {
+    try {
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    } catch {}
+  }
+
+  if (isPostgresConfigured()) {
+    await pgDeleteTenantErp(key).catch(() => false);
+  }
+
+  try {
+    const token = await getTitoStudioAuthToken().catch(() => null);
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const shards = ['catalog', 'orders', 'sales', 'ops', 'auth'];
+    await Promise.allSettled(
+      shards.map((shardName) =>
+        fetch(`${FIRESTORE_SETTINGS_URL}/${encodeURIComponent(`t2_erp_${key}__${shardName}`)}`, {
+          method: 'DELETE',
+          headers,
+          signal: AbortSignal.timeout(5000),
+        })
+      )
+    );
+  } catch {}
 }
 
 export async function getTenantPasswordRecord(slug: string): Promise<{ hash: string; salt: string; updatedAt?: string } | null> {

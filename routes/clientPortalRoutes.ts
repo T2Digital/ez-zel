@@ -169,10 +169,19 @@ export function registerClientPortalRoutes(
               buildFlagshipTenantUrl(brandKey, brand.appTemplate || "products_erp");
 
       let ssoStoreAdminUrl: string | null = null;
+      let ownerCredentials: { email: string; password: string | null; pin: string | null } | null = null;
       if (accessCheck.ok && appAccessMode !== "landing_page") {
         const ownerToken = issueOwnerSsoToken(brand, brandKey);
         const sep = storefrontUrl.includes("?") ? "&" : "?";
         ssoStoreAdminUrl = `${storefrontUrl}${sep}ssoToken=${encodeURIComponent(ownerToken)}#dashboard`;
+      }
+      if (accessCheck.ok) {
+        const pin = brand.adminPin ? String(brand.adminPin).trim() : null;
+        ownerCredentials = {
+          email: String(brand.adminEmail || `owner@${brandKey}.t2.app`),
+          password: pin ? `T2@${pin}` : null,
+          pin,
+        };
       }
 
       const isTrial = subWindow.subscriptionStatus === "trial" || planSpec.id === "trial_7d";
@@ -192,6 +201,7 @@ export function registerClientPortalRoutes(
         expiresAt: subWindow.expiresAt,
         portalAuthValid: accessCheck.ok,
         ssoStoreAdminUrl,
+        ownerCredentials,
         trialPolicy: {
           isTrial,
           includedPostsCount: isTrial ? 2 : planSpec.monthlyDesignsQuota,

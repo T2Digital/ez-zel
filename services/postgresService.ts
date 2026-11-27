@@ -437,3 +437,18 @@ export async function pgDeleteTenant(slugOrId: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function pgDeleteTenantErp(slug: string): Promise<boolean> {
+  if (!(await initPostgresSchema())) return false;
+  const p = getPgPool();
+  if (!p) return false;
+  const clean = String(slug || "").trim().toLowerCase();
+  if (!clean) return false;
+  try {
+    await p.query("DELETE FROM t2_tenant_erp_states WHERE LOWER(slug) = $1", [clean]);
+    return true;
+  } catch (err: any) {
+    console.warn(`[Postgres] pgDeleteTenantErp(${clean}) failed:`, err?.message);
+    return false;
+  }
+}

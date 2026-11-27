@@ -52,6 +52,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
   const [waPairBusy, setWaPairBusy] = useState(false);
   const [waPairResult, setWaPairResult] = useState<{ pairingCode?: string; qrDataUrl?: string; message?: string; ok?: boolean } | null>(null);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
+  const [ownerCredentials, setOwnerCredentials] = useState<{ email?: string; password?: string | null; pin?: string | null } | null>(null);
+  const [copiedCred, setCopiedCred] = useState(false);
 
   const loadPortal = async () => {
     setLoading(true);
@@ -66,6 +68,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
       setPlanSpec(data.planSpec || null);
       setAppAccessMode(data.appAccessMode || 'full_app');
       setQuota(data.quota || null);
+      setOwnerCredentials(data.ownerCredentials || null);
       if (data.subscriptionStatus) setSubscriptionStatus(data.subscriptionStatus);
       setTrialDaysLeft(typeof data.trialDaysLeft === 'number' ? data.trialDaysLeft : null);
       setTrialPolicy(data.trialPolicy || null);
@@ -340,7 +343,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
             <span className="font-bold text-amber-200">
               {authBanner ||
                 (subscriptionStatus === 'expired'
-                  ? 'انتهت مدة التجربة المجانية (7 أيام) — للاستكمال بنفس التطبيق والأجنت يرجى التفعيل بدايةً من باقة 5,000 ج.م (50% إعلانات ممولة).'
+                  ? 'انتهت مدة التجربة المجانية (7 أيام) — للاستكمال بنفس التطبيق والوكيل الذكي يرجى التفعيل بدايةً من باقة 5,000 ج.م (50% إعلانات ممولة).'
                   : 'هذا الرابط للمعاينة فقط — لفتح لوحة المتجر بضغطة واحدة أو اعتماد المنشورات افتح الرابط الموثق (?token=...).')}
             </span>
             <button
@@ -416,8 +419,31 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                     className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>دخول مباشر للوحة المتجر</span>
+                    <span>دخول موحد مباشر (SSO)</span>
                   </a>
+                )}
+                {ownerCredentials?.email && (
+                  <div className="p-2.5 rounded-xl bg-black/50 border border-white/10 text-[11px] space-y-1">
+                    <div className="flex items-center justify-between text-cyan-300 font-bold">
+                      <span>🔐 بيانات دخول المدير</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const txt = `البريد: ${ownerCredentials.email}\nكلمة المرور: ${ownerCredentials.password || ownerCredentials.pin || ''}`;
+                          navigator.clipboard?.writeText(txt).catch(() => {});
+                          setCopiedCred(true);
+                          setTimeout(() => setCopiedCred(false), 2000);
+                        }}
+                        className="text-[10px] text-emerald-300 hover:underline cursor-pointer"
+                      >
+                        {copiedCred ? '✓ تم النسخ' : 'نسخ'}
+                      </button>
+                    </div>
+                    <div className="font-mono text-[10px] text-slate-200 truncate" dir="ltr">{ownerCredentials.email}</div>
+                    {(ownerCredentials.password || ownerCredentials.pin) && (
+                      <div className="font-mono text-[10px] text-amber-300" dir="ltr">Pass: {ownerCredentials.password || ownerCredentials.pin}</div>
+                    )}
+                  </div>
                 )}
                 <a
                   href={storefrontHref}
@@ -517,7 +543,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
               <div>
                 <h3 className="text-base font-black text-emerald-300">🤖 ربط واتساب الذكي وقنوات التواصل لـ {brand.name}</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  اربط رقم الواتساب بالكود المباشر ليعمل الأجنت 24/7 في الرد على العملاء، وإغلاق الطلبات على واتساب وماسنجر وتعليقات فيسبوك وإنستجرام.
+                  اربط رقم الواتساب بالكود المباشر ليعمل الوكيل الذكي 24/7 في الرد على العملاء، وإغلاق الطلبات على واتساب وماسنجر وتعليقات فيسبوك وإنستجرام.
                 </p>
               </div>
               {(portals.agentFullDashboardUrl || portals.agentDashboardUrl) && (
@@ -528,7 +554,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                   className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 text-xs font-black flex items-center gap-1.5"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>فتح لوحة الأجنت المتقدمة</span>
+                  <span>فتح لوحة الوكيل الذكي المتقدمة</span>
                 </a>
               )}
             </div>
@@ -690,12 +716,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                   <img
                     src={post.visualUrl}
                     alt={post.hook}
-                    className="w-full h-52 object-cover rounded-xl border border-white/10"
+                    className="w-full max-h-72 object-contain bg-slate-950 rounded-xl border border-white/10"
                   />
                 )}
 
                 <div className="text-sm font-black">{post.hook}</div>
-                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{post.caption}</p>
+                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line break-words [overflow-wrap:anywhere]">{post.caption}</p>
 
                 {post.clientFeedback && (
                   <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-200">

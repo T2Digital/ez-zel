@@ -273,6 +273,22 @@ function escapeXml(str: string): string {
  * Generates a crisp, branded SVG data URL social media poster for any calendar post
  * so every post in Tito Studio & Jarvis has a real visual creative preview.
  */
+function wrapArabicWords(text: string, maxCharsPerLine = 38): [string, string] {
+    const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+    let l1 = '';
+    let l2 = '';
+    for (const w of words) {
+        if ((l1 + ' ' + w).trim().length <= maxCharsPerLine && !l2) {
+            l1 = (l1 ? `${l1} ${w}` : w);
+        } else if ((l2 + ' ' + w).trim().length <= maxCharsPerLine) {
+            l2 = (l2 ? `${l2} ${w}` : w);
+        } else {
+            break;
+        }
+    }
+    return [l1, l2];
+}
+
 export function generateBrandedPostSvgDataUrl(params: {
     brandName: string;
     businessType?: string;
@@ -284,6 +300,7 @@ export function generateBrandedPostSvgDataUrl(params: {
     phone: string;
     storeUrl: string;
     ctaType?: OmniCtaType;
+    isProductsStore?: boolean;
 }): string {
     const primary = params.primaryColor || '#06b6d4';
     const accent =
@@ -295,10 +312,14 @@ export function generateBrandedPostSvgDataUrl(params: {
 
     const brandName = escapeXml(params.brandName.slice(0, 38));
     const businessType = escapeXml((params.businessType || 'منظومة النمو الشامل').slice(0, 40));
-    const hookText = escapeXml(params.hook || `أقوى العروض الحصرية من ${params.brandName}`);
-    const hookLine1 = hookText.slice(0, 42);
-    const hookLine2 = hookText.slice(42, 86);
-    const ctaBadge = escapeXml(params.ctaBadge || 'احجز الآن بخصم 10% فوري');
+    const rawHook = params.hook || `أقوى العروض الحصرية من ${params.brandName}`;
+    const [rawL1, rawL2] = wrapArabicWords(rawHook, 36);
+    const hookLine1 = escapeXml(rawL1);
+    const hookLine2 = escapeXml(rawL2);
+    const ctaBadge = escapeXml(params.ctaBadge || (params.isProductsStore ? 'اطلب الآن من المتجر بخصم 10%' : 'احجز الآن بخصم 10% فوري'));
+    const subBenefit = params.isProductsStore
+        ? 'منتجات أصلية • شحن سريع لجميع المحافظات • دفع عند الاستلام أو أونلاين'
+        : 'متابعة فورية بالذكاء الاصطناعي • ضمان معتمد • خصم 10% للحجز الإلكتروني';
     const phone = escapeXml(params.phone || '01013373634');
     const dayBadge = escapeXml(`${params.day} • ${params.contentType}`);
 
@@ -330,7 +351,7 @@ export function generateBrandedPostSvgDataUrl(params: {
   <rect x="96" y="280" width="888" height="420" rx="36" fill="#0f172acc" stroke="#334155" stroke-width="2.5"/>
   <text x="540" y="435" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="44" font-weight="900" fill="#ffffff" text-anchor="middle">${hookLine1}</text>
   <text x="540" y="510" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="40" font-weight="800" fill="#38bdf8" text-anchor="middle">${hookLine2}</text>
-  <text x="540" y="615" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="26" font-weight="700" fill="#94a3b8" text-anchor="middle">متابعة فورية بالذكاء الاصطناعي • ضمان معتمد • خصم 10% للحجز المبكر</text>
+  <text x="540" y="615" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="25" font-weight="700" fill="#94a3b8" text-anchor="middle">${subBenefit}</text>
 
   <!-- Omni-CTA Pill -->
   <rect x="170" y="765" width="740" height="96" rx="48" fill="url(#pill)"/>
@@ -338,7 +359,7 @@ export function generateBrandedPostSvgDataUrl(params: {
 
   <!-- Footer -->
   <text x="970" y="965" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="26" font-weight="bold" fill="#cbd5e1" text-anchor="end">واتساب وخدمة العملاء: ${phone}</text>
-  <text x="110" y="965" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="22" font-weight="bold" fill="${accent}" text-anchor="start">TITO STUDIO × TURBO FLOW ENGINE</text>
+  <text x="110" y="965" font-family="Cairo, Tajawal, Arial, sans-serif" font-size="22" font-weight="bold" fill="${accent}" text-anchor="start">T2OS CONTENT STUDIO</text>
 </svg>`;
 
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -793,7 +814,8 @@ export function buildOmniChannelWeekPlan(brand: {
                       ctaBadge,
                       phone: brand.phone || '01013373634',
                       storeUrl: storePath,
-                      ctaType
+                      ctaType,
+                      isProductsStore
                   });
 
         let turboFlowJobId = existingItem?.turboFlowJobId;
