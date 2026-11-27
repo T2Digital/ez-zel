@@ -2037,25 +2037,33 @@ ${conversationMemoryDirective}`;
           const category = isDropshippingReq && !/عطر|ملابس|سيار/i.test(rawCategory)
             ? "دروب شيبنج وإكسسوارات ذكية"
             : rawCategory;
-          const isSentenceNotBrand = isRawPromptSentenceNotBrandName(rawIdeaOrName);
+          const isSentenceNotBrand =
+            !rawIdeaOrName ||
+            isRawPromptSentenceNotBrandName(rawIdeaOrName) ||
+            /^(?:متجر|محل|شركة|موقع|تطبيق)?\s*(?:دروب\s*شيب|إ?لكتروني|تجارة\s*إلكترونية|dropship)/i.test(rawIdeaOrName) ||
+            rawIdeaOrName === category;
           const phone = String(args.phone || "").trim() || "01013372674";
 
           const kit = await generateBrandingAndSocialKit({
-            brandName: isSentenceNotBrand ? category : rawIdeaOrName,
+            brandName: isSentenceNotBrand ? (isDropshippingReq ? "نوفا ترند ستور" : "بيكسل مارت") : rawIdeaOrName,
             category,
             phone,
             isNewBusiness: isSentenceNotBrand || args.isNewBusiness !== false,
           });
           if (!isSentenceNotBrand && rawIdeaOrName) {
             kit.brandName = rawIdeaOrName;
-          } else if (isSentenceNotBrand && (!kit.brandName || isRawPromptSentenceNotBrandName(kit.brandName))) {
-            const firstSuggested = kit.suggestedNames?.[0]?.arabic;
-            kit.brandName =
-              firstSuggested && !isRawPromptSentenceNotBrandName(firstSuggested)
-                ? firstSuggested
-                : isDropshippingReq
-                  ? "نوفا ترند ستور"
-                  : "بيكسل مارت";
+          } else {
+            const firstSuggested = String(kit.suggestedNames?.[0]?.arabic || "").trim();
+            const validSuggested =
+              firstSuggested &&
+              firstSuggested !== category &&
+              !isRawPromptSentenceNotBrandName(firstSuggested) &&
+              !/دروب\s*شيب|نشاط\s*تجاري/i.test(firstSuggested);
+            kit.brandName = validSuggested
+              ? firstSuggested
+              : isDropshippingReq
+                ? "نوفا ترند ستور"
+                : "بيكسل مارت";
           }
 
           const { transliterateArabicToSlug } = await import("./brandIdentityNormalizer");
@@ -2218,7 +2226,10 @@ ${conversationMemoryDirective}`;
             : rawIndustry;
           const phone = String(args.phone || "").trim() || "01013372674";
           const currentBrands = getUnifiedGrowthBrands();
-          const isRawSentence = isRawPromptSentenceNotBrandName(rawBrandInput);
+          const isRawSentence =
+            !rawBrandInput ||
+            isRawPromptSentenceNotBrandName(rawBrandInput) ||
+            /^(?:متجر|محل|شركة|موقع|تطبيق)?\s*(?:دروب\s*شيب|إ?لكتروني|تجارة\s*إلكترونية|dropship)/i.test(rawBrandInput);
           let target: any = !isRawSentence && rawBrandInput
             ? currentBrands.find(
                 (b: any) =>
