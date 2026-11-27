@@ -100,10 +100,11 @@ export const AppRoutes: React.FC = () => {
   useEffect(() => {
     if (
       isNavigatingRef.current ||
+      !isAuthReady ||
       view === "loading" ||
       location.pathname.startsWith("/client/") ||
       location.pathname === "/jarvis" ||
-      (view === "pricing" && (location.pathname === "/auth" || location.pathname === "/admin"))
+      (view === "pricing" && (location.pathname === "/auth" || location.pathname === "/admin" || location.pathname === "/chat"))
     ) {
       return;
     }
@@ -236,7 +237,11 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/chat"
         element={
-          user ? (
+          !isAuthReady ? (
+            <div className="fixed inset-0 bg-transparent flex flex-col items-center justify-center text-white font-['Cairo']">
+              <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+            </div>
+          ) : user ? (
             isAppLocked ? (
               <SecurityGate
                 user={user}

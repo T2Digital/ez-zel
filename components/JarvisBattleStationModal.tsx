@@ -143,6 +143,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   // Two-Way Live Conversation State
   const [isListening, setIsListening] = useState(false);
   const [voiceSocketState, setVoiceSocketState] = useState<VoiceSocketState>('disconnected');
+  const [lastJarvisReply, setLastJarvisReply] = useState<string>('');
   const [transcript, setTranscript] = useState(() => {
     try {
       return localStorage.getItem('ezzel_last_jarvis_transcript') || '';
@@ -150,6 +151,22 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       return '';
     }
   });
+  const buildConciseSpokenSummary = useCallback((fullText: string): string => {
+    const cleaned = String(fullText || '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/[*_`~#>]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (cleaned.length <= 250) return cleaned;
+    const sentences = cleaned.split(/(?<=[.!؟])\s+/).filter(Boolean);
+    let summary = '';
+    for (const s of sentences) {
+      if ((summary + ' ' + s).trim().length > 240) break;
+      summary = (summary ? `${summary} ` : '') + s;
+      if (summary.length >= 130) break;
+    }
+    return summary || cleaned.slice(0, 235);
+  }, []);
   useEffect(() => {
     if (transcript) {
       try { localStorage.setItem('ezzel_last_jarvis_transcript', transcript); } catch {}
@@ -1386,12 +1403,13 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
   };
 
-  const speakJarvisReply = useCallback((replyText: string, audioBase64?: string) => {
+  const speakJarvisReply = useCallback((replyText: string, audioBase64?: string, forceFullSpeech: boolean = false) => {
     stopListeningForSpeech();
     stopAllJarvisAudio();
     const activeSeq = speechSeqRef.current;
     speechStartedAtRef.current = Date.now();
-    lastJarvisSpokenTextRef.current = String(replyText || '');
+    const spokenText = (!audioBase64 && !forceFullSpeech) ? buildConciseSpokenSummary(replyText) : String(replyText || '');
+    lastJarvisSpokenTextRef.current = spokenText;
     setIsPlayingVoice(true);
     isPlayingVoiceRef.current = true;
 
@@ -1440,16 +1458,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       };
       audio.onerror = () => {
         if (activeAudioRef.current === audio) activeAudioRef.current = null;
-        if (speechSeqRef.current === activeSeq) playShadowVoice(replyText, 'male', undefined, onSpeechEnd);
+        if (speechSeqRef.current === activeSeq) playShadowVoice(spokenText, 'male', undefined, onSpeechEnd);
       };
       audio.play().catch(() => {
         if (activeAudioRef.current === audio) activeAudioRef.current = null;
-        if (speechSeqRef.current === activeSeq) playShadowVoice(replyText, 'male', undefined, onSpeechEnd);
+        if (speechSeqRef.current === activeSeq) playShadowVoice(spokenText, 'male', undefined, onSpeechEnd);
       });
     } else {
-      playShadowVoice(replyText, 'male', undefined, onSpeechEnd);
+      playShadowVoice(spokenText, 'male', undefined, onSpeechEnd);
     }
-  }, [stopListeningForSpeech, stopAllJarvisAudio]);
+  }, [stopListeningForSpeech, stopAllJarvisAudio, buildConciseSpokenSummary]);
 
   const handlePlayPersonaGreeting = async (targetPersona?: 'visitor' | 'trial' | 'client' | 'tito') => {
     const activeP = targetPersona || persona;
@@ -1496,6 +1514,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     }
 
     setTranscript(text);
+    setLastJarvisReply(text);
     streamTranscriptWords(text);
     setConversationHistory(prev => (prev.length === 0 ? [{ role: 'model', text }] : prev));
     speakJarvisReply(text);
@@ -1564,6 +1583,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
         if (isVoiceTriggered) {
           const voiceMsg = `يا ماستر تيتو، حللت هوية براند ${targetBrand.name}، وعملت خطة شهر كامل من 12 منشور على 4 محاور (أحد وثلاثاء وخميس). جدولنا 11 منشور في تيتو ستوديو فايربيس، والبوست الأول جاهز قدامك للمراجعة والاعتماد الفوري لميتا!`;
+          setLastJarvisReply(voiceMsg);
           setTranscript(voiceMsg);
           speakJarvisReply(voiceMsg);
         }
@@ -1608,6 +1628,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       isThinkingRef.current = false;
       await handleBuildStudioStrategy(matchedBrand.id);
       const voiceReply = `أمرك يا ماستر تيتو، جهزت الاستراتيجية التسويقية لبراند ${matchedBrand.name} وحفظتها في تيتو ستوديو وأوبسيديان!`;
+      setLastJarvisReply(voiceReply);
       setTranscript(voiceReply);
       speakJarvisReply(voiceReply);
       return;
@@ -1617,6 +1638,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       isThinkingRef.current = false;
       await handleGenerateWeekPlan(matchedBrand.id);
       const voiceReply = `أمرك يا ماستر، تم توليد خطة محتوى أول أسبوع لـ ${matchedBrand.name} بنجاح!`;
+      setLastJarvisReply(voiceReply);
       setTranscript(voiceReply);
       speakJarvisReply(voiceReply);
       return;
@@ -1626,6 +1648,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       isThinkingRef.current = false;
       await handleApproveSchedule(matchedBrand.id);
       const voiceReply = `تم اعتماد جدولة خطة المحتوى في تيتو ستوديو للنشر التلقائي يا ماستر!`;
+      setLastJarvisReply(voiceReply);
       setTranscript(voiceReply);
       speakJarvisReply(voiceReply);
       return;
@@ -1707,7 +1730,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               .replace(/\bBattah\b|بطاح/gi, 'منصة المتاجر والمخازن المتكاملة')
               .replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, 'منصة الخدمات والحجوزات الذكية')
               .trim();
-        streamTranscriptWords(cleanReply);
+        const finalDisplayReply = cleanReply || data.replyText;
+        setLastJarvisReply(finalDisplayReply);
+        streamTranscriptWords(finalDisplayReply);
         setConversationHistory(prev => [
           ...prev.slice(-8),
           { role: 'user', text: commandText },
@@ -1990,8 +2015,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             </h1>
           </div>
 
-          {/* Right: Role-Separated Action Buttons (Visible on BOTH Mobile & Desktop) */}
-          <div className="flex items-center gap-1.5 flex-wrap shrink-0 max-w-full overflow-x-auto scrollbar-none">
+          {/* Right: Role-Separated Action Buttons (Single horizontal scroll row on mobile, wrapping on desktop) */}
+          <div className="flex items-center gap-1.5 flex-nowrap sm:flex-wrap shrink-0 max-w-full overflow-x-auto scrollbar-none pb-0.5">
             {isMasterAdmin ? (
               <>
                 <button
@@ -2234,6 +2259,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {/* TWO-WAY LIVE CONVERSATION & AUDIO DOCK (Modular Component) */}
             <JarvisMasterVoiceDock
               transcript={transcript}
+              lastReplyText={lastJarvisReply}
+              onClearLastReply={() => setLastJarvisReply('')}
+              onReplayFullReply={() => speakJarvisReply(lastJarvisReply, undefined, true)}
               isThinking={isThinking}
               isListening={isListening}
               isPlayingVoice={isPlayingVoice}
@@ -2677,9 +2705,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   />
                 </div>
 
-                {/* 2026 SPATIAL BRAND HUD INSPECTOR (SLEEK FLOATING DOCK — ZERO CLUTTER) */}
+                {/* 2026 SPATIAL BRAND HUD INSPECTOR (SLEEK SINGLE FLOATING DOCK — ZERO DUPLICATE POPOVER) */}
                 {selectedBrand && (
-                  <div className="w-full p-3 rounded-2xl bg-black/85 border border-cyan-400/40 backdrop-blur-2xl flex items-center justify-between flex-wrap gap-2.5 shadow-[0_0_30px_rgba(0,240,255,0.2)] animate-in fade-in slide-in-from-bottom-2">
+                  <div className="w-full p-2 sm:p-3 rounded-2xl bg-black/85 border border-cyan-400/40 backdrop-blur-2xl flex items-center justify-between flex-wrap gap-1.5 sm:gap-2.5 shadow-[0_0_30px_rgba(0,240,255,0.2)] animate-in fade-in slide-in-from-bottom-2">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center font-black text-black shadow-md text-sm">
                         {selectedBrand.name.slice(0, 1)}

@@ -1361,3 +1361,25 @@ test("38) Voice/Mic anti-echo & single-prosody TTS, restored QA/Catalog/Ads HUD,
     assert.ok(registrySrc.includes(`canonicalId: '${id}'`), `CORE_ACTIVE_BRANDS_SEED must contain portfolio brand ${id}`);
   }
 });
+
+test("39) Live-QA UX fixes: single Obsidian selection dock, persistent Jarvis reply, fast TTS summary, 1-row mobile header & 5,000+ OS catalog", () => {
+  const obsidianSrc = fs.readFileSync(path.join(process.cwd(), "components", "ObsidianHolographicConstellation.tsx"), "utf8");
+  assert.ok(obsidianSrc.includes("isCompactCanvas"), "ObsidianHolographicConstellation must clamp mobile node labels cleanly");
+  assert.equal(obsidianSrc.includes("setHoveredNode({\n            brand: item.brand"), false, "Clicking an Obsidian node must NOT spawn a second duplicate popover");
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(modalSrc.includes("lastJarvisReply"), "JarvisBattleStationModal must persist lastJarvisReply visibly");
+  assert.ok(modalSrc.includes("buildConciseSpokenSummary"), "JarvisBattleStationModal must use concise voice summary for faster TTS");
+  assert.ok(modalSrc.includes("flex-nowrap sm:flex-wrap") && modalSrc.includes("overflow-x-auto"), "Mobile BattleStation header must stay 1 horizontal row");
+
+  const dockSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisMasterVoiceDock.tsx"), "utf8");
+  assert.ok(dockSrc.includes("lastReplyText") && dockSrc.includes("handleToggleListening"), "JarvisMasterVoiceDock must show reply card & interactive orb mic button");
+
+  const vaultSrc = fs.readFileSync(path.join(process.cwd(), "services", "brandVault.ts"), "utf8");
+  assert.equal(vaultSrc.includes("1500 ج.م / شهر"), false, "t2_digital_os catalog must not carry stale 1500 EGP price");
+  assert.equal(vaultSrc.includes("3500 ج.م / شهر"), false, "t2_digital_os catalog must not carry stale 3500 EGP price");
+  assert.ok(vaultSrc.includes("5,000 ج.م / شهر"), "t2_digital_os catalog must start paid tiers at 5,000 EGP");
+
+  const routesSrc = fs.readFileSync(path.join(process.cwd(), "components", "AppRoutes.tsx"), "utf8");
+  assert.ok(routesSrc.includes("!isAuthReady"), "AppRoutes must wait for auth hydration before redirecting /chat");
+});

@@ -506,18 +506,20 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           ctx.stroke();
         }
 
-        // Brand Name Label with Screen-Space Collision Avoidance
-        const lx1 = node.px - 48;
-        const lx2 = node.px + 48;
+        // Brand Name Label with Screen-Space Collision Avoidance (compact spacing on narrow mobile screens)
+        const isCompactCanvas = canvas.width < 520;
+        const halfW = isCompactCanvas ? 64 : 48;
+        const lx1 = node.px - halfW;
+        const lx2 = node.px + halfW;
         const ly1 = node.py + radius + 2;
-        const ly2 = node.py + radius + 28;
+        const ly2 = node.py + radius + (isCompactCanvas ? 34 : 28);
         const overlapsExisting = !node.isSelected && drawnLabelBoxes.some(
           (b) => lx1 < b.x2 && lx2 > b.x1 && ly1 < b.y2 && ly2 > b.y1
         );
 
-        if (!overlapsExisting && node.scale > 0.55) {
+        if (!overlapsExisting && (node.isSelected || node.scale > (isCompactCanvas ? 0.72 : 0.55))) {
           drawnLabelBoxes.push({ x1: lx1, y1: ly1, x2: lx2, y2: ly2 });
-          ctx.font = node.isSelected ? 'bold 11px Cairo, sans-serif' : '9.5px Cairo, sans-serif';
+          ctx.font = node.isSelected ? 'bold 11px Cairo, sans-serif' : (isCompactCanvas ? '9px Cairo, sans-serif' : '9.5px Cairo, sans-serif');
           ctx.fillStyle = node.isSelected ? '#ffffff' : 'rgba(255, 255, 255, 0.88)';
           ctx.textAlign = 'center';
           ctx.shadowColor = '#000000';
@@ -526,13 +528,14 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           const safeName = /^\d{6,}$/.test(rawName)
             ? (node.brand.slug || node.brand.businessType || 'براند نشط')
             : rawName;
-          const clampedX = Math.max(54, Math.min(canvas.width - 54, node.px));
-          ctx.fillText(safeName.slice(0, 18), clampedX, node.py + radius + 14);
+          const clampedX = Math.max(halfW + 6, Math.min(canvas.width - (halfW + 6), node.px));
+          ctx.fillText(safeName.slice(0, isCompactCanvas ? 13 : 18), clampedX, node.py + radius + 14);
 
-          // Subtitle badge
-          ctx.font = '8px Cairo, sans-serif';
-          ctx.fillStyle = node.isSelected ? '#00f0ff' : '#94a3b8';
-          ctx.fillText(node.brand.businessType || 'نشاط رسمي', clampedX, node.py + radius + 25);
+          if (!isCompactCanvas || node.isSelected) {
+            ctx.font = '8px Cairo, sans-serif';
+            ctx.fillStyle = node.isSelected ? '#00f0ff' : '#94a3b8';
+            ctx.fillText(node.brand.businessType || 'نشاط رسمي', clampedX, node.py + radius + 25);
+          }
         }
 
         ctx.restore();
@@ -573,11 +576,6 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         const dist = Math.hypot(mx - px, my - py);
         if (dist <= r) {
           onSelectBrand(item.brand.id || item.brand.slug || '');
-          setHoveredNode({
-            brand: item.brand,
-            screenX: e.clientX,
-            screenY: e.clientY
-          });
           return;
         }
       }
@@ -668,11 +666,11 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       </div>
 
       {/* Live Optical Fiber Pulse Legend & Interactive Trigger Bar */}
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 border-b border-cyan-500/15 bg-[#02081c]/70 text-[10px] font-['Cairo']">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="relative z-10 flex flex-nowrap overflow-x-auto scrollbar-none sm:flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-1.5 border-b border-cyan-500/15 bg-[#02081c]/70 text-[10px] font-['Cairo']">
+        <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 shrink-0">
           <button
             onClick={() => setPulseMode('ALL')}
-            className={`px-2 py-0.5 rounded-lg border font-black transition cursor-pointer ${
+            className={`px-2 py-0.5 rounded-lg border font-black transition cursor-pointer whitespace-nowrap shrink-0 ${
               pulseMode === 'ALL' ? 'bg-white/15 border-white/40 text-white' : 'bg-black/30 border-white/10 text-white/60'
             }`}
           >
@@ -680,7 +678,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           </button>
           <button
             onClick={() => setPulseMode('TX')}
-            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer ${
+            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
               pulseMode === 'TX' ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200' : 'bg-cyan-500/10 border-cyan-500/25 text-cyan-300/80'
             }`}
           >
@@ -689,7 +687,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           </button>
           <button
             onClick={() => setPulseMode('RX')}
-            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer ${
+            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
               pulseMode === 'RX' ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200' : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300/80'
             }`}
           >
@@ -698,7 +696,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           </button>
           <button
             onClick={() => setPulseMode('SYNC')}
-            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer ${
+            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
               pulseMode === 'SYNC' ? 'bg-purple-500/25 border-purple-400 text-purple-200' : 'bg-purple-500/10 border-purple-500/25 text-purple-300/80'
             }`}
           >
@@ -707,13 +705,13 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="hidden lg:inline text-[10px] text-cyan-200/80 truncate max-w-[310px]">
             {liveTelemetrySummary}
           </span>
           <button
             onClick={triggerOpticalBurst}
-            className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-black text-[10px] flex items-center gap-1 shadow-[0_0_15px_rgba(0,240,255,0.35)] cursor-pointer"
+            className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-black text-[10px] flex items-center gap-1 shadow-[0_0_15px_rgba(0,240,255,0.35)] cursor-pointer whitespace-nowrap shrink-0"
           >
             <Zap className="w-3 h-3" />
             <span>⚡ إطلاق نبضة مزامنة حية</span>
