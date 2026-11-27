@@ -2752,17 +2752,27 @@ ${conversationMemoryDirective}`;
 
       case "manage_store_erp": {
         const erpAction = String(args.action || "get_summary").trim();
+        const hasExplicitSlugArg = Boolean(String(args.brandSlugOrId || "").trim());
         const resolvedSlug = String(
           args.brandSlugOrId || targetBrand?.slug || targetBrand?.id || brandId || "auto-house"
         ).trim();
         try {
           const { loadTenantErpState, saveTenantErpState, normalizeSlugKey } = await import("./tenantErpStoreService");
           const slugKey = normalizeSlugKey(resolvedSlug);
+          let matchedBrand: any =
+            unifiedBrands.find(
+              (b: any) =>
+                normalizeSlugKey(String(b.slug || b.id || "")) === slugKey ||
+                String(b.id || "").toLowerCase() === resolvedSlug.toLowerCase() ||
+                String(b.englishName || "").trim().toLowerCase() === resolvedSlug.toLowerCase() ||
+                String(b.name || "").trim().toLowerCase() === resolvedSlug.toLowerCase()
+            ) || (!hasExplicitSlugArg ? targetBrand : null);
+
           const erpState = await loadTenantErpState(slugKey);
           let products: any[] = Array.isArray(erpState.products) && erpState.products.length > 0
             ? [...erpState.products]
-            : (Array.isArray(targetBrand?.productsCatalog)
-                ? targetBrand.productsCatalog.map((p: any, idx: number) => ({
+            : (Array.isArray(matchedBrand?.productsCatalog)
+                ? matchedBrand.productsCatalog.map((p: any, idx: number) => ({
                     id: idx + 1,
                     name: p.name || `منتج ${idx + 1}`,
                     sku: p.sku || `SKU-${idx + 101}`,
@@ -2806,13 +2816,25 @@ ${conversationMemoryDirective}`;
             const prodName = String(args.productName || "منتج جديد").trim();
             const newPrice = Number(args.price || 500) || 500;
             const newStock = Number(args.stock ?? 20);
-            const domainImg = getIndustryHeroImage(`${targetBrand?.businessType || ""} ${prodName}`, targetBrand?.name || "");
+            const liveStoreUrl = `https://store.t2os.app/s/${slugKey}`;
+
+            const msgBrandMatch = String(message || "").match(
+              /(?:لـ\s*براند|لبراند|لمتجر|في\s+براند|في\s+متجر)\s+["«']?([^"»'\n]+?)["»']?(?=\s+(?:منتج|صنف|خدمة|سلعة|بسعر|سعره|\d)|$)/i
+            );
+            const displayBrandName = String(
+              matchedBrand?.name || msgBrandMatch?.[1]?.trim() || resolvedSlug
+            ).trim();
+
+            const domainImg = getIndustryHeroImage(
+              `${matchedBrand?.businessType || ""} ${prodName}`,
+              displayBrandName
+            );
             const newProd = {
               id: Date.now(),
               name: prodName,
               sku: String(args.sku || `SKU-${Date.now().toString().slice(-5)}`),
-              category: String(args.category || targetBrand?.businessType || "عام"),
-              mainCategory: String(args.category || targetBrand?.businessType || "عام"),
+              category: String(args.category || matchedBrand?.businessType || "عام"),
+              mainCategory: String(args.category || matchedBrand?.businessType || "عام"),
               description: String(args.description || "متاح للطلب الفوري عبر المتجر الإلكتروني"),
               purchasePrice: Math.round(newPrice * 0.65),
               sellingPrice: newPrice,
@@ -2820,36 +2842,92 @@ ${conversationMemoryDirective}`;
               imageUrl: domainImg,
               images: domainImg ? [domainImg] : [],
             };
-            products = [newProd, ...products];
-            await saveTenantErpState(slugKey, { products });
+            const normProdName = prodName.toLowerCase();
+            products = [
+              newProd,
+              ...products.filter((p: any) => String(p?.name || "").trim().toLowerCase() !== normProdName),
+            ];
+
+            const wasAutoCreated = !matchedBrand;
+            if (wasAutoCreated) {
+              await syncBrandToAllEcosystems({
+                id: slugKey.replace(/-/g, "_"),
+                slug: slugKey,
+                name: displayBrandName,
+                englishName: slugKey,
+                businessType: "متجر إلكتروني ومنتجات ذكية",
+                appTemplate: "products_erp",
+                enableDropshipping: /دروب\s*شيب|dropship/i.test(message),
+                vercelUrl: liveStoreUrl,
+                productsCatalog: [
+                  {
+                    name: newProd.name,
+                    sku: newProd.sku,
+                    category: newProd.category,
+                    price: `${newPrice} ج.م`,
+                    numericPrice: newPrice,
+                    description: newProd.description,
+                    image: domainImg,
+                    imageUrl: domainImg,
+                  },
+                ],
+                source: "Jarvis_ManageStoreErp_AutoCreate",
+              });
+              matchedBrand = {
+                id: slugKey.replace(/-/g, "_"),
+                slug: slugKey,
+                name: displayBrandName,
+                businessType: "متجر إلكتروني ومنتجات ذكية",
+              };
+            }
+            targetBrand = matchedBrand;
+
+            await saveTenantErpState(slugKey, {
+              products,
+              ...(wasAutoCreated ? { storefrontSettings: { companyName: displayBrandName } } : {}),
+            });
             // Read-after-write verification: confirm product really exists in live store DB before confirming
             const verifiedState = await loadTenantErpState(slugKey);
             const verifiedProds = Array.isArray(verifiedState?.products) ? verifiedState.products : [];
             const actuallySaved = verifiedProds.some(
-              (p: any) => String(p?.name || "").trim().toLowerCase() === prodName.toLowerCase() && Number(p?.sellingPrice) === newPrice
+              (p: any) => String(p?.name || "").trim().toLowerCase() === normProdName && Number(p?.sellingPrice) === newPrice
             );
-            const liveStoreUrl = `https://store.t2os.app/s/${slugKey}`;
 
-            if (targetBrand?.id && actuallySaved) {
+            if (!wasAutoCreated && matchedBrand?.id && actuallySaved) {
+              const existingCatalog = Array.isArray(matchedBrand.productsCatalog) ? matchedBrand.productsCatalog : [];
               const nextCatalog = [
-                { name: newProd.name, sku: newProd.sku, category: newProd.category, price: `${newPrice} ج.م`, numericPrice: newPrice, description: newProd.description, image: domainImg, imageUrl: domainImg },
-                ...(Array.isArray(targetBrand.productsCatalog) ? targetBrand.productsCatalog : []),
+                {
+                  name: newProd.name,
+                  sku: newProd.sku,
+                  category: newProd.category,
+                  price: `${newPrice} ج.م`,
+                  numericPrice: newPrice,
+                  description: newProd.description,
+                  image: domainImg,
+                  imageUrl: domainImg,
+                },
+                ...existingCatalog.filter((p: any) => String(p?.name || "").trim().toLowerCase() !== normProdName),
               ];
-              persistBrandUpdateAcrossEcosystem(targetBrand.id, { productsCatalog: nextCatalog });
+              persistBrandUpdateAcrossEcosystem(matchedBrand.id, { productsCatalog: nextCatalog });
             }
             backendExecutionResult = actuallySaved
               ? {
                   success: true,
                   product: newProd,
+                  brandName: matchedBrand?.name || displayBrandName,
                   brandSlug: slugKey,
                   liveStoreUrl,
+                  verifiedInStore: true,
+                  verifiedErpProductsCount: verifiedProds.length,
                   verifiedProductsCount: verifiedProds.length,
-                  message: `تمت إضافة "${newProd.name}" بسعر ${newPrice} ج.م وتأكيد حفظه في المتجر الحي (${liveStoreUrl}) — إجمالي المنتجات الآن: ${verifiedProds.length}.`,
+                  message: `تمت إضافة "${newProd.name}" لبراند "${displayBrandName}" بسعر ${newPrice} ج.م وتأكيد حفظه في المتجر الحي (${liveStoreUrl}) — إجمالي المنتجات الآن: ${verifiedProds.length}.`,
                 }
               : {
                   success: false,
+                  brandName: matchedBrand?.name || displayBrandName,
                   brandSlug: slugKey,
                   liveStoreUrl,
+                  verifiedInStore: false,
                   error: `فشل تأكيد حفظ "${newProd.name}" في قاعدة بيانات المتجر (${liveStoreUrl}).`,
                 };
           } else if (erpAction === "update_price") {
@@ -3110,6 +3188,12 @@ ${conversationMemoryDirective}`;
             });
             backendExecutionResult = { success: true, ...cRes };
           }
+          executedAction = {
+            type: (erpAction === "add_product" || erpAction === "update_price") ? "CATALOG_MUTATED" : "ERP_STATE_UPDATED",
+            tab: "app_cloner",
+            brandId: matchedBrand?.id || slugKey,
+            result: backendExecutionResult,
+          };
         } catch (err: any) {
           backendExecutionResult = { success: false, error: err?.message || "ERP execution error" };
         }
