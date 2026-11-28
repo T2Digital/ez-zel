@@ -359,7 +359,7 @@ export const playShadowVoice = async (
 
     try {
         // Fetch human audio from memory cache, persistent IndexedDB cache, or Gemini TTS
-        const cacheKey = `${voice}_${text.trim()}`;
+        const cacheKey = `${voice}_v4_gemini25_${text.trim()}`;
         let base64 = existing || audioCache.get(cacheKey);
         if (!base64) {
             base64 = await shadowDB.getAudioSegment(cacheKey) || undefined;

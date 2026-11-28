@@ -178,7 +178,7 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
     ensureCacheDir();
     const hash = crypto
         .createHash('sha256')
-        .update(`${geminiVoice}_v3_${cleanText}`)
+        .update(`${geminiVoice}_v4_gemini25_${cleanText}`)
         .digest('hex')
         .substring(0, 28);
     const cachedWavPath = path.join(CACHE_DIR, `${hash}.wav`);
@@ -201,8 +201,10 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         return await synthesizeWithNodeEdgeTts(cleanText, isFemale, wantRawPcm ? 'raw-24khz-16bit-mono-pcm' : undefined);
     }
 
-    // Latest verified Gemini Human TTS models
+    // Verified Gemini Human TTS models (gemini-2.5-flash-preview-tts works on active Tier-1/Free keys)
     const geminiTtsModels = [
+        'gemini-2.5-flash-preview-tts',
+        'gemini-2.5-pro-preview-tts',
         'gemini-3.8-flash-lite-tts',
         'gemini-3.1-flash-tts-preview'
     ];
@@ -214,7 +216,10 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5500);
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                const promptText = ttsModel.startsWith('gemini-2.5-')
+                    ? `اقرأ النص التالي بصوت بشري طبيعي دافئ وواضح باللهجة المصرية فقط بدون أي إضافات:\n${cleanText}`
+                    : cleanText;
 
                 const resp = await fetch(url, {
                     method: 'POST',
@@ -226,7 +231,7 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
                         contents: [
                             {
                                 role: 'user',
-                                parts: [{ text: cleanText }]
+                                parts: [{ text: promptText }]
                             }
                         ],
                         generationConfig: {

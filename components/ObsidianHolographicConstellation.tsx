@@ -126,7 +126,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     }, 3500);
   };
 
-  // 3D Camera / Orbit State (360° multi-axis + momentum + pinch zoom)
+  // 3D Camera / Orbit State (360° multi-axis + momentum + pinch zoom + auto-resume orbit after manual drag)
   const rotationRef = useRef({ x: 0.28, y: 0.45 });
   const targetRotationRef = useRef({ x: 0.28, y: 0.45 });
   const velocityRef = useRef({ x: 0, y: 0 });
@@ -136,6 +136,17 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
   const lastMousePosRef = useRef({ x: 0, y: 0 });
   const pinchDistRef = useRef<number | null>(null);
   const zoomRef = useRef(1.0);
+  const userPausedRotateRef = useRef(false);
+  const resumeRotateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleAutoRotateResume = () => {
+    if (resumeRotateTimerRef.current) clearTimeout(resumeRotateTimerRef.current);
+    resumeRotateTimerRef.current = setTimeout(() => {
+      if (!userPausedRotateRef.current && !isDraggingRef.current) {
+        setAutoRotate(true);
+      }
+    }, 1500);
+  };
 
   // Filtered nodes
   const filteredBrands = useMemo(() => {
@@ -151,18 +162,17 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     });
   }, [brands, activeFilter]);
 
-  // Pre-calculate 3D sphere positions for each brand node in concentric cyber-orbital rings
+  // Pre-calculate 3D sphere positions for each brand node in concentric outer orbital shells well clear of Core & Pillars
   const node3DPositions = useMemo(() => {
     const list = filteredBrands;
     const total = list.length;
     return list.map((brand, idx) => {
-      // Golden Spiral distribution on sphere surface or concentric rings
       const phi = Math.acos(1 - 2 * (idx + 0.5) / Math.max(total, 1));
       const theta = Math.PI * (1 + Math.sqrt(5)) * idx;
 
-      // Distribute in two spacious energy shells (radius 250 to 365)
+      // Wide separation outside inner pillars (r = 192): brand shells at 290 and 400
       const isInner = idx % 2 === 0;
-      const radius = isInner ? 250 : 365;
+      const radius = isInner ? 290 : 400;
 
       const x = radius * Math.sin(phi) * Math.cos(theta);
       const y = (radius * 0.78) * Math.cos(phi);
@@ -195,8 +205,8 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     const cosY = Math.cos(rotationRef.current.y);
     const sinY = Math.sin(rotationRef.current.y);
     const responsiveFovBase = canvas.width < 520
-      ? Math.min(340, Math.max(250, canvas.width * 0.72))
-      : Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
+      ? Math.min(265, Math.max(205, canvas.width * 0.54))
+      : Math.min(580, Math.max(320, Math.min(canvas.width, canvas.height) * 0.98));
     const fov = responsiveFovBase * zoomRef.current;
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
@@ -230,6 +240,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     if (!canvas || !container) return;
 
     const handleMouseDown = (e: MouseEvent) => {
+      if (resumeRotateTimerRef.current) clearTimeout(resumeRotateTimerRef.current);
       isDraggingRef.current = true;
       didDragRef.current = false;
       dragStartPosRef.current = { x: e.clientX, y: e.clientY };
@@ -253,7 +264,9 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     };
 
     const handleMouseUp = () => {
+      if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
+      scheduleAutoRotateResume();
     };
 
     const handleWheel = (e: WheelEvent) => {
@@ -262,6 +275,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     };
 
     const handleTouchStart = (e: TouchEvent) => {
+      if (resumeRotateTimerRef.current) clearTimeout(resumeRotateTimerRef.current);
       if (e.touches.length === 1) {
         const touch = e.touches[0];
         isDraggingRef.current = true;
@@ -317,6 +331,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         if (wasTap && e.changedTouches[0]) {
           pickBrandAtClientPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
         }
+        scheduleAutoRotateResume();
       }
     };
 
@@ -329,6 +344,7 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     canvas.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
+      if (resumeRotateTimerRef.current) clearTimeout(resumeRotateTimerRef.current);
       canvas.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -349,11 +365,11 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
     let animId: number;
     let t = 0;
 
-    // Core Sovereign Architecture Pillars in Inner Ring around JARVIS CORE
+    // Core Sovereign Architecture Pillars in Inner Ring spaced cleanly away from JARVIS CORE
     const coreSystemPlanets = [
-      { id: 'pillar_studio', label: 'الاستوديو', sub: 'المحتوى والإعلانات', angleOffset: 0, r: 146, color: '#a855f7', glow: 'rgba(168,85,247,0.6)', signalType: 'SYNC' as const },
-      { id: 'pillar_agent', label: 'الأجنت', sub: 'الواتساب والمبيعات', angleOffset: (Math.PI * 2) / 3, r: 146, color: '#10b981', glow: 'rgba(16,185,129,0.6)', signalType: 'RX' as const },
-      { id: 'pillar_factory', label: 'المصنع', sub: 'المتاجر والـ ERP', angleOffset: (Math.PI * 4) / 3, r: 146, color: '#00f0ff', glow: 'rgba(0,240,255,0.6)', signalType: 'TX' as const },
+      { id: 'pillar_studio', label: 'الاستوديو', sub: 'المحتوى والإعلانات', angleOffset: 0, r: 192, color: '#a855f7', glow: 'rgba(168,85,247,0.65)', signalType: 'SYNC' as const },
+      { id: 'pillar_agent', label: 'الأجنت', sub: 'الواتساب والمبيعات', angleOffset: (Math.PI * 2) / 3, r: 192, color: '#10b981', glow: 'rgba(16,185,129,0.65)', signalType: 'RX' as const },
+      { id: 'pillar_factory', label: 'المصنع', sub: 'المتاجر والـ ERP', angleOffset: (Math.PI * 4) / 3, r: 192, color: '#00f0ff', glow: 'rgba(0,240,255,0.65)', signalType: 'TX' as const },
     ];
 
     const getBrandPillarIndices = (
@@ -435,8 +451,8 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const sinY = Math.sin(ry);
 
       const responsiveFovBase = canvas.width < 520
-        ? Math.min(340, Math.max(250, canvas.width * 0.72))
-        : Math.min(620, Math.max(330, Math.min(canvas.width, canvas.height) * 1.08));
+        ? Math.min(265, Math.max(205, canvas.width * 0.54))
+        : Math.min(580, Math.max(320, Math.min(canvas.width, canvas.height) * 0.98));
       const fov = responsiveFovBase * zoomRef.current;
 
       // 3D Point Projection Helper
@@ -457,13 +473,13 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         return { px, py, scale, z: z2 };
       };
 
-      // 1. Draw Central Sovereign Core Rings + Inner Architecture Orbit Ring (r = 146)
+      // 1. Draw Central Sovereign Core Rings + Inner Architecture Orbit Ring (r = 192)
       ctx.save();
       const coreRings = [
         { r: 44, color: 'rgba(0, 240, 255, 0.45)', dash: [6, 8], speed: 1.2 },
-        { r: 78, color: 'rgba(168, 85, 247, 0.35)', dash: [12, 10], speed: -0.8 },
-        { r: 112, color: 'rgba(56, 189, 248, 0.25)', dash: [4, 6], speed: 0.5 },
-        { r: 146, color: 'rgba(34, 211, 238, 0.26)', dash: [], speed: 0.2 }
+        { r: 82, color: 'rgba(168, 85, 247, 0.35)', dash: [12, 10], speed: -0.8 },
+        { r: 122, color: 'rgba(56, 189, 248, 0.25)', dash: [4, 6], speed: 0.5 },
+        { r: 192, color: 'rgba(34, 211, 238, 0.26)', dash: [], speed: 0.2 }
       ];
 
       coreRings.forEach(ring => {
@@ -557,9 +573,9 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
 
-        // Pillar Sphere
-        const pr = 14.5 * pl.scale;
-        const pGrad = ctx.createRadialGradient(pl.px - pr * 0.3, pl.py - pr * 0.3, pr * 0.1, pl.px, pl.py, pr * 1.9);
+        // Pillar Sphere (slightly larger & clearly distinct around Core)
+        const pr = 21 * pl.scale;
+        const pGrad = ctx.createRadialGradient(pl.px - pr * 0.3, pl.py - pr * 0.3, pr * 0.1, pl.px, pl.py, pr * 2.1);
         pGrad.addColorStop(0, '#ffffff');
         pGrad.addColorStop(0.35, pl.color);
         pGrad.addColorStop(1, 'rgba(2,6,23,0.12)');
@@ -570,22 +586,22 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
 
         // Orbital ring around pillar
         ctx.beginPath();
-        ctx.ellipse(pl.px, pl.py, pr * 1.65, pr * 0.65, 0.35, 0, Math.PI * 2);
+        ctx.ellipse(pl.px, pl.py, pr * 1.75, pr * 0.68, 0.35, 0, Math.PI * 2);
         ctx.strokeStyle = pl.color;
-        ctx.lineWidth = 1.25;
+        ctx.lineWidth = 1.4;
         ctx.stroke();
 
         // Clean Pillar Label + Role Subtitle
-        ctx.font = 'bold 11px Cairo, sans-serif';
+        ctx.font = 'bold 12px Cairo, sans-serif';
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.shadowColor = '#000000';
         ctx.shadowBlur = 6;
-        ctx.fillText(pl.label, pl.px, pl.py - pr - 7);
+        ctx.fillText(pl.label, pl.px, pl.py - pr - 8);
         if (pl.scale > 0.45) {
-          ctx.font = 'bold 8.5px Cairo, sans-serif';
+          ctx.font = 'bold 9px Cairo, sans-serif';
           ctx.fillStyle = pl.color;
-          ctx.fillText(pl.sub, pl.px, pl.py + pr + 12);
+          ctx.fillText(pl.sub, pl.px, pl.py + pr + 13);
         }
         ctx.restore();
       });
@@ -809,8 +825,8 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       ref={containerRef}
       className={`${
         isFullscreen
-          ? 'fixed inset-0 z-[140] w-screen h-[100dvh] rounded-none border-0 bg-[#020614]/96 backdrop-blur-md'
-          : `relative w-full h-full ${compact ? 'min-h-0' : 'min-h-[380px] sm:min-h-[460px]'} rounded-3xl bg-[#020614]/88 backdrop-blur-md border border-cyan-500/25`
+          ? 'fixed inset-0 z-[140] w-screen h-[100dvh] rounded-none border-0 bg-[#020614]/75 backdrop-blur-[2px]'
+          : `relative w-full h-full ${compact ? 'min-h-0' : 'min-h-[380px] sm:min-h-[460px]'} rounded-3xl bg-[#020614]/45 backdrop-blur-[1.5px] border border-cyan-500/25`
       } overflow-hidden shadow-[0_0_60px_rgba(0,240,255,0.08)] flex flex-col ${className}`}
     >
       {/* Futuristic Spatial Corner Reticles */}
@@ -882,7 +898,11 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
           {/* Auto-Rotation Toggle */}
           <button
             type="button"
-            onClick={() => setAutoRotate(!autoRotate)}
+            onClick={() => {
+              const next = !autoRotate;
+              userPausedRotateRef.current = !next;
+              setAutoRotate(next);
+            }}
             className={`p-1.5 rounded-xl border text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
               autoRotate
                 ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
@@ -915,60 +935,6 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
               <X className="w-3.5 h-3.5" />
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Live Optical Fiber Pulse Legend & Interactive Trigger Bar */}
-      <div className="relative z-10 flex flex-nowrap overflow-x-auto scrollbar-none sm:flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-1.5 border-b border-cyan-500/15 bg-[#02081c]/70 text-[10px] font-['Cairo']">
-        <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => setPulseMode('ALL')}
-            className={`px-2 py-0.5 rounded-lg border font-black transition cursor-pointer whitespace-nowrap shrink-0 ${
-              pulseMode === 'ALL' ? 'bg-white/15 border-white/40 text-white' : 'bg-black/30 border-white/10 text-white/60'
-            }`}
-          >
-            كل النبضات الحية
-          </button>
-          <button
-            onClick={() => setPulseMode('TX')}
-            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
-              pulseMode === 'TX' ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200' : 'bg-cyan-500/10 border-cyan-500/25 text-cyan-300/80'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-[#00f0ff] shadow-[0_0_8px_#00f0ff]" />
-            <span>TX إرسال أمر للتطبيقات</span>
-          </button>
-          <button
-            onClick={() => setPulseMode('RX')}
-            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
-              pulseMode === 'RX' ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200' : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300/80'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]" />
-            <span>RX استقبال واتساب وحجوزات</span>
-          </button>
-          <button
-            onClick={() => setPulseMode('SYNC')}
-            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
-              pulseMode === 'SYNC' ? 'bg-purple-500/25 border-purple-400 text-purple-200' : 'bg-purple-500/10 border-purple-500/25 text-purple-300/80'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-[#a855f7] shadow-[0_0_8px_#a855f7]" />
-            <span>SYNC مزامنة ستوديو وميتا</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="hidden lg:inline text-[10px] text-cyan-200/80 truncate max-w-[310px]">
-            {liveTelemetrySummary}
-          </span>
-          <button
-            onClick={triggerOpticalBurst}
-            className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-black text-[10px] flex items-center gap-1 shadow-[0_0_15px_rgba(0,240,255,0.35)] cursor-pointer whitespace-nowrap shrink-0"
-          >
-            <Zap className="w-3 h-3" />
-            <span>⚡ إطلاق نبضة مزامنة حية</span>
-          </button>
         </div>
       </div>
 

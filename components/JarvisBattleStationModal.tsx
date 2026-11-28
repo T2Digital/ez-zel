@@ -960,10 +960,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   }, [isOpen, activeDeckTab, selectedBrandId, loadQaMonitor, loadAdPerfData]);
 
   useEffect(() => {
-    if ((!isMasterAdmin || adminPreviewVisitor || persona !== 'tito') && activeDeckTab === 'obsidian_graph') {
+    if (adminPreviewVisitor && activeDeckTab === 'obsidian_graph') {
       setActiveDeckTab('brand_hub');
+    } else if (isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && activeDeckTab === 'brand_hub') {
+      setActiveDeckTab('obsidian_graph');
     }
-  }, [isMasterAdmin, adminPreviewVisitor, persona, activeDeckTab]);
+  }, [isMasterAdmin, adminPreviewVisitor, persona]);
 
   // Fetch real database telemetry on open
   useEffect(() => {
@@ -2249,14 +2251,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       isFullscreen ? 'p-0 bg-[#020510]' : 'p-2 sm:p-4 bg-[#020510]/95 backdrop-blur-md'
     }`} dir="rtl">
       
-      {/* Opaque Cosmic Second Brain OS Container with clean ambient SpaceCanvas (prevents ChatInterface bleed-through) */}
-      <div className={`relative mx-auto w-full bg-[#020614]/95 border border-cyan-500/40 shadow-[0_0_60px_rgba(0,240,255,0.2)] flex flex-col overflow-hidden transition-all duration-300 ${
+      {/* Opaque outer shield over ChatInterface + internal SpaceCanvas Earth/Moon/Planets backdrop */}
+      <div className={`relative mx-auto w-full bg-[#020614]/45 border border-cyan-500/40 shadow-[0_0_60px_rgba(0,240,255,0.2)] flex flex-col overflow-hidden transition-all duration-300 ${
         isFullscreen ? 'h-[100dvh] rounded-none border-0' : 'max-w-6xl h-[92dvh] rounded-[28px]'
       }`}>
 
-        {/* Clean Starfield Backdrop (cleanAmbient hides overlapping planets/ISS/Arabic labels) */}
-        <div className="absolute inset-0 pointer-events-none z-0 opacity-75">
-          <SpaceCanvas interactive={false} showEarth={false} cleanAmbient={true} />
+        {/* Pure Cosmic Earth, Moon, Planets & Stars Backdrop (cleanAmbient hides text clutter, stays lightweight ~60fps) */}
+        <div className="absolute inset-0 pointer-events-none z-0 opacity-85">
+          <SpaceCanvas interactive={false} showEarth={true} cleanAmbient={true} />
         </div>
 
         {/* Subtle Bioluminescent HUD Vignette */}
@@ -2564,30 +2566,64 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               </div>
             )}
 
-            {/* STANDALONE ARC REACTOR CORE — RENDERED ONLY FOR VISITORS/TRIAL/CLIENTS (ADMIN USES SINGLE OBSIDIAN HERO CORE BELOW) */}
+            {/* PUBLIC/TRIAL/CLIENT CONSTELLATION ORB — NEVER LEAVES CORE EMPTY ON MOBILE OR VISITOR MODE (NO PRIVATE ADMIN BRANDS LEAKED) */}
             {(persona !== 'tito' || !isMasterAdmin || adminPreviewVisitor) && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (isPlayingVoice) {
-                    stopAllJarvisAudio();
-                    startListeningLoop(true);
-                  } else {
-                    handleToggleListening();
+              <div className="w-full h-[270px] sm:h-[310px] shrink-0 relative overflow-hidden rounded-3xl">
+                <ObsidianHolographicConstellation
+                  compact={true}
+                  isFullscreen={isConstellationFullscreen}
+                  onToggleFullscreen={() => setIsConstellationFullscreen((v) => !v)}
+                  brands={
+                    allBrandsList.length > 0 && !adminPreviewVisitor
+                      ? allBrandsList.slice(0, 6).map((b) => ({
+                          id: b.id,
+                          slug: b.slug,
+                          name: b.name,
+                          businessType: b.businessType,
+                          postsCount: Number((b as any).studioPostsCount ?? 1),
+                          hasWhatsApp: Boolean((b as any).whatsappConnected),
+                          hasMeta: Boolean((b as any).metaConnected),
+                        }))
+                      : [
+                          { id: 'demo_retail', name: 'المتاجر والتجارة الإلكترونية', businessType: 'تجارة ومنتجات ذكية', slug: 'demo-retail', postsCount: 3, hasWhatsApp: true, hasMeta: true },
+                          { id: 'demo_clinics', name: 'العيادات والمراكز الطبية', businessType: 'حجوزات وخدمة عملاء', slug: 'demo-clinics', postsCount: 2, hasWhatsApp: true, hasMeta: true },
+                          { id: 'demo_restaurants', name: 'المطاعم والكافيهات', businessType: 'طلبات سريعة وتوصيل', slug: 'demo-food', postsCount: 2, hasWhatsApp: true, hasMeta: false },
+                          { id: 'demo_realestate', name: 'العقارات والسيارات', businessType: 'مبيعات ومعاينات', slug: 'demo-realty', postsCount: 1, hasWhatsApp: true, hasMeta: true },
+                        ]
                   }
-                }}
-                title="اضغط على الكرة المضيئة للتحدث مع جارفس"
-                className={`shrink-0 cursor-pointer focus:outline-none hover:scale-[1.03] active:scale-[0.98] transition-transform ${
-                  persona === 'visitor' ? 'scale-[0.72] -my-5' : 'scale-[0.55] -my-7'
-                }`}
-              >
-                <JarvisArcReactorCore
-                  isListening={isListening}
-                  isPlayingVoice={isPlayingVoice}
-                  isThinking={isThinking}
-                  audioLevel={audioLevel}
+                  selectedBrandId={selectedBrandId || 'demo_retail'}
+                  onSelectBrand={(id) => {
+                    if (id.startsWith('demo_')) {
+                      setIsOnboardingOpen(true);
+                    } else {
+                      handleSelectBrand(id);
+                    }
+                  }}
+                  centerCore={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isPlayingVoice) {
+                          stopAllJarvisAudio();
+                          startListeningLoop(true);
+                        } else {
+                          handleToggleListening();
+                        }
+                      }}
+                      title="اضغط على النواة للتحدث مع جارفس"
+                      className="cursor-pointer focus:outline-none hover:scale-105 active:scale-95 transition-transform"
+                    >
+                      <JarvisArcReactorCore
+                        isListening={isListening}
+                        isPlayingVoice={isPlayingVoice}
+                        isThinking={isThinking}
+                        audioLevel={audioLevel}
+                      />
+                    </button>
+                  }
+                  className="!bg-transparent !border-cyan-400/20 !shadow-none"
                 />
-              </button>
+              </div>
             )}
 
             {/* DEDICATED NON-OVERLAPPING TOP CONTROL STACK (Voice Dock + Wake Guard + Text Bar) */}
@@ -3006,7 +3042,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {/* SINGLE OBSIDIAN HERO CORE (ALWAYS ON TOP FOR ADMIN; SUB-WINDOWS RENDER CLEANLY UNDERNEATH WITH ZERO OVERLAP) */}
             {isMasterAdmin && !adminPreviewVisitor && persona === 'tito' && (
               <div className={`w-full flex flex-col gap-2 animate-in fade-in duration-300 font-['Cairo'] text-right ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-0' : 'shrink-0'}`}>
-                <div className={`w-full relative overflow-hidden rounded-3xl ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-[380px]' : 'h-[230px] sm:h-[260px] shrink-0'}`}>
+                <div className={`w-full relative overflow-hidden rounded-3xl ${activeDeckTab === 'obsidian_graph' ? 'flex-1 min-h-[410px] sm:min-h-[440px]' : 'h-[260px] sm:h-[290px] shrink-0'}`}>
                   <ObsidianHolographicConstellation
                     compact={activeDeckTab !== 'obsidian_graph'}
                     isFullscreen={isConstellationFullscreen}

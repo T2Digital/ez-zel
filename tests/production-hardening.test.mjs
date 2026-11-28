@@ -1496,13 +1496,15 @@ test("43) 360° Fullscreen Obsidian, touch rotation, SpaceCanvas backdrop, wake-
   assert.ok(modalSrc.includes("t2_jarvis_ui_state_v1") && modalSrc.includes("t2JarvisGuard"), "JarvisBattleStationModal must persist PWA UI state and guard back-button navigation");
   assert.ok(modalSrc.includes("trimmedCmd.length <= 28"), "Bare publish shortcut must not intercept creative topic post requests");
   assert.ok(
-    modalSrc.includes("cleanAmbient={true}") && modalSrc.includes("bg-[#020614]/95") && modalSrc.includes("manualDirectListenRef"),
-    "JarvisBattleStationModal must render opaque cleanAmbient SpaceCanvas backdrop and separate manual mic tap from wake-word standby"
+    modalSrc.includes("cleanAmbient={true}") && modalSrc.includes("bg-[#020510]") && modalSrc.includes("showEarth={true}") && modalSrc.includes("manualDirectListenRef"),
+    "JarvisBattleStationModal must render opaque outer backdrop with lightweight Earth/Space cleanAmbient layer and separate manual mic tap"
   );
   assert.ok(
-    obsidianSrc.includes("الاستوديو") && obsidianSrc.includes("الأجنت") && obsidianSrc.includes("المصنع") && !obsidianSrc.includes("كوكب تيتو"),
-    "ObsidianHolographicConstellation must use clean 3 sovereign pillars (الاستوديو, الأجنت, المصنع) without كوكب تيتو"
+    obsidianSrc.includes("الاستوديو") && obsidianSrc.includes("الأجنت") && obsidianSrc.includes("المصنع") && !obsidianSrc.includes("كوكب تيتو") && !obsidianSrc.includes("إطلاق نبضة مزامنة حية"),
+    "ObsidianHolographicConstellation must use clean 3 sovereign pillars (الاستوديو, الأجنت, المصنع) without كوكب تيتو or pulse bar clutter"
   );
+  const edgeTtsSrc = fs.readFileSync(path.join(process.cwd(), "services", "edgeSpeechSynthesizer.ts"), "utf8");
+  assert.ok(edgeTtsSrc.includes("gemini-2.5-flash-preview-tts"), "edgeSpeechSynthesizer must prioritize active Gemini 2.5 Human TTS model");
 
   const postCardSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisContentPostCard.tsx"), "utf8");
   assert.ok(postCardSrc.includes("activePost?.brandName || currentSelectedBrand?.name") && postCardSrc.includes("إغلاق بطاقة المنشور"), "JarvisContentPostCard must bind to post brandName and include close button");

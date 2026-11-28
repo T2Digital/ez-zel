@@ -60,7 +60,7 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean; cleanA
             type: 'star' | 'warp_star' | 'allah' | 'constellation';
         }[] = [];
 
-        const numStars = 360;
+        const numStars = cleanAmbient ? 150 : 360;
         const colors = ['#ffffff', '#e0f7fa', '#f3e5f5', '#fff9c4', '#e8eaf6'];
 
         // Background Stars
@@ -77,7 +77,8 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean; cleanA
         }
 
         // Warp Stars
-        for (let i = 0; i < 120; i++) {
+        const numWarpStars = cleanAmbient ? 45 : 120;
+        for (let i = 0; i < numWarpStars; i++) {
             entities.push({
                 x: (Math.random() - 0.5) * width * 3,
                 y: (Math.random() - 0.5) * height * 3,
@@ -383,19 +384,14 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean; cleanA
 
             ctx.globalAlpha = 1.0;
 
-            if (!showEarth && cleanAmbient) {
+            if (cleanAmbient) {
                 const neb1 = ctx.createRadialGradient(width * 0.25, height * 0.3, 10, width * 0.25, height * 0.3, Math.max(width, height) * 0.45);
-                neb1.addColorStop(0, 'rgba(0, 240, 255, 0.06)');
+                neb1.addColorStop(0, 'rgba(0, 240, 255, 0.05)');
                 neb1.addColorStop(1, 'rgba(0, 0, 0, 0)');
                 ctx.fillStyle = neb1;
                 ctx.fillRect(0, 0, width, height);
-
-                const neb2 = ctx.createRadialGradient(width * 0.78, height * 0.72, 10, width * 0.78, height * 0.72, Math.max(width, height) * 0.42);
-                neb2.addColorStop(0, 'rgba(168, 85, 247, 0.06)');
-                neb2.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                ctx.fillStyle = neb2;
-                ctx.fillRect(0, 0, width, height);
-            } else if (showEarth) {
+            }
+            if (showEarth) {
                 const earthSize = 220;
                 const earthX = cx - earthSize / 2;
                 const earthY = cy - earthSize / 2;
@@ -426,10 +422,12 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean; cleanA
                         ctx.stroke();
                     }
 
-                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                    ctx.font = 'bold 12px Cairo, sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(name, pX, pY - pSize - 15);
+                    if (!cleanAmbient) {
+                        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                        ctx.font = 'bold 12px Cairo, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(name, pX, pY - pSize - 15);
+                    }
                 };
 
                 drawPlanet('الشمس (Sun)', earthX - 4000, earthY + 500, 1000, 'rgba(255,255,200,1)', 'rgba(255,150,0,0.8)');
@@ -521,8 +519,10 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean; cleanA
                 };
 
                 // Behind Earth
-                agents.forEach(a => drawAgent(a, false));
-                drawISS(false);
+                if (!cleanAmbient) {
+                    agents.forEach(a => drawAgent(a, false));
+                    drawISS(false);
+                }
                 if (Math.sin(time) <= 0) {
                     drawRotatingImageSafe(moonImg, moonX, moonY, moonSize, time, 50);
                     const gMoon = ctx.createRadialGradient(moonX + moonSize*0.3, moonY + moonSize*0.3, 0, moonX + moonSize/2, moonY + moonSize/2, moonSize);
@@ -572,8 +572,10 @@ const SpaceCanvas: React.FC<{ interactive?: boolean; showEarth?: boolean; cleanA
                     ctx.fillStyle = gMoon;
                     ctx.fill();
                 }
-                drawISS(true);
-                agents.forEach(a => drawAgent(a, true));
+                if (!cleanAmbient) {
+                    drawISS(true);
+                    agents.forEach(a => drawAgent(a, true));
+                }
             }
 
             ctx.restore();

@@ -129,7 +129,7 @@ export function registerProxyAndSystemRoutes(
           const audioBuffer = await Promise.race([
               synthesizeSovereignSpeech(text, geminiVoice),
               new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("TTS_ENDPOINT_TIMEOUT_12S")), 12000)
+                  setTimeout(() => reject(new Error("TTS_ENDPOINT_TIMEOUT_20S")), 20000)
               )
           ]);
 
