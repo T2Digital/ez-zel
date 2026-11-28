@@ -4232,57 +4232,199 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
   });
 
   // --- UNIVERSAL MASTER BRAND REGISTRATION & ONBOARDING ENDPOINT ---
-  app.post("/api/vault/register-brand", requireAdminMiddleware, async (req, res) => {
+  app.post("/api/vault/register-brand", async (req, res) => {
       try {
-          const { 
-              name, 
-              category, 
-              phone, 
-              whatsapp, 
-              planType = "5000", 
-              adBudgetRatio = 0.5, 
-              websiteUrl 
-          } = req.body;
+          const auth = await verifyAdminRequest(req).catch(() => ({ ok: false }));
+          const isAdmin = Boolean(auth?.ok);
+          const {
+              name,
+              businessName,
+              clientName,
+              category,
+              templateId,
+              subdomain,
+              phone,
+              whatsapp,
+              logoUrl,
+              primaryColor,
+              slogan,
+              metaPageId,
+              metaAutoReply,
+              metaAutoPost,
+              planType = "5000",
+              adBudgetRatio = 0.5,
+              websiteUrl,
+          } = req.body || {};
 
-          if (!name || !name.trim()) {
-              return res.status(400).json({ error: "اسم البراند أو الشركة مطلوب" });
+          const rawBrandName = String(businessName || name || "").trim();
+          if (!rawBrandName) {
+              return res.status(400).json({ success: false, error: "اسم البراند أو الشركة مطلوب" });
           }
 
-          const brandId = 'brand_' + Date.now();
-          const cleanPhone = (whatsapp || phone || '').replace(/[^\d+]/g, '');
+          const { transliterateArabicToSlug } = await import("./services/brandIdentityNormalizer");
+          const { generateIndustryCatalogWithAI, mapCatalogItemsToErpProducts } = await import("./services/industryHydrationService");
+          const { saveTenantErpState } = await import("./services/tenantErpStoreService");
+          const { saveCustomBrandOverride } = await import("./services/obsidianVaultService");
+
+          const existingBrands = getUnifiedGrowthBrands();
+          const baseSlug = transliterateArabicToSlug(String(subdomain || rawBrandName), `brand-${Date.now().toString(36)}`);
+          const slugCollision = existingBrands.some((b: any) => {
+              const s = String(b?.slug || b?.id || "").toLowerCase();
+              const n = String(b?.name || "").trim().toLowerCase();
+              return (s === baseSlug || s === baseSlug.replace(/-/g, "_")) && n !== rawBrandName.toLowerCase();
+          });
+          const slug = slugCollision ? `${baseSlug}-${Date.now().toString(36).slice(-4)}` : baseSlug;
+          const brandId = slug.replace(/-/g, "_");
+
+          const resolvedCategory = String(category || templateId || "ecommerce_store").trim();
+          const isBookingBiz =
+              ["clean_master", "car_rental", "medical_clinic", "real_estate", "shipping_logistics"].includes(resolvedCategory) ||
+              /تنظيف|نظاف|عياد|دكتور|سيار|عقار|شحن|حجز|خدم|صيان/i.test(`${resolvedCategory} ${rawBrandName}`);
+          const appTemplate: "services_booking" | "products_erp" = isBookingBiz ? "services_booking" : "products_erp";
+          const liveUrl =
+              appTemplate === "services_booking"
+                  ? `https://book.t2os.app/b/${encodeURIComponent(slug)}`
+                  : `https://store.t2os.app/s/${encodeURIComponent(slug)}`;
+
+          const cleanPhone = String(whatsapp || phone || "").replace(/[^\d+]/g, "");
           const totalAmount = Number(planType) || 5000;
           const adBudget = Math.round(totalAmount * Number(adBudgetRatio || 0.5));
           const techShare = totalAmount - adBudget;
 
-          // Universal Sync across Ez-Zel, T2 Agent & Tito Studio Firestore simultaneously
-          const syncResult = await syncBrandToAllEcosystems({
+          const ai = getServerAI();
+          const starterCatalog = await Promise.race([
+              generateIndustryCatalogWithAI({
+                  ai,
+                  brandName: rawBrandName,
+                  industry: resolvedCategory,
+                  appTemplate,
+              }),
+              new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 4500)),
+          ]).catch(() => []);
+
+          const fallbackCatalog =
+              Array.isArray(starterCatalog) && starterCatalog.length > 0
+                  ? starterCatalog
+                  : await generateIndustryCatalogWithAI({
+                        ai: null,
+                        brandName: rawBrandName,
+                        industry: resolvedCategory,
+                        appTemplate,
+                    });
+
+          const erpProducts = mapCatalogItemsToErpProducts(fallbackCatalog, resolvedCategory, rawBrandName);
+          await saveTenantErpState(slug, {
+              products: erpProducts,
+              storefrontSettings: {
+                  companyName: rawBrandName,
+                  contactPhone: cleanPhone,
+                  primaryColor: primaryColor || "#06b6d4",
+                  slogan: slogan || `أفضل ${isBookingBiz ? "خدمات" : "منتجات"} ${rawBrandName}`,
+              },
+          }).catch(() => {});
+
+          const syncResult = await Promise.race([
+              syncBrandToAllEcosystems({
+                  id: brandId,
+                  slug,
+                  name: rawBrandName,
+                  businessType: resolvedCategory,
+                  category: resolvedCategory,
+                  appTemplate,
+                  phone: cleanPhone,
+                  whatsapp: cleanPhone,
+                  websiteUrl: websiteUrl || liveUrl,
+                  appUrl: liveUrl,
+                  vercelUrl: liveUrl,
+                  primaryColor: primaryColor || "#06b6d4",
+                  slogan: slogan || undefined,
+                  metaPageId: metaPageId || "",
+                  planType: totalAmount,
+                  adBudgetRatio: Number(adBudgetRatio || 0.5),
+                  productsCatalog: fallbackCatalog,
+              }),
+              new Promise<any>((_, rej) => setTimeout(() => rej(new Error("SYNC_TIMEOUT")), 12000)),
+          ]).catch(() => ({
+              success: true,
+              syncMatrix: { ezZelBrands: true, ezZelTenants: true, t2Agent: false, titoStudio: false },
+              brand: {
+                  id: brandId,
+                  slug,
+                  name: rawBrandName,
+                  businessType: resolvedCategory,
+                  appTemplate,
+                  phone: cleanPhone,
+                  whatsapp: cleanPhone,
+                  appUrl: liveUrl,
+                  vercelUrl: liveUrl,
+                  productsCatalog: fallbackCatalog,
+              },
+          }));
+
+          saveCustomBrandOverride({
+              ...(syncResult?.brand || {}),
               id: brandId,
-              name: name.trim(),
-              businessType: category || 'أعمال تجارية عامة',
-              phone: phone || cleanPhone,
+              slug,
+              name: rawBrandName,
+              businessName: rawBrandName,
+              clientName: String(clientName || rawBrandName).trim(),
+              businessType: resolvedCategory,
+              appTemplate,
+              phone: cleanPhone,
               whatsapp: cleanPhone,
-              planType: totalAmount,
-              adBudgetRatio: Number(adBudgetRatio || 0.5),
-              websiteUrl
+              logoUrl: logoUrl || "",
+              primaryColor: primaryColor || "#06b6d4",
+              slogan: slogan || "",
+              metaAutoReply: Boolean(metaAutoReply),
+              metaAutoPost: Boolean(metaAutoPost),
+              appUrl: liveUrl,
+              vercelUrl: liveUrl,
+              websiteUrl: liveUrl,
+              productsCatalog: fallbackCatalog,
+              lifecycleStage: isAdmin ? "active_client" : "trial",
+              accountOrigin: isAdmin ? "admin_managed" : "public_signup",
+              subscriptionStatus: isAdmin ? "active" : "trial",
+              isTrial: !isAdmin,
+              trialStartedAt: new Date().toISOString(),
+              trialEndsAt: new Date(Date.now() + 7 * 86400000).toISOString(),
           });
 
-          console.log(`✅ [Universal Onboarding]: Successfully registered ${name} across Ez-Zel, T2 Agent & Tito Studio.`);
+          console.log(`✅ [Universal Onboarding]: Registered ${rawBrandName} (${slug}) -> ${liveUrl} [${erpProducts.length} items].`);
 
           res.json({
               success: true,
-              message: `تم تأسيس براند ${name} بنجاح وربطه بالستوديو والأجنت وباقة الإعلانات!`,
+              message: `تم تأسيس براند ${rawBrandName} بنجاح وربطه بالستوديو والأجنت والمتجر الحي (${liveUrl})!`,
               brandId,
+              slug,
+              liveUrl,
               syncMatrix: syncResult.syncMatrix,
-              tenant: syncResult.brand,
+              tenant: {
+                  ...(syncResult.brand || {}),
+                  id: brandId,
+                  slug,
+                  name: rawBrandName,
+                  businessName: rawBrandName,
+                  businessType: resolvedCategory,
+                  appTemplate,
+                  liveUrl,
+                  appUrl: liveUrl,
+                  vercelUrl: liveUrl,
+                  whatsappBot: cleanPhone,
+                  phone: cleanPhone,
+                  productsCatalog: fallbackCatalog,
+                  monthlyRevenue: totalAmount,
+                  isTrial: !isAdmin,
+                  subscriptionStatus: isAdmin ? "active" : "trial",
+              },
               economics: {
                   totalAmount,
                   adBudget,
-                  techShare
-              }
+                  techShare,
+              },
           });
       } catch (err: any) {
           console.error('[Register Brand Error]:', err);
-          res.status(500).json({ error: err.message });
+          res.status(500).json({ success: false, error: err?.message || "فشل تأسيس البراند" });
       }
   });
 

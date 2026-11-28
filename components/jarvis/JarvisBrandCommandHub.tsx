@@ -3,7 +3,7 @@ import {
   ExternalLink, Activity, Smartphone, Share2, Bot, Brain,
   CheckCircle2, AlertTriangle, XCircle, RefreshCw, Save,
   Copy, Check, ArrowRight, Send, MessageSquare, Globe,
-  Calendar, ShieldCheck, Palette, Phone, MapPin, Link2, Box, Search, Rocket, Sparkles
+  Calendar, ShieldCheck, Palette, Phone, MapPin, Link2, Box, Search, Rocket, Sparkles, Trash2
 } from 'lucide-react';
 import { hybridMemory } from '../../services/hybridMemoryService';
 import { getAdminAuthHeaders } from '../../services/adminIdentity';
@@ -12,9 +12,11 @@ const WorkspaceExplorer = React.lazy(() => import('../WorkspaceExplorer'));
 
 interface JarvisBrandCommandHubProps {
   brandId: string;
+  activeBrandName?: string;
   initialBrand?: any;
   isMasterAdmin?: boolean;
   onBackToGrid?: () => void;
+  onBrandDeleted?: (deletedBrandId: string) => void;
   onOpenStudioCalendar?: () => void;
   onOpenAdLauncher?: () => void;
   onOpenWhatsAppModal?: (brandId: string) => void;
@@ -101,9 +103,11 @@ export const resolveBrandWebUrl = (brand: any): string => {
 
 export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   brandId,
+  activeBrandName,
   initialBrand,
   isMasterAdmin = false,
   onBackToGrid,
+  onBrandDeleted,
   onOpenStudioCalendar,
   onOpenAdLauncher,
   onOpenWhatsAppModal,
@@ -115,6 +119,8 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   const [section, setSection] = useState<HubSection>('app');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletingBrand, setDeletingBrand] = useState(false);
   const [deployingVercel, setDeployingVercel] = useState(false);
   const [activatingGrowth, setActivatingGrowth] = useState(false);
   const [checkingHealth, setCheckingHealth] = useState(false);
@@ -493,7 +499,19 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     }
   };
 
-  const effectiveAppUrl = appUrl || resolveBrandWebUrl(brandData || initialBrand);
+  const normBrandKey = (v: any) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const activeKeyNorm = normBrandKey(activeBrandId);
+  const brandMatchesActive = (b: any) => {
+    if (!b || !activeKeyNorm) return false;
+    return normBrandKey(b.id) === activeKeyNorm || normBrandKey(b.slug) === activeKeyNorm;
+  };
+  const scopedInitialBrand = brandMatchesActive(initialBrand) ? initialBrand : null;
+  const scopedBrandData = brandMatchesActive(brandData) ? brandData : scopedInitialBrand;
+  const effectiveDisplayName = name || scopedBrandData?.name || activeBrandName || activeBrandId;
+  const PROTECTED_CORE_SLUGS = new Set(['t2digitalos', 'titomedia', 'cleanmaster', 'atwrfkhamaalshrq', 'algenedy', 'autohouse']);
+  const isProtectedBrand = PROTECTED_CORE_SLUGS.has(activeKeyNorm);
+
+  const effectiveAppUrl = appUrl || resolveBrandWebUrl(scopedBrandData);
 
   const handleCopyAppUrl = () => {
     if (!effectiveAppUrl) return;
@@ -527,10 +545,10 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                 <span className="hidden sm:inline">الشبكة</span>
               </button>
             )}
-            {brandData?.logoUrl ? (
+            {scopedBrandData?.logoUrl ? (
               <img
-                src={brandData.logoUrl}
-                alt={name}
+                src={scopedBrandData.logoUrl}
+                alt={effectiveDisplayName}
                 className="w-10 h-10 rounded-xl object-cover border border-cyan-400/40 shrink-0"
               />
             ) : (
@@ -538,16 +556,16 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                 className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0 shadow"
                 style={{ backgroundColor: primaryColor || '#0284c7' }}
               >
-                {(name || activeBrandId || 'B').slice(0, 1)}
+                {(effectiveDisplayName || 'B').slice(0, 1)}
               </div>
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm md:text-base font-black text-white truncate">
-                  {name || brandData?.name || activeBrandId}
+                  {effectiveDisplayName}
                 </h3>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 font-bold">
-                  {brandData?.businessType || 'نشاط تجاري'}
+                  {scopedBrandData?.businessType || 'نشاط تجاري'}
                 </span>
                 {isMasterAdmin && availableBrands.length > 0 && (
                   <select
@@ -630,6 +648,60 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
               {checkingHealth ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
               <span>{checkingHealth ? 'جاري الفحص...' : 'فحص الاتصال'}</span>
             </button>
+            {!isProtectedBrand && (
+              confirmDeleteOpen ? (
+                <div className="flex items-center gap-1 bg-rose-950/60 border border-rose-500/50 rounded-xl px-2 py-1">
+                  <span className="text-[10px] font-bold text-rose-200">حذف نهائي؟</span>
+                  <button
+                    type="button"
+                    disabled={deletingBrand}
+                    onClick={async () => {
+                      setDeletingBrand(true);
+                      try {
+                        const headers = await getAuthHeaders();
+                        const delTarget = String(scopedBrandData?.slug || activeBrandId);
+                        const r = await fetch(`/api/brand-hub/${encodeURIComponent(delTarget)}`, {
+                          method: 'DELETE',
+                          credentials: 'include',
+                          headers,
+                        });
+                        const d = await r.json().catch(() => ({}));
+                        if (r.ok && d?.ok) {
+                          setConfirmDeleteOpen(false);
+                          onBrandDeleted?.(delTarget);
+                        } else {
+                          setSaveMessage(d?.error || 'تعذر حذف البراند');
+                        }
+                      } catch {
+                        setSaveMessage('تعذر الاتصال بالسيرفر لحذف البراند');
+                      } finally {
+                        setDeletingBrand(false);
+                      }
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-rose-500 hover:bg-rose-400 text-white text-[10px] font-black cursor-pointer disabled:opacity-50"
+                  >
+                    {deletingBrand ? '...' : 'تأكيد'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteOpen(false)}
+                    className="px-2 py-0.5 rounded-lg bg-white/10 text-white/75 text-[10px] font-bold cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  className="px-2.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/35 text-rose-300 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                  title="حذف هذا البراند التجريبي أو المخصص"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">حذف البراند</span>
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -1309,7 +1381,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
           <div className="flex items-center justify-between px-4 py-3 bg-[#020614] border-b border-purple-500/40 flex-wrap gap-2">
             <span className="text-xs sm:text-sm font-black text-purple-200 flex items-center gap-2">
               <Box className="w-4 h-4 text-purple-400" />
-              معرض ميديا وأصول براند ({name || brandData?.name || activeBrandId})
+              معرض ميديا وأصول براند ({effectiveDisplayName})
             </span>
             <div className="flex items-center gap-2">
               <button

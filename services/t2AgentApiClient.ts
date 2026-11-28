@@ -61,6 +61,7 @@ async function agentRequest<T = any>(
     method,
     headers,
     body: body !== undefined && method !== "GET" ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(8000),
   });
 
   const text = await res.text();

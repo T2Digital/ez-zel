@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   X, ShoppingBag, Plus, CheckCircle2, Smartphone, 
   MessageSquare, Calendar, Layers, Trash2, ArrowRight, Sparkles 
@@ -35,6 +35,25 @@ export const JarvisUnifiedCatalogModal: React.FC<JarvisUnifiedCatalogModalProps>
   const [description, setDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    if (!isOpen || !brand) return;
+    setCatalog(Array.isArray(brand.productsCatalog) ? brand.productsCatalog : []);
+    const key = String(brand.slug || brand.id || '').trim();
+    if (!key) return;
+    let cancelled = false;
+    fetch(`/api/brand-hub/${encodeURIComponent(key)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.ok && Array.isArray(d?.brand?.productsCatalog)) {
+          setCatalog(d.brand.productsCatalog);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, brand?.id, brand?.slug, brand?.productsCatalog]);
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,7 +233,13 @@ export const JarvisUnifiedCatalogModal: React.FC<JarvisUnifiedCatalogModalProps>
             <div className="flex items-center justify-between text-xs font-bold text-white/80 px-1">
               <span>المنتجات والخدمات النشطة حالياً في الكتالوج ({catalog.length}):</span>
               <a 
-                href={`/store/${brand.slug || brand.id}`} 
+                href={
+                  brand.appUrl ||
+                  brand.vercelUrl ||
+                  (brand.appTemplate === 'services_booking'
+                    ? `https://book.t2os.app/b/${encodeURIComponent(brand.slug || brand.id)}`
+                    : `https://store.t2os.app/s/${encodeURIComponent(brand.slug || brand.id)}`)
+                } 
                 target="_blank" 
                 rel="noreferrer"
                 className="text-cyan-400 hover:underline flex items-center gap-1 text-[10px] font-mono"

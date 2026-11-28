@@ -1731,6 +1731,41 @@ test("47) Wave-3 18/18 Audit Closure: strict Brand Hub matching, tool-level bran
   );
 });
 
+test("48) Wave-4 Full P0/P1/P2 Closure: non-blocking Wizard + 7d free trial + empty WA, Studio<->Portal approval sync, exact Obsidian isolation, durable bookings, clean brand extraction & safe Hub delete", () => {
+  const onboardingSrc = fs.readFileSync(path.join(process.cwd(), "components", "chat", "ClientOnboardingModal.tsx"), "utf8");
+  assert.equal(onboardingSrc.includes("useState('01013373634')"), false, "Onboarding Wizard must NOT prefill unrelated WhatsApp number");
+  assert.equal(onboardingSrc.includes(".vercel.app"), false, "Onboarding Wizard subdomain preview must use canonical store.t2os.app/book.t2os.app");
+  assert.ok(onboardingSrc.includes("0 ج.م اليوم") && onboardingSrc.includes("AbortController"), "Onboarding Wizard must show explicit 7-day free trial zero-charge notice and AbortController timeout");
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.equal(serverSrc.includes('app.post("/api/vault/register-brand", requireAdminMiddleware'), false, "/api/vault/register-brand must allow trial onboarding without admin block");
+  assert.ok(serverSrc.includes('app.post("/api/vault/register-brand"') && serverSrc.includes("mapCatalogItemsToErpProducts"), "/api/vault/register-brand must seed ERP products synchronously within timeout budget");
+
+  const vaultSrc = fs.readFileSync(path.join(process.cwd(), "services", "obsidianVaultService.ts"), "utf8");
+  assert.ok(vaultSrc.includes("findExactBrandInList") && vaultSrc.includes("clientApproval: 'approved'"), "obsidianVaultService must use exact brand lookup (no brands[0] bleed) and set clientApproval='approved'");
+  assert.equal(/brands\.find\([^)]*\.includes\(brandId\)/.test(vaultSrc), false, "obsidianVaultService must NOT fall back to substring brand matches or brands[0]");
+
+  const portalRoutesSrc = fs.readFileSync(path.join(process.cwd(), "routes", "clientPortalRoutes.ts"), "utf8");
+  const portalViewSrc = fs.readFileSync(path.join(process.cwd(), "components", "ClientPortalView.tsx"), "utf8");
+  assert.ok(portalRoutesSrc.includes("normalizedPlan") && portalRoutesSrc.includes("approved: !isRevision"), "clientPortalRoutes must unify Studio scheduled state and clientApproval");
+  assert.ok(portalViewSrc.includes("تم الاعتماد ✓"), "ClientPortalView must reflect synced Studio schedule approvals");
+
+  const brainSrc = fs.readFileSync(path.join(process.cwd(), "services", "jarvisBrainEngine.ts"), "utf8");
+  assert.ok(brainSrc.includes("extractCleanProposedBrandName"), "jarvisBrainEngine must extract concise brand names instead of whole prompt sentences");
+  assert.equal(brainSrc.includes('|| "auto-house"'), false, "manage_store_erp must NEVER silently fall back to auto-house");
+
+  const catalogModalSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisUnifiedCatalogModal.tsx"), "utf8");
+  assert.ok(catalogModalSrc.includes("/api/brand-hub/") && catalogModalSrc.includes("https://store.t2os.app/s/"), "JarvisUnifiedCatalogModal must sync live catalog from /api/brand-hub and use canonical store link");
+
+  const hubRoutesSrc = fs.readFileSync(path.join(process.cwd(), "routes", "brandHubRoutes.ts"), "utf8");
+  assert.ok(
+    hubRoutesSrc.includes('app.delete("/api/brand-hub/:idOrSlug"') &&
+      hubRoutesSrc.includes("atwr-fkhama-alshrq") &&
+      hubRoutesSrc.includes("lastKnownBookingsCount"),
+    "brandHubRoutes must expose protected DELETE /api/brand-hub/:idOrSlug and cache durable bookingsCount"
+  );
+});
+
 
 
 

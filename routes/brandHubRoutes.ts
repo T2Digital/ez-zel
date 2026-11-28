@@ -7,8 +7,10 @@ import { getTitoStudioAuthToken } from "../services/titoStudioFirestoreBridge";
 import { verifyAdminRequest } from "../services/serverAdminAuth";
 import { ACTIVE_GEMINI_TEXT_MODELS } from "../services/geminiKeyPool";
 import { calculateCodProfitability } from "../services/dropshippingEngineService";
-import { getPersistentFilePath, savePersistentJson } from "../services/persistentStorage";
+import { getPersistentDataDir, getPersistentFilePath, readPersistentJson, savePersistentJson } from "../services/persistentStorage";
 import { buildFlagshipTenantUrl } from "../services/tenantAppRenderer";
+import { readBookings } from "../services/microservicesGateway";
+import { areBrandIdsEquivalent, toCanonicalSlug } from "../services/brandIdentityNormalizer";
 
 const BUNDLED_HUB_CONFIG_FILE = path.join(process.cwd(), "data", "brand_hub_configs.json");
 const PROJECT_ID = process.env.TITO_STUDIO_PROJECT_ID || "t2-content-studio";
@@ -166,7 +168,7 @@ export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
     return "https://t2-tenant-auto-house.vercel.app";
   }
   if (slug === "clean_master" || slug === "clean-master") {
-    return "https://cleanmaster-eg.com";
+    return "https://book.t2os.app/b/clean_master";
   }
   if (slug === "al_genedy" || slug === "al-genedy" || slug.includes("genedy")) {
     return String(process.env.AL_GENEDY_STANDALONE_URL || "https://elgenedy.com").replace(/\/+$/, "");
@@ -327,7 +329,15 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
       const storefront = erpState?.storefrontSettings || {};
       const vaultProducts = Array.isArray(brand?.productsCatalog) ? brand.productsCatalog : [];
       const erpProducts = Array.isArray(erpState?.products) ? erpState.products : [];
-      const catalog = vaultProducts.length > 0 ? vaultProducts : erpProducts;
+      const catalogMap = new Map<string, any>();
+      for (const p of [...erpProducts, ...vaultProducts]) {
+        const keyName = String(p?.name || "").trim().toLowerCase();
+        if (!keyName) continue;
+        if (!catalogMap.has(keyName)) {
+          catalogMap.set(keyName, p);
+        }
+      }
+      const catalog = Array.from(catalogMap.values());
       const appUrl = savedHub.appUrl || resolveBrandRealAppUrl(brand, tenant);
 
       // Extract real conversations from T2 AI Agent
@@ -347,12 +357,24 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         time: c.updatedAt || c.time || "",
       }));
 
+      const hasLiveBookingsPayload = liveBookingsRes !== null;
       const rawBookings = Array.isArray(liveBookingsRes?.bookings)
         ? liveBookingsRes.bookings
         : Array.isArray(liveBookingsRes)
           ? liveBookingsRes
           : [];
+      const localBrandBookingsCount = readBookings().filter((bk: any) =>
+        areBrandIdsEquivalent(bk?.brandId || "", slug) ||
+        areBrandIdsEquivalent(bk?.brandId || "", String(agentBrandId)) ||
+        (slug === "clean-master" && String(bk?.brandId || "").toLowerCase().includes("clean"))
+      ).length;
       const erpOrders = Array.isArray(erpState?.orders) ? erpState.orders : [];
+      const durableBookingsCount = hasLiveBookingsPayload
+        ? Math.max(rawBookings.length, localBrandBookingsCount, erpOrders.length)
+        : Math.max(Number(savedHub.lastKnownBookingsCount || 0), localBrandBookingsCount, erpOrders.length);
+      if (hasLiveBookingsPayload && durableBookingsCount !== Number(savedHub.lastKnownBookingsCount || -1)) {
+        saveHubConfigPersistent(slug, { ...savedHub, lastKnownBookingsCount: durableBookingsCount }).catch(() => {});
+      }
       const weekContentPlan = Array.isArray(savedHub.weekContentPlan) && savedHub.weekContentPlan.length > 0
         ? savedHub.weekContentPlan
         : Array.isArray(brand?.weekContentPlan)
@@ -416,7 +438,7 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         lastPlanAt: savedHub.lastPlanAt || brand?.lastPlanAt || null,
         mediaAssets,
         stats: {
-          bookingsCount: rawBookings.length,
+          bookingsCount: durableBookingsCount,
           conversationsCount: Math.max(rawConvs.length, Number(brand?.conversationsCount || 0)),
           ordersCount: erpOrders.length,
           postsCount: weekContentPlan.length,
@@ -1155,6 +1177,97 @@ ${catalogLines || "لا توجد منتجات مسجلة بعد"}
         },
         note: err?.message || "fallback",
       });
+    }
+  });
+
+  // Protected safe deletion for trial/test/custom brands from Brand Hub UI
+  app.delete("/api/brand-hub/:idOrSlug", async (req: Request, res: Response) => {
+    try {
+      const idOrSlug = String(req.params.idOrSlug || "").trim();
+      const { brand, tenant } = findBrandAndTenant(idOrSlug, deps);
+      const normSlug = toCanonicalSlug(String(brand?.slug || tenant?.slug || brand?.id || idOrSlug), "");
+      if (!normSlug) {
+        return res.status(400).json({ ok: false, error: "معرف البراند غير صالح" });
+      }
+      const protectedCoreBrands = new Set([
+        "t2-digital-os",
+        "tito-media",
+        "clean-master",
+        "atwr-fkhama-alshrq",
+        "al-genedy",
+        "auto-house",
+        "mm-shoes",
+        "battah",
+      ]);
+      if (protectedCoreBrands.has(normSlug)) {
+        return res.status(403).json({
+          ok: false,
+          error: `لا يمكن حذف البراند الأساسي المحمي (${normSlug}).`,
+        });
+      }
+      if (!brand && !tenant) {
+        return res.status(404).json({ ok: false, error: "البراند غير موجود" });
+      }
+      if (!canMutateBrand(req, brand, tenant)) {
+        return res.status(403).json({ ok: false, error: "غير مصرح بحذف هذا البراند" });
+      }
+
+      const { deleteBrandRegistryEntry } = await import("../services/brandRegistryService");
+      const { deleteBrandVaultState } = await import("../services/obsidianVaultService");
+      const { deleteTenantErpState } = await import("../services/tenantErpStoreService");
+      const { pgDeleteBrandCostLedger, pgDeleteTenant } = await import("../services/postgresService");
+
+      await deleteBrandRegistryEntry(normSlug).catch(() => {});
+      deleteBrandVaultState(normSlug);
+      await Promise.allSettled([
+        deleteTenantErpState(normSlug),
+        pgDeleteTenant(normSlug),
+        pgDeleteBrandCostLedger(normSlug),
+      ]);
+
+      try {
+        const dataDir = getPersistentDataDir();
+        const erpFile = path.join(dataDir, "tenant_erp_state", `${normSlug}.json`);
+        if (fs.existsSync(erpFile)) fs.unlinkSync(erpFile);
+      } catch {}
+
+      try {
+        const allConfigs = readLocalHubConfigs();
+        let dirty = false;
+        for (const k of Object.keys(allConfigs)) {
+          if (areBrandIdsEquivalent(k, normSlug)) {
+            delete allConfigs[k];
+            dirty = true;
+          }
+        }
+        if (dirty) writeLocalHubConfigs(allConfigs);
+      } catch {}
+
+      for (const fname of [
+        { key: "tenants_vault", file: "tenants.json" },
+        { key: "tenant_records", file: "tenant_records.json" },
+        { key: "ezzel_clients", file: "ezzel_clients.json" },
+        { key: "custom_brands", file: "custom_brands.json" },
+      ]) {
+        try {
+          const arr = readPersistentJson<any[]>(fname.file, []);
+          if (Array.isArray(arr)) {
+            const filtered = arr.filter(
+              (item: any) =>
+                !areBrandIdsEquivalent(item?.slug || "", normSlug) &&
+                !areBrandIdsEquivalent(item?.id || "", normSlug) &&
+                !areBrandIdsEquivalent(item?.brandId || "", normSlug)
+            );
+            if (filtered.length !== arr.length) {
+              savePersistentJson(fname.key, fname.file, filtered);
+            }
+          }
+        } catch {}
+      }
+
+      return res.json({ ok: true, deletedId: brand?.id || normSlug, deletedSlug: normSlug });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || "تعذر حذف البراند" });
     }
   });
 }

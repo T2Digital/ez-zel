@@ -33,6 +33,8 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
 }) => {
   const [step, setStep] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
+  const [submitStage, setSubmitStage] = useState<string>('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [completedTenant, setCompletedTenant] = useState<any>(null);
 
   // Form Fields
@@ -46,8 +48,8 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
   const [slogan, setSlogan] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#06b6d4');
   
-  // WhatsApp Live Baileys Pairing State
-  const [whatsapp, setWhatsapp] = useState('01013373634');
+  // WhatsApp Live Baileys Pairing State (empty by default so no unrelated phone leaks)
+  const [whatsapp, setWhatsapp] = useState('');
   const [qrGenerated, setQrGenerated] = useState(false);
   const [qrConnected, setQrConnected] = useState(false);
   const [isPairingWa, setIsPairingWa] = useState(false);
@@ -70,21 +72,33 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
   ];
 
   useEffect(() => {
+    if (!isOpen) return;
+    setSubmitError(null);
+    setSubmitStage('');
+    if (!completedTenant) {
+      setStep(1);
+    }
     if (initialBusinessName) {
       setBusinessName(initialBusinessName);
       setSubdomain(initialBusinessName.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-'));
+    } else if (!completedTenant) {
+      setWhatsapp('');
     }
     if (initialCategory) {
       setCategory(initialCategory);
     }
-  }, [initialBusinessName, initialCategory]);
+  }, [isOpen, initialBusinessName, initialCategory]);
 
   if (!isOpen) return null;
 
+  const isBookingCategory = ['clean_master', 'car_rental', 'medical_clinic', 'real_estate', 'shipping_logistics'].includes(category);
+  const canonicalUrlPrefix = isBookingCategory ? 'https://book.t2os.app/b/' : 'https://store.t2os.app/s/';
+
   const handleNext = () => {
+    setSubmitError(null);
     if (step === 1) {
-      if (!businessName || !clientName) {
-        alert('يرجى كتابة اسم البراند واسم المسؤول');
+      if (!businessName.trim() || !clientName.trim()) {
+        setSubmitError('يرجى كتابة اسم البراند واسم المسؤول قبل المتابعة.');
         return;
       }
       if (!subdomain) {
@@ -95,26 +109,34 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
   };
 
   const handleBack = () => {
+    setSubmitError(null);
     setStep(s => Math.max(s - 1, 1));
   };
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    setSubmitError(null);
+    setSubmitStage('1/3 جاري إنشاء هوية البراند...');
+    const stageTimer1 = setTimeout(() => setSubmitStage('2/3 جاري تجهيز الكتالوج والمتجر الحي...'), 1500);
+    const stageTimer2 = setTimeout(() => setSubmitStage('3/3 جاري ربط الاستوديو والأجنت...'), 3500);
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 30000);
+
     try {
       const payload = {
-        name: businessName,
-        clientName,
-        businessName,
+        name: businessName.trim(),
+        clientName: clientName.trim(),
+        businessName: businessName.trim(),
         category,
         templateId: category,
-        subdomain: subdomain || businessName.toLowerCase().replace(/\s+/g, '-'),
-        phone: whatsapp,
-        whatsapp,
+        subdomain: subdomain || businessName.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-'),
+        phone: whatsapp.trim(),
+        whatsapp: whatsapp.trim(),
         logoUrl,
         primaryColor,
         slogan,
         metaPageId: metaPageName,
-        metaConnected: true,
+        metaConnected: Boolean(metaPageName.trim()),
         metaAutoReply,
         metaAutoPost,
         planType: selectedPlanAmount,
@@ -125,26 +147,34 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
       const res = await fetch('/api/vault/register-brand', {
         method: 'POST',
         credentials: 'include',
+        signal: controller.signal,
         headers: await getAdminAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
-      if (data.success) {
+      if (res.ok && data?.success && data?.tenant) {
         setCompletedTenant(data.tenant);
         onSuccess?.(data.tenant);
-        // Play human voice celebration
         playShadowVoice(
-          `ألف مبروك يا ماستر تيتو! تم بنجاح تأسيس براند ${businessName} وإدراجه في الخزنة الموحدة، وربطه بالأجنت والستوديو وباقة إعلانات بقيمة ${data.economics?.adBudget || 2500} جنيه!`,
+          `ألف مبروك! تم تأسيس براند ${businessName} بنجاح ورابط المتجر جاهز للتجربة المجانية الآن.`,
           'male'
         );
       } else {
-        alert(data.error || 'حدث خطأ أثناء بناء وتوليد التطبيق');
+        setSubmitError(data?.error || 'تعذر إكمال بناء التطبيق الآن. يمكنك المحاولة مرة أخرى بأمان.');
       }
     } catch (err: any) {
-      alert('تعذر الاتصال بسيرفر المصنع: ' + err.message);
+      if (err?.name === 'AbortError') {
+        setSubmitError('استغرق البناء وقتاً أطول من المتوقع — تم إيقاف الانتظار بأمان، اضغط للمحاولة مرة أخرى.');
+      } else {
+        setSubmitError('تعذر الاتصال بسيرفر المصنع: ' + (err?.message || 'خطأ في الشبكة'));
+      }
     } finally {
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+      clearTimeout(abortTimer);
       setSubmitting(false);
+      setSubmitStage('');
     }
   };
 
@@ -219,7 +249,7 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
               {/* Tenant Credentials Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-right">
                 <a 
-                  href={completedTenant.liveUrl} 
+                  href={completedTenant.liveUrl || completedTenant.appUrl || '#'} 
                   target="_blank" 
                   rel="noreferrer" 
                   className="p-4 rounded-xl bg-cyan-950/30 border border-cyan-500/30 hover:border-cyan-400 hover:bg-cyan-950/50 transition-all flex items-center justify-between group"
@@ -227,28 +257,38 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                   <div className="flex items-center gap-3">
                     <Globe className="w-5 h-5 text-cyan-400 group-hover:animate-spin" />
                     <div>
-                      <div className="text-xs text-cyan-400 font-bold">رابط التطبيق المباشر (Vercel)</div>
-                      <div className="text-sm font-mono text-white truncate max-w-[200px]">{completedTenant.liveUrl}</div>
+                      <div className="text-xs text-cyan-400 font-bold">رابط التطبيق المباشر (T2OS)</div>
+                      <div className="text-sm font-mono text-white truncate max-w-[200px]" dir="ltr">{completedTenant.liveUrl || completedTenant.appUrl}</div>
                     </div>
                   </div>
                   <ArrowRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-1 transition-transform" />
                 </a>
 
-                <a 
-                  href={`https://wa.me/${completedTenant.whatsappBot.replace(/\D/g, '')}`} 
-                  target="_blank" 
-                  rel="noreferrer" 
-                  className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-950/50 transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-3">
+                {completedTenant.whatsappBot ? (
+                  <a 
+                    href={`https://wa.me/${String(completedTenant.whatsappBot).replace(/\D/g, '')}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-950/50 transition-all flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Smartphone className="w-5 h-5 text-emerald-400" />
+                      <div>
+                        <div className="text-xs text-emerald-400 font-bold">شات بوت الواتساب المربوط</div>
+                        <div className="text-sm font-mono text-white">{completedTenant.whatsappBot}</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition-transform" />
+                  </a>
+                ) : (
+                  <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/20 flex items-center gap-3">
                     <Smartphone className="w-5 h-5 text-emerald-400" />
                     <div>
-                      <div className="text-xs text-emerald-400 font-bold">شات بوت الواتساب المربوط</div>
-                      <div className="text-sm font-mono text-white">{completedTenant.whatsappBot}</div>
+                      <div className="text-xs text-emerald-400 font-bold">شات بوت الواتساب الذكي</div>
+                      <div className="text-sm text-white/75 font-bold">جاهز للربط برقمك من مساحة البراند</div>
                     </div>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition-transform" />
-                </a>
+                )}
 
                 <div className="p-4 rounded-xl bg-purple-950/30 border border-purple-500/30 flex items-center gap-3">
                   <Facebook className="w-5 h-5 text-purple-400" />
@@ -261,8 +301,8 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                 <div className="p-4 rounded-xl bg-amber-950/30 border border-amber-500/30 flex items-center gap-3">
                   <Sparkles className="w-5 h-5 text-amber-400" />
                   <div>
-                    <div className="text-xs text-amber-400 font-bold">الاشتراك الشهري المقدر</div>
-                    <div className="text-sm text-white font-black">{completedTenant.monthlyRevenue?.toLocaleString('en-US')} ج.م / شهر</div>
+                    <div className="text-xs text-amber-400 font-bold">فترة التجربة الحالية</div>
+                    <div className="text-sm text-emerald-300 font-black">تجربة مجانية 7 أيام (0 ج.م اليوم)</div>
                   </div>
                 </div>
               </div>
@@ -272,7 +312,7 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                   onClick={onClose}
                   className="px-6 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-sm shadow-lg shadow-cyan-500/20 transition-all"
                 >
-                  تم، إغلاق النافذة
+                  تم، دخول لمساحة عمل البراند
                 </button>
               </div>
             </div>
@@ -338,9 +378,9 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-white/80 mb-1.5">الدومين والاسم الفرعي (Subdomain)</label>
+                    <label className="block text-xs font-bold text-white/80 mb-1.5">رابط المتجر / التطبيق المباشر (Subdomain)</label>
                     <div dir="ltr" className="flex items-center gap-1.5 bg-[#141b2d] border border-white/10 rounded-xl px-4 py-2 text-sm">
-                      <span className="text-white/40 font-mono text-xs shrink-0">https://</span>
+                      <span className="text-cyan-400 font-mono text-xs shrink-0">{canonicalUrlPrefix}</span>
                       <input 
                         type="text" 
                         value={subdomain}
@@ -349,7 +389,6 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                         dir="ltr"
                         placeholder="elbaron-store"
                       />
-                      <span className="text-white/40 font-mono text-xs shrink-0">.vercel.app</span>
                     </div>
                   </div>
                 </div>
@@ -421,7 +460,7 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                         type="tel" 
                         value={whatsapp}
                         onChange={(e) => setWhatsapp(e.target.value)}
-                        placeholder="01013373634 أو +201..."
+                        placeholder="مثال: 010xxxxxxxx أو +201... (اختياري الآن)"
                         className="flex-1 bg-[#141b2d] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-cyan-500 focus:outline-none"
                         dir="ltr"
                       />
@@ -504,6 +543,10 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
               {/* Step 4: Meta & Social Ecosystem */}
               {step === 4 && (
                 <div className="space-y-4">
+                  <div className="p-3 rounded-xl bg-emerald-950/50 border border-emerald-400/50 text-emerald-200 text-xs font-black flex items-center justify-between gap-2 flex-wrap">
+                    <span>🎁 تجربة مجانية كاملة 7 أيام — لا يتم خصم أي مبلغ الآن (0 ج.م اليوم)</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px]">تجربة مجانية 7 أيام</span>
+                  </div>
                   <div>
                     <label className="block text-xs font-bold text-white/80 mb-1.5">معرف أو اسم صفحة فيسبوك / إنستجرام</label>
                     <input 
@@ -518,7 +561,7 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                   {/* Bundled Ad & System Package Selector */}
                   <div className="space-y-2 pt-1 pb-2 border-b border-white/10">
                     <label className="block text-xs font-bold text-amber-300">
-                      💰 اختر باقة النمو المدمجة (50% ميزانية إعلانات ممولة + 50% نظام وأجنت):
+                      💰 اختر الباقة المستهدفة بعد انتهاء أسبوع التجربة المجانية (يمكنك التغيير أو الإلغاء في أي وقت — بدون خصم الآن):
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                       {BUNDLED_PLANS.map(p => {
@@ -540,6 +583,11 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                               </span>
                             )}
                             <div className="text-xs font-black text-white">{p.label}</div>
+                            {isSelected && (
+                              <span className="self-start px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/35 text-[9px] font-black">
+                                تبدأ بتجربة مجانية 7 أيام
+                              </span>
+                            )}
                             <div className="flex items-center justify-between text-[10px] font-mono">
                               <span className="text-emerald-400 font-bold">{p.ads}</span>
                               <span className="text-cyan-400">{p.tech}</span>
@@ -603,54 +651,74 @@ export const ClientOnboardingModal: React.FC<ClientOnboardingModalProps> = ({
                   </div>
                 </div>
               )}
+              {submitError && (
+                <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-500/45 text-rose-200 text-xs font-bold flex items-center justify-between gap-2">
+                  <span>⚠️ {submitError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSubmitError(null)}
+                    className="text-rose-300 hover:text-white px-1.5"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
 
         {/* Modal Footer Controls */}
         {!completedTenant && (
-          <div className="p-4 border-t border-white/10 bg-[#070b14]/90 flex items-center justify-between">
-            {step > 1 ? (
-              <button
-                type="button"
-                onClick={handleBack}
-                disabled={submitting}
-                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-bold text-xs flex items-center gap-1.5 transition-all"
-              >
-                <ArrowRight className="w-4 h-4" />
-                السابق
-              </button>
-            ) : <div />}
-
-            {step < 4 ? (
-              <button
-                type="button"
-                onClick={handleNext}
-                className="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs flex items-center gap-1.5 shadow-lg shadow-cyan-500/20 transition-all"
-              >
-                التالي
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-black text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all disabled:opacity-50"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    جاري البناء الذكي والنشر...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    بناء وتوليد وتشغيل التطبيق الآن
-                  </>
-                )}
-              </button>
+          <div className="p-4 border-t border-white/10 bg-[#070b14]/90 flex flex-col gap-2">
+            {submitting && submitStage && (
+              <div className="text-[11px] font-bold text-cyan-300 flex items-center justify-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>{submitStage}</span>
+              </div>
             )}
+            <div className="flex items-center justify-between">
+              {step > 1 ? (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  disabled={submitting}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 font-bold text-xs flex items-center gap-1.5 transition-all"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  السابق
+                </button>
+              ) : <div />}
+
+              {step < 4 ? (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="px-5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs flex items-center gap-1.5 shadow-lg shadow-cyan-500/20 transition-all"
+                >
+                  التالي
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-black text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {submitStage || 'جاري البناء الذكي والنشر...'}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      بناء وتشغيل التطبيق الآن (تجربة مجانية 7 أيام)
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

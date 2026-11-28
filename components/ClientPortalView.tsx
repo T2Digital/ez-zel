@@ -688,6 +688,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
               const maxAllowedRevisions = trialPolicy?.maxRevisionsPerPost ?? (subscriptionStatus === 'trial' ? 1 : 2);
               const revCount = Number(post.revisionCount || 0);
               const revExhausted = revCount >= maxAllowedRevisions;
+              const isApproved =
+                post.clientApproval === 'approved' ||
+                Boolean(post.approved) ||
+                (['scheduled', 'published', 'PUBLISHED'].includes(String(post.status || '')) && post.clientApproval !== 'revision_requested');
               return (
               <div
                 key={post.id || idx}
@@ -697,14 +701,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                   <span className="font-black text-cyan-300">{post.day || `منشور #${idx + 1}`}</span>
                   <span
                     className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                      post.clientApproval === 'approved'
+                      isApproved
                         ? 'bg-emerald-500/20 text-emerald-300'
                         : post.clientApproval === 'revision_requested'
                         ? 'bg-amber-500/20 text-amber-300'
                         : 'bg-white/10 text-slate-300'
                     }`}
                   >
-                    {post.clientApproval === 'approved'
+                    {isApproved
                       ? 'معتمد للنشر'
                       : post.clientApproval === 'revision_requested'
                       ? 'مطلوب تعديل'
@@ -731,12 +735,16 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
 
                 <div className="flex items-center gap-2 pt-1">
                   <button
-                    disabled={busyIdx === idx}
+                    disabled={busyIdx === idx || isApproved}
                     onClick={() => handleDecision(idx, 'approved')}
-                    className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
+                    className={`flex-1 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 transition ${
+                      isApproved
+                        ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/40 cursor-default'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 cursor-pointer'
+                    }`}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>اعتماد للنشر</span>
+                    <span>{isApproved ? 'تم الاعتماد ✓' : 'اعتماد للنشر'}</span>
                   </button>
                   {revExhausted ? (
                     <button

@@ -188,6 +188,23 @@ export function registerClientPortalRoutes(
       }
 
       const isTrial = subWindow.subscriptionStatus === "trial" || planSpec.id === "trial_7d";
+      const rawPlan = Array.isArray((brand as any).weekContentPlan) ? (brand as any).weekContentPlan : [];
+      const normalizedPlan = rawPlan.map((p: any) => {
+        const statusStr = String(p?.status || "").trim();
+        const isSchedOrPub = ["scheduled", "published", "PUBLISHED"].includes(statusStr);
+        const alreadyApproved =
+          p?.clientApproval === "approved" ||
+          Boolean(p?.approved) ||
+          (isSchedOrPub && p?.clientApproval !== "revision_requested");
+        if (alreadyApproved && p?.clientApproval !== "revision_requested") {
+          return {
+            ...p,
+            clientApproval: "approved",
+            approved: true,
+          };
+        }
+        return p;
+      });
       const {
         metaToken: _mt,
         adminPin: _ap,
@@ -202,6 +219,7 @@ export function registerClientPortalRoutes(
         ok: true,
         brand: {
           ...safeBrandFields,
+          weekContentPlan: normalizedPlan,
           metaConnected: Boolean(brand.metaPageId || brand.metaToken),
         },
         planSpec,
@@ -341,12 +359,15 @@ export function registerClientPortalRoutes(
         });
       }
 
+      const prevStatus = String(plan[idx]?.status || "");
       plan[idx] = {
         ...plan[idx],
         clientApproval: decision,
+        approved: !isRevision,
+        approvedAt: !isRevision ? (plan[idx]?.approvedAt || new Date().toISOString()) : plan[idx]?.approvedAt,
         clientFeedback: feedback,
         revisionCount: isRevision ? currentRevisions + 1 : currentRevisions,
-        status: decision === "approved" ? "scheduled" : "revision_requested",
+        status: isRevision ? "revision_requested" : (prevStatus === "published" || prevStatus === "PUBLISHED" ? prevStatus : "scheduled"),
         updatedAt: new Date().toISOString(),
       };
       const updatedBrand =

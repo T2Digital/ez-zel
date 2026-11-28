@@ -134,6 +134,24 @@ export function isRawPromptSentenceNotBrandName(raw: string | undefined): boolea
   return false;
 }
 
+export function extractCleanProposedBrandName(msg: string, explicitName?: string): string {
+  const tryCandidate = (raw?: string): string => {
+    const cleaned = String(raw || "")
+      .replace(/["«'»]/g, "")
+      .replace(/^(?:تأكيد\s+إنشاء\s+البراند[:\s]*)?/i, "")
+      .replace(/\s+(?:ورقم|واتساب|بواتساب|على\s+رقم|بمجال|في\s+مجال|لبيع|متخصص|في\s+مصر).*$/i, "")
+      .trim();
+    if (!cleaned || cleaned.length > 40) return "";
+    if (cleaned.split(/\s+/).filter(Boolean).length > 4) return "";
+    if (isRawPromptSentenceNotBrandName(cleaned)) return "";
+    return cleaned;
+  };
+  const fromExplicit = tryCandidate(explicitName);
+  if (fromExplicit) return fromExplicit;
+  const match = String(msg || "").match(/(?:باسم|اسمه|اسمها|تحت\s+اسم)\s+["«']?([^\n"»'،؟!]{2,45})["»']?/i);
+  return tryCandidate(match?.[1]);
+}
+
 /**
  * Dynamically resolves any brand across the entire unified ecosystem (Tito Studio, Tito Agent, PWA Cloner, Obsidian Vault)
  * by ID, slug, exact name, partial Arabic/English name, or businessType keywords.
@@ -1359,18 +1377,15 @@ ${conversationMemoryDirective}`;
       wasSynthesizedCall = true;
     } else if (wantsCreateStore && !/^(?:كم|بكام|ما\s+هو|إيه|ايه|هل|لماذا|ليه)(?=$|\s|[،؟!])/i.test(trimmedMsg)) {
       const explicitNameMatch = trimmedMsg.match(
-        /(?:باسم|اسمه|تحت\s+اسم|لبراند)\s+["«']?([^\n"»'،؟!]{2,40})["»']?/i
+        /(?:باسم|اسمه|اسمها|تحت\s+اسم|لبراند)\s+["«']?([^\n"»'،؟!]{2,40})["»']?/i
       );
-      const explicitBrandName = explicitNameMatch?.[1]
-        ?.split(/\s+(?:ورقم|واتساب|بواتساب|على\s+رقم|بمجال|في\s+مجال)(?=$|\s)/i)[0]
-        ?.trim() || "";
+      const cleanProposed = extractCleanProposedBrandName(trimmedMsg, explicitNameMatch?.[1]);
       const isDrop = /دروب\s*شيب|dropship/i.test(trimmedMsg);
-      const isGenericBrandSetup = !explicitBrandName && !isDrop && trimmedMsg.length < 48 && !isBrandConfirmed;
-      if (isGenericBrandSetup) {
+      if (!isBrandConfirmed) {
         return buildConfirmBrandCreationOutput({
-          brandName: explicitBrandName || "براند جديد ذكي",
+          brandName: cleanProposed || "براند جديد ذكي",
           isDropshipping: isDrop,
-          phone: targetBrand?.phone,
+          phone: targetBrand?.phone || "",
           resolvedBrandId: targetBrand?.id || selectedBrandId,
         });
       }
@@ -1378,10 +1393,9 @@ ${conversationMemoryDirective}`;
         {
           name: "deploy_brand_web_app",
           args: {
-            brandIdOrName: explicitBrandName,
+            brandIdOrName: cleanProposed,
             industry: isDrop ? "دروب شيبنج وإكسسوارات ذكية" : "متجر إلكتروني متكامل",
-            appTemplate: "products_erp",
-            templateId: "battah",
+            appTemplate: /عياد|تنظيف|صيان|حجز|خدم/i.test(trimmedMsg) ? "services_booking" : "products_erp",
             confirmed: true,
           },
         },
@@ -1467,6 +1481,7 @@ ${conversationMemoryDirective}`;
           type: "CATALOG_MUTATED",
           tab: "app_cloner",
           brandId: effectiveBrandId,
+          liveStoreUrl: (backendExecutionResult as any)?.liveStoreUrl,
           result: backendExecutionResult,
         };
         break;
@@ -1940,18 +1955,18 @@ ${conversationMemoryDirective}`;
           if (args.action === "list_brands") {
             backendExecutionResult = await titoStudioApi.listBrands();
           } else if (args.action === "create_brand") {
-            const name = args.brandNameOrId || "براند جديد";
-            const isExplicitCreate = Boolean(args.brandNameOrId) && !isRawPromptSentenceNotBrandName(String(args.brandNameOrId || ""));
-            if (!isBrandConfirmed && args.confirmed !== true && (!isExplicitCreate || trimmedMsg.length < 52)) {
+            const cleanCandidate = extractCleanProposedBrandName(trimmedMsg, String(args.brandNameOrId || ""));
+            const name = cleanCandidate || "براند جديد ذكي";
+            if (!isBrandConfirmed && args.confirmed !== true) {
               return buildConfirmBrandCreationOutput({
-                brandName: isExplicitCreate ? name : "براند جديد ذكي",
+                brandName: cleanCandidate || "براند جديد ذكي",
                 industry: args.industry,
                 isDropshipping: /دروب\s*شيب|dropship/i.test(`${args.industry || ""} ${trimmedMsg}`),
-                phone: args.phone || targetBrand?.phone,
+                phone: args.phone || targetBrand?.phone || "",
                 resolvedBrandId: targetBrand?.id || selectedBrandId,
               });
             }
-            const safePhone = args.phone || targetBrand?.phone || "01013372674";
+            const safePhone = args.phone || targetBrand?.phone || "";
             backendExecutionResult = await titoStudioApi.createBrand({
               name,
               industry: args.industry || "general",
@@ -2096,14 +2111,14 @@ ${conversationMemoryDirective}`;
         try {
           const rawCategory = String(args.category || "متجر إلكتروني ودروب شيبنج").trim();
           const rawIdeaOrName = String(args.businessIdeaOrName || "").trim();
+          const cleanCandidate = extractCleanProposedBrandName(trimmedMsg, rawIdeaOrName);
           const isDropshippingReq = /دروب\s*شيب|dropship/i.test(`${rawCategory} ${rawIdeaOrName} ${message}`);
-          const hasExplicitBrand = Boolean(rawIdeaOrName) && !isRawPromptSentenceNotBrandName(rawIdeaOrName) && rawIdeaOrName !== rawCategory;
-          if (!isBrandConfirmed && args.confirmed !== true && (!hasExplicitBrand || trimmedMsg.length < 52)) {
+          if (!isBrandConfirmed && args.confirmed !== true) {
             return buildConfirmBrandCreationOutput({
-              brandName: hasExplicitBrand ? rawIdeaOrName : "براند جديد ذكي",
+              brandName: cleanCandidate || "براند جديد ذكي",
               industry: rawCategory,
               isDropshipping: isDropshippingReq,
-              phone: String(args.phone || targetBrand?.phone || "01013372674").trim(),
+              phone: String(args.phone || targetBrand?.phone || "").trim(),
               resolvedBrandId: targetBrand?.id || selectedBrandId,
             });
           }
@@ -2111,11 +2126,11 @@ ${conversationMemoryDirective}`;
             ? "دروب شيبنج وإكسسوارات ذكية"
             : rawCategory;
           const isSentenceNotBrand =
-            !rawIdeaOrName ||
+            !cleanCandidate ||
             isRawPromptSentenceNotBrandName(rawIdeaOrName) ||
             /^(?:متجر|محل|شركة|موقع|تطبيق)?\s*(?:دروب\s*شيب|إ?لكتروني|تجارة\s*إلكترونية|dropship)/i.test(rawIdeaOrName) ||
             rawIdeaOrName === category;
-          const phone = String(args.phone || "").trim() || "01013372674";
+          const phone = String(args.phone || "").trim();
 
           const kit = await generateBrandingAndSocialKit({
             brandName: isSentenceNotBrand ? (isDropshippingReq ? "نوفا ترند ستور" : "بيكسل مارت") : rawIdeaOrName,
@@ -2321,13 +2336,14 @@ ${conversationMemoryDirective}`;
           const { loadTenantErpState, saveTenantErpState, normalizeSlugKey } = await import("./tenantErpStoreService");
 
           if (!target) {
-            if (!isBrandConfirmed && args.confirmed !== true && (isRawSentence || trimmedMsg.length < 52)) {
+            if (!isBrandConfirmed && args.confirmed !== true) {
+              const cleanProposed = extractCleanProposedBrandName(trimmedMsg, rawBrandInput);
               return buildConfirmBrandCreationOutput({
-                brandName: !isRawSentence && rawBrandInput ? rawBrandInput : "براند جديد ذكي",
+                brandName: cleanProposed || "براند جديد ذكي",
                 industry,
                 appTemplate: resolvedAppTpl,
                 isDropshipping: isDropshippingReq,
-                phone,
+                phone: String(args.phone || targetBrand?.phone || "").trim(),
                 resolvedBrandId: targetBrand?.id || selectedBrandId,
               });
             }
@@ -2848,8 +2864,12 @@ ${conversationMemoryDirective}`;
         const erpAction = String(args.action || "get_summary").trim();
         const hasExplicitSlugArg = Boolean(String(args.brandSlugOrId || "").trim());
         const resolvedSlug = String(
-          args.brandSlugOrId || targetBrand?.slug || targetBrand?.id || brandId || "auto-house"
+          args.brandSlugOrId || targetBrand?.slug || targetBrand?.id || brandId || ""
         ).trim();
+        if (!resolvedSlug) {
+          backendExecutionResult = { success: false, error: "يرجى تحديد اسم البراند أولاً" };
+          break;
+        }
         try {
           const { loadTenantErpState, saveTenantErpState, normalizeSlugKey } = await import("./tenantErpStoreService");
           const slugKey = normalizeSlugKey(resolvedSlug);
@@ -2910,7 +2930,10 @@ ${conversationMemoryDirective}`;
             const prodName = String(args.productName || "منتج جديد").trim();
             const newPrice = Number(args.price || 500) || 500;
             const newStock = Number(args.stock ?? 20);
-            const liveStoreUrl = `https://store.t2os.app/s/${slugKey}`;
+            const liveStoreUrl =
+              matchedBrand?.appTemplate === "services_booking"
+                ? `https://book.t2os.app/b/${slugKey}`
+                : `https://store.t2os.app/s/${slugKey}`;
 
             const msgBrandMatch = String(message || "").match(
               /(?:لـ\s*براند|لبراند|لمتجر|في\s+براند|في\s+متجر)\s+["«']?([^"»'\n]+?)["»']?(?=\s+(?:منتج|صنف|خدمة|سلعة|بسعر|سعره|\d)|$)/i
@@ -3363,11 +3386,13 @@ ${conversationMemoryDirective}`;
       const branchCount = /فرع\s*واحد|فرع\s*1\b|فرع\s*فقط/i.test(message) ? 1 : (/فرعين|2\s*فرع/i.test(message) ? 2 : undefined);
       const cashierCount = /كاشير\s*واحد|كاشير\s*1\b|كاشير\s*فقط/i.test(message) ? 1 : (/كاشيرين|2\s*كاشير/i.test(message) ? 2 : undefined);
       if (branchCount || cashierCount) {
-        const slugTarget = String(targetBrand?.slug || targetBrand?.id || selectedBrandId || "auto-house").trim();
-        backendExecutionResult = await customizeAppLiveConfig(slugTarget, {
-          ...(branchCount ? { branchCount } : {}),
-          ...(cashierCount ? { cashierCount } : {}),
-        });
+        const slugTarget = String(targetBrand?.slug || targetBrand?.id || selectedBrandId || "").trim();
+        if (slugTarget) {
+          backendExecutionResult = await customizeAppLiveConfig(slugTarget, {
+            ...(branchCount ? { branchCount } : {}),
+            ...(cashierCount ? { cashierCount } : {}),
+          });
+        }
       }
     } catch {}
   }

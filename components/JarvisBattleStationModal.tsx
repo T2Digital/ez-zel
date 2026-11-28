@@ -572,15 +572,23 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const mergeBrandsDeduped = useCallback((prev: any[], incoming: any[], persistSession = false) => {
     const byKey = new Map<string, any>();
     const norm = (b: any) => String(b?.slug || b?.id || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const normalizeDisplayBrand = (item: any) => {
+      const cleanName =
+        String(item?.name || '').trim() ||
+        String(item?.businessName || '').trim() ||
+        String(item?.englishName || '').trim() ||
+        String(item?.slug || item?.id || '').replace(/[-_]+/g, ' ').trim();
+      return { ...item, name: cleanName };
+    };
     for (const item of prev || []) {
       const k = norm(item);
-      if (k) byKey.set(k, item);
+      if (k) byKey.set(k, normalizeDisplayBrand(item));
     }
     for (const item of incoming || []) {
       const k = norm(item);
-      if (k) byKey.set(k, { ...(byKey.get(k) || {}), ...item });
+      if (k) byKey.set(k, normalizeDisplayBrand({ ...(byKey.get(k) || {}), ...item }));
     }
-    const merged = Array.from(byKey.values());
+    const merged = Array.from(byKey.values()).filter((b: any) => Boolean((b?.id || b?.slug) && String(b?.name || '').trim()));
     if (persistSession) {
       try {
         localStorage.setItem('t2_session_brands_v1', JSON.stringify(merged.slice(0, 12)));
@@ -1989,7 +1997,15 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     appendLiveLog(`[VOICE_CMD]: "${commandText}"`);
 
     // Direct Studio Workflow Voice Commands (Strategy -> Week Plan -> Preview -> Publish / Approve Schedule)
-    const matchedBrand = allBrandsList.find(b => commandText.includes(b.name) || (b.slug && commandText.toLowerCase().includes(b.slug.toLowerCase()))) || currentSelectedBrand;
+    const matchedBrand =
+      allBrandsList.find((b) => {
+        const bName = String(b?.name || '').trim();
+        const bSlug = String(b?.slug || '').trim().toLowerCase();
+        return (
+          (bName.length >= 2 && commandText.includes(bName)) ||
+          (bSlug.length >= 2 && commandText.toLowerCase().includes(bSlug))
+        );
+      }) || currentSelectedBrand;
     if (matchedBrand && matchedBrand.id !== currentSelectedBrand.id) {
       setSelectedBrandId(matchedBrand.id);
     }
@@ -2279,9 +2295,26 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           } else if (data.action.type === 'TOGGLE_BOT') {
             setBotStates(prev => ({ ...prev, [data.action.brandId]: data.action.status !== 'paused' }));
           } else if (data.action.type === 'CATALOG_MUTATED') {
-            setActiveDeckTab('app_cloner');
+            const mutatedBrandId = data.action.brandId || currentSelectedBrand?.slug || currentSelectedBrand?.id;
             fetchObsidianVault();
-            if (data.action.brandId) handleInspectObsidianNode(data.action.brandId);
+            if (mutatedBrandId) {
+              handleInspectObsidianNode(mutatedBrandId);
+              fetch(`/api/brand-hub/${encodeURIComponent(String(mutatedBrandId))}`, { credentials: 'include' })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((hubRes) => {
+                  if (hubRes?.ok && Array.isArray(hubRes?.brand?.productsCatalog)) {
+                    setAllBrandsList((prev) =>
+                      mergeBrandsDeduped(
+                        prev,
+                        [{ ...(hubRes.brand || {}), id: hubRes.brand?.id || mutatedBrandId, productsCatalog: hubRes.brand.productsCatalog }],
+                        !isMasterAdmin
+                      )
+                    );
+                  }
+                })
+                .catch(() => {});
+              window.dispatchEvent(new CustomEvent('t2_brand_catalog_updated', { detail: { brandId: mutatedBrandId } }));
+            }
           } else if (data.action.type === 'BOT_PROMPT_MUTATED') {
             setActiveDeckTab('obsidian_graph');
             fetchObsidianVault();
@@ -2467,11 +2500,21 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   }}
                   className="max-w-[170px] px-2 py-0.5 rounded-xl bg-[#041028] border border-cyan-400/35 text-[11px] font-bold text-cyan-100 focus:outline-none focus:border-cyan-300 cursor-pointer"
                 >
-                  {allBrandsList.map((b: any) => (
-                    <option key={b.id || b.slug} value={b.id || b.slug} className="bg-[#020614] text-white">
-                      {b.name || b.slug || b.id}
-                    </option>
-                  ))}
+                  {allBrandsList
+                    .filter((b: any) => Boolean((b?.id || b?.slug) && (String(b?.name || b?.businessName || b?.englishName || b?.slug || b?.id || '').trim())))
+                    .map((b: any) => {
+                      const optVal = b.id || b.slug;
+                      const optLabel =
+                        String(b.name || '').trim() ||
+                        String(b.businessName || '').trim() ||
+                        String(b.englishName || '').trim() ||
+                        String(b.slug || b.id || '').replace(/[-_]+/g, ' ').trim();
+                      return (
+                        <option key={optVal} value={optVal} className="bg-[#020614] text-white">
+                          {optLabel}
+                        </option>
+                      );
+                    })}
                 </select>
               )}
             </div>
@@ -2854,13 +2897,32 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   <div className="text-[11px] text-white/75">
                     سيتم إنشاء مساحة عمل مستقلة بنموذج ({pendingBrandCreation.appTemplate === 'services_booking' ? 'تطبيق حجوزات وخدمات' : 'متجر إلكتروني'}) دون المساس ببيانات براندك الحالي.
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={pendingBrandCreation.brandName}
+                      onChange={(e) => setPendingBrandCreation((prev) => prev ? { ...prev, brandName: e.target.value } : prev)}
+                      placeholder="اكتب اسم البراند المختصر..."
+                      className="px-2.5 py-1.5 rounded-xl bg-black/55 border border-white/15 text-xs text-white focus:border-amber-400 focus:outline-none"
+                    />
+                    <input
+                      type="tel"
+                      value={pendingBrandCreation.phone || ''}
+                      onChange={(e) => setPendingBrandCreation((prev) => prev ? { ...prev, phone: e.target.value } : prev)}
+                      placeholder="رقم الواتساب (اختياري)..."
+                      className="px-2.5 py-1.5 rounded-xl bg-black/55 border border-white/15 text-xs text-white font-mono focus:border-amber-400 focus:outline-none"
+                      dir="ltr"
+                    />
+                  </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
                       onClick={() => {
                         const p = pendingBrandCreation;
+                        const cleanName = String(p.brandName || '').trim() || 'براند جديد';
+                        const phonePart = p.phone && p.phone.trim() ? ` ورقم واتساب ${p.phone.trim()}` : '';
                         setPendingBrandCreation(null);
-                        handleSendLiveCommand(`تأكيد إنشاء البراند: اعمل ${p.appTemplate === 'services_booking' ? 'تطبيق حجوزات' : 'متجر إلكتروني'} باسم "${p.brandName}" في مجال ${p.industry}`);
+                        handleSendLiveCommand(`تأكيد إنشاء البراند: اعمل ${p.appTemplate === 'services_booking' ? 'تطبيق حجوزات' : 'متجر إلكتروني'} باسم "${cleanName}" في مجال ${p.industry}${phonePart}`);
                       }}
                       className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer"
                     >
@@ -2882,7 +2944,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 onSubmit={(e) => {
                   e.preventDefault();
                   const q = textCommandInput.trim();
-                  if (!q || isThinking) return;
+                  if (!q) return;
+                  if (isThinking || isThinkingRef.current) {
+                    toast.info('جارفيس يجهز الرد على رسالتك السابقة حالياً، انتظر لحظة ثم أعد الإرسال.');
+                    return;
+                  }
                   setTextCommandInput('');
                   stopAllJarvisAudio();
                   handleSendLiveCommand(q);
@@ -3424,9 +3490,37 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               <div className="relative z-20 w-full mt-1">
                 <JarvisBrandCommandHub
                   brandId={selectedBrandId || currentSelectedBrand?.slug || currentSelectedBrand?.id || 'clean_master'}
+                  activeBrandName={currentSelectedBrand?.name}
                   initialBrand={currentSelectedBrand}
                   isMasterAdmin={isMasterAdmin}
                   onBackToGrid={() => setActiveDeckTab('obsidian_graph')}
+                  onBrandDeleted={(deletedId) => {
+                    const delNorm = String(deletedId || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+                    setAllBrandsList((prev) => {
+                      const next = prev.filter((b: any) => {
+                        const k1 = String(b?.id || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+                        const k2 = String(b?.slug || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+                        return k1 !== delNorm && k2 !== delNorm;
+                      });
+                      try {
+                        localStorage.setItem('t2_session_brands_v1', JSON.stringify(next.slice(0, 12)));
+                      } catch {}
+                      const fallback = next[0];
+                      setSelectedBrandId(fallback?.id || fallback?.slug || '');
+                      return next;
+                    });
+                    if (!isMasterAdmin) {
+                      try {
+                        const raw = localStorage.getItem('t2_active_trial_brand');
+                        if (raw) {
+                          const parsed = JSON.parse(raw);
+                          const pKey = String(parsed?.slug || parsed?.id || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+                          if (pKey === delNorm) localStorage.removeItem('t2_active_trial_brand');
+                        }
+                      } catch {}
+                    }
+                    toast.success('تم حذف البراند بنجاح وتحديث القائمة.');
+                  }}
                   onOpenStudioCalendar={() => setActiveDeckTab('studio_calendar')}
                   onOpenAdLauncher={() => setActiveDeckTab('ad_launcher')}
                   onOpenWhatsAppModal={(bId) => handleOpenWhatsAppConnectModal(bId)}
@@ -3559,6 +3653,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 isGeneratingWeekPlan={isGeneratingWeekPlan}
                 isApprovingSchedule={isApprovingSchedule}
                 isPublishingPost={isPublishingPost}
+                isGeneratingBriefing={isGeneratingBriefing}
                 briefingPreview={briefingPreview}
                 onDismissBriefingPreview={() => setBriefingPreview(null)}
                 handleBuildStudioStrategy={handleBuildStudioStrategy}
@@ -4315,10 +4410,21 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         isOpen={isOnboardingOpen}
         onClose={() => setIsOnboardingOpen(false)}
         initialBusinessName={adkPresetName}
-        onSuccess={() => {
+        onSuccess={(createdTenant) => {
           setIsOnboardingOpen(false);
           setAdkPresetName('');
-          playShadowVoice("تم تسجيل البراند بنجاح وإدراجه في الخزنة الموحدة للشركات، وربطه بمحرك المحتوى وتطبيق الأجنت!", 'male');
+          if (createdTenant?.id || createdTenant?.slug) {
+            setAllBrandsList((prev) => mergeBrandsDeduped(prev, [createdTenant], !isMasterAdmin));
+            setSelectedBrandId(createdTenant.id || createdTenant.slug);
+            if (!isMasterAdmin) {
+              try {
+                localStorage.setItem('t2_active_trial_brand', JSON.stringify(createdTenant));
+              } catch {}
+              setPersona('trial');
+            }
+            setActiveDeckTab('brand_hub');
+          }
+          fetchObsidianVault(createdTenant?.slug || createdTenant?.id);
         }}
       />
 

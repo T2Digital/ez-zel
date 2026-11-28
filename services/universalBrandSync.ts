@@ -135,8 +135,13 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
     const brandId = payload.id || (payload.slug ? normalizeBrandId(payload.slug) : `brand_${Date.now()}`);
     const slug = payload.slug || brandId;
     const name = (payload.name || 'براند غير مسمى').trim();
-    const cleanPhone = (payload.whatsapp || payload.phone || '01030956097').replace(/[^\d+]/g, '');
+    const cleanPhone = (payload.whatsapp || payload.phone || '').replace(/[^\d+]/g, '');
     const businessType = payload.businessType || payload.category || 'خدمات وأعمال';
+    const isBookingBiz = payload.appTemplate === 'services_booking' || /تنظيف|نظاف|عياد|دكتور|طب|سيار|عقار|شحن|حجز|صيان/i.test(`${businessType} ${payload.category || ''}`);
+    const resolvedAppTemplate = payload.appTemplate || (isBookingBiz ? 'services_booking' : 'products_erp');
+    const canonicalLiveUrl = payload.websiteUrl || (resolvedAppTemplate === 'services_booking'
+        ? `https://book.t2os.app/b/${encodeURIComponent(slug)}`
+        : `https://store.t2os.app/s/${encodeURIComponent(slug)}`);
     const planTotal = Number(payload.planType) || 5000;
     const adBudgetRatio = payload.adBudgetRatio !== undefined ? payload.adBudgetRatio : 0.5;
     const adBudgetEgp = Math.round(planTotal * adBudgetRatio);
@@ -173,13 +178,13 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
             category: businessType,
             phone: cleanPhone,
             whatsapp: cleanPhone,
-            websiteUrl: payload.websiteUrl || `https://store.t2os.app/s/${encodeURIComponent(slug)}`,
-            appUrl: payload.appUrl || ezBrands[brandId]?.appUrl || `/store/${brandId}`,
-            ...(payload.appTemplate ? { appTemplate: payload.appTemplate } : {}),
+            websiteUrl: canonicalLiveUrl,
+            appUrl: payload.appUrl || ezBrands[brandId]?.appUrl || canonicalLiveUrl,
+            appTemplate: resolvedAppTemplate,
             ...(typeof payload.enableDropshipping === 'boolean' ? { enableDropshipping: payload.enableDropshipping } : {}),
             ...(payload.storeType ? { storeType: payload.storeType } : {}),
             ...(payload.heroImage ? { heroImage: payload.heroImage } : {}),
-            ...(payload.vercelUrl ? { vercelUrl: payload.vercelUrl } : {}),
+            vercelUrl: payload.vercelUrl || canonicalLiveUrl,
             ownerEmail: payload.ownerEmail || 'admin@t2.com',
             slogan: payload.slogan || `أفضل خدمات ${businessType} بضمان كامل`,
             systemPrompt: defaultSystemPrompt,
@@ -211,6 +216,7 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
         const tenantEntry = {
             id: `tenant_${brandId}`,
             brandId,
+            slug,
             clientName: name,
             businessName: name,
             category: businessType,
@@ -221,7 +227,9 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
             plan: `باقة ${planTotal.toLocaleString('en-US')} ج.م (${adBudgetEgp.toLocaleString('en-US')} ج إعلانات + ${techShareEgp.toLocaleString('en-US')} ج اشتراك)`,
             adBudgetEgp,
             techShareEgp,
-            liveUrl: payload.websiteUrl || `https://store.t2os.app/s/${encodeURIComponent(slug)}`,
+            liveUrl: canonicalLiveUrl,
+            appUrl: canonicalLiveUrl,
+            vercelUrl: payload.vercelUrl || canonicalLiveUrl,
             hasConfirmedBookings: false,
             deployedAt: nowIso.split('T')[0]
         };
@@ -268,34 +276,40 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
         console.error('[Universal Sync] Error updating T2 Agent local disk:', e?.message);
     }
 
-    // Cloud HTTP sync to T2 AI Agent (required on Render where Ez-Zel & Khedr-Bot are separate containers)
+    // Cloud HTTP sync to T2 AI Agent (bounded 5s timeout so registration never freezes)
     try {
-        await t2AgentApi.executeExternalAction(brandId, 'brands', 'update', {
-            name,
-            businessType,
-            websiteUrl: payload.websiteUrl || `https://store.t2os.app/s/${encodeURIComponent(slug)}`,
-            systemPrompt: defaultSystemPrompt,
-            knowledgeText: defaultSystemPrompt,
-            productsCatalog: catalog,
-            bookingReceiverPhone: cleanPhone,
-            notificationWhatsApp: cleanPhone,
-        });
-        t2AgentOk = true;
-    } catch {
-        try {
-            await t2AgentApi.executeExternalAction(brandId, 'brands', 'create', {
-                brandId,
+        await Promise.race([
+            t2AgentApi.executeExternalAction(brandId, 'brands', 'update', {
                 name,
-                ownerEmail: payload.ownerEmail || 'ahm.atya@gmail.com',
                 businessType,
-                dialect: 'مصرية احترافية وسريعة',
-                websiteUrl: payload.websiteUrl || `https://store.t2os.app/s/${encodeURIComponent(slug)}`,
+                websiteUrl: canonicalLiveUrl,
                 systemPrompt: defaultSystemPrompt,
                 knowledgeText: defaultSystemPrompt,
                 productsCatalog: catalog,
                 bookingReceiverPhone: cleanPhone,
                 notificationWhatsApp: cleanPhone,
-            });
+            }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('T2_AGENT_TIMEOUT')), 5000))
+        ]);
+        t2AgentOk = true;
+    } catch {
+        try {
+            await Promise.race([
+                t2AgentApi.executeExternalAction(brandId, 'brands', 'create', {
+                    brandId,
+                    name,
+                    ownerEmail: payload.ownerEmail || 'ahm.atya@gmail.com',
+                    businessType,
+                    dialect: 'مصرية احترافية وسريعة',
+                    websiteUrl: canonicalLiveUrl,
+                    systemPrompt: defaultSystemPrompt,
+                    knowledgeText: defaultSystemPrompt,
+                    productsCatalog: catalog,
+                    bookingReceiverPhone: cleanPhone,
+                    notificationWhatsApp: cleanPhone,
+                }),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('T2_AGENT_CREATE_TIMEOUT')), 5000))
+            ]);
             t2AgentOk = true;
         } catch (agentCloudErr: any) {
             console.warn('[Universal Sync] T2 Agent Cloud HTTP sync warning:', agentCloudErr?.message);
@@ -305,48 +319,60 @@ export async function syncBrandToAllEcosystems(payload: UniversalBrandPayload): 
     // D. Sync to Tito Studio Firestore (/clinics + local cache)
     let titoStudioOk = false;
     try {
-        titoStudioOk = await upsertBrandToTitoStudioFirestore({
-            id: brandId,
-            slug,
-            name,
-            englishName: payload.englishName || brandId,
-            businessType,
-            industry: 'services',
-            phone: cleanPhone,
-            whatsapp: cleanPhone,
-            productsCatalog: catalog,
-            systemPrompt: defaultSystemPrompt,
-            primaryColor: payload.primaryColor || '#06b6d4',
-            slogan: payload.slogan || `أفضل خدمات ${businessType} بضمان معتمد`,
-            metaPageId: payload.metaPageId,
-            metaPageName: payload.metaPageName,
-            metaToken: payload.metaToken
-        });
+        titoStudioOk = await Promise.race([
+            upsertBrandToTitoStudioFirestore({
+                id: brandId,
+                slug,
+                name,
+                englishName: payload.englishName || brandId,
+                businessType,
+                industry: 'services',
+                phone: cleanPhone,
+                whatsapp: cleanPhone,
+                productsCatalog: catalog,
+                systemPrompt: defaultSystemPrompt,
+                primaryColor: payload.primaryColor || '#06b6d4',
+                slogan: payload.slogan || `أفضل خدمات ${businessType} بضمان معتمد`,
+                metaPageId: payload.metaPageId,
+                metaPageName: payload.metaPageName,
+                metaToken: payload.metaToken
+            }),
+            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000))
+        ]);
 
         // If weekContentPlan is provided, push it directly to Tito Studio /content
         if (Array.isArray(payload.weekContentPlan) && payload.weekContentPlan.length > 0) {
-            await syncWeekPlanToTitoStudioFirestore({ id: brandId, name }, payload.weekContentPlan as any);
+            await Promise.race([
+                syncWeekPlanToTitoStudioFirestore({ id: brandId, name }, payload.weekContentPlan as any),
+                new Promise((resolve) => setTimeout(resolve, 4000))
+            ]);
         }
 
-        // Also mirror to Tito Studio Enterprise Cloud Run API v3.0
+        // Also mirror to Tito Studio Enterprise Cloud Run API v3.0 (non-blocking bounded 4s)
         try {
-            await titoStudioApi.updateBrand(brandId, {
-                name,
-                industry: payload.category || businessType,
-                primaryColor: payload.primaryColor || '#06b6d4',
-                phone: cleanPhone,
-            });
+            await Promise.race([
+                titoStudioApi.updateBrand(brandId, {
+                    name,
+                    industry: payload.category || businessType,
+                    primaryColor: payload.primaryColor || '#06b6d4',
+                    phone: cleanPhone,
+                }),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('STUDIO_SYNC_TIMEOUT')), 4000))
+            ]);
             titoStudioOk = true;
         } catch {
             try {
-                await titoStudioApi.createBrand({
-                    name,
-                    industry: payload.category || businessType,
-                    dialect: 'egyptian',
-                    primaryColor: payload.primaryColor || '#06b6d4',
-                    phone: cleanPhone,
-                    description: payload.slogan || `نشاط ${businessType} متكامل`,
-                });
+                await Promise.race([
+                    titoStudioApi.createBrand({
+                        name,
+                        industry: payload.category || businessType,
+                        dialect: 'egyptian',
+                        primaryColor: payload.primaryColor || '#06b6d4',
+                        phone: cleanPhone,
+                        description: payload.slogan || `نشاط ${businessType} متكامل`,
+                    }),
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('STUDIO_CREATE_TIMEOUT')), 4000))
+                ]);
                 titoStudioOk = true;
             } catch (apiErr: any) {
                 console.warn('[Universal Sync] Tito Studio Cloud API mirror warning:', apiErr?.message);

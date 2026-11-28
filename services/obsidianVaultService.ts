@@ -87,6 +87,15 @@ function readMergedBrandsJsonFile(): Record<string, any> {
     return merged;
 }
 
+function findExactBrandInList(brands: any[], brandId: string): any | null {
+    const q = String(brandId || '').trim();
+    if (!q || !Array.isArray(brands) || brands.length === 0) return null;
+    const matched = findMatchingBrandRecord(brands, q);
+    if (matched) return matched;
+    const qLower = q.toLowerCase();
+    return brands.find((b: any) => String(b?.name || '').trim().toLowerCase() === qLower) || null;
+}
+
 export function resolveBrandExternalOrStoreUrl(slugOrKey: string, ...candidates: any[]): string {
     for (const c of candidates) {
         if (typeof c === 'string') {
@@ -1170,15 +1179,11 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'UPDATE_STORE_CATALOG': {
             const allBrands = getUnifiedGrowthBrands();
-            const qLower = String(brandId || '').trim().toLowerCase();
-            const targetBrand = allBrands.find(
-                (b) =>
-                    String(b.id || '').toLowerCase() === qLower ||
-                    String(b.slug || '').toLowerCase() === qLower ||
-                    String(b.name || '').trim().toLowerCase() === qLower ||
-                    String(b.name || '').toLowerCase().includes(qLower)
-            );
-            const resolvedBrandId = targetBrand?.id || brandId;
+            const targetBrand = findExactBrandInList(allBrands, brandId);
+            if (!targetBrand) {
+                return { success: false, error: 'لم يتم العثور على البراند المطلوب لتحديث الكتالوج' };
+            }
+            const resolvedBrandId = targetBrand.id;
             const slugKey = String(targetBrand?.slug || transliterateArabicToSlug(targetBrand?.name || brandId || 'store'))
                 .toLowerCase()
                 .replace(/[^a-z0-9-]+/g, '-')
@@ -1304,7 +1309,9 @@ export async function executeRealJarvisEcosystemAction(input: {
                 catalogCount: verifiedErpProductsCount
             });
 
-            const liveStoreUrl = `https://store.t2os.app/s/${slugKey}`;
+            const liveStoreUrl = targetBrand?.appTemplate === 'services_booking'
+                ? `https://book.t2os.app/b/${slugKey}`
+                : `https://store.t2os.app/s/${slugKey}`;
             if (data.addService?.name && !verifiedInStore) {
                 return {
                     success: false,
@@ -1811,7 +1818,7 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'GENERATE_STUDIO_STRATEGY': {
             const brands = getUnifiedGrowthBrands();
-            const targetBrand = brands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || brands[0];
+            const targetBrand = findExactBrandInList(brands, brandId);
             if (!targetBrand) {
                 return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
             }
@@ -1833,7 +1840,7 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'GENERATE_WEEK_CONTENT_PLAN': {
             const brands = getUnifiedGrowthBrands();
-            const targetBrand = brands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || brands[0];
+            const targetBrand = findExactBrandInList(brands, brandId);
             if (!targetBrand) {
                 return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
             }
@@ -1873,14 +1880,18 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'APPROVE_STUDIO_SCHEDULE': {
             const brands = getUnifiedGrowthBrands();
-            const targetBrand = brands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || brands[0];
+            const targetBrand = findExactBrandInList(brands, brandId);
             if (!targetBrand) {
                 return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
             }
+            const approvedAtIso = new Date().toISOString();
             if (Array.isArray(targetBrand.weekContentPlan)) {
                 targetBrand.weekContentPlan = targetBrand.weekContentPlan.map((p: any) => ({
                     ...p,
-                    status: p.status === 'published' ? 'published' : 'scheduled'
+                    status: p.status === 'published' || p.status === 'PUBLISHED' ? p.status : 'scheduled',
+                    clientApproval: 'approved',
+                    approved: true,
+                    approvedAt: p.approvedAt || approvedAtIso,
                 }));
                 saveCustomBrandOverride(targetBrand);
                 await syncWeekPlanToTitoStudioFirestore(targetBrand, targetBrand.weekContentPlan);
@@ -1897,14 +1908,15 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'ACTIVATE_PAYMOB_SUBSCRIPTION': {
             const brands = getUnifiedGrowthBrands();
-            const targetBrand = brands.find(b => b.id === brandId || b.slug === brandId) || brands[0];
-            if (targetBrand) {
-                targetBrand.subscriptionStatus = 'active';
-                targetBrand.subscriptionPlan = data.planId || 'growth_pro';
-                targetBrand.subscriptionActivatedAt = new Date().toISOString();
-                saveCustomBrandOverride(targetBrand);
-                await upsertBrandToTitoStudioFirestore(targetBrand);
+            const targetBrand = findExactBrandInList(brands, brandId);
+            if (!targetBrand) {
+                return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
             }
+            targetBrand.subscriptionStatus = 'active';
+            targetBrand.subscriptionPlan = data.planId || 'growth_pro';
+            targetBrand.subscriptionActivatedAt = new Date().toISOString();
+            saveCustomBrandOverride(targetBrand);
+            await upsertBrandToTitoStudioFirestore(targetBrand);
             const clients = loadEzZelClients();
             const cIdx = clients.findIndex((c: any) => c.linkedBrandId === brandId || c.id === brandId);
             if (cIdx >= 0) {
@@ -1924,7 +1936,7 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'CREATE_CUSTOM_STUDIO_POST': {
             const allBrands = getUnifiedGrowthBrands();
-            const targetBrand = allBrands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || allBrands[0];
+            const targetBrand = findExactBrandInList(allBrands, brandId);
             if (!targetBrand) {
                 return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
             }
@@ -1988,7 +2000,7 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'EXECUTE_AUTONOMOUS_AGENCY_CYCLE': {
             const allBrands = getUnifiedGrowthBrands();
-            const targetBrand = allBrands.find(b => b.id === brandId || b.slug === brandId || b.name.includes(brandId)) || allBrands[0];
+            const targetBrand = findExactBrandInList(allBrands, brandId);
             if (!targetBrand) {
                 return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
             }
@@ -2155,7 +2167,7 @@ export async function executeRealJarvisEcosystemAction(input: {
 
         case 'TRIGGER_STUDIO_GENERATION': {
             const brands = getUnifiedGrowthBrands();
-            const targetBrand = brands.find((b) => b.id === brandId || b.slug === brandId) || brands[0];
+            const targetBrand = findExactBrandInList(brands, brandId);
             if (!targetBrand) return { success: false, error: 'Brand not found' };
             const studioBase = (process.env.TITO_STUDIO_URL || 'https://studio.t2os.app').replace(/\/+$/, '');
             const studioKey = String(process.env.T2_REMOTE_API_KEY || process.env.TITO_STUDIO_API_KEY || '').trim();

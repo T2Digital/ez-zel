@@ -8,6 +8,7 @@ export interface JarvisStudioCalendarDeckProps {
   isGeneratingWeekPlan: boolean;
   isApprovingSchedule: boolean;
   isPublishingPost: boolean;
+  isGeneratingBriefing?: boolean;
   briefingPreview?: { period: 'morning' | 'evening'; title: string; text: string; delivered?: boolean; note?: string } | null;
   onDismissBriefingPreview?: () => void;
   handleBuildStudioStrategy: (brandId: string) => Promise<void>;
@@ -26,6 +27,7 @@ export const JarvisStudioCalendarDeck: React.FC<JarvisStudioCalendarDeckProps> =
   isGeneratingWeekPlan,
   isApprovingSchedule,
   isPublishingPost,
+  isGeneratingBriefing = false,
   briefingPreview,
   onDismissBriefingPreview,
   handleBuildStudioStrategy,
@@ -126,18 +128,22 @@ export const JarvisStudioCalendarDeck: React.FC<JarvisStudioCalendarDeckProps> =
         </div>
         <div className="flex items-center gap-1.5">
           <button
+            type="button"
+            disabled={isGeneratingBriefing}
             onClick={() => handleSendDailyBriefingNow('morning')}
-            className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-bold"
+            className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-bold disabled:opacity-50 cursor-pointer"
             title="إرسال التقرير الصباحي على واتساب بدون فتح التطبيق"
           >
-            ☀️ تقرير الصباح
+            {isGeneratingBriefing ? '⏳ جاري التجهيز...' : '☀️ تقرير الصباح'}
           </button>
           <button
+            type="button"
+            disabled={isGeneratingBriefing}
             onClick={() => handleSendDailyBriefingNow('evening')}
-            className="px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-bold"
+            className="px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-bold disabled:opacity-50 cursor-pointer"
             title="إرسال تقرير المساء على واتساب بدون فتح التطبيق"
           >
-            🌙 تقرير المساء
+            {isGeneratingBriefing ? '⏳ جاري التجهيز...' : '🌙 تقرير المساء'}
           </button>
         </div>
       </div>
