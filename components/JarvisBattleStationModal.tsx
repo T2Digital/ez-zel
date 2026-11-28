@@ -2965,12 +2965,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
                     {/* 7-Day Trial ROI & Addiction Value Harvest Counter (عداد حصاد التجربة والعائد الفعلي) */}
                     <div className="p-2.5 rounded-2xl bg-black/65 border border-amber-500/35 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-[10.5px] font-black text-amber-300 flex items-center gap-1.5">
-                          💎 عداد حصاد منظومة النمو لبراندك (القيمة السوقية المنفذة مجاناً):
+                          💎 قيمة ما تم تنفيذه لك مجاناً في التجربة:
                         </span>
                         <span className="text-[10px] font-mono font-black text-cyan-400 bg-cyan-500/15 px-2 py-0.5 rounded-full border border-cyan-500/30">
-                          إجمالي القيمة: 22,500 ج.م
+                          قيمة مجانية: 22,500 ج.م
                         </span>
                       </div>
 
@@ -2989,7 +2989,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         </div>
                         <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
                           <span className="text-white/50 block text-[8px]">مبيعات وحجوزات</span>
-                          <span className="text-amber-300 font-black">{realStats.confirmedBookingsCount ?? 0} حجوزات مؤكدة</span>
+                          <span className="text-amber-300 font-black">
+                            {(realStats.confirmedBookingsCount ?? 0) === 1
+                              ? 'حجز واحد مؤكد'
+                              : `${realStats.confirmedBookingsCount ?? 0} حجوزات مؤكدة`}
+                          </span>
                         </div>
                       </div>
 

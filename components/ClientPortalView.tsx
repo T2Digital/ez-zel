@@ -303,9 +303,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({ slug }) => {
                 <span>الشو روم (استوديو المحتوى)</span>
               </a>
             )}
-            {(portals.agentFullDashboardUrl || portals.agentDashboardUrl) && (
+            {portalAuthValid && (portals.agentFullDashboardUrl || portals.agentDashboardUrl) && (
               <a
-                href={portals.agentFullDashboardUrl || portals.agentDashboardUrl}
+                href={portals.agentFullDashboardUrl || portals.agentDashboardUrl || undefined}
                 target="_blank"
                 rel="noreferrer"
                 className="px-3.5 py-2 rounded-xl bg-emerald-600/25 border border-emerald-400/40 text-emerald-200 text-xs font-black flex items-center gap-1.5 hover:bg-emerald-600/40"

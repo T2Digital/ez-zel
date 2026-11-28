@@ -148,12 +148,15 @@ export function registerClientPortalRoutes(
       const agentBrandKey = String(brand.agentBrandId || brandKey);
       const studioShowroomUrl = titoStudioApi.buildStudioEmbedUrl("clientPortal", studioClinicKey);
 
-      let agentApiKey = "";
-      try {
-        const keysRes: any = await t2AgentApi.getBrandKeys(agentBrandKey);
-        agentApiKey = String(keysRes?.apiKey || keysRes?.keys?.apiKey || keysRes?.data?.apiKey || "");
-      } catch {}
-      const agentDashboardUrl = t2AgentApi.buildAgentEmbedUrl("crm", agentBrandKey, agentApiKey || undefined);
+      let agentDashboardUrl: string | null = null;
+      if (accessCheck.ok) {
+        let agentApiKey = "";
+        try {
+          const keysRes: any = await t2AgentApi.getBrandKeys(agentBrandKey);
+          agentApiKey = String(keysRes?.apiKey || keysRes?.keys?.apiKey || keysRes?.data?.apiKey || "");
+        } catch {}
+        agentDashboardUrl = t2AgentApi.buildAgentEmbedUrl("crm", agentBrandKey, agentApiKey || undefined);
+      }
 
       const publicBase = (process.env.PUBLIC_BASE_URL || "https://t2os.app").replace(/\/+$/, "");
       const studioLandingPageUrl =
@@ -185,11 +188,20 @@ export function registerClientPortalRoutes(
       }
 
       const isTrial = subWindow.subscriptionStatus === "trial" || planSpec.id === "trial_7d";
+      const {
+        metaToken: _mt,
+        adminPin: _ap,
+        apiKey: _ak,
+        webhookSecret: _ws,
+        whatsappSession: _wses,
+        fbPageAccessToken: _fbp,
+        ...safeBrandFields
+      } = brand as any;
 
       res.json({
         ok: true,
         brand: {
-          ...brand,
+          ...safeBrandFields,
           metaConnected: Boolean(brand.metaPageId || brand.metaToken),
         },
         planSpec,

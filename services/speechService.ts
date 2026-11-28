@@ -349,8 +349,11 @@ export const playShadowVoice = async (
     onEnded?: () => void,
     onVoiceLoaded?: (base64: string) => void
 ) => {
-    // Keep normal and medium replies in one seamless Gemini Human TTS call (~950 chars) so prosody stays 100% consistent
-    if (!existing && String(text || '').trim().length > 950) {
+    // Reject legacy robotic MP3 blobs from older IndexedDB caches; genuine 24kHz Gemini WAV always starts with RIFF ('UklGR')
+    const validExistingWav = existing && String(existing).startsWith('UklGR') ? existing : undefined;
+
+    // Keep normal replies up to 950 chars in one single-prosody Gemini 2.5 Human TTS call; longer ones stream sequentially
+    if (!validExistingWav && String(text || '').trim().length > 950) {
         await playShadowVoiceStreaming(text, voice, undefined, onEnded);
         return;
     }
@@ -360,7 +363,7 @@ export const playShadowVoice = async (
     try {
         // Fetch human audio from memory cache, persistent IndexedDB cache, or Gemini TTS
         const cacheKey = `${voice}_v4_gemini25_${text.trim()}`;
-        let base64 = existing || audioCache.get(cacheKey);
+        let base64 = validExistingWav || audioCache.get(cacheKey);
         if (!base64) {
             base64 = await shadowDB.getAudioSegment(cacheKey) || undefined;
         }
@@ -542,7 +545,7 @@ export const playShadowVoiceStreaming = async (
     const rawSegments: string[] = [];
     for (const sentence of sentences) {
         const last = rawSegments[rawSegments.length - 1];
-        if (last && (last.length + 1 + sentence.length) <= 850) {
+        if (last && (last.length + 1 + sentence.length) <= 400) {
             rawSegments[rawSegments.length - 1] = `${last} ${sentence}`;
         } else {
             rawSegments.push(sentence);
@@ -555,18 +558,20 @@ export const playShadowVoiceStreaming = async (
         return sessionId;
     }
 
-    // Fire off synthesis for all sentences in parallel; the sequenced queue will play them in order
-    Promise.all(
-        rawSegments.map((sentence) => {
-            onSentenceStart?.(sentence);
-            return audioStreamQueue.enqueueSentence(sentence, voice, sessionId);
-        })
-    ).then(() => {
-        audioStreamQueue.markCompleted(sessionId);
-    }).catch((err) => {
-        console.warn("[Streaming TTS Pipeline Error]", err);
-        audioStreamQueue.markCompleted(sessionId);
-    });
+    // Sequentially enqueue chunks so Gemini 2.5 Human TTS is never burst-throttled into 429 Edge fallback
+    (async () => {
+        try {
+            for (const sentence of rawSegments) {
+                if (!audioStreamQueue.active) break;
+                onSentenceStart?.(sentence);
+                await audioStreamQueue.enqueueSentence(sentence, voice, sessionId);
+            }
+        } catch (err) {
+            console.warn("[Streaming TTS Pipeline Error]", err);
+        } finally {
+            audioStreamQueue.markCompleted(sessionId);
+        }
+    })();
 
     return sessionId;
 };

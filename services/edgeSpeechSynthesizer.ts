@@ -216,7 +216,7 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                const timeoutId = setTimeout(() => controller.abort(), 16000);
                 const promptText = ttsModel.startsWith('gemini-2.5-')
                     ? `اقرأ النص التالي بصوت بشري طبيعي دافئ وواضح باللهجة المصرية فقط بدون أي إضافات:\n${cleanText}`
                     : cleanText;

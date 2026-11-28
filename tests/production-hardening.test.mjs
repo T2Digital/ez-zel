@@ -1506,6 +1506,18 @@ test("43) 360° Fullscreen Obsidian, touch rotation, SpaceCanvas backdrop, wake-
   const edgeTtsSrc = fs.readFileSync(path.join(process.cwd(), "services", "edgeSpeechSynthesizer.ts"), "utf8");
   assert.ok(edgeTtsSrc.includes("gemini-2.5-flash-preview-tts"), "edgeSpeechSynthesizer must prioritize active Gemini 2.5 Human TTS model");
 
+  const speechClientSrc = fs.readFileSync(path.join(process.cwd(), "services", "speechService.ts"), "utf8");
+  assert.ok(
+    speechClientSrc.includes("startsWith('UklGR')") && speechClientSrc.includes("for (const sentence of rawSegments)"),
+    "speechService must discard legacy non-WAV blobs and stream sequential Gemini chunks"
+  );
+
+  const portalRoutesSrc = fs.readFileSync(path.join(process.cwd(), "routes", "clientPortalRoutes.ts"), "utf8");
+  assert.ok(
+    portalRoutesSrc.includes("if (accessCheck.ok)") && portalRoutesSrc.includes("metaToken: _mt") && portalRoutesSrc.includes("adminPin: _ap"),
+    "clientPortalRoutes must never leak agentApiKey or sensitive brand fields on unauthenticated public preview"
+  );
+
   const postCardSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisContentPostCard.tsx"), "utf8");
   assert.ok(postCardSrc.includes("activePost?.brandName || currentSelectedBrand?.name") && postCardSrc.includes("إغلاق بطاقة المنشور"), "JarvisContentPostCard must bind to post brandName and include close button");
 
