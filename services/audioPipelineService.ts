@@ -131,23 +131,20 @@ class AudioPipelineService {
     public async synthesizeChunk(text: string, voice = 'Puck'): Promise<ArrayBuffer | null> {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            const timeoutId = setTimeout(() => controller.abort(), 22000);
 
             const res = await fetch('/api/tts/edge-proxy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text,
-                    voice,
-                    rate: '+15%', // Optimized for crisp fast responsiveness
-                    pitch: '+0Hz',
-                    format: 'audio-24khz-48kbitrate-mono-mp3'
+                    voice
                 }),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
 
-            if (!res.ok) throw new Error(`Edge TTS failed with status ${res.status}`);
+            if (!res.ok) throw new Error(`Gemini TTS chunk failed with status ${res.status}`);
             return await res.arrayBuffer();
         } catch (e: any) {
             console.warn('[AudioPipeline] Chunk synthesis error:', e?.message || e);

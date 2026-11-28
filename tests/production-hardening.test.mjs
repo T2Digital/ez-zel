@@ -1345,7 +1345,7 @@ test("37) Modularized Paymob/Registry architecture, 8 canonical dogfooding brand
 test("38) Voice/Mic anti-echo & single-prosody TTS, restored QA/Catalog/Ads HUD, and full brand portfolio seeded", () => {
   const speechSrc = fs.readFileSync(path.join(process.cwd(), "services", "speechService.ts"), "utf8");
   assert.ok(speechSrc.includes("export const isShadowVoicePlaying"), "speechService must export isShadowVoicePlaying");
-  assert.ok(speechSrc.includes(".length > 950"), "speechService must keep normal replies under 950 chars in a single TTS call");
+  assert.ok(speechSrc.includes(".length > 360"), "speechService must keep short replies up to 360 chars in a single TTS call and stream longer replies cleanly");
   assert.equal(speechSrc.includes("[.!؟،؛\\n]"), false, "playShadowVoiceStreaming must NOT split on Arabic commas (causes choppy multi-voice audio)");
 
   const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
@@ -1628,6 +1628,67 @@ test("45) 17-Point Audit Remediation: Brand SSoT, Switcher & Confirmation, Booki
     "utf8"
   );
   assert.equal(cmAdminSrc.includes("useState('cleanmastereg@gmail.com')"), false, "Booking AdminPage must not prefill admin email");
+});
+
+test("46) 10/10 Final Polish: Gemini 2.5 strict human TTS streaming (<=320 chars), pre-hydration neutral loader, and collision-free Constellation pillars", () => {
+  const synthSrc = fs.readFileSync(path.join(process.cwd(), "services", "edgeSpeechSynthesizer.ts"), "utf8");
+  assert.ok(
+    synthSrc.includes("cachedWav.toString('ascii', 0, 4) === 'RIFF'") &&
+      synthSrc.includes("options.strictNeural !== false") &&
+      !synthSrc.includes("'gemini-3.8-flash-lite-tts'"),
+    "edgeSpeechSynthesizer must validate RIFF WAV cache, enforce strict Gemini 2.5 Human TTS, and remove dead models"
+  );
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(
+    serverSrc.includes("strictNeural: true"),
+    "server.ts synthesizeGeminiVoice / synthesizeSovereignSpeech must enforce strictNeural: true"
+  );
+
+  const proxySrc = fs.readFileSync(path.join(process.cwd(), "routes", "proxyAndSystemRoutes.ts"), "utf8");
+  assert.ok(
+    proxySrc.includes('"X-TTS-Engine"'),
+    "TTS route must tag response with X-TTS-Engine header"
+  );
+
+  const speechSrc = fs.readFileSync(path.join(process.cwd(), "services", "speechService.ts"), "utf8");
+  assert.ok(
+    speechSrc.includes("length > 360") &&
+      speechSrc.includes("_v5_gemini25_human_") &&
+      speechSrc.includes("startsWith('UklGR')") &&
+      speechSrc.includes("splitOverlongSentence"),
+    "speechService must chunk replies <=320 chars cleanly and require RIFF UklGR WAV audio"
+  );
+
+  const pipelineSrc = fs.readFileSync(path.join(process.cwd(), "services", "audioPipelineService.ts"), "utf8");
+  assert.ok(
+    pipelineSrc.includes("22000") && !pipelineSrc.includes("audio-24khz-48kbitrate-mono-mp3"),
+    "audioPipelineService must use 22000ms timeout and not request MP3 edge format"
+  );
+
+  const cmIndexSrc = fs.readFileSync(
+    "C:\\Users\\ahmed\\.gemini\\antigravity\\brain\\036fb332-c89d-4066-97a1-2cb5a627f42b\\scratch\\clean-master-repo\\index.html",
+    "utf8"
+  );
+  assert.equal(cmIndexSrc.includes("/index.css"), false, "clean-master index.html must not link missing /index.css");
+  assert.equal(cmIndexSrc.includes("<title>كلين ماستر"), false, "clean-master index.html title must be neutral pre-hydration");
+
+  const cmAppSrc = fs.readFileSync(
+    "C:\\Users\\ahmed\\.gemini\\antigravity\\brain\\036fb332-c89d-4066-97a1-2cb5a627f42b\\scratch\\clean-master-repo\\App.tsx",
+    "utf8"
+  );
+  assert.ok(
+    cmAppSrc.includes("isTenantReady") && cmAppSrc.includes("جاري تجهيز المتجر..."),
+    "clean-master App.tsx must show neutral loading shell before isolated tenant bootstrap completes"
+  );
+
+  const constellSrc = fs.readFileSync(path.join(process.cwd(), "components", "ObsidianHolographicConstellation.tsx"), "utf8");
+  assert.ok(
+    constellSrc.includes("r: 205") &&
+      constellSrc.includes("isInner ? 310 : 420") &&
+      constellSrc.includes("roundRect(labelX - titleW / 2"),
+    "ObsidianHolographicConstellation must expand radii (205/310/420) and register inner pillar label pills against collision"
+  );
 });
 
 

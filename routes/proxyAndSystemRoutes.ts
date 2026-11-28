@@ -139,7 +139,8 @@ export function registerProxyAndSystemRoutes(
           res.set({
               "Content-Type": contentType,
               "Content-Length": audioBuffer.length,
-              "Cache-Control": "public, max-age=86400"
+              "Cache-Control": "public, max-age=86400",
+              "X-TTS-Engine": isWav ? "gemini-2.5-human" : "edge-fallback"
           });
           return res.send(audioBuffer);
       } catch (err: any) {

@@ -170,9 +170,9 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       const phi = Math.acos(1 - 2 * (idx + 0.5) / Math.max(total, 1));
       const theta = Math.PI * (1 + Math.sqrt(5)) * idx;
 
-      // Wide separation outside inner pillars (r = 192): brand shells at 290 and 400
+      // Wide separation outside inner pillars (r = 205): brand shells at 310 and 420
       const isInner = idx % 2 === 0;
-      const radius = isInner ? 290 : 400;
+      const radius = isInner ? 310 : 420;
 
       const x = radius * Math.sin(phi) * Math.cos(theta);
       const y = (radius * 0.78) * Math.cos(phi);
@@ -367,9 +367,9 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
 
     // Core Sovereign Architecture Pillars in Inner Ring spaced cleanly away from JARVIS CORE
     const coreSystemPlanets = [
-      { id: 'pillar_studio', label: 'الاستوديو', sub: 'المحتوى والإعلانات', angleOffset: 0, r: 192, color: '#a855f7', glow: 'rgba(168,85,247,0.65)', signalType: 'SYNC' as const },
-      { id: 'pillar_agent', label: 'الأجنت', sub: 'الواتساب والمبيعات', angleOffset: (Math.PI * 2) / 3, r: 192, color: '#10b981', glow: 'rgba(16,185,129,0.65)', signalType: 'RX' as const },
-      { id: 'pillar_factory', label: 'المصنع', sub: 'المتاجر والـ ERP', angleOffset: (Math.PI * 4) / 3, r: 192, color: '#00f0ff', glow: 'rgba(0,240,255,0.65)', signalType: 'TX' as const },
+      { id: 'pillar_studio', label: 'الاستوديو', sub: 'المحتوى والإعلانات', angleOffset: 0, r: 205, color: '#a855f7', glow: 'rgba(168,85,247,0.65)', signalType: 'SYNC' as const },
+      { id: 'pillar_agent', label: 'الأجنت', sub: 'الواتساب والمبيعات', angleOffset: (Math.PI * 2) / 3, r: 205, color: '#10b981', glow: 'rgba(16,185,129,0.65)', signalType: 'RX' as const },
+      { id: 'pillar_factory', label: 'المصنع', sub: 'المتاجر والـ ERP', angleOffset: (Math.PI * 4) / 3, r: 205, color: '#00f0ff', glow: 'rgba(0,240,255,0.65)', signalType: 'TX' as const },
     ];
 
     const getBrandPillarIndices = (
@@ -473,13 +473,13 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         return { px, py, scale, z: z2 };
       };
 
-      // 1. Draw Central Sovereign Core Rings + Inner Architecture Orbit Ring (r = 192)
+      // 1. Draw Central Sovereign Core Rings + Inner Architecture Orbit Ring (r = 205)
       ctx.save();
       const coreRings = [
         { r: 44, color: 'rgba(0, 240, 255, 0.45)', dash: [6, 8], speed: 1.2 },
         { r: 82, color: 'rgba(168, 85, 247, 0.35)', dash: [12, 10], speed: -0.8 },
         { r: 122, color: 'rgba(56, 189, 248, 0.25)', dash: [4, 6], speed: 0.5 },
-        { r: 192, color: 'rgba(34, 211, 238, 0.26)', dash: [], speed: 0.2 }
+        { r: 205, color: 'rgba(34, 211, 238, 0.26)', dash: [], speed: 0.2 }
       ];
 
       coreRings.forEach(ring => {
@@ -518,6 +518,12 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         ctx.fillText('JARVIS CORE', centerProj.px, centerProj.py + 4);
       }
       ctx.restore();
+
+      // Collision-free screen-space label boxes reserved before drawing pillars or brand nodes
+      const drawnLabelBoxes: Array<{ x1: number; y1: number; x2: number; y2: number }> = [
+        { x1: cx - 76, y1: cy - 76, x2: cx + 76, y2: cy + 76 },
+        { x1: 0, y1: Math.max(0, h - 42), x2: Math.min(w, 430), y2: h }
+      ];
 
       // 1B. Project & Draw Inner Sovereign Ecosystem Pillars (الاستوديو • الأجنت • المصنع)
       const projectedCorePlanets = coreSystemPlanets.map((pl) => {
@@ -591,18 +597,52 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         ctx.lineWidth = 1.4;
         ctx.stroke();
 
-        // Clean Pillar Label + Role Subtitle
+        // Clean Pillar Label + Dark Pill Backdrop & Role Subtitle (clamped and collision-registered)
+        const labelX = Math.max(72, Math.min(w - 72, pl.px));
+        const labelY = Math.max(20, Math.min(h - 48, pl.py - pr - 10));
         ctx.font = 'bold 12px Cairo, sans-serif';
+        const titleW = Math.max(64, ctx.measureText(pl.label).width + 18);
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.82)';
+        ctx.beginPath();
+        ctx.roundRect(labelX - titleW / 2, labelY - 13, titleW, 18, 9);
+        ctx.fill();
+        ctx.strokeStyle = pl.color;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.shadowColor = '#000000';
-        ctx.shadowBlur = 6;
-        ctx.fillText(pl.label, pl.px, pl.py - pr - 8);
-        if (pl.scale > 0.45) {
+        ctx.shadowBlur = 5;
+        ctx.fillText(pl.label, labelX, labelY);
+
+        const subY = pl.py + pr + 16;
+        if (pl.scale > 0.52 && subY + 6 < h - 42) {
           ctx.font = 'bold 9px Cairo, sans-serif';
+          const subW = Math.max(78, ctx.measureText(pl.sub).width + 16);
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = 'rgba(2, 6, 23, 0.78)';
+          ctx.beginPath();
+          ctx.roundRect(labelX - subW / 2, subY - 10, subW, 14, 7);
+          ctx.fill();
+          ctx.strokeStyle = pl.color;
+          ctx.globalAlpha = 0.35;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+
           ctx.fillStyle = pl.color;
-          ctx.fillText(pl.sub, pl.px, pl.py + pr + 13);
+          ctx.fillText(pl.sub, labelX, subY);
         }
+
+        drawnLabelBoxes.push({
+          x1: labelX - 64,
+          y1: Math.min(labelY - 16, pl.py - pr - 26),
+          x2: labelX + 64,
+          y2: Math.max(subY + 10, pl.py + pr + 24)
+        });
         ctx.restore();
       });
 
@@ -711,7 +751,6 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
       ctx.restore();
 
       // 5. Draw 3D Brand Nodes (Crystal Spheres with Rim Light & Zero Label Overlap)
-      const drawnLabelBoxes: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
       projectedNodes.forEach(node => {
         const radius = (node.isSelected ? 16 : 10) * node.scale;
 
@@ -770,8 +809,12 @@ export const ObsidianHolographicConstellation: React.FC<ObsidianHolographicConst
         const lx2 = node.px + halfW;
         const ly1 = node.py + radius + 2;
         const ly2 = node.py + radius + (isCompactCanvas ? 34 : 28);
-        const overlapsExisting = !node.isSelected && drawnLabelBoxes.some(
-          (b) => lx1 < b.x2 && lx2 > b.x1 && ly1 < b.y2 && ly2 > b.y1
+        const overlapsExisting = !node.isSelected && (
+          ly2 > h - 40 ||
+          ly1 < 18 ||
+          drawnLabelBoxes.some(
+            (b) => lx1 < b.x2 && lx2 > b.x1 && ly1 < b.y2 && ly2 > b.y1
+          )
         );
 
         if (!overlapsExisting && (node.isSelected || node.scale > (isCompactCanvas ? 0.72 : 0.55))) {

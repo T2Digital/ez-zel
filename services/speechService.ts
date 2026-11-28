@@ -352,8 +352,8 @@ export const playShadowVoice = async (
     // Reject legacy robotic MP3 blobs from older IndexedDB caches; genuine 24kHz Gemini WAV always starts with RIFF ('UklGR')
     const validExistingWav = existing && String(existing).startsWith('UklGR') ? existing : undefined;
 
-    // Keep normal replies up to 950 chars in one single-prosody Gemini 2.5 Human TTS call; longer ones stream sequentially
-    if (!validExistingWav && String(text || '').trim().length > 950) {
+    // Keep short replies up to 360 chars in one single-prosody Gemini 2.5 Human TTS call; longer ones stream in <=320-char chunks (~4s latency)
+    if (!validExistingWav && String(text || '').trim().length > 360) {
         await playShadowVoiceStreaming(text, voice, undefined, onEnded);
         return;
     }
@@ -362,7 +362,7 @@ export const playShadowVoice = async (
 
     try {
         // Fetch human audio from memory cache, persistent IndexedDB cache, or Gemini TTS
-        const cacheKey = `${voice}_v4_gemini25_${text.trim()}`;
+        const cacheKey = `${voice}_v5_gemini25_human_${text.trim()}`;
         let base64 = validExistingWav || audioCache.get(cacheKey);
         if (!base64) {
             base64 = await shadowDB.getAudioSegment(cacheKey) || undefined;
@@ -496,7 +496,7 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
                     binary += String.fromCharCode.apply(null, chunk as any);
                 }
                 const base64Audio = btoa(binary);
-                if (base64Audio && base64Audio.length > 100) {
+                if (base64Audio && base64Audio.length > 100 && base64Audio.startsWith('UklGR')) {
                     return base64Audio;
                 }
             }
@@ -527,8 +527,28 @@ export const playShadowVoiceStreaming = async (
 
     const sessionId = audioStreamQueue.startSession(onEnded);
 
-    // Split ONLY on full sentence endings (never Arabic commas/semicolons), then merge into 450-850 char paragraphs
-    // so long speeches preserve stable voice prosody and tone across chunks.
+    // Split cleanly into <= 320-char chunks so each Gemini 2.5 TTS request completes in ~4s with zero 504 timeouts
+    const splitOverlongSentence = (input: string, maxLen = 320): string[] => {
+        const clean = input.trim();
+        if (clean.length <= maxLen) return [clean];
+        const pieces: string[] = [];
+        let remaining = clean;
+        while (remaining.length > maxLen) {
+            const slice = remaining.slice(0, maxLen);
+            let cut = Math.max(slice.lastIndexOf('،'), slice.lastIndexOf(','), slice.lastIndexOf(';'), slice.lastIndexOf('؛'));
+            if (cut < Math.floor(maxLen * 0.45)) {
+                cut = slice.lastIndexOf(' ');
+            }
+            if (cut < Math.floor(maxLen * 0.35)) {
+                cut = maxLen;
+            }
+            pieces.push(remaining.slice(0, cut).trim());
+            remaining = remaining.slice(cut).replace(/^[،,;؛\s]+/, '').trim();
+        }
+        if (remaining) pieces.push(remaining);
+        return pieces.filter(Boolean);
+    };
+
     const sentences = text
         .split(/([.!؟\n]+)/)
         .reduce((acc: string[], curr: string, idx: number) => {
@@ -540,12 +560,13 @@ export const playShadowVoiceStreaming = async (
             return acc;
         }, [])
         .map(s => s.trim())
-        .filter(s => s.length > 0);
+        .filter(s => s.length > 0)
+        .flatMap(s => splitOverlongSentence(s, 320));
 
     const rawSegments: string[] = [];
     for (const sentence of sentences) {
         const last = rawSegments[rawSegments.length - 1];
-        if (last && (last.length + 1 + sentence.length) <= 400) {
+        if (last && (last.length + 1 + sentence.length) <= 320) {
             rawSegments[rawSegments.length - 1] = `${last} ${sentence}`;
         } else {
             rawSegments.push(sentence);

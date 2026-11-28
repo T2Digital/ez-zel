@@ -4316,7 +4316,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       return synthesizeEdgeSpeech({
           text: text.substring(0, 1000),
           voice,
-          outputFormat: "audio/wav"
+          outputFormat: "audio/wav",
+          strictNeural: true
       });
   }
 
@@ -4324,7 +4325,8 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       return synthesizeEdgeSpeech({
           text: text.substring(0, 1200),
           voice,
-          outputFormat: "audio/wav"
+          outputFormat: "audio/wav",
+          strictNeural: true
       });
   }
 

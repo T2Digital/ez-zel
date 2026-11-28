@@ -186,8 +186,8 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
     if (fs.existsSync(cachedWavPath)) {
         try {
             const cachedWav = fs.readFileSync(cachedWavPath);
-            if (cachedWav.length > 200) {
-                if (wantRawPcm && cachedWav.toString('ascii', 0, 4) === 'RIFF') {
+            if (cachedWav.length > 200 && cachedWav.toString('ascii', 0, 4) === 'RIFF') {
+                if (wantRawPcm) {
                     return cachedWav.subarray(44);
                 }
                 return cachedWav;
@@ -195,8 +195,12 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         } catch {}
     }
 
+    const strictNeural = options.strictNeural !== false;
     const candidateKeys = collectAllGeminiKeys();
     if (candidateKeys.length === 0) {
+        if (strictNeural) {
+            throw new Error('Gemini 2.5 Human TTS temporarily unavailable (no active Gemini keys)');
+        }
         console.log(`🎙️ [TTS Direct]: No Gemini keys on host, synthesizing directly via Node Edge Human Egyptian Voice...`);
         return await synthesizeWithNodeEdgeTts(cleanText, isFemale, wantRawPcm ? 'raw-24khz-16bit-mono-pcm' : undefined);
     }
@@ -204,9 +208,7 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
     // Verified Gemini Human TTS models — model-first rotation tries ALL rotated keys on gemini-2.5-flash-preview-tts immediately
     const geminiTtsModels = [
         'gemini-2.5-flash-preview-tts',
-        'gemini-2.5-pro-preview-tts',
-        'gemini-3.8-flash-lite-tts',
-        'gemini-3.1-flash-tts-preview'
+        'gemini-2.5-pro-preview-tts'
     ];
 
     const startIdx = Math.floor(Date.now() / 1000) % candidateKeys.length;
@@ -222,7 +224,7 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 18000);
+                const timeoutId = setTimeout(() => controller.abort(), 20000);
                 const promptText = ttsModel.startsWith('gemini-2.5-')
                     ? `اقرأ النص التالي بصوت بشري طبيعي دافئ وواضح باللهجة المصرية فقط بدون أي إضافات:\n${cleanText}`
                     : cleanText;
@@ -284,12 +286,15 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         }
     }
 
-    // If Gemini models fail or keys are absent on Render, immediately synthesize with Node-Edge-TTS (100% human Egyptian voice)
+    // Enforce strict Gemini 2.5 Human TTS by default (no robotic Edge fallback unless strictNeural is explicitly false)
+    if (strictNeural) {
+        throw lastErr || new Error('Gemini 2.5 Human TTS temporarily unavailable');
+    }
     try {
         console.log(`🎙️ [TTS Failover]: Falling back to Node Edge Human Egyptian Voice (${geminiVoice})...`);
         return await synthesizeWithNodeEdgeTts(cleanText, isFemale, wantRawPcm ? 'raw-24khz-16bit-mono-pcm' : undefined);
     } catch (edgeErr: any) {
-        throw lastErr || edgeErr || new Error('All neural human voice engines failed');
+        throw lastErr || edgeErr || new Error('Gemini 2.5 Human TTS temporarily unavailable');
     }
 }
 
