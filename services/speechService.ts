@@ -471,7 +471,7 @@ export const getShadowVoice = async (text: string, voice: string, preferredEngin
     // 1. PRIMARY & SOVEREIGN: Latest Gemini Human TTS Models (Puck / Kore 24kHz)
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 22000);
+        const timeoutId = setTimeout(() => controller.abort(), 34000);
 
         const resp = await fetch('/api/tts/gemini', {
             method: 'POST',

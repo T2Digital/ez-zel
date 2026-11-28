@@ -129,7 +129,7 @@ export function registerProxyAndSystemRoutes(
           const audioBuffer = await Promise.race([
               synthesizeSovereignSpeech(text, geminiVoice),
               new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("TTS_ENDPOINT_TIMEOUT_26S")), 26000)
+                  setTimeout(() => reject(new Error("TTS_ENDPOINT_TIMEOUT_32S")), 32000)
               )
           ]);
 
@@ -144,7 +144,7 @@ export function registerProxyAndSystemRoutes(
           return res.send(audioBuffer);
       } catch (err: any) {
           console.warn("[Gemini Human TTS Endpoint Error]:", err?.message || err);
-          const status = err?.message === "TTS_ENDPOINT_TIMEOUT_26S" ? 504 : 503;
+          const status = err?.message === "TTS_ENDPOINT_TIMEOUT_32S" ? 504 : 503;
           return res.status(status).json({ error: err?.message || "TTS service temporarily unavailable" });
       }
   });

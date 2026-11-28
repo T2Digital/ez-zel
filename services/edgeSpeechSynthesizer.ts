@@ -201,7 +201,7 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         return await synthesizeWithNodeEdgeTts(cleanText, isFemale, wantRawPcm ? 'raw-24khz-16bit-mono-pcm' : undefined);
     }
 
-    // Verified Gemini Human TTS models (gemini-2.5-flash-preview-tts works on active Tier-1/Free keys)
+    // Verified Gemini Human TTS models — model-first rotation tries ALL rotated keys on gemini-2.5-flash-preview-tts immediately
     const geminiTtsModels = [
         'gemini-2.5-flash-preview-tts',
         'gemini-2.5-pro-preview-tts',
@@ -209,14 +209,20 @@ export async function synthesizeEdgeSpeech(options: SynthesizeOptions): Promise<
         'gemini-3.1-flash-tts-preview'
     ];
 
+    const startIdx = Math.floor(Date.now() / 1000) % candidateKeys.length;
+    const rotatedKeys = [
+        ...candidateKeys.slice(startIdx),
+        ...candidateKeys.slice(0, startIdx),
+    ];
+
     let lastErr: any = null;
 
-    for (const apiKey of candidateKeys) {
-        for (const ttsModel of geminiTtsModels) {
+    for (const ttsModel of geminiTtsModels) {
+        for (const apiKey of rotatedKeys) {
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 16000);
+                const timeoutId = setTimeout(() => controller.abort(), 18000);
                 const promptText = ttsModel.startsWith('gemini-2.5-')
                     ? `اقرأ النص التالي بصوت بشري طبيعي دافئ وواضح باللهجة المصرية فقط بدون أي إضافات:\n${cleanText}`
                     : cleanText;
