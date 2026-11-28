@@ -169,7 +169,14 @@ export const JarvisDynamicWidgetHUD: React.FC<JarvisDynamicWidgetHUDProps> = ({
             </div>
             <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10">
               <div className="text-slate-400 text-[11px]">حالة خطة المحتوى</div>
-              <div className="text-emerald-300 font-bold mt-1">{brand.weekContentPlan?.length || 0} منشور جاهز</div>
+              <div className="text-emerald-300 font-bold mt-1">{(() => {
+                const count = Number(brand.weekContentPlan?.length || 0);
+                if (count === 0) return 'لا توجد منشورات بعد';
+                if (count === 1) return 'منشور واحد جاهز';
+                if (count === 2) return 'منشوران جاهزان';
+                if (count <= 10) return `${count} منشورات جاهزة`;
+                return `${count} منشوراً جاهزاً`;
+              })()}</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

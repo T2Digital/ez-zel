@@ -813,7 +813,7 @@ const jarvisBrainTools: FunctionDeclaration[] = [
   },
 ];
 
-function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, any[]>): string {
+function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, any[]>, includeInternalId = false): string {
   if (!brand) return "لا يوجد براند محدد حالياً.";
   const records = tenantRecords?.[brand.id] || [];
   const revenueEgp = records.reduce((s: number, r: any) => s + (Number(r.totalEgp || r.price || 0) || 0), 0);
@@ -826,12 +826,24 @@ function buildBrandLiveStatsSummary(brand: any, tenantRecords: Record<string, an
     brand.vercelUrl ||
     "لم يُنشر على Vercel بعد — استخدم أداة deploy_brand_web_app لنشره على Vercel";
   return [
-    `الاسم: "${brand.name}" [id:${brand.id}] (${brand.businessType || "نشاط تجاري"})`,
+    `الاسم: "${brand.name}"${includeInternalId ? ` [id:${brand.id}]` : ""} (${brand.businessType || "نشاط تجاري"})`,
     `رابط التطبيق: ${liveAppUrl} (قالب: ${brand.appTemplate || "تلقائي"})`,
     `الطلبات/الحجوزات المسجلة: ${records.length} • الإيرادات المسجلة: ${revenueEgp} ج.م`,
     `خطة المحتوى: ${plan.length} منشورات (${publishedCount} منشور فعلياً)`,
     `واتساب: ${waConnected ? `متصل (${brand.phone || brand.whatsapp || "نشط"})` : "غير مربوط"} • ميتا: ${metaConnected ? `متصل (${brand.metaPageName || brand.metaPageId})` : "غير متصل"}`
   ].join(" | ");
+}
+
+export function sanitizeArabicOutputText(input: string): string {
+  return String(input || "")
+    .replace(/\uFFFD+/g, "")
+    .replace(/\[id:[^\]]+\]/gi, "")
+    .replace(/([\u0600-\u06FF])ת/g, "$1ة")
+    .replace(/[\u0590-\u05FF\u0400-\u04FF\u0370-\u03FF]+/g, "")
+    .replace(/\bيا\s*هوانم\b/gi, "يا فندم")
+    .replace(/منصاتنا الذكية/gi, "منصتنا")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function buildPersonaSystemPrompt(
@@ -854,7 +866,7 @@ function buildPersonaSystemPrompt(
     })
     .join(" | ");
 
-  const activeBrandStats = buildBrandLiveStatsSummary(activeBrand, tenantRecords);
+  const activeBrandStats = buildBrandLiveStatsSummary(activeBrand, tenantRecords, persona === "tito");
   let personaRoleInstruction = "";
   const activatedPlatformsKnowledge = `
 [المنصات والقنوات المفعلة حالياً في المنظومة (T2 Studio + T2 Agent)]:
@@ -902,7 +914,7 @@ function buildPersonaSystemPrompt(
 
   if (persona === "visitor") {
     personaRoleInstruction = `المتحدث معك الآن هو "زائر جديد أو صاحب نشاط تجاري" يستكشف منظومة T2OS من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال.
-دورك معه: أنت "جارفيس"، مستشار الأعمال والنمو الرقمي بالمنظومة. تتحدث بالعامية المصرية الطبيعية الودودة والمهذبة (بدون كلمات عامية مبتذلة مثل "حبايبي" أو مبالغة).
+دورك معه: أنت "جارفيس"، مستشار الأعمال والنمو الرقمي بالمنظومة. تتحدث بالعامية المصرية الطبيعية الودودة والمهذبة (استخدم "يا فندم" أو "حضرتك" — وممنوع تماماً كلمات مثل "يا هوانم" أو "حبايبي" أو أي حروف غير عربية وسط الكلام).
 
 [الباقات والخطط الحية الآن من قاعدة النظام — التزم بنفس الأرقام بالضبط]:
 ${dynamicPlansBlock}
@@ -1231,9 +1243,9 @@ ${conversationMemoryDirective}`;
         )
       : jarvisBrainTools.filter((t) => SOVEREIGN_UNIFIED_TOOLS.has(t.name));
 
-  const modelCascade = [...ACTIVE_GEMINI_TEXT_MODELS];
+  const modelCascade = [...ACTIVE_GEMINI_TEXT_MODELS].slice(0, 3);
 
-  const withModelTimeout = <T>(p: Promise<T>, ms = 9000): Promise<T> =>
+  const withModelTimeout = <T>(p: Promise<T>, ms = 8000): Promise<T> =>
     Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`MODEL_TIMEOUT_${ms}ms`)), ms))]);
 
   let chat: any = null;
@@ -1250,7 +1262,7 @@ ${conversationMemoryDirective}`;
           tools: [{ functionDeclarations: activeTools }],
           temperature: 0.4,
         },
-      }), 9000);
+      }), 8000);
       if (chat) break;
     } catch (err: any) {
       lastModelError = err?.message || String(err);
@@ -1269,7 +1281,7 @@ ${conversationMemoryDirective}`;
             systemInstruction: { parts: [{ text: fullSystemInstruction }] },
             temperature: 0.5,
           },
-        }), 7000);
+        }), 6000);
         if (chat) break;
       } catch (err: any) {
         lastModelError = err?.message || String(err);
@@ -1282,19 +1294,48 @@ ${conversationMemoryDirective}`;
   let backendExecutionResult: any = null;
   let targetBrand = mentionedOrSelectedBrand;
 
+  const trimmedMsg = String(message || "").trim();
+  const isBrandConfirmed = /تأكيد\s+إنشاء\s+البراند|نعم\s+أنشئ|اعتمد\s+الإنشاء|بدون\s+تأكيد/i.test(trimmedMsg);
+  const buildConfirmBrandCreationOutput = (opts: {
+    brandName?: string;
+    industry?: string;
+    appTemplate?: string;
+    isDropshipping?: boolean;
+    phone?: string;
+    resolvedBrandId?: string;
+  }): JarvisBrainOutput => ({
+    success: true,
+    replyText: `بكل سرور! قبل ما أنشئ براند جديد أو أغيّر الكابينة الحالية، أكدلي التفاصيل دي أو اضغط "تأكيد وإنشاء البراند" تحت:\n- الاسم المقترح أو نوع النشاط (متجر إلكتروني ولا تطبيق حجوزات؟)\n- رقم الواتساب للتواصل`,
+    audioBase64: null,
+    audioFormat: "audio/wav" as const,
+    action: {
+      type: "CONFIRM_BRAND_CREATION",
+      requiresConfirmation: true,
+      proposedBrand: {
+        brandName: opts.brandName || "براند جديد ذكي",
+        industry: opts.industry || (/عياد|تنظيف|صيان|حجز|خدم/i.test(trimmedMsg) ? "خدمات وحجوزات ذكية" : "متجر إلكتروني متكامل"),
+        appTemplate: opts.appTemplate || (/عياد|تنظيف|صيان|حجز|خدم/i.test(trimmedMsg) ? "services_booking" : "products_erp"),
+        isDropshipping: Boolean(opts.isDropshipping),
+        phone: opts.phone || targetBrand?.phone || "01013372674",
+      },
+    },
+    executionResult: null,
+    shouldTriggerBrowser: false,
+    suggestedScenario: "",
+    resolvedBrandId: opts.resolvedBrandId || targetBrand?.id || selectedBrandId || "",
+  });
+
   const rawFunctionCalls = Array.isArray(chat?.functionCalls) ? chat.functionCalls : [];
   let synthesizedCalls: any[] = [];
   let wasSynthesizedCall = false;
 
   if (rawFunctionCalls.length === 0 && persona !== "visitor") {
-    const trimmedMsg = String(message || "").trim();
     const priceMatch = trimmedMsg.match(/(\d+(?:\.\d+)?)\s*(?:جنيه|ج\.م|جم|EGP)/i);
     const hasAddVerb = /(?:^|\s)(?:أضف|اضف|ضيف|زود|نزل|نزّل|أدخل|ادخل)(?=$|\s|[،.!؟])/i.test(trimmedMsg);
     const hasCatalogNoun = /(?:^|\s)(?:منتج|صنف|خدمة|سلعة)(?=$|\s|[،.!؟"«'»])/i.test(trimmedMsg);
     const wantsCreateStore =
       /(?:عاوز|عايز|أريد|ابغى|اعمل|أعمل|انشئ|أنشئ|ابني|إبني|أسس|اسس|جهز|جهّز|سوي|نفذ|شغل)\s+(?:لي\s+)?(?:متجر|تطبيق|ستور|ويب\s*اب|براند(?:\s+جديد)?)/i.test(trimmedMsg) ||
       /(?:أعمل|اعمل|انشئ|أنشئ|أسس|ابني|تجهيز)\s+متجر\s+دروب\s*شيب/i.test(trimmedMsg);
-    const isBrandConfirmed = /تأكيد\s+إنشاء\s+البراند|نعم\s+أنشئ|بدون\s+تأكيد/i.test(trimmedMsg);
 
     if (hasAddVerb && hasCatalogNoun && priceMatch) {
       const brandMatch = trimmedMsg.match(
@@ -1326,27 +1367,12 @@ ${conversationMemoryDirective}`;
       const isDrop = /دروب\s*شيب|dropship/i.test(trimmedMsg);
       const isGenericBrandSetup = !explicitBrandName && !isDrop && trimmedMsg.length < 48 && !isBrandConfirmed;
       if (isGenericBrandSetup) {
-        return {
-          success: true,
-          replyText: `بكل سرور! قبل ما أنشئ براند جديد أو أغيّر الكابينة الحالية، أكدلي التفاصيل دي أو اضغط "تأكيد وإنشاء البراند" تحت:\n- الاسم المقترح أو نوع النشاط (متجر إلكتروني ولا تطبيق حجوزات؟)\n- رقم الواتساب للتواصل`,
-          audioBase64: null,
-          audioFormat: "audio/wav",
-          action: {
-            type: "CONFIRM_BRAND_CREATION",
-            requiresConfirmation: true,
-            proposedBrand: {
-              brandName: explicitBrandName || "براند جديد ذكي",
-              industry: /عياد|تنظيف|صيان|حجز|خدم/i.test(trimmedMsg) ? "خدمات وحجوزات ذكية" : "متجر إلكتروني متكامل",
-              appTemplate: /عياد|تنظيف|صيان|حجز|خدم/i.test(trimmedMsg) ? "services_booking" : "products_erp",
-              isDropshipping: isDrop,
-              phone: targetBrand?.phone || "01013372674",
-            },
-          },
-          executionResult: null,
-          shouldTriggerBrowser: false,
-          suggestedScenario: "",
-          resolvedBrandId: targetBrand?.id || selectedBrandId || "",
-        };
+        return buildConfirmBrandCreationOutput({
+          brandName: explicitBrandName || "براند جديد ذكي",
+          isDropshipping: isDrop,
+          phone: targetBrand?.phone,
+          resolvedBrandId: targetBrand?.id || selectedBrandId,
+        });
       }
       synthesizedCalls = [
         {
@@ -1915,6 +1941,16 @@ ${conversationMemoryDirective}`;
             backendExecutionResult = await titoStudioApi.listBrands();
           } else if (args.action === "create_brand") {
             const name = args.brandNameOrId || "براند جديد";
+            const isExplicitCreate = Boolean(args.brandNameOrId) && !isRawPromptSentenceNotBrandName(String(args.brandNameOrId || ""));
+            if (!isBrandConfirmed && args.confirmed !== true && (!isExplicitCreate || trimmedMsg.length < 52)) {
+              return buildConfirmBrandCreationOutput({
+                brandName: isExplicitCreate ? name : "براند جديد ذكي",
+                industry: args.industry,
+                isDropshipping: /دروب\s*شيب|dropship/i.test(`${args.industry || ""} ${trimmedMsg}`),
+                phone: args.phone || targetBrand?.phone,
+                resolvedBrandId: targetBrand?.id || selectedBrandId,
+              });
+            }
             const safePhone = args.phone || targetBrand?.phone || "01013372674";
             backendExecutionResult = await titoStudioApi.createBrand({
               name,
@@ -2061,6 +2097,16 @@ ${conversationMemoryDirective}`;
           const rawCategory = String(args.category || "متجر إلكتروني ودروب شيبنج").trim();
           const rawIdeaOrName = String(args.businessIdeaOrName || "").trim();
           const isDropshippingReq = /دروب\s*شيب|dropship/i.test(`${rawCategory} ${rawIdeaOrName} ${message}`);
+          const hasExplicitBrand = Boolean(rawIdeaOrName) && !isRawPromptSentenceNotBrandName(rawIdeaOrName) && rawIdeaOrName !== rawCategory;
+          if (!isBrandConfirmed && args.confirmed !== true && (!hasExplicitBrand || trimmedMsg.length < 52)) {
+            return buildConfirmBrandCreationOutput({
+              brandName: hasExplicitBrand ? rawIdeaOrName : "براند جديد ذكي",
+              industry: rawCategory,
+              isDropshipping: isDropshippingReq,
+              phone: String(args.phone || targetBrand?.phone || "01013372674").trim(),
+              resolvedBrandId: targetBrand?.id || selectedBrandId,
+            });
+          }
           const category = isDropshippingReq && !/عطر|ملابس|سيار/i.test(rawCategory)
             ? "دروب شيبنج وإكسسوارات ذكية"
             : rawCategory;
@@ -2275,6 +2321,16 @@ ${conversationMemoryDirective}`;
           const { loadTenantErpState, saveTenantErpState, normalizeSlugKey } = await import("./tenantErpStoreService");
 
           if (!target) {
+            if (!isBrandConfirmed && args.confirmed !== true && (isRawSentence || trimmedMsg.length < 52)) {
+              return buildConfirmBrandCreationOutput({
+                brandName: !isRawSentence && rawBrandInput ? rawBrandInput : "براند جديد ذكي",
+                industry,
+                appTemplate: resolvedAppTpl,
+                isDropshipping: isDropshippingReq,
+                phone,
+                resolvedBrandId: targetBrand?.id || selectedBrandId,
+              });
+            }
             const { generateBrandingAndSocialKit } = await import("./brandingForgeService");
             const { generateIndustryCatalogWithAI, mapCatalogItemsToErpProducts, getIndustryHeroImage } = await import("./industryHydrationService");
 
@@ -3372,21 +3428,24 @@ ${conversationMemoryDirective}`;
     }
   }
 
-  // Sanitize replyText: strip any leaked function_call syntax or internal template names for visitors
-  replyText = replyText
-    .replace(/[a-z_][a-z0-9_]*\s*\([^)]*\)/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  // Sanitize replyText: strip any leaked function_call syntax, internal [id:...] markers, stray scripts, or template names
+  replyText = sanitizeArabicOutputText(
+    replyText.replace(/[a-z_][a-z0-9_]*\s*\([^)]*\)/gi, "")
+  );
 
+  const activeIsCleanMaster = /clean/i.test(String(targetBrand?.id || targetBrand?.slug || ""));
   if (persona !== "tito") {
     replyText = replyText
       .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر|الماستر\s*تيتو/gi, detectedVisitorName ? `يا ${detectedVisitorName}` : "يا فندم")
       .replace(/تيتو\s*(?:ا|إ)?ستوديو/gi, "استوديو المحتوى")
       .replace(/تيتو\s*(?:أ|ا|إ)?جنت/gi, "وكيل الواتساب الذكي")
       .replace(/\bBattah\b|بطاح/gi, "منصة المتاجر والمخازن المتكاملة")
-      .replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, "منصة الخدمات والحجوزات الذكية")
       .replace(/أنا\s*تاليت/gi, "أنا")
-      .replace(/\bحبايبي\b|يا\s*حبايبي|حبيبي/gi, "يا فندم");
+      .replace(/\bحبايبي\b|يا\s*حبايبي|حبيبي|يا\s*هوانم/gi, "يا فندم");
+
+    if (!activeIsCleanMaster) {
+      replyText = replyText.replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, "منصة الخدمات والحجوزات الذكية");
+    }
 
     if (hasPriorTurns) {
       replyText = replyText

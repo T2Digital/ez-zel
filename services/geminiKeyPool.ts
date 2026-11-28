@@ -1,20 +1,20 @@
 import { GoogleGenAI } from '@google/genai';
 
 export const ACTIVE_GEMINI_TEXT_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
   'gemini-flash-lite-latest',
-  'gemini-3-flash-preview',
+  'gemini-flash-latest',
 ] as const;
 
 export function sanitizeGeminiTextModel(model?: string): string {
   const m = String(model || '').trim();
-  if (!m) return 'gemini-3.5-flash-lite';
+  if (!m) return 'gemini-2.5-flash';
   if (/tts|image|nano-banana|veo|embedding|live/i.test(m)) {
     return m;
   }
-  if (/gemini-2\.|gemini-1\.|gemini-3\.0|gemini-3\.7|gemini-3\.8|gemini-omni|gemini-flash-latest|gemini-3\.1-pro|pro-preview/i.test(m)) {
-    return 'gemini-3.5-flash-lite';
+  if (/gemini-1\.|gemini-2\.0|gemini-3\.0|gemini-3\.1|gemini-3\.5|gemini-3\.7|gemini-3\.8|gemini-omni/i.test(m)) {
+    return 'gemini-2.5-flash';
   }
   return m;
 }
@@ -89,7 +89,7 @@ export function loadGeminiKeysFromEnv(): string[] {
   return keys;
 }
 
-export function getNextHealthyGeminiKey(model = 'gemini-3.5-flash-lite'): string {
+export function getNextHealthyGeminiKey(model = 'gemini-2.5-flash'): string {
   const keys = loadGeminiKeysFromEnv();
   if (keys.length === 0) return '';
 

@@ -1691,6 +1691,46 @@ test("46) 10/10 Final Polish: Gemini 2.5 strict human TTS streaming (<=320 chars
   );
 });
 
+test("47) Wave-3 18/18 Audit Closure: strict Brand Hub matching, tool-level brand confirmation gate, fast Gemini 2.5 models, briefing auth & Arabic cleanup", () => {
+  const hubRoutesSrc = fs.readFileSync(path.join(process.cwd(), "routes", "brandHubRoutes.ts"), "utf8");
+  assert.equal(hubRoutesSrc.includes(".toLowerCase().includes(key)"), false, "findBrandAndTenant must NOT do loose name substring bleed across tenants");
+  assert.ok(hubRoutesSrc.includes("if (!key && !normKey) return { brand: null, tenant: null };"), "findBrandAndTenant must guard empty keys");
+
+  const cmdHubSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisBrandCommandHub.tsx"), "utf8");
+  assert.equal(cmdHubSrc.includes("`https://t2-tenant-${slug"), false, "resolveBrandWebUrl must return canonical book.t2os.app/store.t2os.app URLs instead of non-existent t2-tenant URLs");
+  assert.ok(cmdHubSrc.includes("testBookingReceipt") && cmdHubSrc.includes("t2_brand_stats_updated"), "Test booking must show receipt card and emit t2_brand_stats_updated");
+
+  const brainSrc = fs.readFileSync(path.join(process.cwd(), "services", "jarvisBrainEngine.ts"), "utf8");
+  assert.ok(
+    brainSrc.includes("sanitizeArabicOutputText") &&
+      brainSrc.includes("buildConfirmBrandCreationOutput") &&
+      brainSrc.includes("activeIsCleanMaster"),
+    "jarvisBrainEngine must enforce CONFIRM_BRAND_CREATION on direct tool calls, sanitize stray scripts, and preserve Clean Master name when active"
+  );
+
+  const keyPoolSrc = fs.readFileSync(path.join(process.cwd(), "services", "geminiKeyPool.ts"), "utf8");
+  assert.ok(keyPoolSrc.includes("'gemini-2.5-flash'"), "ACTIVE_GEMINI_TEXT_MODELS must prioritize gemini-2.5-flash over dead 3.5/3.1 models");
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(
+    serverSrc.includes('app.post("/api/system/trigger-daily-briefing", async (req, res) =>') &&
+      serverSrc.includes("Admin authorization required for fleet briefing"),
+    "trigger-daily-briefing must support brand-scoped trial requests while keeping fleet briefing admin-only"
+  );
+
+  const widgetSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisDynamicWidgetHUD.tsx"), "utf8");
+  assert.ok(widgetSrc.includes("منشورات جاهزة"), "JarvisDynamicWidgetHUD must use proper Arabic plural form for posts");
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(
+    modalSrc.includes("mergeBrandsDeduped") &&
+      modalSrc.includes("mapBusinessTypeToCategoryOption") &&
+      modalSrc.includes("activeBrandLiveBookings") &&
+      modalSrc.includes('aria-label="إغلاق التقرير"'),
+    "JarvisBattleStationModal must retain brand switcher history, map category options accurately, stabilize bookings counter, and render visible briefing card"
+  );
+});
+
 
 
 

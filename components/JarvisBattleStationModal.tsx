@@ -166,9 +166,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [generatedBrandingKit, setGeneratedBrandingKit] = useState<any>(null);
   const [brandingForm, setBrandingForm] = useState({
     brandName: '',
-    category: 'عيادات ومراكز طبية',
+    category: 'خدمات ونظافة وصيانة',
     targetAudience: 'العملاء في مصر والخليج',
-    phone: '01013372674',
+    phone: '',
     isNewBusiness: true,
     hasWebsite: false,
     hasSocialPages: false,
@@ -544,7 +544,50 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [newServicePrice, setNewServicePrice] = useState<string>('');
   const [botPromptInput, setBotPromptInput] = useState<string>('');
   const [isSavingCatalog, setIsSavingCatalog] = useState<boolean>(false);
-  const [allBrandsList, setAllBrandsList] = useState<any[]>([]);
+  const [allBrandsList, setAllBrandsList] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('t2_session_brands_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [activeBrandLiveBookings, setActiveBrandLiveBookings] = useState<number>(0);
+  const [isGeneratingBriefing, setIsGeneratingBriefing] = useState<boolean>(false);
+
+  const mapBusinessTypeToCategoryOption = useCallback((businessType?: string): string => {
+    const bt = String(businessType || '').toLowerCase();
+    if (/نظاف|تنظيف|تعقيم|صيان|clean/i.test(bt)) return 'خدمات ونظافة وصيانة';
+    if (/سيار|ليموزين|تأجير|قطع\s*غيار|auto/i.test(bt)) return 'تأجير وليموزين سيارات';
+    if (/عياد|طب|أسنان|اسنان|دكتور|clinic/i.test(bt)) return 'عيادات ومراكز طبية';
+    if (/عطر|تجارة|متجر|ملابس|دروب|إكسسوار|perfume|ecommerce|store/i.test(bt)) return 'تجارة إلكترونية وأزياء';
+    if (/عقار|مقاول/i.test(bt)) return 'عقارات وتطوير ومقاولات';
+    if (/مطعم|كافيه|أغذ/i.test(bt)) return 'مطاعم وكافيهات وأغذية';
+    if (/شحن|لوجست/i.test(bt)) return 'شحن وخدمات لوجستية';
+    return businessType ? String(businessType).trim() : 'أخرى';
+  }, []);
+
+  const mergeBrandsDeduped = useCallback((prev: any[], incoming: any[], persistSession = false) => {
+    const byKey = new Map<string, any>();
+    const norm = (b: any) => String(b?.slug || b?.id || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    for (const item of prev || []) {
+      const k = norm(item);
+      if (k) byKey.set(k, item);
+    }
+    for (const item of incoming || []) {
+      const k = norm(item);
+      if (k) byKey.set(k, { ...(byKey.get(k) || {}), ...item });
+    }
+    const merged = Array.from(byKey.values());
+    if (persistSession) {
+      try {
+        localStorage.setItem('t2_session_brands_v1', JSON.stringify(merged.slice(0, 12)));
+      } catch {}
+    }
+    return merged;
+  }, []);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [isPublishingPost, setIsPublishingPost] = useState<boolean>(false);
   const [isLaunchingCampaign, setIsLaunchingCampaign] = useState<boolean>(false);
@@ -604,7 +647,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         if (d?.success) {
           setObsidianSnapshot(d);
           if (d.growthAgencyBrands && d.growthAgencyBrands.length > 0) {
-            setAllBrandsList(d.growthAgencyBrands);
+            if (canReadFullGraph) {
+              setAllBrandsList(d.growthAgencyBrands);
+            } else {
+              setAllBrandsList(prev => mergeBrandsDeduped(prev, d.growthAgencyBrands, true));
+            }
           }
           const defaultNode = d.nodes?.find((n: any) => n.brandId === selectedBrandId) || d.nodes?.[1] || d.nodes?.[0];
           if (defaultNode && !selectedObsidianNode) {
@@ -1033,7 +1080,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         .then(r => (r.ok ? r.json() : null))
         .then(d => {
           if (d?.success && Array.isArray(d.brands) && d.brands.length > 0) {
-            setAllBrandsList(d.brands);
+            setAllBrandsList(prev => mergeBrandsDeduped(prev, d.brands, true));
           }
         })
         .catch(() => {});
@@ -1054,7 +1101,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     if (canAccessFullFleet && !hasUrlPreviewOverride) {
       if (persona !== 'tito') setPersona('tito');
     } else if (!hasUrlPreviewOverride && savedTrialBrand?.id && !adminPreviewVisitor) {
-      setAllBrandsList(prev => (prev.some(b => b.id === savedTrialBrand.id) ? prev : [savedTrialBrand, ...prev]));
+      setAllBrandsList(prev => mergeBrandsDeduped(prev, [savedTrialBrand], true));
       setSelectedBrandId(prev => prev || savedTrialBrand.id);
       if (persona === 'visitor') setPersona(activeInitial);
     } else if (!adminPreviewVisitor && initialPersona && initialPersona !== persona) {
@@ -1236,7 +1283,34 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     } else {
       setActiveBrandStrategy(null);
     }
+    const targetId = active?.slug || active?.id || selectedBrandId;
+    if (!targetId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAdminAuthHeaders();
+        const res = await fetch(`/api/brand-hub/${encodeURIComponent(targetId)}`, { credentials: 'include', headers });
+        const d = await res.json().catch(() => null);
+        if (!cancelled && d?.ok && typeof d?.brand?.stats?.bookingsCount === 'number') {
+          setActiveBrandLiveBookings(d.brand.stats.bookingsCount);
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [selectedBrandId, allBrandsList]);
+
+  useEffect(() => {
+    const onStatsUpdated = (ev: any) => {
+      const delta = Number(ev?.detail?.bookingsDelta || 0);
+      if (delta > 0) {
+        setActiveBrandLiveBookings((prev) => prev + delta);
+      }
+    };
+    window.addEventListener('t2_brand_stats_updated', onStatsUpdated as EventListener);
+    return () => window.removeEventListener('t2_brand_stats_updated', onStatsUpdated as EventListener);
+  }, []);
 
   const handleGenerateBrandingKit = async () => {
     if (!brandingForm.brandName.trim()) {
@@ -1412,16 +1486,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   };
 
   const handleSendDailyBriefingNow = async (period: 'morning' | 'evening') => {
+    setIsGeneratingBriefing(true);
     try {
       const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/system/trigger-daily-briefing', {
         method: 'POST',
         credentials: 'include',
         headers,
-        body: JSON.stringify({ period, brandId: currentSelectedBrand.id })
+        body: JSON.stringify({ period, brandId: currentSelectedBrand?.id || currentSelectedBrand?.slug })
       });
-      const d = await res.json();
-      if (d.ok) {
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d?.ok) {
         setBriefingPreview({
           period,
           title: d.briefing?.title || (period === 'morning' ? '☀️ تقرير الصباح' : '🌙 تقرير المساء'),
@@ -1432,10 +1507,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         toast.success(d.message || 'تم تجهيز التقرير التنفيذي الحي!');
         playShadowVoice(d.briefing?.voiceScript || d.briefing?.text || d.message, 'male');
       } else {
-        toast.error(d.error || 'تعذر تجهيز التقرير');
+        toast.error(d?.error || 'تعذر تجهيز التقرير');
       }
     } catch {
       toast.error('تعذر إرسال التقرير');
+    } finally {
+      setIsGeneratingBriefing(false);
     }
   };
 
@@ -1929,7 +2006,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleBuildStudioStrategy(matchedBrand.id);
-      const voiceReply = `أمرك يا ماستر تيتو، جهزت الاستراتيجية التسويقية لبراند ${matchedBrand.name} وحفظتها في تيتو ستوديو وأوبسيديان!`;
+      const voiceReply = `${persona === 'tito' ? 'أمرك يا ماستر تيتو' : 'بكل سرور'}، جهزت الاستراتيجية التسويقية لبراند ${matchedBrand.name} وحفظتها في استوديو المحتوى!`;
       setLastJarvisReply(voiceReply);
       setTranscript(voiceReply);
       speakJarvisReply(voiceReply);
@@ -1939,7 +2016,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleGenerateWeekPlan(matchedBrand.id);
-      const voiceReply = `أمرك يا ماستر، تم توليد خطة محتوى أول أسبوع لـ ${matchedBrand.name} بنجاح!`;
+      const voiceReply = `${persona === 'tito' ? 'أمرك يا ماستر' : 'تمام يا فندم'}، تم توليد خطة محتوى أول أسبوع لـ ${matchedBrand.name} بنجاح!`;
       setLastJarvisReply(voiceReply);
       setTranscript(voiceReply);
       speakJarvisReply(voiceReply);
@@ -1949,7 +2026,7 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       setIsThinking(false);
       isThinkingRef.current = false;
       await handleApproveSchedule(matchedBrand.id);
-      const voiceReply = `تم اعتماد جدولة خطة المحتوى في تيتو ستوديو للنشر التلقائي يا ماستر!`;
+      const voiceReply = `تم اعتماد جدولة خطة المحتوى في استوديو المحتوى للنشر التلقائي ${persona === 'tito' ? 'يا ماستر' : 'بنجاح'}!`;
       setLastJarvisReply(voiceReply);
       setTranscript(voiceReply);
       speakJarvisReply(voiceReply);
@@ -1996,11 +2073,14 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
       }
 
       setIsThinking(true);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
       const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/system/jarvis-conversation', {
         method: 'POST',
         credentials: 'include',
         headers,
+        signal: controller.signal,
         body: JSON.stringify({
           message: commandText,
           history: conversationHistoryRef.current,
@@ -2010,9 +2090,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           includeAudio: false
         })
       });
-      const data = await res.json();
+      clearTimeout(timeoutId);
+      const data = await res.json().catch(() => null);
       setIsThinking(false);
       isThinkingRef.current = false;
+      if (!res.ok || !data) {
+        const retryErr = data?.error || data?.message || 'حدث تأخير مؤقت في الرد، من فضلك أعد إرسال رسالتك وسيتم التنفيذ فوراً.';
+        setLastJarvisReply(retryErr);
+        setTranscript(retryErr);
+        toast.error(retryErr);
+        return;
+      }
       if (data.detectedVisitorName) {
         setVisitorName(data.detectedVisitorName);
         try { localStorage.setItem('ezzel_visitor_name_v1', data.detectedVisitorName); } catch {}
@@ -2030,14 +2118,26 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
         setPendingBrandCreation(data.action.proposedBrand);
       }
       if (data.success && data.replyText) {
-        const cleanReply = isMasterAdmin
-          ? data.replyText
-          : String(data.replyText)
-              .replace(/[a-z_][a-z0-9_]*\s*\([^)]*\)/gi, '')
-              .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر/gi, visitorName ? `يا ${visitorName}` : 'يا فندم')
-              .replace(/\bBattah\b|بطاح/gi, 'منصة المتاجر والمخازن المتكاملة')
-              .replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, 'منصة الخدمات والحجوزات الذكية')
-              .trim();
+        const activeIsClean = /clean/i.test(String(currentSelectedBrand?.id || currentSelectedBrand?.slug || ''));
+        const sanitizeClientReply = (txt: string) =>
+          txt
+            .replace(/\[id:[^\]]+\]/gi, '')
+            .replace(/([\u0600-\u06FF])ת/g, '$1ة')
+            .replace(/[\u0590-\u05FF\u0400-\u04FF\u0370-\u03FF]+/g, '')
+            .replace(/\bيا\s*هوانم\b/gi, 'يا فندم')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        let cleanReply = isMasterAdmin
+          ? sanitizeClientReply(String(data.replyText))
+          : sanitizeClientReply(
+              String(data.replyText)
+                .replace(/[a-z_][a-z0-9_]*\s*\([^)]*\)/gi, '')
+                .replace(/يا\s*ماستر\s*تيتو|يا\s*ماستر/gi, visitorName ? `يا ${visitorName}` : 'يا فندم')
+                .replace(/\bBattah\b|بطاح/gi, 'منصة المتاجر والمخازن المتكاملة')
+            );
+        if (!isMasterAdmin && !activeIsClean && persona === 'visitor') {
+          cleanReply = cleanReply.replace(/\bClean\s*Master\b|كلين\s*ماستر/gi, 'منصة الخدمات والحجوزات الذكية');
+        }
         const finalDisplayReply = cleanReply || data.replyText;
         setLastJarvisReply(finalDisplayReply);
         streamTranscriptWords(finalDisplayReply);
@@ -2153,6 +2253,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
               setIsBrandSuperWindowOpen(true);
             }
           } else if (data.action.type === 'DYNAMIC_WIDGET') {
+            if (data.action.data?.brand?.id) {
+              setAllBrandsList(prev => mergeBrandsDeduped(prev, [data.action.data.brand], !isMasterAdmin));
+            }
             if (data.action.brandId) handleSelectBrand(data.action.brandId);
             setActiveDynamicWidget({ widgetType: data.action.widgetType || 'analytics_kpis', data: data.action.data || {} });
           } else if (data.action.type === 'TRIGGER_ACTION') {
@@ -2724,6 +2827,24 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 setIsPlayingVoice={setIsPlayingVoice}
               />
 
+              {/* Visible Briefing Card (Morning / Evening Executive Report) */}
+              {briefingPreview && (
+                <div className="shrink-0 w-full max-w-xl p-3 rounded-2xl bg-[#041129]/95 border-2 border-amber-400/50 shadow-[0_0_24px_rgba(245,158,11,0.2)] text-right space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-amber-200">{briefingPreview.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => setBriefingPreview(null)}
+                      aria-label="إغلاق التقرير"
+                      className="text-[11px] px-2 py-0.5 rounded-lg bg-white/10 hover:bg-rose-500/25 text-white/80 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-white/85 whitespace-pre-line leading-relaxed">{briefingPreview.text}</div>
+                </div>
+              )}
+
               {/* Pending Brand Creation Confirmation Card (Never silently hijacks Cockpit on vague prompt) */}
               {pendingBrandCreation && (
                 <div className="shrink-0 w-full max-w-xl p-3 rounded-2xl bg-[#041129]/95 border-2 border-amber-400/50 shadow-[0_0_24px_rgba(245,158,11,0.2)] text-right space-y-2">
@@ -3030,7 +3151,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <button
                         onClick={() => {
-                          setBrandingForm(prev => ({ ...prev, brandName: currentSelectedBrand.name, category: currentSelectedBrand.businessType }));
+                          setBrandingForm(prev => ({
+                            ...prev,
+                            brandName: currentSelectedBrand.name || prev.brandName,
+                            category: mapBusinessTypeToCategoryOption(currentSelectedBrand.businessType),
+                            phone: currentSelectedBrand.phone || currentSelectedBrand.whatsapp || prev.phone,
+                          }));
                           setIsBrandingModalOpen(true);
                         }}
                         className="py-1.5 px-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-400/40 text-cyan-300 text-[10px] font-bold flex items-center justify-center gap-1 transition shadow-[0_0_10px_rgba(6,182,212,0.2)]"
@@ -3056,7 +3182,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                       </button>
 
                       <button
-                        onClick={() => window.open(resolveBrandWebUrl(currentSelectedBrand), '_blank', 'noopener,noreferrer')}
+                        onClick={() => {
+                          const targetUrl = resolveBrandWebUrl(currentSelectedBrand);
+                          if (targetUrl) window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                        }}
                         className="py-1.5 px-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold flex items-center justify-center gap-1 transition"
                       >
                         <ExternalLink className="w-3 h-3" />
@@ -3091,9 +3220,17 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
                           <span className="text-white/50 block text-[8px]">مبيعات وحجوزات</span>
                           <span className="text-amber-300 font-black">
-                            {(realStats.confirmedBookingsCount ?? 0) === 1
-                              ? 'حجز واحد مؤكد'
-                              : `${realStats.confirmedBookingsCount ?? 0} حجوزات مؤكدة`}
+                            {(() => {
+                              const n = Math.max(
+                                activeBrandLiveBookings || 0,
+                                isMasterAdmin && !adminPreviewVisitor ? Number(realStats.confirmedBookingsCount || 0) : 0
+                              );
+                              if (n === 0) return 'لا توجد حجوزات بعد';
+                              if (n === 1) return 'حجز واحد مؤكد';
+                              if (n === 2) return 'حجزان مؤكدان';
+                              if (n <= 10) return `${n} حجوزات مؤكدة`;
+                              return `${n} حجزاً مؤكداً`;
+                            })()}
                           </span>
                         </div>
                       </div>
@@ -3171,7 +3308,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     }}
                     onOpenStore={(slug) => {
                       const matched = allBrandsList.find((item: any) => item.slug === slug || item.id === slug);
-                      window.open(resolveBrandWebUrl(matched || { slug }), '_blank', 'noopener,noreferrer');
+                      const u = resolveBrandWebUrl(matched || { slug });
+                      if (u) window.open(u, '_blank', 'noopener,noreferrer');
                     }}
                     onOpenChat={() => handleOpenWhatsAppConnectModal()}
                     onOpenStudio={() => window.open('https://studio.t2os.app', '_blank')}
@@ -3258,7 +3396,10 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                         <span>الإعلانات</span>
                       </button>
                       <button
-                        onClick={() => window.open(resolveBrandWebUrl(selectedBrand), '_blank', 'noopener,noreferrer')}
+                        onClick={() => {
+                          const u = resolveBrandWebUrl(selectedBrand);
+                          if (u) window.open(u, '_blank', 'noopener,noreferrer');
+                        }}
                         className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/50 text-blue-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />

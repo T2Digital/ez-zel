@@ -78,19 +78,25 @@ export const resolveBrandWebUrl = (brand: any): string => {
   if (candidates.length > 0) return candidates[0];
 
   const slug = String(brand.slug || brand.id || '').toLowerCase().trim();
+  const canonicalSlug = slug.replace(/_/g, '-');
   if (slug === 'auto-house' || slug.includes('auto_house')) {
     return 'https://t2-tenant-auto-house.vercel.app';
   }
   if (slug === 'clean_master' || slug === 'clean-master') {
-    return 'https://cleanmaster-eg.com';
+    return 'https://book.t2os.app/b/clean_master';
   }
   if (slug === 'al_genedy' || slug === 'al-genedy' || slug.includes('genedy')) {
-    return 'https://al-genedy.vercel.app';
+    return 'https://elgenedy.com';
   }
-  if (slug) {
-    return `https://t2-tenant-${slug.replace(/_/g, '-')}.vercel.app`;
+  if (canonicalSlug) {
+    const isBookingBiz =
+      brand?.appTemplate === 'services_booking' ||
+      /تنظيف|نظاف|عياد|دكتور|صيان|سيار|ليموزين|clinic|clean|car|service/i.test(`${brand?.businessType || ''} ${brand?.name || ''}`);
+    return isBookingBiz
+      ? `https://book.t2os.app/b/${encodeURIComponent(canonicalSlug)}`
+      : `https://store.t2os.app/s/${encodeURIComponent(canonicalSlug)}`;
   }
-  return `/store/${brand.slug || brand.id || ''}`;
+  return '';
 };
 
 export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
@@ -115,9 +121,24 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
+  const initialSlug = initialBrand?.id || initialBrand?.slug || '';
   useEffect(() => {
     if (brandId) setActiveBrandId(brandId);
-  }, [brandId]);
+    setBrandData(initialBrand || null);
+    setName(initialBrand?.name || '');
+    setPhone(initialBrand?.phone || '');
+    setAddress(initialBrand?.address || '');
+    setPrimaryColor(initialBrand?.primaryColor || '#0284c7');
+    setAppUrl(resolveBrandWebUrl(initialBrand));
+    setTone(initialBrand?.agentConfig?.tone || '');
+    setShippingPolicy(initialBrand?.agentConfig?.shippingPolicy || '');
+    setForbiddenTopics(initialBrand?.agentConfig?.forbiddenTopics || '');
+    setFaq(initialBrand?.agentConfig?.faq || '');
+    setKnowledgeBase(initialBrand?.knowledgeBase || '');
+    setTestInput(getBrandIndustryDefaults(initialBrand).sampleQuestion);
+    setTestBookingReceipt(null);
+    setTestBookingResultUrl(null);
+  }, [brandId, initialSlug]);
 
   const [brandData, setBrandData] = useState<any>(initialBrand || null);
   const [healthData, setHealthData] = useState<any>(null);
@@ -150,6 +171,14 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   const [isMediaVaultOpen, setIsMediaVaultOpen] = useState(false);
   const [show3DWorkspaceInVault, setShow3DWorkspaceInVault] = useState(false);
   const [testBookingResultUrl, setTestBookingResultUrl] = useState<string | null>(null);
+  const [testBookingReceipt, setTestBookingReceipt] = useState<{
+    bookingId: string;
+    customerName: string;
+    service: string;
+    price: string;
+    storeUrl: string;
+  } | null>(null);
+  const loadReqSeqRef = React.useRef(0);
   const [semanticQuery, setSemanticQuery] = useState('');
   const [semanticHits, setSemanticHits] = useState<Array<{ text: string; score: number }>>([]);
   const [searchingSemantic, setSearchingSemantic] = useState(false);
@@ -196,11 +225,16 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
 
   const loadHub = useCallback(async () => {
     if (!activeBrandId) return;
+    const reqSeq = ++loadReqSeqRef.current;
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/brand-hub/${encodeURIComponent(activeBrandId)}`, { headers });
+      const res = await fetch(`/api/brand-hub/${encodeURIComponent(activeBrandId)}`, {
+        credentials: 'include',
+        headers,
+      });
       const data = await res.json();
+      if (reqSeq !== loadReqSeqRef.current) return;
       if (data?.ok && data.brand) {
         const b = data.brand;
         setBrandData(b);
@@ -219,7 +253,9 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
     } catch {
       // Fallback to initialBrand cleanly
     } finally {
-      setLoading(false);
+      if (reqSeq === loadReqSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, [activeBrandId]);
 
@@ -554,7 +590,11 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             <button
-              onClick={() => window.open(effectiveAppUrl, '_blank', 'noopener,noreferrer')}
+              onClick={() => {
+                if (effectiveAppUrl && /^(https?:\/\/|\/)/i.test(effectiveAppUrl)) {
+                  window.open(effectiveAppUrl, '_blank', 'noopener,noreferrer');
+                }
+              }}
               className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/20 transition cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
@@ -658,22 +698,41 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                     type="button"
                     onClick={async () => {
                       setTestBookingResultUrl(null);
+                      setTestBookingReceipt(null);
                       try {
                         const headers = await getAuthHeaders();
+                        const targetBrandId = String(brandSlug || activeBrandId || 'clean_master');
+                        const testPrice = '750 ج.م';
+                        const testService = brandData?.appTemplate === 'services_booking' ? 'حجز تجربة فوري' : 'طلب تجربة فوري';
                         const res = await fetch('/api/jarvis/execute-action', {
                           method: 'POST',
+                          credentials: 'include',
                           headers,
                           body: JSON.stringify({
                             actionType: 'CREATE_LIVE_BOOKING',
-                            brandId: String(brandSlug || 'clean_master'),
-                            data: { customerName: 'عميل تجربة (Aha Test)', customerPhone: phone || '01099887766', service: brandData?.appTemplate === 'services_booking' ? 'حجز تجربة فوري' : 'طلب تجربة فوري', price: '750 ج.م' },
+                            brandId: targetBrandId,
+                            data: { customerName: 'عميل تجربة (Aha Test)', customerPhone: phone || '01099887766', service: testService, price: testPrice },
                           }),
                         });
                         const d = await res.json();
                         if (d?.success) {
+                          const storeUrl =
+                            (effectiveAppUrl && /^https?:\/\//i.test(effectiveAppUrl) ? effectiveAppUrl : '') ||
+                            resolveBrandWebUrl(brandData || initialBrand) ||
+                            `https://store.t2os.app/s/${encodeURIComponent(targetBrandId)}`;
                           setSaveMessage('✅ تم تسجيل حجز/طلب تجريبي حي وتحديث العدادات فوراً!');
-                          setTestBookingResultUrl(effectiveAppUrl || `/client/${encodeURIComponent(String(brandSlug || ''))}`);
-                          loadHub();
+                          setTestBookingResultUrl(storeUrl);
+                          setTestBookingReceipt({
+                            bookingId: String(d?.booking?.id || `TEST-${Date.now().toString().slice(-4)}`),
+                            customerName: 'عميل تجربة (Aha Test)',
+                            service: testService,
+                            price: testPrice,
+                            storeUrl,
+                          });
+                          window.dispatchEvent(new CustomEvent('t2_brand_stats_updated', {
+                            detail: { brandId: targetBrandId, bookingsDelta: 1 },
+                          }));
+                          await loadHub();
                         } else {
                           setSaveMessage(d?.error || 'تعذر تنفيذ الاختبار');
                         }
@@ -716,14 +775,21 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                   </div>
                 </div>
               )}
-              {testBookingResultUrl && (
-                <div className="px-3 py-1.5 rounded-xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-between gap-2 text-[10.5px]">
-                  <span className="text-cyan-100 font-bold">تم تسجيل الطلب التجريبي بنجاح — يمكنك معاينته في متجرك الآن:</span>
+              {(testBookingReceipt || testBookingResultUrl) && (
+                <div className="px-3 py-2 rounded-xl bg-cyan-500/15 border border-cyan-400/40 flex flex-wrap items-center justify-between gap-2 text-[10.5px]">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] font-black">تجريبي</span>
+                      <span className="text-cyan-100 font-bold">
+                        تم تسجيل الطلب التجريبي بنجاح {testBookingReceipt ? `(#${testBookingReceipt.bookingId})` : ''} — {testBookingReceipt?.service} ({testBookingReceipt?.price})
+                      </span>
+                    </div>
+                  </div>
                   <a
-                    href={testBookingResultUrl}
+                    href={testBookingReceipt?.storeUrl || testBookingResultUrl || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-2.5 py-0.5 rounded-lg bg-cyan-400 text-slate-950 font-black shrink-0"
+                    className="px-2.5 py-1 rounded-lg bg-cyan-400 text-slate-950 font-black shrink-0"
                   >
                     فتح المتجر ↗
                   </a>

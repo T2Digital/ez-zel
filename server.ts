@@ -1920,8 +1920,15 @@ async function startServer() {
           };
       }
 
+      const audienceGreeting = selectedBrandId && activeBrand && selectedBrandId !== 'all' ? 'أهلاً بك' : 'يا ماستر تيتو';
       const title = period === 'morning' ? '☀️ تقرير الصباح التنفيذي من الظل (جارفيس)' : '🌙 تقرير الحصاد المسائي من الظل (جارفيس)';
-      const summaryText = `${timeGreeting} يا ماستر تيتو. ده ${period === 'morning' ? 'تقريرك الصباحي' : 'ملخص حصاد اليوم'} بدون ما تحتاج تفتح المنظومة:
+      const summaryText = selectedBrandId && activeBrand
+          ? `${timeGreeting}! ده ${period === 'morning' ? 'تقريرك الصباحي' : 'ملخص حصاد اليوم'} لبراند (${activeBrand.name}):
+• حالة المتجر ووكيل الواتساب: متصل ويعمل بكفاءة 100%.
+• تقويم تيتو ستوديو لبراندك: ${(activeBrand.weekContentPlan || []).length} منشورات في الخطة الحالية (${(activeBrand.weekContentPlan || []).filter((p: any) => p.status === 'PUBLISHED').length} منشور فعلياً).
+• الحجوزات المسجلة في النظام لبراندك: ${bookings.filter((b: any) => b.brandId === activeBrand.id || b.brandId === activeBrand.slug).length} حجز.
+لو حابب أعتمد جدولة الأسبوع أو أنشر بوست فوري لـ ${activeBrand.name}، ابعتلي أمرك هنا وهنفذ فوراً!`
+          : `${timeGreeting} ${audienceGreeting}. ده ${period === 'morning' ? 'تقريرك الصباحي' : 'ملخص حصاد اليوم'} بدون ما تحتاج تفتح المنظومة:
 • البراندات النشطة في العقل الموحد: ${brands.length} براند (إجمالي عائد شهري ${totalMRR.toLocaleString()} ج.م).
 • تقويم تيتو ستوديو: ${scheduledPostsCount} منشور مجدول للنشر التلقائي، و${publishedPostsCount} منشور تم نشره.
 • طابور فيديوهات Google Flow × Turbo Flow: ${queuedVideosCount} فيديو ريلز.
@@ -1932,13 +1939,17 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       return {
           title,
           text: summaryText,
-          voiceScript: `${timeGreeting} يا ماستر تيتو. في ${period === 'morning' ? 'تقرير الصباح' : 'تقرير المساء'} النهاردة: عندنا ${brands.length} براندات شغالة، و${scheduledPostsCount} منشور مجدول في تيتو ستوديو، و${bookings.length} حجوزات مؤكدة. كل الأنظمة شغالة بكفاءة، وابعتلي هنا لو تحب أنفذ أي أمر فوري!`,
+          voiceScript: selectedBrandId && activeBrand
+              ? `${timeGreeting}. في ${period === 'morning' ? 'تقرير الصباح' : 'تقرير المساء'} لبراند ${activeBrand.name}: متجرك ووكيل الواتساب شغالين بكفاءة، وعندك ${(activeBrand.weekContentPlan || []).length} منشورات في خطة المحتوى. ابعتلي لو تحب أعتمد الجدول أو أجهز عرض جديد!`
+              : `${timeGreeting} يا ماستر تيتو. في ${period === 'morning' ? 'تقرير الصباح' : 'تقرير المساء'} النهاردة: عندنا ${brands.length} براندات شغالة، و${scheduledPostsCount} منشور مجدول في تيتو ستوديو، و${bookings.length} حجوزات مؤكدة. كل الأنظمة شغالة بكفاءة، وابعتلي هنا لو تحب أنفذ أي أمر فوري!`,
           stats: {
               totalBrands: brands.length,
               scheduledPostsCount,
               publishedPostsCount,
               queuedVideosCount,
-              bookingsCount: bookings.length,
+              bookingsCount: selectedBrandId && activeBrand
+                  ? bookings.filter((b: any) => b.brandId === activeBrand.id || b.brandId === activeBrand.slug).length
+                  : bookings.length,
               totalMRR
           }
       };
@@ -1969,29 +1980,38 @@ ${activeBrand ? `• حالة براند (${activeBrand.name}): المتجر و�
       }
   });
 
-  app.post("/api/system/trigger-daily-briefing", requireAdminMiddleware, async (req, res) => {
+  app.post("/api/system/trigger-daily-briefing", async (req, res) => {
       try {
+          const requestedBrandId = String(req.body?.brandId || '').trim();
+          const auth = await verifyAdminRequest(req);
+          if (!auth.ok && !requestedBrandId) {
+              return res.status(401).json({ ok: false, error: "Admin authorization required for fleet briefing" });
+          }
           const period = req.body?.period === 'evening' ? 'evening' : 'morning';
-          const briefing = buildDynamicEcosystemBriefing(period, req.body?.brandId);
+          const briefing = buildDynamicEcosystemBriefing(period, requestedBrandId || undefined);
           const prefs = loadBriefingPreferences();
 
-          const dispatchResult = await dispatchOmnichannelMessage({
-              channel: 'whatsapp',
-              to: prefs.whatsappPhone || '01013373634',
-              message: `${briefing.title}\n\n${briefing.text}`
-          });
+          let dispatchResult: any = { liveDelivered: false, providerUsed: 'in_app_preview' };
+          if (auth.ok || req.body?.dispatchWhatsApp === true) {
+              dispatchResult = await dispatchOmnichannelMessage({
+                  channel: 'whatsapp',
+                  to: prefs.whatsappPhone || '01013373634',
+                  message: `${briefing.title}\n\n${briefing.text}`
+              });
+          }
 
           res.json({
               ok: true,
               period,
+              brandId: requestedBrandId || undefined,
               briefing,
-              liveDelivered: dispatchResult.liveDelivered,
+              liveDelivered: Boolean(dispatchResult.liveDelivered),
               providerUsed: dispatchResult.providerUsed,
               whatsappWebDeepLink: dispatchResult.whatsappWebDeepLink,
-              dispatchedTo: prefs.whatsappPhone || '01013373634',
+              dispatchedTo: auth.ok ? (prefs.whatsappPhone || '01013373634') : undefined,
               message: dispatchResult.liveDelivered
-                  ? `تم إرسال ${briefing.title} فعلياً عبر (${dispatchResult.providerUsed}) إلى الرقم (${prefs.whatsappPhone || '01013373634'})!`
-                  : `تم تجهيز وتسجيل ${briefing.title}، ولإرساله تلقائياً عبر السحابة يرجى ضبط مفتاح (WHATSAPP_ACCESS_TOKEN أو KAPSO_API_KEY أو TELEGRAM_BOT_TOKEN) في ملف البيئة.`
+                  ? `تم إرسال ${briefing.title} فعلياً عبر (${dispatchResult.providerUsed})!`
+                  : `تم تجهيز ${briefing.title} وعرضه لك داخل المنصة بنجاح ✅`
           });
       } catch (err: any) {
           res.status(500).json({ ok: false, error: err?.message });

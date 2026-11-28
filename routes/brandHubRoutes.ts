@@ -178,27 +178,37 @@ export function resolveBrandRealAppUrl(brand: any, tenant: any): string {
 function findBrandAndTenant(idOrSlug: string, deps: BrandHubDeps) {
   const key = String(idOrSlug || "").trim().toLowerCase();
   const normKey = normalizeSlugKey(idOrSlug);
+  const underscoreKey = normKey.replace(/-/g, "_");
+  if (!key && !normKey) return { brand: null, tenant: null };
+
   const unified = deps.getUnifiedGrowthBrands() || [];
   const tenants = deps.getPersistedTenants() || [];
+
+  const matchesKey = (v: any) => {
+    const s = String(v || "").trim().toLowerCase();
+    return Boolean(s && (s === key || s === normKey || s === underscoreKey || normalizeSlugKey(s) === normKey));
+  };
 
   const brand =
     unified.find(
       (b: any) =>
-        String(b?.id || "").toLowerCase() === key ||
-        String(b?.slug || "").toLowerCase() === key ||
-        normalizeSlugKey(b?.slug || b?.id || "") === normKey ||
-        String(b?.name || "").toLowerCase().includes(key)
-    ) || deps.getClonedBrandByIdOrSlug(idOrSlug);
+        matchesKey(b?.id) ||
+        matchesKey(b?.slug) ||
+        (key.length >= 2 && String(b?.name || "").trim().toLowerCase() === key)
+    ) ||
+    deps.getClonedBrandByIdOrSlug(idOrSlug) ||
+    (normKey ? deps.getClonedBrandByIdOrSlug(normKey) : null) ||
+    (underscoreKey ? deps.getClonedBrandByIdOrSlug(underscoreKey) : null);
 
   const tenant = tenants.find(
     (t: any) =>
-      String(t?.id || "").toLowerCase() === key ||
-      String(t?.slug || "").toLowerCase() === key ||
-      normalizeSlugKey(t?.slug || t?.templateId || t?.id || "") === normKey ||
-      String(t?.businessName || "").toLowerCase().includes(key)
+      matchesKey(t?.id) ||
+      matchesKey(t?.slug) ||
+      matchesKey(t?.templateId) ||
+      (key.length >= 2 && String(t?.businessName || "").trim().toLowerCase() === key)
   );
 
-  return { brand, tenant };
+  return { brand: brand || null, tenant: tenant || null };
 }
 
 export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {

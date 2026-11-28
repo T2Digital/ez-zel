@@ -217,6 +217,15 @@ function buildFallbackCatalog(industry: string, brandName: string): HydratedCata
   }));
 }
 
+function cleanArabicCatalogText(val: any, fallback = ''): string {
+  return String(val || fallback)
+    .replace(/\uFFFD+/g, '')
+    .replace(/([\u0600-\u06FF])ת/g, '$1ة')
+    .replace(/[\u0590-\u05FF\u0400-\u04FF\u0370-\u03FF]+/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 export async function generateIndustryCatalogWithAI(input: {
   ai: any;
   brandName: string;
@@ -260,11 +269,11 @@ export async function generateIndustryCatalogWithAI(input: {
           const img = fallbackList[idx % fallbackList.length]?.image || getIndustryHeroImage(industry, brandName);
           return {
             id: `ai_item_${Date.now().toString().slice(-4)}_${idx + 1}`,
-            name: String(item.name || `عنصر ${idx + 1}`).trim(),
+            name: cleanArabicCatalogText(item.name, `عنصر ${idx + 1}`),
             price: `${num} ج.م`,
             numericPrice: num,
-            category: String(rawCat || industry || 'عام').trim(),
-            description: String(item.description || 'متاح للطلب والحجز الفوري').trim(),
+            category: cleanArabicCatalogText(rawCat, industry || 'عام'),
+            description: cleanArabicCatalogText(item.description, 'متاح للطلب والحجز الفوري'),
             image: img,
             imageUrl: img,
           };

@@ -91,7 +91,12 @@ export function validateAndBindBrandContent(brand: any, post: any) {
                 : 'https://t2os.app';
 
     const sanitizeText = (txt: any): string => {
-        let out = String(txt || '').replace(/\uFFFD+/g, '').trim();
+        let out = String(txt || '')
+            .replace(/\uFFFD+/g, '')
+            .replace(/([\u0600-\u06FF])ת/g, '$1ة')
+            .replace(/[\u0590-\u05FF\u0400-\u04FF\u0370-\u03FF]+/g, '')
+            .replace(/يا\s*هوانم/gi, 'يا فندم')
+            .trim();
         // Replace known leaked placeholder/wrong numbers unless they belong to this brand
         for (const wrongPhone of ['01030' + '956097', '01099' + '887766']) {
             if (canonicalPhone !== wrongPhone) {

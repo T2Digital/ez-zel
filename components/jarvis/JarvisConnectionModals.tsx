@@ -375,6 +375,19 @@ export const JarvisConnectionModals: React.FC<JarvisConnectionModalsProps> = ({
                   className="w-full bg-black/60 border border-cyan-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
                 >
                   <option value="عيادات ومراكز طبية">عيادات ومراكز طبية</option>
+                  {brandingForm.category &&
+                    ![
+                      'عيادات ومراكز طبية',
+                      'عقارات وتطوير ومقاولات',
+                      'خدمات ونظافة وصيانة',
+                      'تأجير وليموزين سيارات',
+                      'تجارة إلكترونية وأزياء',
+                      'مطاعم وكافيهات وأغذية',
+                      'شحن وخدمات لوجستية',
+                      'أخرى',
+                    ].includes(brandingForm.category) && (
+                      <option value={brandingForm.category}>{brandingForm.category}</option>
+                    )}
                   <option value="عقارات وتطوير ومقاولات">عقارات وتطوير ومقاولات</option>
                   <option value="خدمات ونظافة وصيانة">خدمات ونظافة وصيانة</option>
                   <option value="تأجير وليموزين سيارات">تأجير وليموزين سيارات</option>
