@@ -1,6 +1,84 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Volume2, X } from 'lucide-react';
+import { Mic, MicOff, Volume2, X, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+
+export const FormattedJarvisReply: React.FC<{ text: string }> = ({ text }) => {
+  const [expanded, setExpanded] = useState(false);
+  const raw = String(text || '').trim();
+  const isLong = raw.length > 320;
+  const visibleText = isLong && !expanded ? `${raw.slice(0, 300)}...` : raw;
+
+  const renderInline = (line: string) => {
+    const tokenRe = /(\*\*[^*]+\*\*|https?:\/\/[^\s)<>\]"']+)/g;
+    const parts = line.split(tokenRe);
+    return parts.map((part, idx) => {
+      if (!part) return null;
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return (
+          <strong key={idx} className="font-black text-cyan-200">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (/^https?:\/\//i.test(part)) {
+        const cleanHref = part.replace(/[.,،؛!؟]+$/, '');
+        return (
+          <a
+            key={idx}
+            href={cleanHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/35 underline decoration-cyan-400/60 font-bold break-all"
+          >
+            <span>{cleanHref.replace(/^https?:\/\//i, '').slice(0, 42)}</span>
+            <ExternalLink className="w-2.5 h-2.5 shrink-0 inline" />
+          </a>
+        );
+      }
+      return <React.Fragment key={idx}>{part}</React.Fragment>;
+    });
+  };
+
+  const lines = visibleText.split(/\r?\n/);
+
+  return (
+    <div className="space-y-1 text-xs text-white/95 leading-relaxed select-text">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} className="h-1" />;
+        if (/^([-*•]|\d+[.)])\s+/.test(trimmed)) {
+          const content = trimmed.replace(/^([-*•]|\d+[.)])\s+/, '');
+          return (
+            <div key={i} className="flex items-start gap-1.5 pr-1">
+              <span className="text-cyan-400 font-black mt-0.5">•</span>
+              <span className="flex-1">{renderInline(content)}</span>
+            </div>
+          );
+        }
+        return <p key={i} className="m-0">{renderInline(trimmed)}</p>;
+      })}
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-black text-cyan-300 hover:text-cyan-200 cursor-pointer"
+        >
+          {expanded ? (
+            <>
+              <ChevronUp className="w-3 h-3" />
+              <span>عرض أقل</span>
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-3 h-3" />
+              <span>عرض المزيد ({raw.length} حرف)</span>
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
 
 export interface JarvisMasterVoiceDockProps {
   transcript: string;
@@ -89,8 +167,8 @@ export const JarvisMasterVoiceDock: React.FC<JarvisMasterVoiceDockProps> = ({
                 )}
               </div>
             </div>
-            <div className="max-h-36 overflow-y-auto px-4 py-2 text-xs text-white/95 leading-relaxed whitespace-pre-line select-text">
-              {lastReplyText.replace(/\*\*/g, '')}
+            <div className="max-h-48 overflow-y-auto px-4 py-2">
+              <FormattedJarvisReply text={lastReplyText} />
             </div>
           </motion.div>
         )}

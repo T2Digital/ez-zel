@@ -1292,8 +1292,9 @@ ${conversationMemoryDirective}`;
     const hasAddVerb = /(?:^|\s)(?:أضف|اضف|ضيف|زود|نزل|نزّل|أدخل|ادخل)(?=$|\s|[،.!؟])/i.test(trimmedMsg);
     const hasCatalogNoun = /(?:^|\s)(?:منتج|صنف|خدمة|سلعة)(?=$|\s|[،.!؟"«'»])/i.test(trimmedMsg);
     const wantsCreateStore =
-      /(?:عاوز|عايز|أريد|ابغى|اعمل|أعمل|انشئ|أنشئ|ابني|إبني|أسس|اسس|جهز|جهّز|سوي|نفذ|شغل)\s+(?:لي\s+)?(?:متجر|تطبيق|ستور|ويب\s*اب)/i.test(trimmedMsg) ||
+      /(?:عاوز|عايز|أريد|ابغى|اعمل|أعمل|انشئ|أنشئ|ابني|إبني|أسس|اسس|جهز|جهّز|سوي|نفذ|شغل)\s+(?:لي\s+)?(?:متجر|تطبيق|ستور|ويب\s*اب|براند(?:\s+جديد)?)/i.test(trimmedMsg) ||
       /(?:أعمل|اعمل|انشئ|أنشئ|أسس|ابني|تجهيز)\s+متجر\s+دروب\s*شيب/i.test(trimmedMsg);
+    const isBrandConfirmed = /تأكيد\s+إنشاء\s+البراند|نعم\s+أنشئ|بدون\s+تأكيد/i.test(trimmedMsg);
 
     if (hasAddVerb && hasCatalogNoun && priceMatch) {
       const brandMatch = trimmedMsg.match(
@@ -1323,6 +1324,30 @@ ${conversationMemoryDirective}`;
         ?.split(/\s+(?:ورقم|واتساب|بواتساب|على\s+رقم|بمجال|في\s+مجال)(?=$|\s)/i)[0]
         ?.trim() || "";
       const isDrop = /دروب\s*شيب|dropship/i.test(trimmedMsg);
+      const isGenericBrandSetup = !explicitBrandName && !isDrop && trimmedMsg.length < 48 && !isBrandConfirmed;
+      if (isGenericBrandSetup) {
+        return {
+          success: true,
+          replyText: `بكل سرور! قبل ما أنشئ براند جديد أو أغيّر الكابينة الحالية، أكدلي التفاصيل دي أو اضغط "تأكيد وإنشاء البراند" تحت:\n- الاسم المقترح أو نوع النشاط (متجر إلكتروني ولا تطبيق حجوزات؟)\n- رقم الواتساب للتواصل`,
+          audioBase64: null,
+          audioFormat: "audio/wav",
+          action: {
+            type: "CONFIRM_BRAND_CREATION",
+            requiresConfirmation: true,
+            proposedBrand: {
+              brandName: explicitBrandName || "براند جديد ذكي",
+              industry: /عياد|تنظيف|صيان|حجز|خدم/i.test(trimmedMsg) ? "خدمات وحجوزات ذكية" : "متجر إلكتروني متكامل",
+              appTemplate: /عياد|تنظيف|صيان|حجز|خدم/i.test(trimmedMsg) ? "services_booking" : "products_erp",
+              isDropshipping: isDrop,
+              phone: targetBrand?.phone || "01013372674",
+            },
+          },
+          executionResult: null,
+          shouldTriggerBrowser: false,
+          suggestedScenario: "",
+          resolvedBrandId: targetBrand?.id || selectedBrandId || "",
+        };
+      }
       synthesizedCalls = [
         {
           name: "deploy_brand_web_app",
@@ -1331,6 +1356,7 @@ ${conversationMemoryDirective}`;
             industry: isDrop ? "دروب شيبنج وإكسسوارات ذكية" : "متجر إلكتروني متكامل",
             appTemplate: "products_erp",
             templateId: "battah",
+            confirmed: true,
           },
         },
       ];
@@ -1889,19 +1915,20 @@ ${conversationMemoryDirective}`;
             backendExecutionResult = await titoStudioApi.listBrands();
           } else if (args.action === "create_brand") {
             const name = args.brandNameOrId || "براند جديد";
+            const safePhone = args.phone || targetBrand?.phone || "01013372674";
             backendExecutionResult = await titoStudioApi.createBrand({
               name,
               industry: args.industry || "general",
               dialect: "egyptian",
               primaryColor: args.primaryColor || "#00f0ff",
-              phone: args.phone || "01030956097",
+              phone: safePhone,
               description: args.description || `نشاط ${name} المتكامل`,
             });
             await syncBrandToAllEcosystems({
               id: backendExecutionResult?.id,
               name,
               businessType: args.industry || "نشاط تجاري",
-              phone: args.phone || "01030956097",
+              phone: safePhone,
               primaryColor: args.primaryColor || "#00f0ff",
               source: "Jarvis_TitoStudio_Create",
             });

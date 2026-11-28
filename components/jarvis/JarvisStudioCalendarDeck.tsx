@@ -8,6 +8,8 @@ export interface JarvisStudioCalendarDeckProps {
   isGeneratingWeekPlan: boolean;
   isApprovingSchedule: boolean;
   isPublishingPost: boolean;
+  briefingPreview?: { period: 'morning' | 'evening'; title: string; text: string; delivered?: boolean; note?: string } | null;
+  onDismissBriefingPreview?: () => void;
   handleBuildStudioStrategy: (brandId: string) => Promise<void>;
   handleGenerateWeekPlan: (brandId: string) => Promise<void>;
   handleApproveSchedule: (brandId: string) => Promise<void>;
@@ -24,6 +26,8 @@ export const JarvisStudioCalendarDeck: React.FC<JarvisStudioCalendarDeckProps> =
   isGeneratingWeekPlan,
   isApprovingSchedule,
   isPublishingPost,
+  briefingPreview,
+  onDismissBriefingPreview,
   handleBuildStudioStrategy,
   handleGenerateWeekPlan,
   handleApproveSchedule,
@@ -32,6 +36,22 @@ export const JarvisStudioCalendarDeck: React.FC<JarvisStudioCalendarDeckProps> =
   handleSendDailyBriefingNow,
   onOpenPostCard
 }) => {
+  const formatTimestamp = (iso?: string) => {
+    if (!iso) return null;
+    try {
+      return new Date(iso).toLocaleString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return iso;
+    }
+  };
+  const lastStrategyTs = formatTimestamp(activeBrandStrategy?.createdAt || currentSelectedBrand?.lastStrategyAt || currentSelectedBrand?.marketingStrategy?.createdAt);
+  const lastPlanTs = formatTimestamp(currentSelectedBrand?.lastPlanAt);
+  const canonicalStoreUrl =
+    currentSelectedBrand?.appUrl ||
+    currentSelectedBrand?.vercelUrl ||
+    (currentSelectedBrand?.appTemplate === 'services_booking'
+      ? `https://book.t2os.app/b/${currentSelectedBrand?.slug || currentSelectedBrand?.id || ''}`
+      : `https://store.t2os.app/s/${currentSelectedBrand?.slug || currentSelectedBrand?.id || ''}`);
   return (
     <div className="w-full max-w-xl rounded-3xl bg-[#020617]/95 border-2 border-cyan-500/40 shadow-[0_0_35px_rgba(0,240,255,0.2)] p-4 flex flex-col gap-3 backdrop-blur-md animate-in fade-in duration-200 font-['Cairo'] text-right">
       {/* Calendar Header with Selected Brand Info */}
@@ -122,18 +142,44 @@ export const JarvisStudioCalendarDeck: React.FC<JarvisStudioCalendarDeckProps> =
         </div>
       </div>
 
+      {/* Active Briefing Report Banner (Visible immediately on trigger) */}
+      {briefingPreview && (
+        <div className="p-3 rounded-2xl bg-amber-950/35 border border-amber-400/45 text-xs space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-black text-amber-200">{briefingPreview.title}</span>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${briefingPreview.delivered ? 'bg-emerald-500/20 text-emerald-300' : 'bg-cyan-500/20 text-cyan-200'}`}>
+                {briefingPreview.delivered ? 'تم الإرسال على واتساب' : 'معاينة التقرير الحي'}
+              </span>
+              {onDismissBriefingPreview && (
+                <button type="button" onClick={onDismissBriefingPreview} className="text-white/60 hover:text-white cursor-pointer">×</button>
+              )}
+            </div>
+          </div>
+          <p className="text-[11px] text-white/85 whitespace-pre-line leading-relaxed">{briefingPreview.text}</p>
+          {briefingPreview.note && <div className="text-[10px] text-amber-300/80">{briefingPreview.note}</div>}
+        </div>
+      )}
+
       {/* Active Brand Marketing Strategy Card */}
       {(activeBrandStrategy || currentSelectedBrand?.marketingStrategy) && (() => {
         const st = activeBrandStrategy || currentSelectedBrand?.marketingStrategy;
         return (
           <div className="p-3 rounded-2xl bg-gradient-to-br from-fuchsia-950/40 via-[#060d24] to-cyan-950/30 border border-fuchsia-500/40 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-1.5">
               <span className="text-xs font-black text-fuchsia-300 flex items-center gap-1.5">
                 🎯 الاستراتيجية التسويقية المعتمدة في تيتو ستوديو: {currentSelectedBrand?.name}
               </span>
-              <span className="text-[9.5px] font-mono bg-fuchsia-500/20 text-fuchsia-200 px-2 py-0.5 rounded-full border border-fuchsia-500/30">
-                3 ركائز محتوى
-              </span>
+              <div className="flex items-center gap-1.5">
+                {lastStrategyTs && (
+                  <span className="text-[9.5px] font-mono bg-emerald-500/15 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    آخر توليد: {lastStrategyTs}
+                  </span>
+                )}
+                <span className="text-[9.5px] font-mono bg-fuchsia-500/20 text-fuchsia-200 px-2 py-0.5 rounded-full border border-fuchsia-500/30">
+                  3 ركائز محتوى
+                </span>
+              </div>
             </div>
             <p className="text-[11px] text-white/85 leading-relaxed">
               <b className="text-cyan-300">التموضع:</b> {st.positioning}
@@ -156,6 +202,12 @@ export const JarvisStudioCalendarDeck: React.FC<JarvisStudioCalendarDeckProps> =
       })()}
 
       {/* 7-Day Interactive Schedule Cards */}
+      {lastPlanTs && (
+        <div className="flex items-center justify-between text-[10px] text-white/60 px-1">
+          <span>منشورات الجدول المحفوظة: {(currentSelectedBrand?.weekContentPlan || []).length}</span>
+          <span className="font-mono text-cyan-300">آخر توليد للخطة: {lastPlanTs}</span>
+        </div>
+      )}
       <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-1">
         {(currentSelectedBrand?.weekContentPlan || []).map((item: any, idx: number) => {
           const ctaType = item.ctaType || (idx % 3 === 0 ? 'APP_CONVERSION' : idx % 3 === 1 ? 'WHATSAPP_VOICE_AGENT' : 'COMMENT_TO_MESSENGER');
@@ -209,7 +261,7 @@ export const JarvisStudioCalendarDeck: React.FC<JarvisStudioCalendarDeckProps> =
               {/* Actions */}
               <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5 flex-wrap">
                 <span className="text-[9.5px] font-mono text-cyan-300/70 truncate max-w-[220px]">
-                  {item.ctaActionText || `المسار: /store/${currentSelectedBrand?.slug || currentSelectedBrand?.id}`}
+                  {item.ctaActionText || `الرابط: ${canonicalStoreUrl}`}
                 </span>
                 <div className="flex items-center gap-2">
                   <button

@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { Zap, UserCheck, Eye, Fingerprint, Sparkles, BrainCircuit, Shield, Mic, HardDrive, ArrowLeft, Calendar, Check, FileText, Terminal } from 'lucide-react';
-import { JarvisArcReactorCore } from './jarvis/JarvisArcReactorCore';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { Zap, UserCheck, Sparkles, Check, FileText, Volume2, ChevronDown, Gift, ArrowLeft } from 'lucide-react';
 import { playShadowVoice, stopVoice } from '../services/speechService';
 
 const CapabilitiesGuide = lazy(() => import('./CapabilitiesGuide'));
@@ -8,74 +7,26 @@ const WhitePaper = lazy(() => import('./WhitePaper'));
 const JarvisBattleStationModal = lazy(() => import('./JarvisBattleStationModal').then(m => ({ default: m.JarvisBattleStationModal })));
 
 const JARVIS_WELCOME_SCRIPT =
-  'أهلاً بيك في منظومة T2OS من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال! أنا جارفيس، عقلك التنفيذي التاني اللي بيبني ويدير شغلك بالكامل بالذكاء الاصطناعي. لو بتبدأ فكرة جديدة، بنبتكرلك الاسم واللوجو والكتالوج ونبني تطبيقك في دقائق؛ ولو عندك بيزنس قائم، بنربط موقعك وهويتك وصفحاتك والواتساب في عقل واحد يصمم وينشر محتواك ويرد على عملاءك ويقفّل مبيعاتك 24 ساعة. عندك 7 أيام تجربة مجانية كاملة بكل المميزات بدون أي التزام — ادخل محطة جارفيس وجرّب بنفسك دلوقتي!';
+  'أهلاً بيك في منظومة T2OS من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال! عندك 7 أيام تجربة مجانية كاملة بكل المميزات بدون بطاقة بنكية، وبعدها باقات تبدأ من 5,000 جنيه نصفها إعلانات ممولة مباشرة لنشاطك.';
 
-const TerminalEffect = () => {
-    const lines = [
-        "أهلاً بيك في منظومة T2OS من تيتو ديجيتال للحلول الرقمية وتطوير الأعمال!",
-        "أنا جارفيس.. عقلك التنفيذي التاني اللي بيبني ويدير شغلك بالذكاء الاصطناعي.",
-        "فكرة جديدة؟ بنبتكر الاسم واللوجو والكتالوج ونبني تطبيقك في دقائق.",
-        "بيزنس قائم؟ بنربط موقعك وهويتك وصفحات السوشيال والواتساب في عقل واحد.",
-        "نصمم وننشر محتواك أوتوماتيك، ونرد على عملاءك ونقفّل مبيعات 24/7.",
-        "عندك 7 أيام تجربة مجانية كاملة بكل المميزات بدون التزام — ادخل محطة جارفيس الآن!"
-    ];
-    const [displayedLines, setDisplayedLines] = useState<string[]>([]);
-    const [currentLineIndex, setCurrentLineIndex] = useState(0);
-    const [currentText, setCurrentText] = useState('');
-    const terminalRef = React.useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (currentLineIndex >= lines.length) return;
-
-        const fullText = lines[currentLineIndex];
-        
-        if (currentText.length < fullText.length) {
-            const timeout = setTimeout(() => {
-                setCurrentText(fullText.slice(0, currentText.length + 1));
-                if (terminalRef.current) {
-                    terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-                }
-            }, 30); // Typing speed
-            return () => clearTimeout(timeout);
-        } else {
-            // Finished typing current line, move to next
-            const timeout = setTimeout(() => {
-                setDisplayedLines(prev => [...prev, fullText]);
-                setCurrentText('');
-                setCurrentLineIndex(prev => prev + 1);
-                if (terminalRef.current) {
-                    terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-                }
-            }, 800); // Wait before next line
-            return () => clearTimeout(timeout);
-        }
-    }, [currentText, currentLineIndex]);
-
-    return (
-        <div className="bg-black/35 backdrop-blur-sm rounded-[20px] border border-white/10 p-4 font-mono text-left w-full h-[180px] flex flex-col relative overflow-hidden shadow-inner" dir="ltr">
-            <div className="absolute top-2 left-3 flex gap-1.5 z-10">
-                <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
-                <div className="w-2 h-2 rounded-full bg-amber-500/50"></div>
-                <div className="w-2 h-2 rounded-full bg-green-500/50"></div>
-            </div>
-            <div ref={terminalRef} className="mt-4 flex-1 overflow-y-auto text-[10px] md:text-xs space-y-1 pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {displayedLines.map((line, i) => (
-                    <div key={i} className="flex gap-2">
-                        <span className="text-emerald-500 font-bold shrink-0">ez-zel:~ $</span>
-                        <span className="text-white/90" dir="rtl">{line}</span>
-                    </div>
-                ))}
-                {currentLineIndex < lines.length && (
-                    <div className="flex gap-2">
-                        <span className="text-emerald-500 font-bold shrink-0">ez-zel:~ $</span>
-                        <span className="text-white/90" dir="rtl">{currentText}</span>
-                        <span className="w-1.5 h-3 bg-white/70 animate-pulse ml-0.5 mt-0.5 shrink-0"></span>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
+const PRICING_FAQS = [
+  {
+    q: 'ماذا تشمل فترة التجربة المجانية (7 أيام)؟',
+    a: 'تشمل متجر أو تطبيق حجز خاص ببراندك جاهز للنشر، وكيل مبيعات ذكي على واتساب وماسنجر والتعليقات، بالإضافة إلى 2 بوست احترافي و1 فيديو ريل لتبدأ التسويق فوراً بدون بطاقة بنكية.',
+  },
+  {
+    q: 'كيف تُدار ميزانية الـ 50% إعلانات ممولة في الباقات؟',
+    a: 'نصف قيمة أي باقة مدفوعة يُوجّه مباشرة كميزانية إعلانات ممولة على ميتا وتيك توك وجوجل لبراندك، مع تقارير أداء وعائد واضحة من لوحة التحكم.',
+  },
+  {
+    q: 'ما هو الحد الأدنى للاستكمال بعد التجربة وهل يوجد التزام طويل؟',
+    a: 'الحد الأدنى للاستكمال بعد أسبوع التجربة هو باقة النمو الذهبي 5,000 ج.م شهرياً (منها 2,500 ج.م إعلانات ممولة). لا توجد قيود تعاقد طويلة ويمكنك الترقية أو الإيقاف في أي وقت.',
+  },
+  {
+    q: 'كيف يعمل نظام الإحالة والربح (500 ج.م وأكثر)؟',
+    a: 'تحصل على عمولة 10% كاش فوري ومدى الحياة على كل عميل يشترك عن طريق رابط الإحالة الخاص بك — تبدأ من 500 ج.م شهرياً لباقة النمو وتصل إلى 5,000 ج.م لباقة السيادة.',
+  },
+];
 
 interface Props {
   onSelectPlan: (plan: string, cycle: 'monthly' | 'yearly') => void;
@@ -92,7 +43,8 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
   });
   const [isGreetingPlaying, setIsGreetingPlaying] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-  const hasAutoGreetedRef = useRef(false);
+  const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(0);
+  const [selectedTier, setSelectedTier] = useState<'tier_5000' | 'tier_10000' | 'tier_25000' | 'tier_50000'>('tier_5000');
 
   useEffect(() => {
     try {
@@ -112,311 +64,275 @@ const Pricing: React.FC<Props> = ({ onSelectPlan, onTrialStart, onAffiliateStart
       return;
     }
     setIsGreetingPlaying(true);
-    playShadowVoice(
-      JARVIS_WELCOME_SCRIPT,
-      'male',
-      undefined,
-      () => setIsGreetingPlaying(false)
-    );
+    playShadowVoice(JARVIS_WELCOME_SCRIPT, 'male', undefined, () => setIsGreetingPlaying(false));
   };
 
-  // Auto-greeting removed so /pricing never auto-downloads 1.59MB WAV audio on load.
-  // Greeting plays immediately when the user clicks the Jarvis orb button.
   useEffect(() => {
-    hasAutoGreetedRef.current = true;
     return () => {
       stopVoice();
     };
   }, []);
-  const [selectedTier, setSelectedTier] = useState<'tier_5000' | 'tier_10000' | 'tier_25000' | 'tier_50000'>('tier_5000');
 
-  const tierPrices = {
-    tier_5000: {
-      name: 'النمو الذهبي (5,000 ج)',
-      monthly: { egp: '5,000', usd: '100', label: 'الحد الأدنى للاستكمال بعد أسبوع التجربة • 2,500 ج إعلانات ممولة (50%) + تطبيق ويب متكامل + الأجنت (واتساب/ماسنجر/تعليقات) + فيديوهات ريلز', discount: '' },
-      yearly: { egp: '50,000', usd: '1,000', label: 'سنوياً • 25,000 ج إعلانات ممولة + أتمتة كاملة', discount: 'وفر 10,000 ج.م' },
-      adBadge: '2,500 ج.م إعلانات ممولة مباشرة',
-      commissionMonthly: '500',
-      commissionYearly: '5,000'
+  const tierList = [
+    {
+      key: 'tier_5000' as const,
+      title: 'النمو الذهبي',
+      badge: 'الأكثر مبيعاً للاستكمال',
+      monthlyEgp: 5000,
+      monthlyUsd: 100,
+      adsMonthly: '2,500 ج.م',
+      features: [
+        '2,500 ج.م إعلانات ممولة (50%)',
+        'تطبيق ويب ومتجر PWA متكامل',
+        'أجنت واتساب وماسنجر وتعليقات 24/7',
+        'تصميمات + فيديوهات ريلز أسبوعية',
+      ],
     },
-    tier_10000: {
-      name: 'الريادة (10,000 ج)',
-      monthly: { egp: '10,000', usd: '200', label: 'شهرياً • 5,000 ج إعلانات ممولة (نصف الباقة) + حملات متقدمة Meta & TikTok + دعم استراتيجي', discount: '' },
-      yearly: { egp: '100,000', usd: '2,000', label: 'سنوياً • 50,000 ج إعلانات ممولة + تقارير أداء حية', discount: 'وفر 20,000 ج.م' },
-      adBadge: '5,000 ج.م إعلانات ممولة مباشرة',
-      commissionMonthly: '1,000',
-      commissionYearly: '10,000'
+    {
+      key: 'tier_10000' as const,
+      title: 'الريادة',
+      badge: 'نمو متسارع',
+      monthlyEgp: 10000,
+      monthlyUsd: 200,
+      adsMonthly: '5,000 ج.م',
+      features: [
+        '5,000 ج.م إعلانات ممولة (50%)',
+        'حملات متقدمة Meta & TikTok',
+        'محتوى موسّع + فحص جودة Vision QA',
+        'تقارير أداء وتحويلات أسبوعية',
+      ],
     },
-    tier_25000: {
-      name: 'المؤسسات (25,000 ج)',
-      monthly: { egp: '25,000', usd: '500', label: 'شهرياً • 12,500 ج إعلانات ممولة (نصف الباقة) + استراتيجية تسويق كاملة + إنتاج مرئي موسع', discount: '' },
-      yearly: { egp: '250,000', usd: '5,000', label: 'سنوياً • 125,000 ج إعلانات ممولة + استشارات نمو', discount: 'وفر 50,000 ج.م' },
-      adBadge: '12,500 ج.م إعلانات ممولة مباشرة',
-      commissionMonthly: '2,500',
-      commissionYearly: '25,000'
+    {
+      key: 'tier_25000' as const,
+      title: 'المؤسسات',
+      badge: 'توسع متعدد الفروع',
+      monthlyEgp: 25000,
+      monthlyUsd: 500,
+      adsMonthly: '12,500 ج.م',
+      features: [
+        '12,500 ج.م إعلانات ممولة (50%)',
+        'استراتيجية تسويق كاملة + إنتاج مرئي',
+        'ربط فروع متعدد + صلاحيات فريق',
+        'أولوية تنفيذ ودعم استراتيجي مخصص',
+      ],
     },
-    tier_50000: {
-      name: 'السيادة (50,000 ج)',
-      monthly: { egp: '50,000', usd: '1,000', label: 'شهرياً • 25,000 ج إعلانات ممولة (نصف الباقة) + هيمنة على السوق + وكلاء ذكاء اصطناعي متعددين', discount: '' },
-      yearly: { egp: '500,000', usd: '10,000', label: 'سنوياً • 250,000 ج إعلانات ممولة + إدارة VIP متكاملة 24/7', discount: 'وفر 100,000 ج.م' },
-      adBadge: '25,000 ج.م إعلانات ممولة مباشرة',
-      commissionMonthly: '5,000',
-      commissionYearly: '50,000'
-    }
-  };
-
-  const currentPrice = tierPrices[selectedTier][billingCycle];
-  const commissionAmount = billingCycle === 'yearly' ? tierPrices[selectedTier].commissionYearly : tierPrices[selectedTier].commissionMonthly;
+    {
+      key: 'tier_50000' as const,
+      title: 'السيادة VIP',
+      badge: 'هيمنة السوق',
+      monthlyEgp: 50000,
+      monthlyUsd: 1000,
+      adsMonthly: '25,000 ج.م',
+      features: [
+        '25,000 ج.م إعلانات ممولة (50%)',
+        'وكلاء ذكاء اصطناعي متعددون للبيزنس',
+        'إنتاج يومي كامل + فيديوهات إعلانية',
+        'إدارة VIP متكاملة على مدار الساعة',
+      ],
+    },
+  ];
 
   const handleJoinFromGuide = () => {
-      setShowCapabilities(false);
-      onSelectPlan('elite', billingCycle);
+    setShowCapabilities(false);
+    onSelectPlan('tier_5000', billingCycle);
   };
 
   const handleAffiliateFromGuide = () => {
-      setShowCapabilities(false);
-      onAffiliateStart();
+    setShowCapabilities(false);
+    onAffiliateStart();
   };
 
   return (
-    <div className="min-h-screen w-full bg-transparent text-white overflow-y-auto overflow-x-hidden flex flex-col font-['Cairo'] relative selection:bg-purple-500/30 pb-12">
-      
+    <div className="min-h-screen w-full bg-[#020510] text-white overflow-y-auto overflow-x-hidden flex flex-col font-['Cairo'] relative selection:bg-cyan-500/30 pb-14" dir="rtl">
       <Suspense fallback={null}>
         {showCapabilities && (
-          <CapabilitiesGuide 
-              onClose={() => setShowCapabilities(false)} 
-              onJoin={handleJoinFromGuide}
-              onAffiliate={handleAffiliateFromGuide}
-          />
+          <CapabilitiesGuide onClose={() => setShowCapabilities(false)} onJoin={handleJoinFromGuide} onAffiliate={handleAffiliateFromGuide} />
         )}
-
-        {showWhitePaper && (
-            <WhitePaper onClose={() => setShowWhitePaper(false)} />
-        )}
-
+        {showWhitePaper && <WhitePaper onClose={() => setShowWhitePaper(false)} />}
         {showBattleStation && (
-            <JarvisBattleStationModal 
-                isOpen={showBattleStation} 
-                onClose={() => setShowBattleStation(false)} 
-                initialPersona="visitor" 
-            />
+          <JarvisBattleStationModal isOpen={showBattleStation} onClose={() => setShowBattleStation(false)} initialPersona="visitor" />
         )}
       </Suspense>
 
-      {/* Lightweight CSS Radial Ambient Background (zero GPU blur-[150px] filters) */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0"
-        style={{
-          background:
-            'radial-gradient(circle at 20% 15%, rgba(147,51,234,0.09) 0%, transparent 45%), radial-gradient(circle at 80% 85%, rgba(245,158,11,0.07) 0%, transparent 45%)',
-        }}
-      />
+      <div className="w-full max-w-6xl mx-auto px-4 pt-6 sm:pt-10 space-y-6">
+        {/* Clean Header & Top Navigation Actions */}
+        <div className="flex flex-col items-center text-center gap-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 text-xs font-black">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>منظومة T2OS من تيتو ديجيتال — 50% من أي باقة إعلانات ممولة</span>
+          </div>
 
-      {/* Main Container */}
-      <div className="flex-1 w-full max-w-2xl mx-auto px-4 py-6 flex flex-col justify-center relative z-10 min-h-full">
+          <h1 className="text-2xl sm:text-4xl font-black text-white leading-tight">
+            خطط واضحة لنمو مبيعاتك بدون تعقيد
+          </h1>
+          <p className="text-xs sm:text-sm text-white/65 max-w-xl">
+            ابدأ بـ 7 أيام تجربة مجانية (متجر أو تطبيق حجز + أجنت واتساب وماسنجر + 2 بوست و1 ريل) بدون بطاقة بنكية.
+          </p>
 
-        {/* SINGLE UNIFIED GLASS TERMINAL CARD (Header + Jarvis Orb + Terminal + Tiers + Actions) */}
-        <div className="flex-1 flex flex-col items-center justify-center relative py-2">
-            <div className="relative w-full p-5 sm:p-6 rounded-[32px] border border-cyan-500/25 bg-[#060913]/85 shadow-xl group hover:border-cyan-400/40 transition-colors">
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => { if (onTrialStart) onTrialStart(); else setShowBattleStation(true); }}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 font-black text-xs sm:text-sm shadow-[0_0_24px_rgba(16,185,129,0.3)] hover:brightness-105 cursor-pointer flex items-center gap-1.5"
+            >
+              <span>ابدأ الأسبوع المجاني مع جارفيس</span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handlePlayJarvisWelcome}
+              className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-cyan-200 text-xs font-bold cursor-pointer flex items-center gap-1.5"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>{isGreetingPlaying ? 'إيقاف الترحيب' : 'اسمع شرح سريع من جارفيس'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (onLoginClick) onLoginClick(); else onSelectPlan(selectedTier, billingCycle); }}
+              className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-white/80 text-xs font-bold cursor-pointer flex items-center gap-1.5"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>دخول المشتركين</span>
+            </button>
+          </div>
 
-                {/* 1. HEADER INSIDE TERMINAL CARD */}
-                <div className="flex flex-col items-center justify-center mb-3">
-                    <div className="mb-2">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
-                            <Sparkles className="w-3 h-3 text-cyan-400 animate-pulse" />
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/75">الجيل القادم من المساعدين</span>
-                        </div>
-                    </div>
-
-                    <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-white leading-tight text-center drop-shadow-2xl mb-2.5 whitespace-nowrap">
-                        امتلك <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-white to-cyan-400">ظلك الرقمي</span>
-                    </h1>
-
-                    <div className="flex gap-2 flex-wrap justify-center">
-                        <button
-                            onClick={() => setShowBattleStation(true)}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-blue-600/30 via-cyan-500/30 to-emerald-500/30 hover:from-blue-600/50 hover:to-cyan-400/50 border border-cyan-400/60 rounded-full transition-all backdrop-blur-md shadow-[0_0_15px_rgba(6,182,212,0.25)] cursor-pointer"
-                        >
-                            <Zap className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
-                            <span className="text-[10px] font-black text-cyan-200 hover:text-white">محطة جارفيس ⚡</span>
-                        </button>
-                        <button
-                            onClick={() => setShowCapabilities(true)}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all backdrop-blur-md cursor-pointer"
-                        >
-                            <Sparkles className="w-3 h-3 text-purple-400" />
-                            <span className="text-[9.5px] font-bold text-white/70 hover:text-white">اكتشف القدرات</span>
-                        </button>
-                        <button
-                            onClick={() => setShowWhitePaper(true)}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all backdrop-blur-md cursor-pointer"
-                        >
-                            <FileText className="w-3 h-3 text-white/50" />
-                            <span className="text-[9.5px] font-bold text-white/70 hover:text-white">ميثاق الظل</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* 2. JARVIS PULSING ORB INSIDE TERMINAL CARD */}
-                <div className="flex justify-center mb-2">
-                    <button
-                        type="button"
-                        onClick={handlePlayJarvisWelcome}
-                        title="اضغط لسماع ترحيب جارفس الصوتي"
-                        className="group relative flex flex-col items-center justify-center cursor-pointer focus:outline-none"
-                    >
-                        <div className="scale-75 hover:scale-[0.8] transition-transform duration-300 -my-3">
-                            <JarvisArcReactorCore
-                                isListening={false}
-                                isPlayingVoice={isGreetingPlaying}
-                                isThinking={false}
-                                audioLevel={isGreetingPlaying ? 0.85 : 0.25}
-                            />
-                        </div>
-                        <span className="mt-1 px-3 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-400/35 text-[10px] font-bold text-cyan-200 backdrop-blur-md">
-                            {isGreetingPlaying ? 'جارفس يرحب بك الآن...' : 'اضغط للتحدث والترحيب الصوتي من جارفس'}
-                        </span>
-                    </button>
-                </div>
-
-                <div className="text-center mt-1">
-                    <h2 className="text-xl font-black text-white mb-1 flex items-center justify-center gap-2 tracking-tight">
-                        <BrainCircuit className="w-5 h-5 text-amber-500" />
-                        عقلك التاني
-                    </h2>
-                    <p className="text-[8px] font-bold text-white/30 uppercase tracking-[0.3em] mb-4">Your Second Brain</p>
-                    
-                    <div className="flex justify-center mb-5">
-                        <div className="bg-black p-1 rounded-full border border-white/20 flex relative shadow-inner w-56 h-10 items-center overflow-hidden">
-                            <div 
-                                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-full transition-all duration-300 shadow-lg z-0 ${billingCycle === 'monthly' ? 'left-[calc(50%+2px)]' : 'left-1'}`}
-                                style={{ left: billingCycle === 'monthly' ? '52%' : '2%' }} 
-                            ></div>
-                            
-                            <button 
-                                onClick={() => setBillingCycle('monthly')}
-                                className={`flex-1 rounded-full text-xs font-black transition-all relative z-10 h-full flex items-center justify-center ${billingCycle === 'monthly' ? 'text-black' : 'text-white/60 hover:text-white'}`}
-                            >
-                                شهري
-                            </button>
-                            <button 
-                                onClick={() => setBillingCycle('yearly')}
-                                className={`flex-1 rounded-full text-xs font-black transition-all relative z-10 h-full flex items-center justify-center ${billingCycle === 'yearly' ? 'text-black' : 'text-white/60 hover:text-white'}`}
-                            >
-                                سنوي
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div onClick={() => setShowCapabilities(true)} className="cursor-pointer hover:scale-[1.01] transition-transform">
-                        <TerminalEffect />
-                        <p className="text-[8px] text-white/25 text-center mt-1.5 font-bold uppercase">اضغط للمزيد من التفاصيل</p>
-                    </div>
-
-                    {/* UNIFIED PRICING TIERS, DETAILS & ACTIONS INSIDE THE CARD */}
-                    <div className="mt-4 pt-4 border-t border-white/10 space-y-2.5 text-center">
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-black text-amber-300">
-                            تجربة 7 أيام مجاناً: تطبيق ويب كامل + أجنت واتساب وماسنجر وتعليقات + 2 بوست و1 ريل (والاستكمال من باقة 5,000 ج)
-                        </div>
-                        {/* Tier Selector: 4 Official Upgrade Tiers (5K - 10K - 25K - 50K) */}
-                        <div className="flex justify-center py-0.5">
-                            <div className="bg-black/80 p-1.5 rounded-2xl border border-white/10 flex flex-wrap justify-center gap-1.5 text-[10px] font-black select-none max-w-full">
-                                {(['tier_5000', 'tier_10000', 'tier_25000', 'tier_50000'] as const).map((tierKey) => {
-                                    const isSelected = selectedTier === tierKey;
-                                    return (
-                                        <button
-                                            key={tierKey}
-                                            onClick={() => setSelectedTier(tierKey)}
-                                            className={`px-2 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer ${
-                                                isSelected
-                                                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg shadow-amber-500/25 font-black'
-                                                    : 'text-white/60 hover:text-white bg-white/5 border border-white/5'
-                                            }`}
-                                        >
-                                            <span>{tierPrices[tierKey].name}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* 50% Ad Allocation Guaranteed Badge */}
-                        <div className="flex justify-center">
-                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-0.5 rounded-full flex items-center gap-1">
-                                <Sparkles className="w-3 h-3 text-amber-400" />
-                                {billingCycle === 'yearly'
-                                  ? `${(Number(tierPrices[selectedTier].monthly.egp.replace(/,/g, '')) * 5).toLocaleString()} ج.م إعلانات ممولة سنوياً (50% من قيمة الباقة)`
-                                  : `${tierPrices[selectedTier].adBadge} (50% من قيمة الباقة)`}
-                            </span>
-                        </div>
-
-                        {/* Price & Details */}
-                        <div className="space-y-1">
-                            {billingCycle === 'yearly' && currentPrice.discount && (
-                                <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black rounded animate-pulse border border-emerald-500/20">
-                                    {currentPrice.discount}
-                                </span>
-                            )}
-                            <div className="flex items-end justify-center gap-2 leading-none">
-                                <div className="flex items-baseline">
-                                    <span className="text-3xl font-black text-white tracking-tighter">{currentPrice.egp}</span>
-                                    <span className="text-[10px] font-bold text-white/50 mr-1">EGP</span>
-                                </div>
-                                <span className="text-white/20 text-lg font-thin">/</span>
-                                <div className="flex items-baseline">
-                                    <span className="text-xl font-bold text-white/70">{currentPrice.usd}</span>
-                                    <span className="text-[9px] font-bold text-white/30 mr-1">USD</span>
-                                </div>
-                            </div>
-                            <p className="text-[9.5px] text-white/50 font-bold px-2">{currentPrice.label}</p>
-
-                            <button
-                                onClick={onAffiliateStart}
-                                className="inline-block px-3 py-1 mt-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/40 rounded-lg cursor-pointer transition-colors"
-                            >
-                                <p className="text-[9px] font-bold text-emerald-400 flex items-center gap-1">
-                                    💡 ادعي صحابك واربح {commissionAmount}ج كاش فوري! (10% مدى الحياة) <span className="underline">التفاصيل</span>
-                                </p>
-                            </button>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="space-y-2 pt-1">
-                            <button
-                                onClick={() => {
-                                    if (onTrialStart) onTrialStart();
-                                    else setShowBattleStation(true);
-                                }}
-                                className="group relative w-full py-3 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 text-black rounded-[18px] font-black text-sm hover:scale-[1.01] active:scale-[0.98] transition-all shadow-[0_0_30px_rgba(16,185,129,0.28)] flex items-center justify-center gap-2 overflow-hidden cursor-pointer"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                                <Eye className="w-4 h-4 text-black" />
-                                <span>ابدأ الأسبوع المجاني مع جارفيس الآن (فوراً بدون بطاقة)</span>
-                            </button>
-
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => onSelectPlan(selectedTier, billingCycle)}
-                                    className="flex-[2] py-3 bg-[#151515] hover:bg-[#1a1a1a] text-purple-400 border border-white/10 rounded-[16px] font-bold text-xs transition-all flex items-center justify-center gap-2 hover:border-purple-500/30 cursor-pointer"
-                                >
-                                    <Zap className="w-4 h-4" /> تفعيل الاشتراك المباشر
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        if (onLoginClick) onLoginClick();
-                                        else onSelectPlan(selectedTier, billingCycle);
-                                    }}
-                                    className="flex-1 py-3 bg-white/[0.03] hover:bg-white/[0.08] text-white/60 hover:text-white border border-white/10 rounded-[16px] font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                                >
-                                    <UserCheck className="w-4 h-4" /> دخول
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+          {/* Billing Cycle Toggle */}
+          <div className="bg-white/5 p-1 rounded-full border border-white/15 flex w-56 h-10 items-center mt-2">
+            <button
+              type="button"
+              onClick={() => setBillingCycle('monthly')}
+              className={`flex-1 h-full rounded-full text-xs font-black transition cursor-pointer ${billingCycle === 'monthly' ? 'bg-white text-slate-950' : 'text-white/65 hover:text-white'}`}
+            >
+              شهري
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('yearly')}
+              className={`flex-1 h-full rounded-full text-xs font-black transition cursor-pointer ${billingCycle === 'yearly' ? 'bg-white text-slate-950' : 'text-white/65 hover:text-white'}`}
+            >
+              سنوي (شهرين مجاناً)
+            </button>
+          </div>
         </div>
 
+        {/* Crisp 4-Tier Comparison Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {tierList.map((tier) => {
+            const isSelected = selectedTier === tier.key;
+            const displayEgp = billingCycle === 'yearly' ? tier.monthlyEgp * 10 : tier.monthlyEgp;
+            const displayUsd = billingCycle === 'yearly' ? tier.monthlyUsd * 10 : tier.monthlyUsd;
+            const adsTotal = billingCycle === 'yearly' ? `${(tier.monthlyEgp * 5).toLocaleString()} ج.م` : tier.adsMonthly;
+            return (
+              <div
+                key={tier.key}
+                onClick={() => setSelectedTier(tier.key)}
+                className={`rounded-2xl p-5 border flex flex-col justify-between gap-4 transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#081228] border-cyan-400 shadow-[0_0_28px_rgba(34,211,238,0.2)]'
+                    : 'bg-[#060b18] border-white/10 hover:border-white/25'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-base font-black text-white">{tier.title}</h2>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isSelected ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40' : 'bg-white/5 text-white/60'}`}>
+                      {tier.badge}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-3xl font-black text-white">{displayEgp.toLocaleString()}</span>
+                      <span className="text-xs font-bold text-cyan-300">ج.م</span>
+                      <span className="text-[11px] text-white/45">/ {billingCycle === 'yearly' ? 'سنوياً' : 'شهرياً'}</span>
+                    </div>
+                    <div className="text-[11px] text-white/50">(${displayUsd.toLocaleString()} USD) • يشمل {adsTotal} إعلانات</div>
+                  </div>
+
+                  <ul className="space-y-2 pt-2 border-t border-white/10 text-xs text-white/85">
+                    {tier.features.map((feat, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>{feat}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectPlan(tier.key, billingCycle);
+                  }}
+                  className={`w-full py-2.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>اشترك في {tier.title}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Referral Program Card */}
+        <div className="rounded-2xl p-4 bg-emerald-950/35 border border-emerald-500/35 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0">
+              <Gift className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-black text-white">برنامج شركاء النجاح: اربح 500 ج.م كاش فوري وأكثر</div>
+              <div className="text-xs text-emerald-200/80">10% عمولة مستمرة مدى الحياة عن كل براند يشترك عبر رابطك.</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onAffiliateStart}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer"
+            >
+              احصل على رابط الإحالة
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCapabilities(true)}
+              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/75 text-xs font-bold cursor-pointer flex items-center gap-1"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>القدرات الكاملة</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Concise FAQ Accordion */}
+        <div className="rounded-2xl bg-[#060b18] border border-white/10 p-5 space-y-2">
+          <h3 className="text-sm font-black text-cyan-300 mb-3">الأسئلة الشائعة</h3>
+          {PRICING_FAQS.map((item, idx) => {
+            const isOpenFaq = openFaqIdx === idx;
+            return (
+              <div key={idx} className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setOpenFaqIdx(isOpenFaq ? null : idx)}
+                  className="w-full px-4 py-3 flex items-center justify-between text-right text-xs sm:text-sm font-bold text-white cursor-pointer"
+                >
+                  <span>{item.q}</span>
+                  <ChevronDown className={`w-4 h-4 text-cyan-400 transition-transform ${isOpenFaq ? 'rotate-180' : ''}`} />
+                </button>
+                {isOpenFaq && (
+                  <div className="px-4 pb-3 text-xs text-white/75 leading-relaxed border-t border-white/5 pt-2">
+                    {item.a}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

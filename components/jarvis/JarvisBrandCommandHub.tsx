@@ -16,11 +16,53 @@ interface JarvisBrandCommandHubProps {
   isMasterAdmin?: boolean;
   onBackToGrid?: () => void;
   onOpenStudioCalendar?: () => void;
+  onOpenAdLauncher?: () => void;
   onOpenWhatsAppModal?: (brandId: string) => void;
   onOpenMetaModal?: (brandId: string) => void;
 }
 
 type HubSection = 'app' | 'social' | 'agent' | 'brain';
+
+export function getBrandIndustryDefaults(brand: any): {
+  sampleQuestion: string;
+  kbPlaceholder: string;
+} {
+  const biz = `${brand?.businessType || ''} ${brand?.name || ''} ${brand?.appTemplate || ''}`.toLowerCase();
+  if (/نظاف|تنظيف|clean/i.test(biz)) {
+    return {
+      sampleQuestion: 'محتاج تنظيف شقة 120 متر بالبخار يوم الخميس، التكلفة والمواعيد إيه؟',
+      kbPlaceholder: `مثال: ${brand?.name || 'براندك'} متخصص في خدمات التنظيف بالبخار والتعقيم في القاهرة والجيزة، مواعيد العمل 8 صباحاً - 10 مساءً، وخصم 10% للحجز الإلكتروني...`,
+    };
+  }
+  if (/عطر|عطور|perfume|عود|بخور/i.test(biz)) {
+    return {
+      sampleQuestion: 'إيه أفضل عطر عود رجالي وثباته كام ساعة وسعره بكام؟',
+      kbPlaceholder: `مثال: ${brand?.name || 'براندك'} للعطور الشرقية والفرنسية الأصلية بتركيز عالٍ وثبات 24 ساعة، والشحن متاح لجميع المحافظات...`,
+    };
+  }
+  if (/سيار|قطع غيار|تيل|auto/i.test(biz)) {
+    return {
+      sampleQuestion: 'عندكم تيل فرامل أو فلتر زيت وبكام التوصيل؟',
+      kbPlaceholder: `مثال: ${brand?.name || 'براندك'} لقطع غيار السيارات الأصلية بضمان 6 شهور وشحن سريع داخل القاهرة والمحافظات...`,
+    };
+  }
+  if (/عياد|دكتور|طب|أسنان|clinic|medical/i.test(biz)) {
+    return {
+      sampleQuestion: 'مواعيد الكشف وسعر الاستشارة إيه وهل متاح حجز بكرة؟',
+      kbPlaceholder: `مثال: ${brand?.name || 'العيادة'} متخصصة في الكشف والعلاج بأحدث الأجهزة، مواعيد الحجز يومياً مع متابعة فورية عبر واتساب...`,
+    };
+  }
+  if (brand?.appTemplate === 'services_booking') {
+    return {
+      sampleQuestion: 'ما هي الباقات المتاحة ومواعيد الحجز القريبة؟',
+      kbPlaceholder: `مثال: أضف تفاصيل خدمات ${brand?.name || 'البراند'}، مواعيد العمل، المناطق المغطاة، وسياسة العربون أو الدفع...`,
+    };
+  }
+  return {
+    sampleQuestion: 'هل المنتج متوفر حالياً وبكام الشحن للقاهرة؟',
+    kbPlaceholder: `مثال: أضف تفاصيل منتجات ${brand?.name || 'البراند'}، الأسعار، الضمان، وسياسة الشحن داخل القاهرة والمحافظات...`,
+  };
+}
 
 export const resolveBrandWebUrl = (brand: any): string => {
   if (!brand) return '';
@@ -57,9 +99,11 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   isMasterAdmin = false,
   onBackToGrid,
   onOpenStudioCalendar,
+  onOpenAdLauncher,
   onOpenWhatsAppModal,
   onOpenMetaModal,
 }) => {
+  const initialDefaults = getBrandIndustryDefaults(initialBrand);
   const [activeBrandId, setActiveBrandId] = useState<string>(brandId);
   const [availableBrands, setAvailableBrands] = useState<Array<{ id: string; slug?: string; name: string }>>([]);
   const [section, setSection] = useState<HubSection>('app');
@@ -93,7 +137,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   const [knowledgeBase, setKnowledgeBase] = useState('');
 
   // Live Agent Tester & Playground Correction & Manual Reply
-  const [testInput, setTestInput] = useState('عندكم تيل فرامل أو فلتر زيت وبكام التوصيل؟');
+  const [testInput, setTestInput] = useState(initialDefaults.sampleQuestion);
   const [testingAgent, setTestingAgent] = useState(false);
   const [testReply, setTestReply] = useState<string | null>(null);
   const [correctedAnswer, setCorrectedAnswer] = useState('');
@@ -102,8 +146,10 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
   const [manualReplyText, setManualReplyText] = useState('');
   const [sendingManualReply, setSendingManualReply] = useState(false);
 
-  // 1) 3D Workspace Media Vault & 2) Semantic Memory Verification State
+  // Media Gallery Modal (real generated assets first, optional 3D explorer toggle)
   const [isMediaVaultOpen, setIsMediaVaultOpen] = useState(false);
+  const [show3DWorkspaceInVault, setShow3DWorkspaceInVault] = useState(false);
+  const [testBookingResultUrl, setTestBookingResultUrl] = useState<string | null>(null);
   const [semanticQuery, setSemanticQuery] = useState('');
   const [semanticHits, setSemanticHits] = useState<Array<{ text: string; score: number }>>([]);
   const [searchingSemantic, setSearchingSemantic] = useState(false);
@@ -168,6 +214,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
         setForbiddenTopics(b.agentConfig?.forbiddenTopics || '');
         setFaq(b.agentConfig?.faq || '');
         setKnowledgeBase(b.knowledgeBase || '');
+        setTestInput(getBrandIndustryDefaults(b).sampleQuestion);
       }
     } catch {
       // Fallback to initialBrand cleanly
@@ -610,6 +657,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                   <button
                     type="button"
                     onClick={async () => {
+                      setTestBookingResultUrl(null);
                       try {
                         const headers = await getAuthHeaders();
                         const res = await fetch('/api/jarvis/execute-action', {
@@ -618,11 +666,17 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                           body: JSON.stringify({
                             actionType: 'CREATE_LIVE_BOOKING',
                             brandId: String(brandSlug || 'clean_master'),
-                            data: { customerName: 'عميل تجربة (Aha Test)', customerPhone: phone || '01099887766', service: 'طلب تجربة فوري', price: '750 ج.م' },
+                            data: { customerName: 'عميل تجربة (Aha Test)', customerPhone: phone || '01099887766', service: brandData?.appTemplate === 'services_booking' ? 'حجز تجربة فوري' : 'طلب تجربة فوري', price: '750 ج.م' },
                           }),
                         });
                         const d = await res.json();
-                        setSaveMessage(d?.success ? '✅ تم تسجيل طلب تجريبي حي وإطلاق إشعار التنبيه فوراً!' : (d?.error || 'تعذر تنفيذ الاختبار'));
+                        if (d?.success) {
+                          setSaveMessage('✅ تم تسجيل حجز/طلب تجريبي حي وتحديث العدادات فوراً!');
+                          setTestBookingResultUrl(effectiveAppUrl || `/client/${encodeURIComponent(String(brandSlug || ''))}`);
+                          loadHub();
+                        } else {
+                          setSaveMessage(d?.error || 'تعذر تنفيذ الاختبار');
+                        }
                       } catch {
                         setSaveMessage('تعذر الاتصال بخدمة الاختبار التجريبي');
                       }
@@ -641,6 +695,40 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                   )}
                 </div>
               </div>
+              {/* Unified Live Telemetry Strip (Single Source of Truth) */}
+              {brandData?.stats && (
+                <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
+                  <div className="p-1.5 rounded-lg bg-black/40 border border-white/10">
+                    <div className="font-black text-cyan-300">{brandData.stats.bookingsCount ?? 0}</div>
+                    <div className="text-white/55">حجوزات حية</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-black/40 border border-white/10">
+                    <div className="font-black text-emerald-300">{brandData.stats.conversationsCount ?? 0}</div>
+                    <div className="text-white/55">محادثات واتساب</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-black/40 border border-white/10">
+                    <div className="font-black text-amber-300">{brandData.stats.ordersCount ?? 0}</div>
+                    <div className="text-white/55">طلبات المتجر</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-black/40 border border-white/10">
+                    <div className="font-black text-purple-300">{brandData.stats.postsCount ?? 0}</div>
+                    <div className="text-white/55">منشورات الخطة</div>
+                  </div>
+                </div>
+              )}
+              {testBookingResultUrl && (
+                <div className="px-3 py-1.5 rounded-xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-between gap-2 text-[10.5px]">
+                  <span className="text-cyan-100 font-bold">تم تسجيل الطلب التجريبي بنجاح — يمكنك معاينته في متجرك الآن:</span>
+                  <a
+                    href={testBookingResultUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-0.5 rounded-lg bg-cyan-400 text-slate-950 font-black shrink-0"
+                  >
+                    فتح المتجر ↗
+                  </a>
+                </div>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
                 <button
                   type="button"
@@ -669,13 +757,20 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                   <div className="font-black">3. الشو روم والنشر {hasShowroomApproved ? '✅' : '🎨'}</div>
                   <div className="opacity-75 truncate">مراجعة واعتماد المحتوى</div>
                 </button>
-                <a
-                  href={`/pricing?brandId=${encodeURIComponent(String(brandSlug || ''))}&upgrade=1`}
-                  className="p-2 rounded-xl border bg-amber-500/10 border-amber-400/35 text-amber-200 hover:bg-amber-500/20 text-right transition block"
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isTrialUser && onOpenAdLauncher) {
+                      onOpenAdLauncher();
+                    } else {
+                      window.location.assign(`/pricing?brandId=${encodeURIComponent(String(brandSlug || ''))}&upgrade=1`);
+                    }
+                  }}
+                  className="p-2 rounded-xl border bg-amber-500/10 border-amber-400/35 text-amber-200 hover:bg-amber-500/20 text-right transition block cursor-pointer"
                 >
                   <div className="font-black">4. الانطلاق والإعلانات 🚀</div>
                   <div className="opacity-75 truncate">{isTrialUser ? 'فعّل باقة النمو' : 'إدارة الحملة'}</div>
-                </a>
+                </button>
               </div>
             </div>
           );
@@ -968,7 +1063,18 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
                   تجربة وتدريب T2 Agent + شات العملاء الفعلي
                 </h4>
                 <button
-                  onClick={() => window.open(brandData?.agentPortalUrl || 'https://agent.t2os.app/dashboard', '_blank', 'noopener,noreferrer')}
+                  onClick={async () => {
+                    try {
+                      const headers = await getAuthHeaders();
+                      const res = await fetch(`/api/embed/signed-urls?brandId=${encodeURIComponent(activeBrandId)}&window=crm`, { headers });
+                      const d = await res.json().catch(() => null);
+                      if (d?.ok && d?.agentFullUrl) {
+                        window.open(d.agentFullUrl, '_blank', 'noopener,noreferrer');
+                        return;
+                      }
+                    } catch {}
+                    window.open(brandData?.agentPortalUrl || `https://agent.t2os.app/dashboard?brandId=${encodeURIComponent(activeBrandId)}`, '_blank', 'noopener,noreferrer');
+                  }}
                   className="text-[11px] font-bold text-purple-300 hover:underline cursor-pointer"
                 >
                   فتح شاشة T2 Agent الكاملة ↗
@@ -1084,7 +1190,7 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
               rows={7}
               value={knowledgeBase}
               onChange={(e) => setKnowledgeBase(e.target.value)}
-              placeholder="مثال: أوتو هاوس متخصص في قطع غيار السيارات الألماني والياباني الأصلية بضمان 6 شهور، الفرع الرئيسي في التوفيقية القاهرة، الشحن مجاني للطلبات فوق 3000 جنيه..."
+              placeholder={getBrandIndustryDefaults(brandData || initialBrand).kbPlaceholder}
               className="w-full p-3 rounded-xl bg-black/55 border border-white/15 text-white text-xs leading-relaxed focus:border-amber-400 focus:outline-none"
             />
             <button
@@ -1131,29 +1237,80 @@ export const JarvisBrandCommandHub: React.FC<JarvisBrandCommandHubProps> = ({
         )}
       </div>
 
-      {/* 3D WORKSPACE MEDIA VAULT OVERLAY */}
+      {/* BRAND MEDIA GALLERY & OPTIONAL 3D WORKSPACE OVERLAY */}
       {isMediaVaultOpen && (
         <div className="fixed inset-0 z-[260] bg-black/95 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 bg-[#020614] border-b border-purple-500/40">
+          <div className="flex items-center justify-between px-4 py-3 bg-[#020614] border-b border-purple-500/40 flex-wrap gap-2">
             <span className="text-xs sm:text-sm font-black text-purple-200 flex items-center gap-2">
               <Box className="w-4 h-4 text-purple-400" />
-              معرض ميديا وأصول البراند في الفضاء ثلاثي الأبعاد (Workspace 3D)
+              معرض ميديا وأصول براند ({name || brandData?.name || activeBrandId})
             </span>
-            <button
-              onClick={() => setIsMediaVaultOpen(false)}
-              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/40 text-rose-200 text-xs font-bold cursor-pointer"
-            >
-              إغلاق ✕
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShow3DWorkspaceInVault((v) => !v)}
+                className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 border border-purple-400/40 text-purple-200 text-xs font-bold cursor-pointer"
+              >
+                {show3DWorkspaceInVault ? 'عرض شبكة الأصول' : 'عرض الفضاء ثلاثي الأبعاد 3D'}
+              </button>
+              <button
+                onClick={() => { setIsMediaVaultOpen(false); setShow3DWorkspaceInVault(false); }}
+                className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/40 text-rose-200 text-xs font-bold cursor-pointer"
+              >
+                إغلاق ✕
+              </button>
+            </div>
           </div>
-          <div className="flex-1 min-h-0 relative">
-            <React.Suspense fallback={<div className="p-10 text-center text-purple-300 text-xs">جاري فتح الفضاء ثلاثي الأبعاد...</div>}>
-              <WorkspaceExplorer
-                userId={activeBrandId}
-                onItemSelect={() => {}}
-                onBack={() => setIsMediaVaultOpen(false)}
-              />
-            </React.Suspense>
+          <div className="flex-1 min-h-0 relative overflow-y-auto p-4">
+            {show3DWorkspaceInVault ? (
+              <React.Suspense fallback={<div className="p-10 text-center text-purple-300 text-xs">جاري فتح الفضاء ثلاثي الأبعاد...</div>}>
+                <WorkspaceExplorer
+                  userId={activeBrandId}
+                  onItemSelect={() => {}}
+                  onBack={() => setShow3DWorkspaceInVault(false)}
+                />
+              </React.Suspense>
+            ) : (() => {
+              const assets: any[] = Array.isArray(brandData?.mediaAssets) ? brandData.mediaAssets : [];
+              if (assets.length === 0) {
+                return (
+                  <div className="max-w-lg mx-auto mt-10 p-6 rounded-2xl bg-[#060d24] border border-purple-500/35 text-center space-y-3">
+                    <Sparkles className="w-8 h-8 text-purple-300 mx-auto" />
+                    <div className="text-sm font-black text-white">لا توجد تصميمات أو فيديوهات مولّدة بعد لهذا البراند</div>
+                    <p className="text-xs text-white/65">اضغط على "فتح تقويم ستوديو" لتوليد تصميمات السوشيال وفيديوهات الريلز وحفظها هنا تلقائياً.</p>
+                    {onOpenStudioCalendar && (
+                      <button
+                        type="button"
+                        onClick={() => { setIsMediaVaultOpen(false); onOpenStudioCalendar(); }}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-cyan-500 text-slate-950 text-xs font-black cursor-pointer"
+                      >
+                        توليد محتوى في تيتو ستوديو الآن
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {assets.map((asset: any, idx: number) => (
+                    <div key={asset.id || idx} className="rounded-2xl bg-[#070f26] border border-white/15 overflow-hidden flex flex-col justify-between">
+                      {asset.mediaFormat === 'video' ? (
+                        <video src={asset.url} controls className="w-full h-44 object-cover bg-black" />
+                      ) : (
+                        <img src={asset.url} alt={asset.title || `أصل ${idx + 1}`} className="w-full h-44 object-cover bg-black" />
+                      )}
+                      <div className="p-3 space-y-2">
+                        <div className="text-xs font-bold text-white line-clamp-2">{asset.title}</div>
+                        <div className="flex items-center justify-between text-[10px] text-white/60">
+                          <span>{asset.day || asset.mediaFormat}</span>
+                          <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:underline font-bold">فتح ↗</a>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

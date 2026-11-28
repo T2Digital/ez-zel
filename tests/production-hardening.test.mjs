@@ -1557,6 +1557,79 @@ test("44) Frictionless 7-day trial (no Google gate), smart brand naming + dropsh
   assert.ok(battahApp.includes("PlatformShowcaseDirectory"), "Root store.t2os.app/ must render PlatformShowcaseDirectory instead of empty storefront");
 });
 
+test("45) 17-Point Audit Remediation: Brand SSoT, Switcher & Confirmation, Booking Tenant Isolation, Bot Speed, Agent SSO, Pricing & Polish", () => {
+  const hubRoutesSrc = fs.readFileSync(path.join(process.cwd(), "routes", "brandHubRoutes.ts"), "utf8");
+  assert.ok(
+    hubRoutesSrc.includes("canonicalName") &&
+      hubRoutesSrc.includes("stats: {") &&
+      hubRoutesSrc.includes("persistBrandUpdateAcrossEcosystem") &&
+      hubRoutesSrc.includes("mediaAssets"),
+    "brandHubRoutes must provide canonical identity, unified live stats, media assets, and sync updates back to Vault"
+  );
+
+  const modalSrc = fs.readFileSync(path.join(process.cwd(), "components", "JarvisBattleStationModal.tsx"), "utf8");
+  assert.ok(
+    modalSrc.includes('aria-label="اختيار البراند النشط"') &&
+      modalSrc.includes("pendingBrandCreation") &&
+      modalSrc.includes("briefingPreview"),
+    "JarvisBattleStationModal must render Cockpit header Brand Switcher, creation confirmation card, and visible briefing preview"
+  );
+
+  const cmdHubSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisBrandCommandHub.tsx"), "utf8");
+  assert.ok(
+    cmdHubSrc.includes("getBrandIndustryDefaults") &&
+      !cmdHubSrc.includes("useState('عندكم تيل فرامل") &&
+      !cmdHubSrc.includes('placeholder="مثال: أوتو هاوس متخصص') &&
+      cmdHubSrc.includes("agentFullUrl") &&
+      cmdHubSrc.includes("show3DWorkspaceInVault"),
+    "JarvisBrandCommandHub must use dynamic industry defaults, signed SSO URL for Agent, and real Media Gallery"
+  );
+
+  const dockSrc = fs.readFileSync(path.join(process.cwd(), "components", "jarvis", "JarvisMasterVoiceDock.tsx"), "utf8");
+  assert.ok(
+    dockSrc.includes("FormattedJarvisReply") && dockSrc.includes("عرض المزيد"),
+    "JarvisMasterVoiceDock must safely format Markdown replies with clickable links and expand toggle"
+  );
+
+  const growthSrc = fs.readFileSync(path.join(process.cwd(), "services", "growthAgencyEngine.ts"), "utf8");
+  assert.ok(
+    growthSrc.includes("validateAndBindBrandContent"),
+    "growthAgencyEngine must validate brand phone/name/canonical URL and strip UTF-8 mojibake"
+  );
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), "server.ts"), "utf8");
+  assert.ok(
+    serverSrc.includes("signT2AgentSsoToken") && serverSrc.includes("agentFullUrl"),
+    "/api/embed/signed-urls must require auth and issue short-lived signed SSO tokens"
+  );
+
+  const pricingSrc = fs.readFileSync(path.join(process.cwd(), "components", "Pricing.tsx"), "utf8");
+  assert.equal(pricingSrc.includes("TerminalEffect"), false, "Pricing must drop distracting TerminalEffect clutter");
+  assert.ok(pricingSrc.includes("PRICING_FAQS"), "Pricing must include clear tier grid and FAQ section");
+
+  const agentAuthSrc = fs.readFileSync("D:\\khedr-bot\\middlewares\\authMiddleware.js", "utf8");
+  assert.ok(agentAuthSrc.includes("verifyT2SsoToken"), "khedr-bot authMiddleware must verify signed T2 SSO tokens");
+
+  const cmChatSrc = fs.readFileSync(
+    "C:\\Users\\ahmed\\.gemini\\antigravity\\brain\\036fb332-c89d-4066-97a1-2cb5a627f42b\\scratch\\clean-master-repo\\components\\ChatBot.tsx",
+    "utf8"
+  );
+  assert.ok(cmChatSrc.includes("tryInstantFaqReply"), "Booking ChatBot must provide instant FAQ fast-path");
+  assert.equal(cmChatSrc.includes("showModelDropdown"), false, "Booking ChatBot must hide internal AI model switcher from customers");
+
+  const cmHeaderSrc = fs.readFileSync(
+    "C:\\Users\\ahmed\\.gemini\\antigravity\\brain\\036fb332-c89d-4066-97a1-2cb5a627f42b\\scratch\\clean-master-repo\\components\\Header.tsx",
+    "utf8"
+  );
+  assert.equal(cmHeaderSrc.includes("لوحة تحكم الإدارة"), false, "Booking Header must hide public Admin link");
+
+  const cmAdminSrc = fs.readFileSync(
+    "C:\\Users\\ahmed\\.gemini\\antigravity\\brain\\036fb332-c89d-4066-97a1-2cb5a627f42b\\scratch\\clean-master-repo\\components\\pages\\AdminPage.tsx",
+    "utf8"
+  );
+  assert.equal(cmAdminSrc.includes("useState('cleanmastereg@gmail.com')"), false, "Booking AdminPage must not prefill admin email");
+});
+
 
 
 

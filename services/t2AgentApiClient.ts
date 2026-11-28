@@ -2,8 +2,31 @@
  * Complete Enterprise REST Client for T2 AI Agent Enterprise
  * Connects Ez-Zel / Jarvis Brain directly to T2 AI Agent (WhatsApp, Meta, TikTok, CRM, Broadcasts, Payments).
  */
+import crypto from "crypto";
 
 const DEFAULT_T2_AGENT_URL = "https://agent.t2os.app";
+
+export function signT2AgentSsoToken(params: {
+  brandId: string;
+  email?: string;
+  isMaster?: boolean;
+  ttlMs?: number;
+}): string {
+  const secret = (process.env.T2_AGENT_ADMIN_KEY || process.env.ADMIN_SECRET_KEY || process.env.ADMIN_API_SECRET || "").trim();
+  if (!secret) return "";
+  const payload = Buffer.from(
+    JSON.stringify({
+      scope: "t2_agent_sso",
+      brandId: params.brandId || "clean_master",
+      email: (params.email || (params.isMaster ? "ahm.atya@gmail.com" : "")).trim().toLowerCase(),
+      isMaster: Boolean(params.isMaster),
+      exp: Date.now() + (params.ttlMs || 10 * 60 * 1000),
+    }),
+    "utf8"
+  ).toString("base64url");
+  const sig = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+  return `t2sso_${payload}.${sig}`;
+}
 
 export function getT2AgentBaseUrl(): string {
   return (
@@ -165,10 +188,17 @@ export const t2AgentApi = {
     agentRequest("POST", `/api/external/v1/admin/actions/${encodeURIComponent(action)}`, payload),
   getExternalWindowData: (brandId: string, windowName: string) =>
     agentRequest("GET", `/api/external/v1/brands/${encodeURIComponent(brandId)}/windows/${encodeURIComponent(windowName)}`),
-  buildAgentEmbedUrl: (windowName: string, brandId: string, apiKey?: string) => {
+  buildAgentEmbedUrl: (windowName: string, brandId: string, apiKey?: string, ssoToken?: string) => {
     const base = getT2AgentBaseUrl();
     const qs = new URLSearchParams({ brandId: brandId || "clean_master", embed: "1" });
-    if (apiKey) qs.set("apiKey", apiKey);
+    if (ssoToken) qs.set("ssoToken", ssoToken);
+    else if (apiKey) qs.set("apiKey", apiKey);
     return `${base}/embed/${encodeURIComponent(windowName || "crm")}?${qs.toString()}`;
+  },
+  buildAgentFullDashboardUrl: (brandId: string, ssoToken?: string) => {
+    const base = getT2AgentBaseUrl();
+    const qs = new URLSearchParams({ brandId: brandId || "clean_master" });
+    if (ssoToken) qs.set("ssoToken", ssoToken);
+    return `${base}/dashboard?${qs.toString()}`;
   },
 };

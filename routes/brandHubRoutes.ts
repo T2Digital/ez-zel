@@ -307,15 +307,17 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
       const agentBrandId = brand?.id || tenant?.templateId || slug;
       const savedHub = await loadHubConfigPersistent(slug);
 
-      const [erpState, liveConversationsRes, liveAgentStatusRes] = await Promise.all([
+      const [erpState, liveConversationsRes, liveAgentStatusRes, liveBookingsRes] = await Promise.all([
         loadTenantErpState(slug).catch(() => null),
         t2AgentApi.getConversations(agentBrandId).catch(() => null),
         t2AgentApi.getBrandStatus(agentBrandId).catch(() => null),
+        t2AgentApi.getBookings(agentBrandId).catch(() => null),
       ]);
 
       const storefront = erpState?.storefrontSettings || {};
+      const vaultProducts = Array.isArray(brand?.productsCatalog) ? brand.productsCatalog : [];
       const erpProducts = Array.isArray(erpState?.products) ? erpState.products : [];
-      const catalog = erpProducts.length > 0 ? erpProducts : (brand?.productsCatalog || []);
+      const catalog = vaultProducts.length > 0 ? vaultProducts : erpProducts;
       const appUrl = savedHub.appUrl || resolveBrandRealAppUrl(brand, tenant);
 
       // Extract real conversations from T2 AI Agent
@@ -335,6 +337,37 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
         time: c.updatedAt || c.time || "",
       }));
 
+      const rawBookings = Array.isArray(liveBookingsRes?.bookings)
+        ? liveBookingsRes.bookings
+        : Array.isArray(liveBookingsRes)
+          ? liveBookingsRes
+          : [];
+      const erpOrders = Array.isArray(erpState?.orders) ? erpState.orders : [];
+      const weekContentPlan = Array.isArray(savedHub.weekContentPlan) && savedHub.weekContentPlan.length > 0
+        ? savedHub.weekContentPlan
+        : Array.isArray(brand?.weekContentPlan)
+          ? brand.weekContentPlan
+          : [];
+      const marketingStrategy = savedHub.marketingStrategy || brand?.marketingStrategy || null;
+      const mediaAssets = Array.from(
+        new Map(
+          [
+            ...(brand?.logoUrl ? [{ id: "brand_logo", title: "شعار البراند", url: brand.logoUrl, mediaFormat: "image", status: "brand_asset" }] : []),
+            ...weekContentPlan
+              .filter((p: any) => p?.visualUrl || p?.imageUrl || p?.videoUrl || p?.mediaUrl)
+              .map((p: any, i: number) => ({
+                id: p.id || `plan_asset_${i}`,
+                title: p.hook || p.title || p.day || `أصل إبداعي #${i + 1}`,
+                url: p.videoUrl || p.visualUrl || p.imageUrl || p.mediaUrl,
+                mediaFormat: p.mediaFormat || (p.videoUrl ? "video" : "image"),
+                status: p.status || "scheduled",
+                day: p.day || "",
+              })),
+            ...(Array.isArray(savedHub.mediaAssets) ? savedHub.mediaAssets : []),
+          ].map((item) => [item.url, item])
+        ).values()
+      );
+
       const agentConnected = Boolean(
         liveAgentStatusRes?.whatsappConnected ||
           liveAgentStatusRes?.connected ||
@@ -342,25 +375,48 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
           tenant?.whatsappBot
       );
 
+      const canonicalName = savedHub.name || brand?.name || storefront.companyName || tenant?.businessName || slug;
+      const canonicalPhone = savedHub.phone || brand?.phone || storefront.contactPhone || tenant?.whatsappBot || "";
+      const isBookingBiz =
+        brand?.appTemplate === "services_booking" ||
+        /تنظيف|نظاف|عياد|دكتور|صيان|سيار|ليموزين|سباك|كهرب|clinic|clean|car|service/i.test(`${brand?.businessType || ""} ${canonicalName}`);
+      const defaultPolicy = isBookingBiz
+        ? "تنفيذ الحجوزات داخل القاهرة والجيزة في الموعد المحدد مع إمكانية الدفع عند الانتهاء أو إلكترونياً بخصم 10%."
+        : "التوصيل داخل القاهرة والجيزة خلال 24 ساعة، وباقي المحافظات خلال 48-72 ساعة.";
+
       const payload = {
         id: agentBrandId,
         slug: brand?.slug || tenant?.slug || slug,
-        name: storefront.companyName || savedHub.name || brand?.name || tenant?.businessName || slug,
+        name: canonicalName,
         slogan: savedHub.slogan || brand?.slogan || "",
         businessType: brand?.businessType || tenant?.templateName || "نشاط تجاري",
+        appTemplate: brand?.appTemplate || (isBookingBiz ? "services_booking" : "products_erp"),
         logoUrl: savedHub.logoUrl || brand?.logoUrl || "",
-        primaryColor: storefront.primaryColor || savedHub.primaryColor || brand?.primaryColor || "#0284c7",
-        phone: storefront.contactPhone || savedHub.phone || brand?.phone || tenant?.whatsappBot || "",
-        address: storefront.address || savedHub.address || brand?.address || "",
+        primaryColor: savedHub.primaryColor || storefront.primaryColor || brand?.primaryColor || "#0284c7",
+        phone: canonicalPhone,
+        address: savedHub.address || storefront.address || brand?.address || "",
         appUrl,
         adminUrl: `${appUrl.replace(/\/$/, "")}/?admin=1`,
         agentPortalUrl: `${getT2AgentBaseUrl()}/embed/crm?brandId=${encodeURIComponent(brand?.slug || slug)}&embed=1`,
         catalogCount: catalog.length,
         productsCatalog: catalog.slice(0, 30),
+        marketingStrategy,
+        weekContentPlan,
+        lastStrategyAt: savedHub.lastStrategyAt || marketingStrategy?.createdAt || brand?.lastStrategyAt || null,
+        lastPlanAt: savedHub.lastPlanAt || brand?.lastPlanAt || null,
+        mediaAssets,
+        stats: {
+          bookingsCount: rawBookings.length,
+          conversationsCount: Math.max(rawConvs.length, Number(brand?.conversationsCount || 0)),
+          ordersCount: erpOrders.length,
+          postsCount: weekContentPlan.length,
+          approvedPostsCount: weekContentPlan.filter((p: any) => p?.approved || p?.status === "scheduled" || p?.status === "published" || p?.status === "PUBLISHED").length,
+          source: liveAgentStatusRes || liveConversationsRes ? "t2_agent_live" : "unified_cache",
+        },
         agentConfig: {
           tone: savedHub.agentConfig?.tone || brand?.toneOfVoice || "ودي واحترافي باللهجة المصرية، يركز على إغلاق البيع بوضوح",
-          welcomeMessage: savedHub.agentConfig?.welcomeMessage || `أهلاً بك في ${brand?.name || slug}! كيف نقدر نساعدك اليوم؟`,
-          shippingPolicy: savedHub.agentConfig?.shippingPolicy || "التوصيل داخل القاهرة والجيزة خلال 24 ساعة، وباقي المحافظات خلال 48-72 ساعة.",
+          welcomeMessage: savedHub.agentConfig?.welcomeMessage || `أهلاً بك في ${canonicalName}! كيف نقدر نساعدك اليوم؟`,
+          shippingPolicy: savedHub.agentConfig?.shippingPolicy || defaultPolicy,
           forbiddenTopics: savedHub.agentConfig?.forbiddenTopics || "عدم تأكيد أي خصم غير موجود في الكتالوج أو تقديم وعود تسليم فورية خارج ساعات العمل.",
           faq: savedHub.agentConfig?.faq || "",
         },
@@ -510,6 +566,21 @@ export function registerBrandHubRoutes(app: Express, deps: BrandHubDeps) {
       };
 
       const firestoreSaved = await saveHubConfigPersistent(slug, next);
+
+      // Sync canonical brand identity across Vault + Obsidian + Public Brand API (Single Source of Truth)
+      try {
+        const { persistBrandUpdateAcrossEcosystem } = await import("../services/obsidianVaultService");
+        persistBrandUpdateAcrossEcosystem(brand?.id || slug, {
+          ...(name !== undefined ? { name } : {}),
+          ...(slogan !== undefined ? { slogan } : {}),
+          ...(phone !== undefined ? { phone } : {}),
+          ...(address !== undefined ? { address } : {}),
+          ...(primaryColor !== undefined ? { primaryColor } : {}),
+          ...(appUrl !== undefined ? { appUrl, vercelUrl: appUrl } : {}),
+          ...(knowledgeBase !== undefined ? { knowledgeBase, directKnowledge: knowledgeBase } : {}),
+          ...(socialConnections ? { metaConnected: Boolean(socialConnections.facebook), instagramConnected: Boolean(socialConnections.instagram) } : {}),
+        });
+      } catch {}
 
       // Sync identity updates straight to Tenant Cloud ERP storefrontSettings
       let erpSynced = false;

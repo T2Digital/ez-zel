@@ -1210,7 +1210,33 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
   const [isGeneratingWeekPlan, setIsGeneratingWeekPlan] = useState(false);
   const [isApprovingSchedule, setIsApprovingSchedule] = useState(false);
   const [activeBrandStrategy, setActiveBrandStrategy] = useState<any>(null);
+  const [pendingBrandCreation, setPendingBrandCreation] = useState<{
+    brandName: string;
+    industry: string;
+    appTemplate: string;
+    isDropshipping?: boolean;
+    phone?: string;
+  } | null>(null);
+  const [briefingPreview, setBriefingPreview] = useState<{
+    period: 'morning' | 'evening';
+    title: string;
+    text: string;
+    delivered?: boolean;
+    note?: string;
+  } | null>(null);
   const [turboFlowVideoUrlInput, setTurboFlowVideoUrlInput] = useState('');
+
+  // Auto-hydrate persisted marketingStrategy when selectedBrandId or allBrandsList loads/updates
+  useEffect(() => {
+    const active = selectedBrandId
+      ? allBrandsList.find((b) => b.id === selectedBrandId || b.slug === selectedBrandId)
+      : allBrandsList[0];
+    if (active?.marketingStrategy) {
+      setActiveBrandStrategy(active.marketingStrategy);
+    } else {
+      setActiveBrandStrategy(null);
+    }
+  }, [selectedBrandId, allBrandsList]);
 
   const handleGenerateBrandingKit = async () => {
     if (!brandingForm.brandName.trim()) {
@@ -1266,9 +1292,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     setActiveDeckTab('studio_calendar');
     // Silent button activation
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/studio/strategy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({ brandId: targetId })
       });
       const d = await res.json();
@@ -1293,9 +1321,11 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
     setActiveDeckTab('studio_calendar');
     // Silent button activation
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/studio/generate-week-plan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({ brandId: targetId })
       });
       const d = await res.json();
@@ -1383,15 +1413,26 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
 
   const handleSendDailyBriefingNow = async (period: 'morning' | 'evening') => {
     try {
+      const headers = await getAdminAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/system/trigger-daily-briefing', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({ period, brandId: currentSelectedBrand.id })
       });
       const d = await res.json();
       if (d.ok) {
-        toast.success(d.message || 'تم إرسال التقرير الدوري إلى واتساب!');
-        playShadowVoice(d.briefing?.voiceScript || d.message, 'male');
+        setBriefingPreview({
+          period,
+          title: d.briefing?.title || (period === 'morning' ? '☀️ تقرير الصباح' : '🌙 تقرير المساء'),
+          text: d.briefing?.text || d.message || 'تم إعداد التقرير التنفيذي الحي.',
+          delivered: Boolean(d.liveDelivered),
+          note: d.liveDelivered ? undefined : d.message,
+        });
+        toast.success(d.message || 'تم تجهيز التقرير التنفيذي الحي!');
+        playShadowVoice(d.briefing?.voiceScript || d.briefing?.text || d.message, 'male');
+      } else {
+        toast.error(d.error || 'تعذر تجهيز التقرير');
       }
     } catch {
       toast.error('تعذر إرسال التقرير');
@@ -1985,6 +2026,9 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
           hasExistingBusiness: true
         });
       }
+      if (data.action?.type === 'CONFIRM_BRAND_CREATION' && data.action.proposedBrand) {
+        setPendingBrandCreation(data.action.proposedBrand);
+      }
       if (data.success && data.replyText) {
         const cleanReply = isMasterAdmin
           ? data.replyText
@@ -2307,6 +2351,26 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   تجربة مجانية 7 أيام
                 </span>
               )}
+              {allBrandsList.length > 0 && !adminPreviewVisitor && (
+                <select
+                  aria-label="اختيار البراند النشط"
+                  value={currentSelectedBrand?.id || selectedBrandId || ''}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    if (nextId) {
+                      handleSelectBrand(nextId);
+                      handleInspectObsidianNode(nextId);
+                    }
+                  }}
+                  className="max-w-[170px] px-2 py-0.5 rounded-xl bg-[#041028] border border-cyan-400/35 text-[11px] font-bold text-cyan-100 focus:outline-none focus:border-cyan-300 cursor-pointer"
+                >
+                  {allBrandsList.map((b: any) => (
+                    <option key={b.id || b.slug} value={b.id || b.slug} className="bg-[#020614] text-white">
+                      {b.name || b.slug || b.id}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -2329,7 +2393,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     const bId = currentSelectedBrand?.id || 'clean_master';
                     let embedUrl = `https://agent.t2os.app/embed/crm?brandId=${encodeURIComponent(bId)}&embed=1`;
                     try {
-                      const r = await fetch(`/api/embed/signed-urls?brandId=${encodeURIComponent(bId)}&window=crm`);
+                      const headers = await getAdminAuthHeaders();
+                      const r = await fetch(`/api/embed/signed-urls?brandId=${encodeURIComponent(bId)}&window=crm`, { credentials: 'include', headers });
                       const j = await r.json();
                       if (j?.agentEmbedUrl) embedUrl = j.agentEmbedUrl;
                     } catch {}
@@ -2347,7 +2412,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                     const cId = currentSelectedBrand?.id || 'brand_1779847291377';
                     let embedUrl = `https://studio.t2os.app/?embed=1&view=calendar&hideSidebar=1&hideHeader=1&clinicId=${encodeURIComponent(cId)}`;
                     try {
-                      const r = await fetch(`/api/embed/signed-urls?clinicId=${encodeURIComponent(cId)}&view=calendar`);
+                      const headers = await getAdminAuthHeaders();
+                      const r = await fetch(`/api/embed/signed-urls?clinicId=${encodeURIComponent(cId)}&view=calendar`, { credentials: 'include', headers });
                       const j = await r.json();
                       if (j?.studioEmbedUrl) embedUrl = j.studioEmbedUrl;
                     } catch {}
@@ -2465,13 +2531,16 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                   type="button"
                   onClick={() => {
                     stopAllJarvisAudio();
-                    if (storeUser) {
-                      if (onNavigateTo) onNavigateTo(isMasterAdmin ? '/admin' : '/command-center');
-                      else window.location.href = isMasterAdmin ? '/admin' : '/command-center';
-                    } else {
-                      if (onNavigateTo) onNavigateTo('/auth');
-                      else window.location.href = '/auth';
-                    }
+                    onClose();
+                    const dest = storeUser
+                      ? isMasterAdmin
+                        ? '/admin'
+                        : currentSelectedBrand?.slug
+                          ? `/client/${encodeURIComponent(currentSelectedBrand.slug)}`
+                          : '/command-center'
+                      : '/auth';
+                    if (onNavigateTo) onNavigateTo(dest);
+                    else window.location.assign(dest);
                   }}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-cyan-500/20 text-cyan-200 border border-cyan-400/35 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer"
                 >
@@ -2654,6 +2723,38 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 handlePlayPersonaGreeting={handlePlayPersonaGreeting}
                 setIsPlayingVoice={setIsPlayingVoice}
               />
+
+              {/* Pending Brand Creation Confirmation Card (Never silently hijacks Cockpit on vague prompt) */}
+              {pendingBrandCreation && (
+                <div className="shrink-0 w-full max-w-xl p-3 rounded-2xl bg-[#041129]/95 border-2 border-amber-400/50 shadow-[0_0_24px_rgba(245,158,11,0.2)] text-right space-y-2">
+                  <div className="text-xs font-black text-amber-200">
+                    تأكيد إنشاء براند جديد: {pendingBrandCreation.brandName} ({pendingBrandCreation.industry})
+                  </div>
+                  <div className="text-[11px] text-white/75">
+                    سيتم إنشاء مساحة عمل مستقلة بنموذج ({pendingBrandCreation.appTemplate === 'services_booking' ? 'تطبيق حجوزات وخدمات' : 'متجر إلكتروني'}) دون المساس ببيانات براندك الحالي.
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const p = pendingBrandCreation;
+                        setPendingBrandCreation(null);
+                        handleSendLiveCommand(`تأكيد إنشاء البراند: اعمل ${p.appTemplate === 'services_booking' ? 'تطبيق حجوزات' : 'متجر إلكتروني'} باسم "${p.brandName}" في مجال ${p.industry}`);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer"
+                    >
+                      ✅ تأكيد وإنشاء البراند الآن
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPendingBrandCreation(null)}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-rose-500/25 text-white/80 text-xs font-bold cursor-pointer"
+                    >
+                      ❌ إلغاء والبقاء على البراند الحالي
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Direct Free-Text Command Input Bar */}
               <form
@@ -3181,11 +3282,12 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
             {activeDeckTab === 'brand_hub' && (
               <div className="relative z-20 w-full mt-1">
                 <JarvisBrandCommandHub
-                  brandId={selectedBrandId || currentSelectedBrand?.slug || currentSelectedBrand?.id || 'auto-house'}
+                  brandId={selectedBrandId || currentSelectedBrand?.slug || currentSelectedBrand?.id || 'clean_master'}
                   initialBrand={currentSelectedBrand}
                   isMasterAdmin={isMasterAdmin}
                   onBackToGrid={() => setActiveDeckTab('obsidian_graph')}
                   onOpenStudioCalendar={() => setActiveDeckTab('studio_calendar')}
+                  onOpenAdLauncher={() => setActiveDeckTab('ad_launcher')}
                   onOpenWhatsAppModal={(bId) => handleOpenWhatsAppConnectModal(bId)}
                   onOpenMetaModal={(bId) => handleOpenMetaConnectModal(bId)}
                 />
@@ -3316,6 +3418,8 @@ export const JarvisBattleStationModal: React.FC<JarvisBattleStationModalProps> =
                 isGeneratingWeekPlan={isGeneratingWeekPlan}
                 isApprovingSchedule={isApprovingSchedule}
                 isPublishingPost={isPublishingPost}
+                briefingPreview={briefingPreview}
+                onDismissBriefingPreview={() => setBriefingPreview(null)}
                 handleBuildStudioStrategy={handleBuildStudioStrategy}
                 handleGenerateWeekPlan={handleGenerateWeekPlan}
                 handleApproveSchedule={handleApproveSchedule}

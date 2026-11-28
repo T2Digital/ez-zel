@@ -5,7 +5,7 @@ import { BRAND_VAULT } from './brandVault';
 import { findMatchingBrandRecord, transliterateArabicToSlug } from './brandIdentityNormalizer';
 import { applyRegistryToBrands } from './brandRegistryService';
 import { readBookings, saveBooking, broadcastGatewayEvent } from './microservicesGateway';
-import { publishBrandPost, launchAdCampaign, getPublishedLogs } from './growthAgencyEngine';
+import { publishBrandPost, launchAdCampaign, getPublishedLogs, validateAndBindBrandContent } from './growthAgencyEngine';
 import { cloneOrSynthesizeBrand } from './appClonerCrawlerService';
 import {
     readTitoStudioCacheSync,
@@ -1816,7 +1816,9 @@ export async function executeRealJarvisEcosystemAction(input: {
                 return { success: false, error: 'لم يتم العثور على البراند المطلوب' };
             }
             const strategy = await generateBrandMarketingStrategy(targetBrand);
+            const nowIso = strategy?.createdAt || new Date().toISOString();
             targetBrand.marketingStrategy = strategy;
+            (targetBrand as any).lastStrategyAt = nowIso;
             saveCustomBrandOverride(targetBrand);
             await upsertBrandToTitoStudioFirestore(targetBrand);
             syncAndBuildObsidianVault();
@@ -1824,6 +1826,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 success: true,
                 brand: targetBrand,
                 strategy,
+                lastStrategyAt: nowIso,
                 message: `تم بناء وحفظ الاستراتيجية التسويقية الكاملة لبراند (${targetBrand.name}) في تيتو ستوديو وأوبسيديان بنجاح!`
             };
         }
@@ -1837,16 +1840,20 @@ export async function executeRealJarvisEcosystemAction(input: {
             if (!targetBrand.marketingStrategy) {
                 targetBrand.marketingStrategy = await generateBrandMarketingStrategy(targetBrand);
             }
-            const freshPlan = buildOmniChannelWeekPlan({
+            const rawPlan = buildOmniChannelWeekPlan({
                 id: targetBrand.id,
                 slug: targetBrand.slug || targetBrand.id,
                 name: targetBrand.name,
                 businessType: targetBrand.businessType,
+                appTemplate: (targetBrand as any).appTemplate,
                 phone: targetBrand.phone,
                 primaryColor: targetBrand.primaryColor,
                 strategy: targetBrand.marketingStrategy
             });
+            const freshPlan = rawPlan.map((item) => validateAndBindBrandContent(targetBrand, item));
+            const nowIso = new Date().toISOString();
             targetBrand.weekContentPlan = freshPlan;
+            (targetBrand as any).lastPlanAt = nowIso;
             saveCustomBrandOverride(targetBrand);
             const syncedCount = await syncWeekPlanToTitoStudioFirestore(targetBrand, freshPlan);
             syncAndBuildObsidianVault();
@@ -1856,6 +1863,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 success: true,
                 brand: targetBrand,
                 weekPlan: freshPlan,
+                lastPlanAt: nowIso,
                 syncedCount,
                 imagePostsCount,
                 videoPostsCount,
@@ -1931,7 +1939,7 @@ export async function executeRealJarvisEcosystemAction(input: {
             const caption = data.customCaption || `${hook}\n\nاكتشف التفاصيل والباقات المخصصة لك مع ${targetBrand.name}. تواصل واتساب مباشرة: ${targetBrand.phone || '01013372674'}`;
 
             const docId = `custom_post_${Date.now()}`;
-            const postItem: any = {
+            const rawPostItem: any = {
                 id: docId,
                 brandId: targetBrand.id,
                 brandName: targetBrand.name,
@@ -1948,6 +1956,7 @@ export async function executeRealJarvisEcosystemAction(input: {
                 ctaBadge: '💬 تواصل واتساب فوري (رد صوتي ذكي)',
                 ctaTargetUrl: `https://wa.me/2${(targetBrand.phone || '01013372674').replace(/^0/, '')}`
             };
+            const postItem = validateAndBindBrandContent(targetBrand, rawPostItem);
 
             if (!Array.isArray(targetBrand.weekContentPlan)) {
                 targetBrand.weekContentPlan = [];

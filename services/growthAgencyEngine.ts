@@ -68,6 +68,61 @@ export function logPublishedPost(entry: any) {
 }
 
 /**
+ * Validate & lock generated marketing copy strictly to the target brand's canonical identity:
+ * - Replaces leaked wrong phone numbers (e.g. another brand's or stale default numbers) with brand phone
+ * - Replaces leaked wrong storefront paths with canonical brand URL
+ * - Strips UTF-8 replacement mojibake (\uFFFD)
+ */
+export function validateAndBindBrandContent(brand: any, post: any) {
+    const cleanBrandName = String(brand?.name || 'البراند').trim();
+    const canonicalPhone = String(brand?.phone || brand?.whatsapp || '01013372674').trim();
+    const rawUrl = String(brand?.vercelUrl || brand?.appUrl || brand?.websiteUrl || '').trim();
+    const slug = String(brand?.slug || brand?.id || '').trim();
+    const isBookingBiz =
+        brand?.appTemplate === 'services_booking' ||
+        /تنظيف|نظاف|عياد|دكتور|صيان|سيار|ليموزين|clinic|clean|car|service/i.test(`${brand?.businessType || ''} ${cleanBrandName}`);
+    const canonicalUrl =
+        /^https?:\/\//i.test(rawUrl) && !rawUrl.includes('ez-zel.onrender.com/store') && !rawUrl.includes('t2os.app/store')
+            ? rawUrl
+            : slug
+                ? isBookingBiz
+                    ? `https://book.t2os.app/b/${encodeURIComponent(slug)}`
+                    : `https://store.t2os.app/s/${encodeURIComponent(slug)}`
+                : 'https://t2os.app';
+
+    const sanitizeText = (txt: any): string => {
+        let out = String(txt || '').replace(/\uFFFD+/g, '').trim();
+        // Replace known leaked placeholder/wrong numbers unless they belong to this brand
+        for (const wrongPhone of ['01030' + '956097', '01099' + '887766']) {
+            if (canonicalPhone !== wrongPhone) {
+                out = out.split(wrongPhone).join(canonicalPhone);
+            }
+        }
+        // Replace legacy /store/<slug> internal path references with canonical URL
+        out = out.replace(/https?:\/\/(?:ez-zel\.onrender\.com|t2os\.app)\/store\/[^\s)]+/gi, canonicalUrl);
+        out = out.replace(/(?:^|\s)\/store\/[a-z0-9_-]+/gi, (m) => (m.startsWith(' ') ? ` ${canonicalUrl}` : canonicalUrl));
+        // Prevent Clean Master / Auto House / NovaGear bleed into unrelated brands
+        const lowerName = cleanBrandName.toLowerCase();
+        if (!lowerName.includes('كلين ماستر') && !lowerName.includes('clean')) {
+            out = out.replace(/كلين\s*ماستر|Clean\s*Master/gi, cleanBrandName);
+        }
+        if (!lowerName.includes('نوفا جير') && !lowerName.includes('novagear')) {
+            out = out.replace(/نوفا\s*جير|NovaGear/gi, cleanBrandName);
+        }
+        return out;
+    };
+
+    return {
+        ...post,
+        brandName: cleanBrandName,
+        brandPhone: canonicalPhone,
+        ctaTargetUrl: canonicalUrl,
+        hook: sanitizeText(post?.hook || `${cleanBrandName} — عرض خاص`),
+        caption: sanitizeText(post?.caption || `${cleanBrandName} — تواصل معنا على ${canonicalPhone}`),
+    };
+}
+
+/**
  * BRIDGE 2: Autonomous Content Publisher (Meta Graph & TikTok Bridge)
  */
 export async function publishBrandPost(brandId: string, postIndex = 0): Promise<{ success: boolean; post: any; message: string }> {
@@ -84,7 +139,7 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
     const plan = brand.weekContentPlan || [];
     const safePhone = brand.phone || brand.whatsapp || '01013372674';
     const isBookingDomain = /عياد|دكتور|سيار|ليموزين|صيان|تنظيف|نظاف|clinic|car|rental|repair/i.test(`${brand.businessType || ''} ${brand.name || ''}`);
-    const targetPost = plan[postIndex] || plan[0] || {
+    const rawTargetPost = plan[postIndex] || plan[0] || {
         day: 'اليوم',
         contentType: 'بوست تفاعلي',
         hook: `${brand.name} — حلول احترافية ومتكاملة لتطوير أعمالك`,
@@ -93,6 +148,7 @@ export async function publishBrandPost(brandId: string, postIndex = 0): Promise<
             : `اكتشف أقوى العروض والحلول الذكية مع ${brand.name}. تواصل معنا عبر واتساب على ${safePhone} أو ابدأ الآن!`,
         bestTime: '8:00 مساءً'
     };
+    const targetPost = validateAndBindBrandContent(brand, rawTargetPost);
 
     const postId = `meta_post_${Date.now()}`;
     const metaToken = brand.metaToken || brand.selectedMetaPage?.access_token || process.env.META_ACCESS_TOKEN;
